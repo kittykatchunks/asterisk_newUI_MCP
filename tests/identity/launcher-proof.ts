@@ -67,7 +67,7 @@ try {
     await page.locator("#password").fill(alice.password);
     await page.locator("#kc-login").click();
     await page.getByRole("button", { name: /^Inspect / }).click();
-    await page.getByRole("heading", { name: "Synthetic SIP evidence", exact: true }).waitFor();
+    await page.getByRole("region", { name: "Candidate review", exact: true }).getByRole("heading", { name: "Synthetic SIP evidence", exact: true }).waitFor();
     assert.equal(await page.getByLabel("Inert report preview").textContent(), html);
     await page.getByLabel("Review reason", { exact: true }).fill("Launcher restart persistence fixture review");
     await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();

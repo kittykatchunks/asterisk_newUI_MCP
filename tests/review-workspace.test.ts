@@ -104,8 +104,15 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(store.pending("customer-a").length, 1);
       assert.equal(await page.getByRole("button").count(), 0, "Shell must not retrieve evidence without a session adapter");
       await connect(reviewer);
+      const pendingList = page.getByRole("region", { name: "Pending reports", exact: true });
+      await pendingList.getByRole("heading", { name: title, exact: true }).waitFor();
+      assert.ok((await pendingList.textContent())?.includes("incident-" + "a".repeat(32)));
+      assert.ok((await pendingList.textContent())?.includes("2026-10-22T12:00:00Z"));
+      assert.ok((await pendingList.textContent())?.includes(approved.sha256));
+      assert.equal(await pendingList.locator("img, script, iframe").count(), 0);
+      assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
       await page.getByRole("button", { name: `Inspect ${approved.id}`, exact: true }).click();
-      await page.getByRole("heading", { name: title, exact: true }).waitFor();
+      await page.getByRole("region", { name: "Candidate review", exact: true }).getByRole("heading", { name: title, exact: true }).waitFor();
       assert.equal(await page.getByLabel("Inert report preview").textContent(), html);
       assert.equal(await page.locator("iframe").count(), 1);
       assert.equal(await page.locator("img, script, form").count(), 0);
@@ -127,6 +134,21 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await previewFrame.evaluate(() => {
         try { localStorage.getItem("preview-test"); return true; } catch { return false; }
       }), false);
+      const evidenceText = await rendered.locator("body").textContent();
+      await page.getByLabel("Find evidence text", { exact: true }).fill("invite");
+      await page.getByLabel("Find evidence text", { exact: true }).press("Enter");
+      await rendered.locator("mark").filter({ hasText: "INVITE" }).waitFor();
+      assert.equal(await rendered.locator("mark").count(), 1);
+      assert.equal(await rendered.locator("body").textContent(), evidenceText);
+      await page.getByRole("status").filter({ hasText: "1 match(es)" }).waitFor();
+      await page.getByLabel("Find evidence text", { exact: true }).fill("<img src=x onerror=alert(1)>");
+      await page.getByRole("button", { name: "Highlight matches", exact: true }).click();
+      await rendered.locator("mark").waitFor({ state: "detached" });
+      await page.getByRole("status").filter({ hasText: "0 match(es)" }).waitFor();
+      assert.equal(await rendered.locator("body").textContent(), evidenceText);
+      await page.getByRole("button", { name: "Clear highlights", exact: true }).click();
+      assert.equal(await page.getByLabel("Find evidence text", { exact: true }).inputValue(), "");
+      assert.equal(await page.getByLabel("Inert report preview").textContent(), html);
       await page.getByText("Original report source", { exact: true }).click();
       assert.equal(await page.evaluate(() => document.body.dataset.executed), undefined);
       assert.deepEqual(unexpected, []);
@@ -172,8 +194,24 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("alert").filter({ hasText: "409: review_already_decided" }).waitFor();
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);
       assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+      assert.equal(await page.getByLabel("Find evidence text", { exact: true }).count(), 0);
       assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
       assert.equal(await store.catalog.report("customer-a", "incident-" + "c".repeat(32)), undefined);
+
+      const changed = stage("f");
+      await page.getByRole("button", { name: "Refresh pending reports" }).click();
+      const changedUrl = `**/api/customers/customer-a/diagnostics/reviews/${changed.id}`;
+      await page.route(changedUrl, async (route) => {
+        const response = await route.fetch();
+        const body = await response.json();
+        body.candidate.entry.summary.title = "Changed metadata";
+        await route.fulfill({ response, json: body });
+      });
+      await page.getByRole("button", { name: `Inspect ${changed.id}`, exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "Candidate metadata changed" }).waitFor();
+      assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+      await page.unroute(changedUrl);
 
       await connect(await jwt("reader"));
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
@@ -186,6 +224,21 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await connect(reviewer);
       await page.getByRole("alert").filter({ hasText: "503: synthetic_storage_failure" }).waitFor();
       await page.unroute("**/api/customers/customer-a/diagnostics/reviews");
+      for (const badSummary of [
+        undefined,
+        { id: "wrong", title: "Report", createdAt: "2026-10-22T12:00:00Z" },
+        { id: "incident-" + "f".repeat(32), title: "", createdAt: "2026-10-22T12:00:00Z" },
+        { id: "incident-" + "f".repeat(32), title: "Report", createdAt: "invalid" },
+      ]) {
+        await page.route("**/api/customers/customer-a/diagnostics/reviews", (route) => route.fulfill({
+          status: 200, contentType: "application/json",
+          body: JSON.stringify({ candidates: [{ ...changed, summary: badSummary }] }),
+        }));
+        await connect(reviewer);
+        await page.getByRole("alert").filter({ hasText: "Invalid pending report response" }).waitFor();
+        assert.equal(await page.getByRole("button", { name: `Inspect ${changed.id}`, exact: true }).count(), 0);
+        await page.unroute("**/api/customers/customer-a/diagnostics/reviews");
+      }
       await page.route("**/api/customers/customer-a/diagnostics/reviews", (route) => route.fulfill({
         status: 200, contentType: "application/json", body: JSON.stringify({ candidates: [{ id: "../wrong", sha256: "x" }] }),
       }));
@@ -205,6 +258,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       }, reviewer);
       assert.equal(await page.getByText("Review connection closed.", { exact: true }).count(), 1);
       assert.equal(await page.getByRole("button").count(), 0);
+      assert.equal(await page.getByLabel("Find evidence text", { exact: true }).count(), 0);
       assert.deepEqual(unexpected, []);
       assert.deepEqual(errors, []);
       const limits = await page.evaluate(async () => {
@@ -224,6 +278,47 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.match(limits[0], /size limit/);
       assert.match(limits[1], /structure exceeds/);
       assert.match(limits[2], /structure exceeds/);
+      const searches = await page.evaluate(async () => {
+        const path = "/engineering/review-preview.js";
+        const { createReviewPreview } = await import(path);
+        const cases = [
+          { html: "<p>Literal .+? [42] matches</p>", query: ".+? [42]" },
+          { html: "<p>Case INVITE invite</p>", query: "InViTe" },
+          { html: "<p>\u0130 I \u0131 i</p>", query: "i" },
+          { html: "<p>never split <b>across</b> nodes</p>", query: "split across" },
+          { html: "<p>&lt;script&gt; &amp; &lt;img&gt;</p>", query: "<script>" },
+          { html: "<p>" + "a".repeat(1000) + "</p>", query: "a" },
+          { html: "<p>" + "a".repeat(1001) + "</p>", query: "a" },
+        ];
+        return cases.map(({ html, query }) => {
+          const preview = createReviewPreview(html);
+          const input = preview.search.querySelector("input");
+          const button = preview.search.querySelector("button");
+          if (!input || !button) throw new Error("Missing preview search controls");
+          input.value = query;
+          button.click();
+          const parsed = document.createElement("template");
+          parsed.innerHTML = preview.frame.srcdoc;
+          return {
+            matches: Array.from(parsed.content.querySelectorAll("mark"), (mark) => mark.textContent),
+            text: parsed.content.textContent,
+            status: preview.search.querySelector('[role="status"]')?.textContent,
+            active: parsed.content.querySelectorAll("script, img, a, iframe, form").length,
+          };
+        });
+      });
+      assert.deepEqual(searches[0].matches, [".+? [42]"]);
+      assert.deepEqual(searches[1].matches, ["INVITE", "invite"]);
+      assert.deepEqual(searches[2].matches, ["I", "i"]);
+      assert.ok(searches[2].text?.endsWith("\u0130 I \u0131 i"));
+      assert.deepEqual(searches[3].matches, []);
+      assert.deepEqual(searches[4].matches, ["<script>"]);
+      assert.equal(searches[5].matches.length, 1000);
+      assert.match(searches[5].status ?? "", /^1000 match/);
+      assert.equal(searches[6].matches.length, 1000);
+      assert.match(searches[6].status ?? "", /first 1,000 matches/);
+      assert.ok(searches[6].text?.endsWith("a".repeat(1001)), "Highlight limits must never omit evidence text");
+      assert.ok(searches.every((search) => search.active === 0));
     } finally { await context.close(); }
   } finally {
     if (browser) await browser.close();

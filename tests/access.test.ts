@@ -382,6 +382,10 @@ test("authenticated review endpoints isolate customers, bind reviewer identity a
     assert.equal(list.status,200);
     const listing=await list.json();
     assert.equal(listing.candidates.length,4);
+    assert.deepEqual(listing.candidates.find((candidate: { id: string }) => candidate.id === own.id), {
+      ...own, summary: staged("customer-a", incidentA).summary,
+    });
+    assert.ok(listing.candidates.every((candidate: { summary: { id: string } }) => candidate.summary.id !== incidentB));
     assert.ok(!JSON.stringify(listing).includes(reportHtml));
     const candidate=await fetch(`${root}/${own.id}`,{ headers: reviewerHeaders });
     assert.equal(candidate.status,200);

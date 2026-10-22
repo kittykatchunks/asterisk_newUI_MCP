@@ -17,6 +17,16 @@ function reference(value) {
     typeof value.sha256 === "string" && /^[0-9a-f]{64}$/.test(value.sha256);
 }
 
+/** @param {unknown} value @returns {value is { id: string, title: string, createdAt: string }} */
+function summary(value) {
+  return record(value) && typeof value.id === "string" && /^incident-[0-9a-f]{32}$/.test(value.id) &&
+    typeof value.title === "string" && !!value.title.trim() && value.title.length <= 200 &&
+    typeof value.createdAt === "string" && Number.isFinite(Date.parse(value.createdAt));
+}
+
+/** @param {unknown} value @returns {value is { id: string, sha256: string, summary: { id: string, title: string, createdAt: string } }} */
+function pendingReference(value) { return reference(value) && summary(value.summary); }
+
 /** @type {(() => void) | undefined} */
 let disconnect;
 
@@ -118,19 +128,26 @@ export async function connectReviewWorkspace(connection) {
     list.replaceChildren();
     status.textContent = "Loading pending reports...";
     const body = await request(endpoint);
-    if (!record(body) || !Array.isArray(body.candidates) || !body.candidates.every(reference)) {
+    if (!record(body) || !Array.isArray(body.candidates) || !body.candidates.every(pendingReference)) {
       throw new Error("Invalid pending report response");
     }
     if (disposed) return;
     for (const candidate of body.candidates) {
+      const item = document.createElement("article");
+      item.append(element("h2", candidate.summary.title),
+        element("p", `Incident: ${candidate.summary.id}`),
+        element("p", `Created: ${candidate.summary.createdAt}`),
+        element("p", `Candidate: ${candidate.id}`),
+        element("p", `Snapshot SHA-256: ${candidate.sha256}`));
       const button = document.createElement("button");
       button.textContent = `Inspect ${candidate.id}`;
       button.onclick = () => { void run(() => inspect(candidate)); };
-      list.append(button);
+      item.append(button);
+      list.append(item);
     }
     status.textContent = body.candidates.length ? `${body.candidates.length} pending report(s).` : "No pending reports.";
   }
-  /** @param {{ id: string, sha256: string }} candidate */
+  /** @param {{ id: string, sha256: string, summary: { id: string, title: string, createdAt: string } }} candidate */
   async function inspect(candidate) {
     selected = undefined;
     detail.hidden = true;
@@ -147,6 +164,10 @@ export async function connectReviewWorkspace(connection) {
         (entry.report !== undefined && (!record(entry.report) || typeof entry.report.html !== "string"))) {
       throw new Error("Invalid candidate content or customer scope");
     }
+    if (entry.summary.id !== candidate.summary.id || entry.summary.title !== candidate.summary.title ||
+        entry.summary.createdAt !== candidate.summary.createdAt) {
+      throw new Error("Candidate metadata changed. Refresh pending reports.");
+    }
     if (disposed) return;
     selected = { ...candidate, title: entry.summary.title, incident: entry.summary.id };
     detail.append(element("h2", entry.summary.title),
@@ -159,6 +180,7 @@ export async function connectReviewWorkspace(connection) {
       const rendered = createReviewPreview(entry.report.html);
       detail.append(element("h3", "Restricted rendered preview"),
         element("p", `Simplified text/table view. ${rendered.removed} unsupported or active element(s) removed or unwrapped; source attributes and styling are stripped. This is not a redaction check or an exact export rendering.`),
+        rendered.search,
         rendered.frame);
     }
     const source = document.createElement("details");

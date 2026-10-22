@@ -5,7 +5,10 @@ main { max-width: 1100px; margin: auto; padding: 2rem; }
 h1 { margin-top: 0; }
 section, dialog { background: white; border: 1px solid #bccbd6; border-radius: .5rem; padding: 1.25rem; }
 section { margin: 1rem 0; }
-button, textarea { font: inherit; }
+article + article { border-top: 1px solid #bccbd6; margin-top: 1rem; padding-top: 1rem; }
+article p { overflow-wrap: anywhere; }
+button, textarea, input[type="search"] { font: inherit; }
+input[type="search"] { display: block; box-sizing: border-box; width: 100%; padding: .5rem; margin-top: .5rem; }
 button { padding: .6rem 1rem; margin: .3rem .6rem .3rem 0; cursor: pointer; }
 button:disabled { cursor: default; }
 textarea { display: block; box-sizing: border-box; width: 100%; min-height: 6rem; margin: .5rem 0; }

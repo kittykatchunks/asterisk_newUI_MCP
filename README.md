@@ -629,6 +629,18 @@ restricted rendered preview described below plus the exact original HTML through
 live document or frame. Approved interactive reports remain a separate
 permission-controlled route.
 
+Pending reports are displayed as individual cards with title, incident ID,
+creation time, candidate ID and snapshot SHA-256, so engineers can identify
+evidence before opening it. The review-list API adds an allowlisted `summary`
+object (`id`, `title`, `createdAt`) to each candidate reference, derived from the
+integrity-checked stored snapshot. It does not return report HTML, arbitrary
+snapshot fields or another customer's metadata. The existing review permission
+and audit-before-delivery checks still apply. Titles are inserted as text, not
+HTML. Opening a candidate checks that its metadata and hash agree with the list;
+malformed or changed metadata produces an explicit error and no decision
+controls. Existing candidate-ID ordering is unchanged; paging and assignment
+remain future work.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
@@ -685,6 +697,17 @@ certify its suitability, reproduce source styling or provide the report's
 interactive filters. Reviewers must check original content and intended
 disclosure, not treat the simplified preview as proof that the export is safe.
 
+The application-owned **Find evidence text** control highlights case-insensitive
+literal matches within individual text nodes of the simplified preview. Enter
+or **Highlight matches** applies the search; **Clear highlights** restores the
+unmarked view. Search never hides rows or other evidence and does not modify the
+original report, source view, review reason or approval hash. Terms spanning
+separate inline elements do not match. Queries are limited to 200 characters and
+only the first 1,000 occurrences are highlighted, with an explicit notice when
+more exist. Searching rebuilds the frame and resets its scroll position; no
+script or same-origin sandbox allowance is added. Search text is not sent to the
+server or persisted in browser storage.
+
 Input is limited to 2 MiB, 100,000 visited nodes and 128 levels of nesting.
 Exceeding limits fails explicitly, clears the selected review and offers no
 approval controls for that failed selection. Limits bound the reconstruction;
@@ -695,7 +718,10 @@ details; active markup and resource-loading probes cannot execute or issue
 external requests, and the frame cannot access parent DOM or localStorage.
 Size/depth/node-limit failures are tested. The real Keycloak proof checks the
 captured SIP report's two evidence tables and visible provenance before approving
-the original snapshot. Failure/disconnect paths remove both preview and source.
+the original snapshot, including search highlighting without changing evidence
+text or table counts. Search tests cover literal punctuation/HTML, Unicode case
+matching, text-node boundaries, no matches and the exact 1,000-highlight boundary.
+Failure/disconnect paths remove preview, search controls and source.
 
 ### Server-managed application login/session proof
 

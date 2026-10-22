@@ -2,13 +2,13 @@ import { DatabaseSync } from "node:sqlite";
 import { isAbsolute } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { assertApprovedIncident, createIncidentCatalog } from "./incidents.ts";
-import type { ApprovedIncident, IncidentCatalog } from "./incidents.ts";
+import type { ApprovedIncident, IncidentCatalog, IncidentSummary } from "./incidents.ts";
 import type { AccessAudit } from "./diagnostic-api.ts";
 
 export interface DiagnosticStore {
   catalog: IncidentCatalog;
   stage(entries: readonly ApprovedIncident[]): { id: string; sha256: string }[];
-  pending(customer: string): { id: string; sha256: string }[];
+  pending(customer: string): { id: string; sha256: string; summary: IncidentSummary }[];
   candidate(id: string): { entry: ApprovedIncident; sha256: string } | undefined;
   review(id: string, review: IncidentReview, access?: AccessAudit): void;
   audit(event: AccessAudit): Promise<void>;
@@ -201,11 +201,12 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
       return db.prepare(`SELECT c.* FROM report_candidates c
         LEFT JOIN incident_reviews r ON r.candidate = c.id
         WHERE c.customer = ? AND r.candidate IS NULL ORDER BY c.id`).all(customer).map((row) => {
-        parseEntry(row.customer, row.incident, row.entry);
+        const entry = parseEntry(row.customer, row.incident, row.entry);
         if (typeof row.id !== "string" || typeof row.entry !== "string" || row.sha256 !== entryHash(row.entry)) {
           throw new Error("Staged incident integrity check failed");
         }
-        return { id: row.id, sha256: entryHash(row.entry) };
+        return { id: row.id, sha256: entryHash(row.entry),
+          summary: { id: entry.summary.id, title: entry.summary.title, createdAt: entry.summary.createdAt } };
       });
     },
     candidate(id) {

@@ -74,7 +74,7 @@ try {
       const reviewRoot = `${origin}/api/customers/${account.customer}/diagnostics/reviews`;
       if (account.username === "alice") {
         await page.getByRole("button", { name: `Inspect ${candidate.id}`, exact: true }).click();
-        await page.getByRole("heading", { name: "Session-reviewed synthetic report" }).waitFor();
+        await page.getByRole("region", { name: "Candidate review", exact: true }).getByRole("heading", { name: "Session-reviewed synthetic report" }).waitFor();
         const decision = { decision: "approve", reason: "Invalid CSRF attempt", sha256: candidate.sha256 };
         const invalidCsrfHeaders: Record<string, string>[] = [
           { Cookie: cookie, Origin: origin },

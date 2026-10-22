@@ -114,6 +114,18 @@ readability, active-content/resource removal, parent/storage isolation and
 size/structure limits. Original source and hash-bound approval are preserved.
 Full-fidelity interactive review and production UX/session operations remain open.
 
+The restricted preview also supports application-owned literal text search:
+bounded highlights only, no hidden evidence, report scripts or added sandbox
+permissions. Source and publication hashes are unaffected. Browser tests verify
+Unicode/literal matching and highlight limits; the identity fixture searches the
+captured SIP report before approval.
+
+Pending report cards replace ID-only selection with allowlisted snapshot metadata
+(title, incident ID and creation time alongside candidate ID/hash). The existing
+review permission/audit gate remains unchanged. Integrity checks precede metadata
+delivery, unknown fields are omitted, and browser selection rejects list/detail
+metadata mismatches. Pagination and reviewer assignment are not implemented.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

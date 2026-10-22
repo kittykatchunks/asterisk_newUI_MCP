@@ -59,6 +59,26 @@ test("approved reports and allowlisted audit records survive database reopening"
   });
 });
 
+test("pending report summaries are allowlisted, customer-scoped and detached from stored snapshots", async () => {
+  await fixture(async (path) => {
+    const store = openDiagnosticStore(path);
+    try {
+      const original = entry();
+      const staged = store.stage([
+        { ...original, summary: { ...original.summary, ...{ privateNote: "not-list-metadata" } } },
+        entry("customer-b", "b"),
+      ]);
+      const pending = store.pending("customer-a");
+      assert.deepEqual(pending, [{ ...staged[0], summary: original.summary }]);
+      assert.ok(!JSON.stringify(pending).includes("not-list-metadata"));
+      pending[0].summary.title = "Changed by caller";
+      assert.deepEqual(store.pending("customer-a")[0].summary, original.summary);
+      assert.deepEqual(store.pending("unknown-customer"), []);
+      assert.deepEqual(await store.catalog.list("customer-a"), []);
+    } finally { store.close(); }
+  });
+});
+
 test("staging batches are atomic, validated, insert-only and customer-keyed", async () => {
   await fixture(async (path) => {
     const store = openDiagnosticStore(path);
@@ -238,7 +258,7 @@ test("staged and rejected reports stay hidden; approvals bind the exact reviewed
         const [rejected] = store.stage([entry("customer-b", "b")]);
         assert.deepEqual(await store.catalog.list("customer-a"), []);
         assert.equal(await store.catalog.report("customer-a", entry().summary.id), undefined);
-        assert.deepEqual(store.pending("customer-a"), [pending]);
+        assert.deepEqual(store.pending("customer-a"), [{ ...pending, summary: entry().summary }]);
         assert.deepEqual(store.candidate(pending.id), { entry: entry(), sha256: pending.sha256 });
         const review = { reviewer: "engineer-123", reason: "Reviewed redaction and scope", sha256: pending.sha256, decision: "approve" as const };
         assert.throws(() => store.review(pending.id, { ...review, sha256: "0".repeat(64) }), /hash/);
@@ -251,7 +271,7 @@ test("staged and rejected reports stay hidden; approvals bind the exact reviewed
         assert.throws(() => store.review(rejected.id, { ...review, sha256: rejected.sha256 }));
         store.close();
         store = openDiagnosticStore(path);
-        assert.deepEqual(store.pending("customer-a"), [pending]);
+        assert.deepEqual(store.pending("customer-a"), [{ ...pending, summary: entry().summary }]);
         store.review(pending.id, review);
         assert.deepEqual(store.pending("customer-a"), []);
         assert.equal(await store.catalog.report("customer-a", entry().summary.id), html);
@@ -277,7 +297,7 @@ test("staged and rejected reports stay hidden; approvals bind the exact reviewed
           sha256: pending.sha256, decision: "approve", reviewer: "engineer", reason: "Synthetic review",
         }), /persistence failure/);
         assert.deepEqual(await store.catalog.list("customer-a"), []);
-        assert.deepEqual(store.pending("customer-a"), [pending]);
+        assert.deepEqual(store.pending("customer-a"), [{ ...pending, summary: entry().summary }]);
         assert.equal(writer.prepare("SELECT count(*) AS total FROM incident_reviews").get()?.total, 0);
         writer.exec(`DROP TRIGGER fail_review;
           CREATE TRIGGER fail_publication BEFORE INSERT ON incidents
@@ -286,7 +306,7 @@ test("staged and rejected reports stay hidden; approvals bind the exact reviewed
           sha256: pending.sha256, decision: "approve", reviewer: "engineer", reason: "Synthetic review",
         }), /publication failure/);
         assert.equal(writer.prepare("SELECT count(*) AS total FROM incident_reviews").get()?.total, 0);
-        assert.deepEqual(store.pending("customer-a"), [pending]);
+        assert.deepEqual(store.pending("customer-a"), [{ ...pending, summary: entry().summary }]);
       } finally { writer.close(); store.close(); }
     });
   });

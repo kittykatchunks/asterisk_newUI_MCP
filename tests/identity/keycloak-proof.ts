@@ -219,7 +219,7 @@ try {
           await module.connectReviewWorkspace(accessToken);
         }, tokens.access_token);
         await page.getByRole("button", { name: `Inspect ${pendingReview.id}`, exact: true }).click();
-        await page.getByRole("heading", { name: "Synthetic SIP evidence", exact: true }).waitFor();
+        await page.getByRole("region", { name: "Candidate review", exact: true }).getByRole("heading", { name: "Synthetic SIP evidence", exact: true }).waitFor();
         assert.equal(await page.getByLabel("Inert report preview").textContent(),
           entries.find((entry) => entry.customer === account.customer)?.report?.html);
         const preview = page.frameLocator('iframe[title="Rendered report preview"]');
@@ -228,6 +228,13 @@ try {
         assert.ok(await preview.locator("table").first().locator("tbody tr").count() > 0);
         assert.ok(await preview.locator("details[open]").count() > 0);
         assert.equal(await preview.locator("script, style, a, img, form, input, iframe").count(), 0);
+        const originalPreviewText = await preview.locator("body").textContent();
+        await page.getByLabel("Find evidence text", { exact: true }).fill("invite");
+        await page.getByRole("button", { name: "Highlight matches", exact: true }).click();
+        await preview.locator("mark").first().waitFor();
+        assert.ok(await preview.locator("mark").count() > 0);
+        assert.equal(await preview.locator("body").textContent(), originalPreviewText);
+        assert.equal(await preview.getByRole("table").count(), 2);
         assert.ok(!(await page.content()).includes(tokens.access_token));
         assert.equal((await fetch(`${reviewRoot.replace(account.customer, other.customer)}/${pendingReview.id}`, { headers })).status, 403);
         const decide = () => fetch(`${reviewRoot}/${pendingReview.id}`, {

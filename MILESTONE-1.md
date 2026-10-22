@@ -78,6 +78,19 @@ remains available. Browser tests verify readable evidence, blocked active conten
 parent/storage isolation and structure limits. Approval still applies to the exact
 original snapshot; preview simplification is not redaction or export approval.
 
+Application-owned evidence search now highlights literal case-insensitive matches
+without hiding rows or changing source/approval hashes. The sandbox remains
+scriptless and opaque-origin. Browser tests cover matching boundaries, Unicode,
+literal markup and the 1,000-highlight limit; the real identity proof searches
+captured SIP evidence before approving the unchanged snapshot.
+
+Pending-review cards now show allowlisted titles, incident IDs, timestamps and
+snapshot hashes before evidence is opened. Metadata is read from integrity-checked
+customer-scoped snapshots behind the existing reviewer permission/audit gate.
+Browser checks reject malformed list summaries and metadata mismatches; storage
+tests verify unknown fields are omitted and returned summaries cannot mutate
+stored evidence. No report content is fetched into the preview until selection.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.
