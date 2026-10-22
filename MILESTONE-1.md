@@ -154,6 +154,11 @@ Real-login tests inject an audit failure and a transport failure, verify no
 automatic retry or false signed-out state, preserve dirty-review/session state
 and confirm a subsequent manual retry clears evidence and denies session replay.
 
+Session bootstrap now offers a manual retry-by-reload action on explicit errors.
+Browser tests cover server/malformed/network failures without evidence requests,
+no automatic retry, unauthenticated recovery to sign-in and authenticated recovery
+with the existing session cookie. This does not persist drafts or replay decisions.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

@@ -119,4 +119,11 @@ try {
 } catch (error) {
   status.setAttribute("role", "alert");
   status.textContent = error instanceof Error ? error.message : "Session connection failed";
+  const retry = document.createElement("button");
+  retry.textContent = "Retry session connection";
+  retry.onclick = () => {
+    retry.disabled = true;
+    location.reload();
+  };
+  bar.append(retry);
 }

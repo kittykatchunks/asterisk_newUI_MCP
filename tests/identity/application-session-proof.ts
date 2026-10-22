@@ -68,6 +68,31 @@ try {
       await page.goto(`${origin}/engineering/reviews/${account.customer}`);
       await page.getByText("Sign in to review reports.", { exact: true }).waitFor();
       assert.equal(apiRequests.length, 0);
+      if (account.username === "alice") {
+        for (const failure of ["server", "malformed", "network"]) {
+          let bootstraps = 0;
+          await page.route("**/auth/session", (route) => {
+            bootstraps++;
+            if (failure === "network") return route.abort("failed");
+            return route.fulfill({
+              status: failure === "server" ? 503 : 200,
+              contentType: "application/json", body: failure === "server" ? "{}" : "{",
+            });
+          });
+          await page.reload();
+          await page.getByRole("button", { name: "Retry session connection", exact: true }).waitFor();
+          assert.equal(await page.getByRole("alert").textContent() !== "", true);
+          assert.equal(await page.getByRole("link", { name: "Sign in", exact: true }).isVisible(), true);
+          assert.equal(await page.getByRole("region", { name: "Pending reports", exact: true }).count(), 0);
+          assert.equal(apiRequests.length, 0);
+          assert.equal(logoutAttempts, 0);
+          assert.equal(bootstraps, 1, "Bootstrap failures must not trigger automatic retries");
+          await page.unroute("**/auth/session");
+          await page.getByRole("button", { name: "Retry session connection", exact: true }).click();
+          await page.getByText("Sign in to review reports.", { exact: true }).waitFor();
+          assert.equal(await page.getByRole("button", { name: "Retry session connection", exact: true }).count(), 0);
+        }
+      }
       await page.getByRole("link", { name: "Sign in", exact: true }).click();
       await page.locator("#username").fill(account.username);
       await page.locator("#password").fill(account.password);
@@ -80,6 +105,21 @@ try {
       const cookie = `${sessionCookies[0].name}=${sessionCookies[0].value}`;
       const reviewRoot = `${origin}/api/customers/${account.customer}/diagnostics/reviews`;
       if (account.username === "alice") {
+        await page.getByRole("button", { name: `Inspect ${candidate.id}`, exact: true }).waitFor();
+        const originalSessionId = sessionCookies[0].value;
+        const beforeRecovery = apiRequests.length;
+        await page.route("**/auth/session", (route) => route.fulfill({
+          status: 503, contentType: "application/json", body: "{}",
+        }));
+        await page.reload();
+        await page.getByRole("button", { name: "Retry session connection", exact: true }).waitFor();
+        assert.equal(apiRequests.length, beforeRecovery);
+        assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        await page.unroute("**/auth/session");
+        await page.getByRole("button", { name: "Retry session connection", exact: true }).click();
+        await page.getByRole("button", { name: `Inspect ${candidate.id}`, exact: true }).waitFor();
+        assert.equal((await context.cookies(origin)).find((entry) => entry.name === "asterisk-test-session")?.value, originalSessionId);
+        assert.equal(logoutAttempts, 0);
         await page.getByRole("button", { name: `Inspect ${candidate.id}`, exact: true }).click();
         await page.getByRole("region", { name: "Candidate review", exact: true }).getByRole("heading", { name: "Session-reviewed synthetic report" }).waitFor();
         const decision = { decision: "approve", reason: "Invalid CSRF attempt", sha256: candidate.sha256 };

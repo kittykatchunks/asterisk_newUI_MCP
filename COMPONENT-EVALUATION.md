@@ -176,6 +176,10 @@ Real-login browser coverage injects durable-audit and transport failures, checks
 the session/draft remain available without false success or automatic retry, then
 verifies successful retry and replay denial.
 
+Bootstrap errors now expose an explicit retry-by-reload control. Browser tests
+verify manual recovery from server/malformed/network responses, no review fetches
+during failure and reuse of an existing valid session without a new login.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

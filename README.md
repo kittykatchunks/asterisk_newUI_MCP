@@ -757,6 +757,16 @@ retry succeeds, clears evidence and denies session replay. A lost response may
 still follow a completed server logout; the message deliberately does not claim
 that the session is definitely active.
 
+Session-bootstrap errors provide **Retry session connection** alongside the
+explicit error and sign-in link. This manually reloads the current workspace,
+rechecks the existing HttpOnly session and fetches the pending list only if
+bootstrap succeeds. It does not automatically retry, start an identity login,
+submit a review decision, or recover discarded drafts. Normal unauthenticated
+401 responses still offer sign-in rather than an error/retry loop. Real-browser
+tests cover server errors, malformed JSON and network failure before login, plus
+successful recovery with the same application-session cookie after login. No
+review requests are made during failed bootstrap.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
