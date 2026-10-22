@@ -254,6 +254,12 @@ failure, hostile text and recovery after timeout/reload, including real server
 sessions. Pagination, correction/revocation and external audit guarantees remain
 outside this increment.
 
+History recovery is additionally tested with the original database removed:
+54 candidates/53 decisions across two customers retain exact recent results,
+older candidate lookups, receipt fields and publication/pending state through
+backup, fresh-path restore and reopening. This validates local SQLite recovery,
+not offsite storage durability or production disaster recovery.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

@@ -164,6 +164,64 @@ test("review history fails explicitly on stored snapshot or receipt corruption",
   });
 });
 
+test("backup restores exact bounded and older review history after the source database is removed", async () => {
+  await fixture(async (path) => {
+    const store = openDiagnosticStore(path);
+    let directory: string;
+    const entries = Array.from({ length: 52 }, (_, index) => ({
+      ...entry(), summary: { ...entry().summary, id: "incident-" + index.toString(16).padStart(32, "0") },
+    }));
+    const candidates = store.stage([...entries, entry("customer-b", "b"), entry("customer-a", "f")]);
+    const [oldest] = candidates;
+    const writer = new DatabaseSync(path);
+    try {
+      for (const [index, candidate] of candidates.slice(0, 53).entries()) {
+        store.review(candidate.id, {
+          decision: index % 2 ? "reject" : "approve", reviewer: `reviewer-${index}`,
+          reason: `Exact reason ${index}: \u00e9\u4e2d\u{1f695}e\u0301 <script>literal</script>\nSecond line`,
+          sha256: candidate.sha256,
+        });
+        writer.prepare("UPDATE incident_reviews SET decided_at = ? WHERE candidate = ?").run(
+          index === 0 ? "2026-10-21T12:00:00Z" : "2026-10-22T12:00:00Z", candidate.id);
+      }
+      const recentA = store.history("customer-a");
+      const recentB = store.history("customer-b");
+      const exact = candidates.map((candidate, index) =>
+        store.history(index === 52 ? "customer-b" : "customer-a", candidate.id));
+      assert.equal(recentA.truncated, true);
+      assert.equal(recentA.reviews.length, 50);
+      assert.ok(!recentA.reviews.some((review) => review.id === oldest.id));
+      directory = await backupDiagnosticStore(path, dirname(path));
+      const manifest = JSON.parse(await readFile(join(directory, "manifest.json"), "utf8"));
+      assert.equal(manifest.candidates, 54);
+      assert.equal(manifest.reviews, 53);
+      writer.close();
+      store.close();
+      await rm(path);
+      const restoredPath = await restoreDiagnosticStore(directory, dirname(path));
+      const restored = openDiagnosticStore(restoredPath);
+      try {
+        assert.deepEqual(restored.history("customer-a"), recentA);
+        assert.deepEqual(restored.history("customer-b"), recentB);
+        for (const [index, candidate] of candidates.entries()) {
+          const customer = index === 52 ? "customer-b" : "customer-a";
+          assert.deepEqual(restored.history(customer, candidate.id), exact[index]);
+        }
+        assert.deepEqual(restored.history("customer-a", candidates[52].id), { reviews: [], truncated: false });
+        assert.equal(restored.pending("customer-a")[0].id, candidates[53].id);
+        assert.equal(await restored.catalog.report("customer-a", entries[0].summary.id), html);
+        assert.equal(await restored.catalog.report("customer-a", entries[1].summary.id), undefined);
+        restored.close();
+        const reopened = openDiagnosticStore(restoredPath);
+        try {
+          assert.deepEqual(reopened.history("customer-a", oldest.id), exact[0]);
+          assert.deepEqual(reopened.history("customer-a"), recentA);
+        } finally { reopened.close(); }
+      } finally { restored.close(); }
+    } finally { if (writer.isOpen) writer.close(); store.close(); }
+  });
+});
+
 test("stored report tampering, malformed entries and customer mismatches fail closed", async () => {
   await fixture(async (path) => {
     const store = openDiagnosticStore(path);

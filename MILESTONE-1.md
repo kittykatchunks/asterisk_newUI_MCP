@@ -242,6 +242,13 @@ session proof verifies history after reload and denies access after logout.
 This is a local durable history view, not external tamper-proof auditing,
 revocation/correction, pagination or production identity persistence.
 
+An additional source-loss recovery test now compares exact history before and
+after backup/restore for 54 candidates and 53 decisions across two customers.
+It removes the original test database before restoration, verifies bounded recent
+history and every exact lookup (including older outcomes), preserves multiline
+Unicode reasons/identities/hashes/timestamps, and rechecks pending/publication
+state and restored-database reopening. Offsite disaster recovery remains unproven.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

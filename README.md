@@ -930,6 +930,16 @@ draft guards, literal hostile-looking text, invalid responses and no extra POST.
 The real confidential-session proof also reads history after reload and checks
 cross-customer denial and logout replay denial.
 
+The storage recovery regression also backs up 54 candidates with 53 recorded
+decisions across two customers, closes and removes the original test database,
+then restores into a fresh path. It compares the exact recent-history results
+(including the 50-record cap and ordering) and every candidate lookup, including
+an older decision outside that list. Reviewer, reason, hash and decision timestamp
+must survive unchanged, including multiline Unicode and literal markup. It also
+checks tenant separation, pending/approved/rejected publication state and history
+after reopening the restored database. This is a local SQLite recovery proof,
+not an offsite-backup or IONOS disaster-recovery acceptance test.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
