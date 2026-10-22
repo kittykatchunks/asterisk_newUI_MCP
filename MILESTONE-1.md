@@ -392,6 +392,15 @@ reopened store. Operator identity is a trusted CLI assertion, not independently
 verified identity or tamper-proof history. Failed-attempt logging and history
 API/UI remain absent.
 
+Operator-only exact receipt lookup now validates stored metadata, context, counts,
+unique assignments, canonical allowlisted JSON and hash before returning detached
+receipt data. A read-only CLI refuses missing sources and old schemas without
+creating or migrating them. Tests verify exact reopen output, unchanged database
+bytes, corruption rejection (including recalculated hashes), invalid/unknown IDs
+and readonly write rejection. Retaining a receipt UUID permits exact reconciliation;
+unknown IDs do not prove failure and a completely lost UUID is not discoverable
+through this command. No browser route, history listing or phone capability is added.
+
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.
 

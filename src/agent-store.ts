@@ -6,6 +6,7 @@ import type { AgentAssignment, AgentDirectory } from "./agent-directory.ts";
 
 export interface AgentStore extends AgentDirectory {
   provision(assignments: readonly AgentAssignment[], context: AgentProvisionContext): AgentProvisionReceipt;
+  receipt(id: string): RecordedAgentProvision | undefined;
   close(): void;
 }
 
@@ -22,6 +23,18 @@ export interface AgentProvisionReceipt {
   unchanged: number;
 }
 
+export interface RecordedAgentProvision extends AgentProvisionReceipt, AgentProvisionContext {
+  assignments: AgentAssignment[];
+}
+
+function assertProvisionContext(context: AgentProvisionContext) {
+  if (!context || ![context.operator, context.reason].every((value) =>
+    typeof value === "string" && !!value.trim() && !/[\x00-\x1f\x7f]/.test(value)) ||
+      context.operator.length > 200 || context.reason.length > 2000) {
+    throw new Error("Agent provisioning requires a bounded operator and reason");
+  }
+}
+
 function parseAssignment(row: Record<string, unknown>): AgentAssignment {
   const assignment = { issuer: row.issuer, subject: row.subject, customer: row.customer,
     extension: row.extension, displayName: row.display_name };
@@ -30,13 +43,15 @@ function parseAssignment(row: Record<string, unknown>): AgentAssignment {
 }
 
 // Operator-only insertions; changing an assignment requires a separate future workflow.
-export function openAgentStore(path: string): AgentStore {
+export function openAgentStore(path: string, options: { readOnly?: boolean } = {}): AgentStore {
   if (!isAbsolute(path)) throw new Error("Agent database requires an absolute local path");
-  const db = new DatabaseSync(path);
+  const db = new DatabaseSync(path, { readOnly: options.readOnly === true });
   try {
-    db.exec("PRAGMA busy_timeout = 250; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;");
+    db.exec("PRAGMA busy_timeout = 250;");
+    if (!options.readOnly) db.exec("PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;");
     const version = db.prepare("PRAGMA user_version").get()?.user_version;
     if (version !== 0 && version !== 1 && version !== 2) throw new Error("Unsupported agent database version");
+    if (options.readOnly && version !== 2) throw new Error("Read-only agent store requires schema version 2; migrate with the trusted writer first");
     if (version === 0) {
       if (db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").get()) {
         throw new Error("Refusing to initialise a nonempty unversioned agent database");
@@ -76,11 +91,7 @@ export function openAgentStore(path: string): AgentStore {
       return { extension: assignment.extension, displayName: assignment.displayName };
     },
     provision(assignments, context) {
-      if (!context || ![context.operator, context.reason].every((value) =>
-        typeof value === "string" && !!value.trim() && !/[\x00-\x1f\x7f]/.test(value)) ||
-        context.operator.length > 200 || context.reason.length > 2000) {
-        throw new Error("Agent provisioning requires a bounded operator and reason");
-      }
+      assertProvisionContext(context);
       createAgentDirectory(assignments);
       const entries = assignments.map(({ issuer, subject, customer, extension, displayName }) =>
         ({ issuer, subject, customer, extension, displayName }));
@@ -112,6 +123,38 @@ export function openAgentStore(path: string): AgentStore {
         db.exec("COMMIT");
         return { id, timestamp, sha256, inserted, unchanged };
       } catch (error) { db.exec("ROLLBACK"); throw error; }
+    },
+    receipt(id) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
+        throw new Error("Invalid agent provisioning receipt ID");
+      }
+      const row = db.prepare("SELECT * FROM agent_provision_receipts WHERE id = ?").get(id);
+      if (!row) return undefined;
+      if (row.id !== id || typeof row.timestamp !== "string" ||
+          !Number.isFinite(Date.parse(row.timestamp)) || new Date(row.timestamp).toISOString() !== row.timestamp ||
+          typeof row.operator !== "string" || typeof row.reason !== "string" ||
+          typeof row.assignments !== "string" || typeof row.sha256 !== "string" ||
+          !/^[0-9a-f]{64}$/.test(row.sha256) ||
+          createHash("sha256").update(row.assignments).digest("hex") !== row.sha256 ||
+          typeof row.inserted !== "number" || !Number.isSafeInteger(row.inserted) || row.inserted < 0 ||
+          typeof row.unchanged !== "number" || !Number.isSafeInteger(row.unchanged) || row.unchanged < 0) {
+        throw new Error("Invalid stored agent provisioning receipt");
+      }
+      const context = { operator: row.operator, reason: row.reason };
+      assertProvisionContext(context);
+      const value: unknown = JSON.parse(row.assignments);
+      if (!Array.isArray(value)) throw new Error("Invalid stored agent provisioning assignments");
+      const assignments: AgentAssignment[] = value.map((item: unknown) => {
+        assertAgentAssignment(item);
+        const { issuer, subject, customer, extension, displayName } = item;
+        return { issuer, subject, customer, extension, displayName };
+      });
+      createAgentDirectory(assignments);
+      if (JSON.stringify(assignments) !== row.assignments || row.inserted + row.unchanged !== assignments.length) {
+        throw new Error("Agent provisioning receipt batch mismatch");
+      }
+      return { id, timestamp: row.timestamp, sha256: row.sha256,
+        inserted: row.inserted, unchanged: row.unchanged, ...context, assignments };
     },
     close() { db.close(); },
   };

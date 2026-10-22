@@ -408,6 +408,16 @@ The CLI now requires operator/reason and returns receipt metadata; these are tru
 operator assertions, not verified identities or tamper-proof signatures. There is
 no failed-attempt log, history endpoint or additional browser disclosure.
 
+An exact receipt reader and read-only operator CLI now validate timestamp/context,
+safe counts, unique assignment identities, canonical allowlisted JSON and SHA-256.
+Known UUID lookup survives reopen and returns detached historical snapshots;
+invalid/corrupt data fails even if an invalid batch's hash was recalculated.
+The CLI neither creates missing databases nor migrates older schemas and is tested
+not to change database bytes. This reconciles known references, not unknown UUIDs
+lost with an entire response; absence does not establish provisioning failure.
+It is an operator-wide metadata tool, not a customer web route or tamper-proof
+provenance, and it does not affect profile authority or introduce retries.
+
 ## 2. Asterisk container
 
 ### Candidates reviewed

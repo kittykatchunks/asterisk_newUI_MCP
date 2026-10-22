@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -167,4 +167,68 @@ test("provision receipt failure rolls back assignments and migration preserves l
     const exact = observer.prepare("SELECT operator, reason, assignments FROM agent_provision_receipts WHERE id = ?").get(empty.id);
     assert.deepEqual({ ...exact }, { operator: " operator ", reason: " reason \u00e9 ", assignments: "[]" });
   } finally { observer.close(); store.close(); await rm(directory, { recursive: true }); }
+});
+
+test("exact receipt lookup survives reopen, validates stored data and read-only CLI never creates a source", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "asterisk-agent-reconcile-"));
+  const path = join(directory, "agents.sqlite");
+  const writer = openAgentStore(path);
+  const batch = [alice, { ...alice, customer: "customer-b", extension: "2001" }];
+  const receipt = writer.provision(batch, context);
+  writer.close();
+  const reader = openAgentStore(path, { readOnly: true });
+  const raw = new DatabaseSync(path);
+  const execute = promisify(execFile);
+  const script = fileURLToPath(new URL("../scripts/Read-AgentProvisionReceipt.ts", import.meta.url));
+  const run = (database = path, id = receipt.id) => execute(process.execPath, [script, database, id], { timeout: 10000 });
+  try {
+    const expected = { ...receipt, ...context, assignments: batch };
+    assert.deepEqual(reader.receipt(receipt.id), expected);
+    const detached = reader.receipt(receipt.id);
+    assert.ok(detached);
+    detached.assignments[0].extension = "9999";
+    assert.deepEqual(reader.receipt(receipt.id), expected);
+    assert.equal(reader.receipt("00000000-0000-0000-0000-000000000000"), undefined);
+    assert.throws(() => reader.receipt("../private"), /Invalid/);
+    assert.throws(() => reader.provision([{ ...alice, subject: "blocked" }], context), /readonly/);
+    const before = await readFile(path);
+    assert.deepEqual(JSON.parse((await run()).stdout), expected);
+    assert.deepEqual(await readFile(path), before, "Receipt CLI must not modify the database");
+    await assert.rejects(run(path, "00000000-0000-0000-0000-000000000000"), /absence does not prove/);
+    const missing = join(directory, "missing.sqlite");
+    await assert.rejects(run(missing));
+    await assert.rejects(access(missing), /ENOENT/);
+    const legacyPath = join(directory, "legacy-read.sqlite");
+    const legacy = new DatabaseSync(legacyPath);
+    legacy.exec("PRAGMA user_version = 1");
+    legacy.close();
+    const legacyBefore = await readFile(legacyPath);
+    assert.throws(() => openAgentStore(legacyPath, { readOnly: true }), /requires schema version 2/);
+    assert.deepEqual(await readFile(legacyPath), legacyBefore);
+    const original = raw.prepare("SELECT * FROM agent_provision_receipts WHERE id = ?").get(receipt.id);
+    assert.ok(original);
+    for (const [column, value] of [
+      ["sha256", "0".repeat(64)], ["timestamp", "not-a-date"], ["operator", ""],
+      ["reason", "x".repeat(2001)], ["inserted", -1], ["unchanged", 10],
+      ["assignments", "{}"],
+    ] as const) {
+      raw.prepare(`UPDATE agent_provision_receipts SET ${column} = ? WHERE id = ?`).run(value, receipt.id);
+      assert.throws(() => reader.receipt(receipt.id), /Invalid|bounded|mismatch/);
+      raw.prepare(`UPDATE agent_provision_receipts SET ${column} = ? WHERE id = ?`).run(original[column], receipt.id);
+    }
+    const invalid = JSON.stringify([{ ...alice, extension: "invalid" }]);
+    raw.prepare("UPDATE agent_provision_receipts SET assignments = ?, sha256 = ? WHERE id = ?")
+      .run(invalid, createHash("sha256").update(invalid).digest("hex"), receipt.id);
+    assert.throws(() => reader.receipt(receipt.id), /Invalid/);
+    await assert.rejects(run(), /Invalid/);
+    for (const json of [JSON.stringify([alice, alice]), JSON.stringify([{ ...alice, secret: "must-not-return" }]),
+      JSON.stringify({ assignments: batch }), JSON.stringify(batch, null, 2)]) {
+      raw.prepare("UPDATE agent_provision_receipts SET assignments = ?, sha256 = ? WHERE id = ?")
+        .run(json, createHash("sha256").update(json).digest("hex"), receipt.id);
+      assert.throws(() => reader.receipt(receipt.id), /Invalid|duplicate|mismatch/);
+    }
+    raw.prepare("UPDATE agent_provision_receipts SET assignments = ?, sha256 = ? WHERE id = ?")
+      .run(original.assignments, original.sha256, receipt.id);
+    assert.deepEqual(reader.receipt(receipt.id), expected);
+  } finally { raw.close(); reader.close(); await rm(directory, { recursive: true }); }
 });

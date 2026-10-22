@@ -1078,6 +1078,36 @@ There is no failed-attempt log or receipt-history browser endpoint yet. Receipts
 contain identity metadata and need the same protection and future recovery policy
 as assignments; diagnostic backup tooling still does not include this database.
 
+An operator can retrieve one known receipt without opening a writer:
+
+```powershell
+node .\scripts\Read-AgentProvisionReceipt.ts 'C:\operator-data\agents.sqlite' 'REPLACE_WITH_RECEIPT_UUID'
+```
+
+This command opens an existing schema-2 database read-only, does not create a
+missing source or migrate older schemas, and prints validated receipt metadata,
+operator/reason and assignment snapshots. Protect its output as identity metadata;
+this is not a customer-scoped web endpoint. `openAgentStore(path, { readOnly: true })`
+also exposes `receipt(uuid)` for trusted server/operator use. Invalid UUIDs,
+corrupt receipts and unavailable storage fail explicitly. A well-formed unknown
+UUID yields `undefined` in the store and a nonzero CLI error, not a fabricated
+successful receipt.
+
+Reads validate canonical timestamp, context limits, safe nonnegative counts,
+count-to-batch length, unique assignment identities, exact allowlisted JSON shape
+and the SHA-256 of stored JSON. Returned objects are detached. A bad receipt is
+rejected even when its hash has been recalculated around invalid or extra-field
+assignment data. These consistency checks are not cryptographic provenance:
+someone who can rewrite the database can rewrite valid data and its hash.
+Historical receipts are not matched against today's assignment row or used to
+authorise an agent; the existing profile boundary remains independent.
+
+Retain the UUID from provisioning output for this exact lookup. It can reconcile
+a previously recorded receipt reference after process restart; it cannot discover
+a UUID lost with the entire response. Receipt absence is not proof a batch failed
+or that a concurrent operation cannot commit. This adds no automatic retry,
+history listing, failed-attempt log or browser route.
+
 ### Read-only PBX operational status (local AMI proof)
 
 `GET /api/customers/{customer}/pbx/status` requires provisioned
