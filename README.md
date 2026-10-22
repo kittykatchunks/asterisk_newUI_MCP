@@ -1686,6 +1686,70 @@ or terminated. WSS/TLS browser delivery, extension-to-lease routing, shared-exte
 conflict safety and the agreed stop-new-offers/finish-current-call sign-out policy
 remain prerequisites before enabling a phone.
 
+#### Durable provisioning intent store (backend only)
+
+`src/agent-provisioning-store.ts` begins stage A of the
+[worker plan](./AGENT-PROVISIONING-PLAN.md). `openAgentProvisioningStore` uses a
+separate absolute-path SQLite database (schema 1, FULL synchronous, DELETE journal,
+250ms busy timeout). It is not opened by the launcher or connected to any HTTP
+route. There is no worker, dispatcher, secret storage, PBX adapter or new privilege.
+Diagnostic and assignment backups do not include this database.
+
+Trusted backend methods:
+
+- `enrol(customer, epoch)` explicitly binds a customer to one authority UUID.
+  Exact enrolment repeats are harmless; changing an enrolled epoch is rejected.
+  Epoch rotation and backup-restore fencing are intentionally not implemented.
+- `enqueue(command, context)` validates an exact version-1 command envelope:
+  operation UUID, customer, epoch, positive revision, lease UUID, future Unix-ms
+  `notAfter`, fixed action and allowlisted payload. `prepare` carries generation
+  UUID plus numeric extension; `activate`, `extend`, `drain`, and `revoke` carry only
+  a generation UUID. Passwords, paths, extra fields and arbitrary commands are
+  rejected. This is data validation, not a generation/phone lifecycle validator.
+- The intent, canonical SHA-256, accepted time, request UUID, asserted actor/reason
+  and customer revision increment commit in one `BEGIN IMMEDIATE` transaction.
+  Revisions start at 1 and must be contiguous per customer/epoch. The intent row
+  itself is the outbox item; it cannot be committed without its audit context.
+- An exact operation retry returns the original intent and context without a
+  new revision or audit entry; different payloads conflict. Retrying after
+  `notAfter` still retrieves the original intent for reconciliation, **not**
+  renewed authority to dispatch it. Operation IDs are globally unique.
+- `operation(customer, operationId)` returns a detached scoped intent and receipt
+  history, or `undefined` for an unknown/foreign-customer operation. Absence does
+  not prove a remote effect never occurred.
+- `record(customer, operationId, receipt)` appends an asserted worker stage using
+  a unique receipt UUID, contiguous per-operation sequence and bounded code.
+  Initial stages may be `applying` or `uncertain`; applying may become verified,
+  failed or uncertain; uncertain may become applying, verified or failed.
+  Verified/failed are terminal. Exact receipt retries reconcile without duplicate
+  rows; changed content, gaps and terminal transitions fail explicitly.
+- `pending(customer, limit)` returns up to 100 nonterminal intents in revision
+  order, including applying/uncertain operations and expired intents requiring
+  reconciliation. Terminal receipts remain accessible by exact lookup. Pending
+  is not permission to apply later revisions after an earlier failed/uncertain
+  operation; a future dispatcher must reconcile/sequence them explicitly.
+
+Reads validate canonical command/context data, hashes, scope, receipt structure
+and transitions. Pending scans validate visited rows before skipping terminal
+operations; output is bounded, but history-scan cost is not yet capacity-tested.
+Multi-statement reads use a consistent transaction. Malformed data, lock contention,
+closed storage and unsupported/foreign schemas fail rather than return empty
+success. Hashes are integrity checks, not signatures or tamper-proof audit.
+
+The caller must independently authenticate the actor/worker, verify current
+session/permission/assignment/lease, enforce generation/extension lifecycle and
+cap deadlines before enqueue or receipt ingestion. Stored receipt stages are
+trusted assertions, not proof of a verified PBX until a real adapter and receipt
+boundary exist. No operation is automatically applied. Existing lease HTTP audits
+and reservation behaviour are unchanged.
+
+`node --test .\tests\agent-provisioning-store.test.ts` verifies reopen/reconciliation,
+exact/conflicting retries, customer/authority/revision isolation, receipt history,
+atomic rollback of intent/context/revision, lock failures, malformed/secret-bearing
+input, corrupt data and four competing processes producing one revision winner.
+Stage A still needs application integration, authenticated worker journal/receipt
+contracts and recovery/fencing acceptance before any PBX dispatch.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

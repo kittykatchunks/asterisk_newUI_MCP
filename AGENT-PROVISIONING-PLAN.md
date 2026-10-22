@@ -274,3 +274,13 @@ gates, not assumptions authorised by this plan.
 
 Next recommended implementation: stage A only. It provides durable coordination
 without claiming a working phone or expanding PBX privileges.
+
+### Stage A progress: backend persistence primitive
+
+`src/agent-provisioning-store.ts` now implements the first backend-only part of
+stage A: explicit customer/epoch enrolment, ordered immutable command intents
+with atomic audit context, a pending outbox view and append-only receipt stages.
+It is not wired into session/lease APIs or the launcher. No dispatcher, worker
+journal/server, authenticated receipt ingestion or PBX adapter is implemented.
+The [README contract](./README.md#durable-provisioning-intent-store-backend-only)
+records exact behaviour and remaining gates. Stage A is not complete.
