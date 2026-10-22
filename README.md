@@ -1944,6 +1944,22 @@ before HTTP requests. Client tests also cover response bounds, redirects,
 truncation and cancellation. No trust-store modifications or persisted private
 keys are used; owned servers and temporary databases are closed/removed.
 
+The same suite also proves restart recovery across separate backend, worker
+journal and fake-runtime SQLite files. An initial command is accepted over real
+mTLS. A child Node executor then exits abruptly (without running its cleanup)
+at one of three cuts: after the applying receipt but before the fake effect,
+after committing the fake effect, or after observing it but before the completion
+receipt. The fake effect is only an immutable operation/command row, not a PBX
+configuration or credential.
+
+Both coordination stores reopen after the command deadline. A new mTLS listener
+and dispatcher read back the durable applying receipt, then the executor only
+observes the separate fake-runtime row. Existing effects verify and reconcile
+back to the backend; missing effects stay uncertain. Repeated steps/readback
+neither replay apply nor duplicate effects/receipts. This combines transport,
+ownership crash release, durable evidence and post-expiry recovery, but does not
+model power loss, journal restore, autonomous revocation or an actual PBX.
+
 #### Single-step worker executor (fake-adapter proof only)
 
 `src/agent-provisioning-executor.ts` provides a separately invoked `step()` over

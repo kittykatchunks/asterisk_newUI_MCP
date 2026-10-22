@@ -362,3 +362,13 @@ Observation after expiry remains permitted, not renewed execution authority.
 Clock maintenance, side-effect-boundary checks and autonomous revocation of
 already-applied state remain adapter/deployment gates; this is not disconnected
 expiry enforcement or a forced interruption of uncooperative effects.
+
+An end-to-end mTLS recovery proof now joins these primitives across actual child
+process exits and three separate durable stores (backend, journal, fake runtime).
+It cuts execution before a fake effect, after its commit, and after observation
+but before a terminal receipt. Reopened coordination stores recover after the
+command deadline: existing fake effects verify through observation/readback,
+missing effects remain uncertain, and neither path replays apply. Repeated
+recovery does not duplicate effects or receipts. This is process-exit recovery,
+not power-loss durability, restored-authority detection, PBX state verification
+or disconnected expiry enforcement; stage B remains incomplete.
