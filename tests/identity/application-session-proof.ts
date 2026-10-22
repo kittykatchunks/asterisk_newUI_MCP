@@ -46,8 +46,14 @@ const provisioning = openAgentStore(agentPath);
 const assignments = accounts.filter((account) => account.username === "alice")
   .map((account) => ({ issuer, subject: account.subject, customer: account.customer, extension: "1001", displayName: "Synthetic agent Alice" }));
 try {
-  assert.deepEqual(provisioning.provision(assignments), { inserted: 1, unchanged: 0 });
-  assert.deepEqual(provisioning.provision(assignments), { inserted: 0, unchanged: 1 });
+  const context = { operator: "identity-proof", reason: "Synthetic agent fixture setup" };
+  const inserted = provisioning.provision(assignments, context);
+  assert.equal(inserted.inserted, 1);
+  assert.equal(inserted.unchanged, 0);
+  const repeated = provisioning.provision(assignments, context);
+  assert.equal(repeated.inserted, 0);
+  assert.equal(repeated.unchanged, 1);
+  assert.notEqual(inserted.id, repeated.id);
 } finally { provisioning.close(); }
 const agents = openAgentStore(agentPath);
 const html = "<!doctype html><h1>Synthetic session report</h1>";

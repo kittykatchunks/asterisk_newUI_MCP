@@ -1011,9 +1011,11 @@ database: diagnostic backup/restore does **not** include agent assignments.
 Schema creation refuses nonempty unversioned, unsupported or malformed databases.
 Reads validate stored assignments again and return only extension/display name.
 
-The selected provisioning policy is insert-only. `store.provision(assignments)`
-validates the entire batch, commits it in one transaction and returns
-`{ inserted, unchanged }` only after commit. An identical existing assignment is
+The selected provisioning policy is insert-only.
+`store.provision(assignments, { operator, reason })` validates the entire batch,
+commits it and its receipt in one transaction and returns
+`{ id, timestamp, sha256, inserted, unchanged }` only after commit.
+An identical existing assignment is
 accepted; changing its extension **or display name** rejects the whole batch,
 including earlier inserts. Duplicate identities, invalid input, database locks
 and corrupt stored assignments fail explicitly. Reads survive closing/reopening
@@ -1036,14 +1038,14 @@ For trusted operator use, prepare an absolute-path JSON file containing an array
 Run with existing parent directories and operator-controlled paths, for example:
 
 ```powershell
-node .\scripts\Provision-AgentAssignments.ts 'C:\operator-data\agents.sqlite' 'C:\operator-data\assignments.json'
+node .\scripts\Provision-AgentAssignments.ts 'C:\operator-data\agents.sqlite' 'C:\operator-data\assignments.json' 'operator-reference' 'Initial approved assignment batch'
 ```
 
-The command prints only inserted/unchanged counts, exits unsuccessfully on a
+The command prints receipt metadata and inserted/unchanged counts, exits unsuccessfully on a
 conflict or storage failure and never silently replaces an assignment. Provisioning
 does not create membership or grant `agent:access`: provision that independently.
 Protect both the JSON and database as identity metadata. There is no web mutation
-route, provisioning audit/history, reassignment, deletion, extension exclusivity,
+route, history API/UI, reassignment, deletion, extension exclusivity,
 active-device lease, assignment backup tooling or SIP secret in this store.
 Multiple people sharing an extension is not yet a supported phone-session policy;
 metadata persistence must not be treated as permission to enable registration.
@@ -1054,6 +1056,27 @@ The real confidential browser-session proof now provisions SQLite, closes it,
 reopens it as the API directory, and checks the existing profile/audit/customer/
 logout boundaries. The normal local launcher remains unconfigured for agents;
 the CLI does not automatically wire a database into it.
+
+Successful provisioning now writes `agent_provision_receipts` in schema version 2.
+Each receipt contains a generated UUID, server timestamp, operator reference
+(1–200 UTF-16 code units), reason (1–2,000 code units), SHA-256 and the exact
+allowlisted assignment JSON in input order, plus inserted/unchanged counts.
+Operator and reason must be nonblank and free of control characters; values are
+preserved, not trimmed. The hash covers UTF-8 JSON with fields in
+issuer/subject/customer/extension/displayName order, excluding unrelated input
+fields. Identical reruns create new receipts with the same batch hash; they do not
+reuse an earlier receipt. Empty batches are recorded with zero counts.
+
+Receipt insertion failure rolls back assignment inserts, and invalid, conflicting
+or locked batches do not create successful receipts. Version-1 stores migrate
+without changing existing assignments or inventing historical receipt provenance.
+Receipts are operator-local records, not cryptographic signatures, independently
+authenticated operator identities or tamper-proof logs: the CLI's operator/reason
+are trusted caller assertions, command-line values can appear in process history,
+and file owners can modify SQLite. Keep sensitive material out of those arguments.
+There is no failed-attempt log or receipt-history browser endpoint yet. Receipts
+contain identity metadata and need the same protection and future recovery policy
+as assignments; diagnostic backup tooling still does not include this database.
 
 ### Read-only PBX operational status (local AMI proof)
 

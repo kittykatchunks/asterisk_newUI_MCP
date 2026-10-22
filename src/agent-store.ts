@@ -1,11 +1,25 @@
 import { isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { createHash, randomUUID } from "node:crypto";
 import { assertAgentAssignment, createAgentDirectory } from "./agent-directory.ts";
 import type { AgentAssignment, AgentDirectory } from "./agent-directory.ts";
 
 export interface AgentStore extends AgentDirectory {
-  provision(assignments: readonly AgentAssignment[]): { inserted: number; unchanged: number };
+  provision(assignments: readonly AgentAssignment[], context: AgentProvisionContext): AgentProvisionReceipt;
   close(): void;
+}
+
+export interface AgentProvisionContext {
+  operator: string;
+  reason: string;
+}
+
+export interface AgentProvisionReceipt {
+  id: string;
+  timestamp: string;
+  sha256: string;
+  inserted: number;
+  unchanged: number;
 }
 
 function parseAssignment(row: Record<string, unknown>): AgentAssignment {
@@ -22,7 +36,7 @@ export function openAgentStore(path: string): AgentStore {
   try {
     db.exec("PRAGMA busy_timeout = 250; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;");
     const version = db.prepare("PRAGMA user_version").get()?.user_version;
-    if (version !== 0 && version !== 1) throw new Error("Unsupported agent database version");
+    if (version !== 0 && version !== 1 && version !== 2) throw new Error("Unsupported agent database version");
     if (version === 0) {
       if (db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").get()) {
         throw new Error("Refusing to initialise a nonempty unversioned agent database");
@@ -37,6 +51,17 @@ export function openAgentStore(path: string): AgentStore {
         COMMIT;`);
     }
     db.prepare("SELECT issuer, subject, customer, extension, display_name FROM agent_assignments LIMIT 0");
+    if (version === 0 || version === 1) {
+      db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE agent_provision_receipts (
+          id TEXT PRIMARY KEY, timestamp TEXT NOT NULL, operator TEXT NOT NULL,
+          reason TEXT NOT NULL, sha256 TEXT NOT NULL, inserted INTEGER NOT NULL,
+          unchanged INTEGER NOT NULL, assignments TEXT NOT NULL
+        ) STRICT;
+        PRAGMA user_version = 2;
+        COMMIT;`);
+    }
+    db.prepare("SELECT id, timestamp, operator, reason, sha256, inserted, unchanged, assignments FROM agent_provision_receipts LIMIT 0");
   } catch (error) { db.close(); throw error; }
   const find = db.prepare("SELECT issuer, subject, customer, extension, display_name FROM agent_assignments WHERE issuer = ? AND subject = ? AND customer = ?");
   const insert = db.prepare("INSERT INTO agent_assignments (issuer, subject, customer, extension, display_name) VALUES (?, ?, ?, ?, ?)");
@@ -50,10 +75,19 @@ export function openAgentStore(path: string): AgentStore {
       }
       return { extension: assignment.extension, displayName: assignment.displayName };
     },
-    provision(assignments) {
+    provision(assignments, context) {
+      if (!context || ![context.operator, context.reason].every((value) =>
+        typeof value === "string" && !!value.trim() && !/[\x00-\x1f\x7f]/.test(value)) ||
+        context.operator.length > 200 || context.reason.length > 2000) {
+        throw new Error("Agent provisioning requires a bounded operator and reason");
+      }
       createAgentDirectory(assignments);
       const entries = assignments.map(({ issuer, subject, customer, extension, displayName }) =>
         ({ issuer, subject, customer, extension, displayName }));
+      const json = JSON.stringify(entries);
+      const id = randomUUID();
+      const timestamp = new Date().toISOString();
+      const sha256 = createHash("sha256").update(json).digest("hex");
       let inserted = 0;
       let unchanged = 0;
       db.exec("BEGIN IMMEDIATE");
@@ -71,8 +105,12 @@ export function openAgentStore(path: string): AgentStore {
             inserted++;
           }
         }
+        db.prepare(`INSERT INTO agent_provision_receipts
+          (id, timestamp, operator, reason, sha256, inserted, unchanged, assignments)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(id, timestamp, context.operator, context.reason, sha256, inserted, unchanged, json);
         db.exec("COMMIT");
-        return { inserted, unchanged };
+        return { id, timestamp, sha256, inserted, unchanged };
       } catch (error) { db.exec("ROLLBACK"); throw error; }
     },
     close() { db.close(); },

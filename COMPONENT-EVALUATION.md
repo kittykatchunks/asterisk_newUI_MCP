@@ -396,8 +396,17 @@ object isolation, batch rollback, conflicts, contention, corruption, schema/path
 refusal and CLI outcomes. The real session proof injects a reopened store.
 This does not publish PBX config, grant membership, create credentials or enforce
 extension/device exclusivity. The separate store is not included in diagnostic
-backups; assignment recovery, provisioning audit/history and reassignment remain
+backups; assignment recovery, history API/UI and reassignment remain
 unimplemented. The ordinary launcher stays unconfigured for agents.
+
+Schema version 2 adds successful provisioning receipts in the same transaction
+as assignment inserts. Generated UUID/time, bounded operator/reason, exact
+allowlisted batch JSON and its SHA-256 plus counts survive reopening. Receipt-write
+failure rolls back inserts; conflicts/invalid batches cannot leave success records.
+Version-1 migration preserves existing assignments without invented receipts.
+The CLI now requires operator/reason and returns receipt metadata; these are trusted
+operator assertions, not verified identities or tamper-proof signatures. There is
+no failed-attempt log, history endpoint or additional browser disclosure.
 
 ## 2. Asterisk container
 

@@ -379,8 +379,18 @@ invalid entries and late-batch conflicts. Stored reads are validated and tested
 across reopen; contention, corruption and schema errors fail explicitly.
 The confidential browser-session proof now reads from a closed/reopened store.
 This does not provision memberships, SIP credentials, device leases or launcher
-access. Provisioning audit/history, reassignment/conflict policy and assignment
+access. Provisioning history UI, reassignment/conflict policy and assignment
 backup/restore remain open; diagnostic backups do not cover this separate store.
+
+Schema version 2 now adds atomic successful provisioning receipts: generated
+UUID/time, bounded operator/reason, canonical allowlisted batch JSON and SHA-256,
+and inserted/unchanged counts. Identical reruns receive distinct receipts; receipt
+failure rolls back new assignments. Migration preserves version-1 rows without
+inventing receipts. Tests verify persistence, hash/input preservation, exact
+metadata limits and forced receipt failure rollback; real sessions still read the
+reopened store. Operator identity is a trusted CLI assertion, not independently
+verified identity or tamper-proof history. Failed-attempt logging and history
+API/UI remain absent.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.
