@@ -254,6 +254,10 @@ history reads. Backup/restore tests reject oversized approved/rejected receipts
 and malformed pending IDs even with matching artifact checksums, preserve valid
 exact-limit Unicode records, and verify failed output cleanup.
 
+History browser lifecycle tests now hold real API responses to verify old-result
+clearing, busy control locks, restored controls/status focus on completion, and
+late-response isolation after reconnect. No decision POST is sent by either path.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

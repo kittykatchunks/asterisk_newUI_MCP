@@ -923,6 +923,60 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await historyRegion.getByRole("status").filter({ hasText: "50 recorded review(s) loaded." }).waitFor();
       assert.equal(posts.length, beforeHistory, "History and outcome lookup must never resubmit decisions");
 
+      for (const replaceConnection of [false, true]) {
+        let releaseHistory!: () => void;
+        let historyStarted!: () => void;
+        let historyFinished!: () => void;
+        const heldHistory = new Promise<void>((resolve) => { releaseHistory = resolve; });
+        const startedHistory = new Promise<void>((resolve) => { historyStarted = resolve; });
+        const finishedHistory = new Promise<void>((resolve) => { historyFinished = resolve; });
+        await page.route(historyUrl, async (route) => {
+          try {
+            const response = await route.fetch();
+            assert.equal(response.status(), 200);
+            historyStarted();
+            await heldHistory;
+            await route.fulfill({ response });
+          } finally { historyFinished(); }
+        });
+        try {
+          await page.getByRole("button", { name: "Load recent review history", exact: true }).click();
+          await startedHistory;
+          assert.equal(await page.locator("#review-workspace").getAttribute("aria-busy"), "true");
+          assert.equal(await historyRegion.locator("article").count(), 0, "Old results must clear before the held read");
+          await historyRegion.getByRole("status").filter({ hasText: "Loading recorded reviews..." }).waitFor();
+          assert.equal(await page.locator("#review-workspace button:enabled, #review-workspace input:enabled, #review-workspace select:enabled, #review-workspace textarea:enabled").count(), 0);
+          assert.equal(posts.length, beforeHistory);
+          if (replaceConnection) {
+            await page.evaluate(async (accessToken) => {
+              const path = "/engineering/review.js";
+              const module = await import(path);
+              await module.connectReviewWorkspace(accessToken);
+            }, reviewer);
+            assert.equal(await historyRegion.locator("article").count(), 0);
+            assert.equal(await historyRegion.getByRole("status").textContent(), "");
+          }
+        } finally {
+          releaseHistory();
+          await finishedHistory;
+          await page.unroute(historyUrl);
+        }
+        if (replaceConnection) {
+          assert.equal(await historyRegion.locator("article").count(), 0,
+            "The old connection's late history response must not populate a new connection");
+          assert.equal(await historyRegion.getByRole("status").textContent(), "");
+          assert.equal(await page.getByRole("alert").textContent(), "", "Old abort failures must not overwrite the new workspace");
+        } else {
+          await historyRegion.getByRole("status").filter({ hasText: "50 recorded review(s) loaded." }).waitFor();
+          assert.equal(await historyRegion.locator("article").count(), 50);
+          assert.equal(await historyRegion.getByRole("status").evaluate((node) => node === document.activeElement), true);
+        }
+        assert.equal(await page.locator("#review-workspace").getAttribute("aria-busy"), "false");
+        assert.equal(await page.getByRole("button", { name: "Load recent review history", exact: true }).isEnabled(), true);
+        assert.equal(await outcomeInput.isEnabled(), true);
+        assert.equal(posts.length, beforeHistory);
+      }
+
       await connect(await jwt("reader"));
       assert.equal(await historyRegion.locator("article").count(), 0, "A new connection must clear loaded history");
       assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);

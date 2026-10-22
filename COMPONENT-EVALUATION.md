@@ -265,6 +265,11 @@ lengths beyond the history-reader limits. Tests exercise both directions with
 valid-checksum corrupted artifacts, approved/rejected receipts, exact-limit
 Unicode preservation and cleanup without disturbing existing restores.
 
+Held history response coverage verifies busy-state/control locking, clearing old
+results, completion focus and reconnect cancellation. Late data or abort errors
+from the disposed connection cannot overwrite the replacement workspace, and
+history requests never replay a decision.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

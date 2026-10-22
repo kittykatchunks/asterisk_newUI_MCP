@@ -949,6 +949,13 @@ restore, including artifacts with a recalculated valid checksum. Exact-limit
 Unicode reasons remain accepted; failed operations remove their newly allocated
 output without modifying the source or existing restored databases.
 
+Held-response browser tests also verify history lifecycle behaviour: old results
+clear before a read, all workspace controls lock with `aria-busy` while it is
+pending, and successful completion restores controls and focuses the history
+status. Replacing the connection during that read clears history and aborts the
+old request; releasing its late response cannot populate the new connection or
+overwrite it with an abort error. Neither path sends a decision POST.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
