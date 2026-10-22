@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -13,7 +13,7 @@ import type { AccessAudit } from "../src/diagnostic-api.ts";
 import { createApplicationSessions } from "../src/application-session.ts";
 import { createAccessVerifier } from "../src/access.ts";
 import { openAgentDeviceLeaseStore } from "../src/agent-device-lease.ts";
-import { createAuthorisedProvisioningTransport } from "../src/agent-provisioning-authorisation.ts";
+import { createAuthorisedProvisioningTransport, createSessionProvisioningAuthorisation } from "../src/agent-provisioning-authorisation.ts";
 import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
 import { openAgentProvisioningStore, openAgentProvisioningJournal } from "../src/agent-provisioning-store.ts";
 
@@ -200,6 +200,20 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       const original = await loginBackend();
       const identity = backendSessions.lookupIdentity(original.owner);
       assert.ok(identity);
+      const authorisationId = backendSessions.authorisationReference(original.owner);
+      assert.ok(authorisationId);
+      assert.notEqual(authorisationId, original.owner.sessionId);
+      assert.equal(backendSessions.authorisationReference(original.owner), authorisationId);
+      assert.equal((await fetch(backendOrigin + "/auth/session", {
+        headers: { Cookie: `asterisk-test-session=${authorisationId}` },
+      })).status, 401, "An opaque authorisation reference cannot be used as a login cookie");
+      const reference = { issuer: issuerUrl, subject: "alice", customer: "customer-a", authorisationId };
+      assert.deepEqual(backendSessions.resolveAuthorisation(reference), identity);
+      for (const foreign of [
+        { ...reference, issuer: "https://foreign.invalid" }, { ...reference, subject: "bob" },
+        { ...reference, customer: "customer-b" }, { ...reference, authorisationId: original.owner.sessionId },
+      ]) assert.equal(backendSessions.resolveAuthorisation(foreign), undefined);
+      assert.throws(() => backendSessions.resolveAuthorisation({ ...reference, authorisationId: "bad" }), /reference/);
       assert.deepEqual(Object.keys(identity).sort(), ["customer", "expiresAt", "sessionId", "subject"]);
       identity.subject = "mutated";
       assert.equal(backendSessions.lookupIdentity(original.owner)?.subject, "alice");
@@ -214,7 +228,7 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
         { allowed: true, subject: "alice", basis: "membership" });
       const directory = await mkdtemp(join(tmpdir(), "asterisk-session-dispatch-"));
       const leases = openAgentDeviceLeaseStore(join(directory, "leases.sqlite"));
-      const provisioning = openAgentProvisioningStore(join(directory, "backend.sqlite"));
+      let provisioning = openAgentProvisioningStore(join(directory, "backend.sqlite"));
       const binding = { customer: "customer-a", epoch: randomUUID() };
       const worker = openAgentProvisioningJournal(join(directory, "worker.sqlite"), binding);
       try {
@@ -222,24 +236,41 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
         const lease = leases.acquire(owner);
         const generationId = randomUUID();
         provisioning.enrol(binding.customer, binding.epoch);
-        provisioning.enqueue({ version: 1, ...binding, operationId: randomUUID(), revision: 1,
+        const intent = provisioning.enqueueOwned({ version: 1, ...binding, operationId: randomUUID(), revision: 1,
           leaseId: lease.id, notAfter: lease.expiresAt, action: "prepare",
           payload: { generationId, extension: "1001" } },
-        { requestId: randomUUID(), actor: "fixture", reason: "Session-backed dispatch" });
+        { requestId: randomUUID(), actor: "fixture", reason: "Session-backed dispatch" },
+        { issuer: owner.issuer, subject: owner.subject, customer: owner.customer, authorisationId,
+          sessionExpiresAt: owner.sessionExpiresAt, deviceId: owner.deviceId, generationId, extension: "1001" });
+        provisioning.close();
+        provisioning = openAgentProvisioningStore(join(directory, "backend.sqlite"));
+        const gate = createSessionProvisioningAuthorisation({
+          store: provisioning, sessions: backendSessions, verify: verifyAgent,
+          agents: { profile() { return { extension: "1001", displayName: "Alice" }; } }, leases,
+        });
+        assert.deepEqual(gate.resolve(intent)?.owner, owner);
+        assert.throws(() => gate.resolve({ ...intent, command: { ...intent.command, notAfter: lease.expiresAt - 1 } }),
+          /intent mismatch/);
+        const fresh = createApplicationSessions({ ...sessionConfig, origin: backendOrigin });
+        const freshGate = createSessionProvisioningAuthorisation({
+          store: provisioning, sessions: fresh, verify: verifyAgent, agents: gate.agents, leases,
+        });
+        assert.equal(freshGate.resolve(intent), undefined, "Persisted reference cannot restore a login");
+        const freshTransport = createAuthorisedProvisioningTransport({
+          async report() { return undefined; },
+          async accept() { return assert.fail("A restarted session manager cannot deliver old queued work"); },
+        }, binding, freshGate);
+        await assert.rejects(createAgentProvisioningDispatcher(provisioning, binding, freshTransport).dispatch(), /owner context missing/);
         const guarded = createAuthorisedProvisioningTransport({
           async report(id) { return worker.report(id); },
           async accept(intent) {
             worker.accept(intent.command, intent.context);
             return worker.report(intent.command.operationId)!;
           },
-        }, binding, {
-          resolve() { return { owner, generationId, extension: "1001" }; },
-          session: backendSessions.lookupIdentity,
-          agentAccess: (owner, signal) => backendSessions.verifyAgentAccess(owner, verifyAgent, signal),
-          agents: { profile() { return { extension: "1001", displayName: "Alice" }; } }, leases,
-        });
+        }, binding, gate);
         assert.equal((await createAgentProvisioningDispatcher(provisioning, binding, guarded).dispatch()).state, "accepted");
         assert.deepEqual(leases.current(owner, lease.id), lease);
+        assert.ok(!(await readFile(join(directory, "backend.sqlite"))).includes(Buffer.from(owner.sessionId)));
       } finally {
         worker.close(); provisioning.close(); leases.close();
         await rm(directory, { recursive: true });
@@ -288,13 +319,19 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       completeRotation();
       assert.equal((await duringRotation).allowed, false, "Rotation during verification must fence success");
       assert.equal(backendSessions.lookupIdentity(original.owner), undefined);
+      assert.equal(backendSessions.resolveAuthorisation(reference), undefined);
+      assert.equal(backendSessions.authorisationReference(original.owner), undefined);
       assert.ok(backendSessions.lookupIdentity(rotated.owner));
+      const rotatedReference = { ...reference, authorisationId: backendSessions.authorisationReference(rotated.owner)! };
+      assert.notEqual(rotatedReference.authorisationId, authorisationId);
       const restarted = createApplicationSessions({ ...sessionConfig, origin: backendOrigin });
       assert.equal(restarted.lookupIdentity(rotated.owner), undefined,
         "A fresh process-local session store cannot recover old browser sessions");
+      assert.equal(restarted.resolveAuthorisation(rotatedReference), undefined);
       const boot = await fetch(backendOrigin + "/auth/session", { headers: { Cookie: rotated.cookie } });
       const bootInfo = await boot.json();
       assert.equal(bootInfo.sessionId, undefined, "Backend lookup must not change browser bootstrap output");
+      assert.equal(bootInfo.authorisationId, undefined);
       let completeLogout!: () => void;
       const logoutGate = new Promise<void>((resolve) => { completeLogout = resolve; });
       const duringLogout = backendSessions.verifyAgentAccess(rotated.owner, async (...args) => {
@@ -307,9 +344,11 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       completeLogout();
       assert.equal((await duringLogout).allowed, false, "Logout during verification must fence success");
       assert.equal(backendSessions.lookupIdentity(rotated.owner), undefined);
+      assert.equal(backendSessions.resolveAuthorisation(rotatedReference), undefined);
       expired = true;
       const shortBackend = await loginBackend();
       assert.ok(backendSessions.lookupIdentity(shortBackend.owner));
+      const shortReference = { ...reference, authorisationId: backendSessions.authorisationReference(shortBackend.owner)! };
       let completeExpiry!: () => void;
       const expiryGate = new Promise<void>((resolve) => { completeExpiry = resolve; });
       const duringExpiry = backendSessions.verifyAgentAccess(shortBackend.owner, async (...args) => {
@@ -319,6 +358,7 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       completeExpiry();
       assert.equal((await duringExpiry).allowed, false, "Expiry during verification must fence success");
       assert.equal(backendSessions.lookupIdentity(shortBackend.owner), undefined);
+      assert.equal(backendSessions.resolveAuthorisation(shortReference), undefined);
     } finally { await close(backendHolder); }
     const secure = createApplicationSessions({ ...sessionConfig, origin: origin.replace("http:", "https:") });
     const secureHolder = createServer((request, response) => {

@@ -11,7 +11,7 @@ import type { AccessConfig } from "../../src/access.ts";
 import { createApplicationSessions } from "../../src/application-session.ts";
 import type { ApplicationSessionConfig } from "../../src/application-session.ts";
 import { openAgentDeviceLeaseStore } from "../../src/agent-device-lease.ts";
-import { createAuthorisedProvisioningTransport } from "../../src/agent-provisioning-authorisation.ts";
+import { createAuthorisedProvisioningTransport, createSessionProvisioningAuthorisation } from "../../src/agent-provisioning-authorisation.ts";
 import { createAgentProvisioningDispatcher } from "../../src/agent-provisioning-dispatcher.ts";
 import { openAgentProvisioningStore, openAgentProvisioningJournal } from "../../src/agent-provisioning-store.ts";
 import type { AccessAudit } from "../../src/diagnostic-api.ts";
@@ -106,14 +106,23 @@ export async function proveBackendSessions(browser: Browser, config: Application
                   const lease = leases.acquire(deviceOwner);
                   const generationId = randomUUID();
                   backend.enrol(binding.customer, binding.epoch);
-                  const intent = backend.enqueue({
+                  const authorisationId = sessions.authorisationReference(owner);
+                  assert.ok(authorisationId);
+                  const intent = backend.enqueueOwned({
                     version: 1, ...binding, operationId: randomUUID(), revision: 1,
                     leaseId: lease.id, notAfter: lease.expiresAt, action: "prepare",
                     payload: { generationId, extension: "1001" },
-                  }, { requestId: randomUUID(), actor: "identity-proof", reason: "Real Keycloak session dispatch" });
+                  }, { requestId: randomUUID(), actor: "identity-proof", reason: "Real Keycloak session dispatch" },
+                  { issuer: owner.issuer, subject: owner.subject, customer: owner.customer, authorisationId,
+                    sessionExpiresAt: identity.expiresAt, deviceId: deviceOwner.deviceId, generationId, extension: "1001" });
                   let accepts = 0;
                   const gate = deferred();
                   let pause = false;
+                  const authorisation = createSessionProvisioningAuthorisation({
+                    store: backend, sessions,
+                    verify: (...args) => (pause ? gate.verify : verify)(...args),
+                    agents: { profile() { return { extension: "1001", displayName: "Synthetic Alice" }; } }, leases,
+                  });
                   const guarded = createAuthorisedProvisioningTransport({
                     async report(id) { return worker.report(id); },
                     async accept(submission) {
@@ -121,12 +130,7 @@ export async function proveBackendSessions(browser: Browser, config: Application
                       worker.accept(submission.command, submission.context);
                       return worker.report(submission.command.operationId)!;
                     },
-                  }, binding, {
-                    resolve() { return { owner: deviceOwner, generationId, extension: "1001" }; },
-                    session: sessions.lookupIdentity,
-                    agentAccess: (owner, signal) => sessions.verifyAgentAccess(owner, pause ? gate.verify : verify, signal),
-                    agents: { profile() { return { extension: "1001", displayName: "Synthetic Alice" }; } }, leases,
-                  });
+                  }, binding, authorisation);
                   assert.equal((await createAgentProvisioningDispatcher(backend, binding, guarded).dispatch()).state, "accepted");
                   assert.equal(accepts, 1);
                   assert.deepEqual(leases.current(deviceOwner, lease.id), lease);
@@ -139,6 +143,8 @@ export async function proveBackendSessions(browser: Browser, config: Application
                   } finally { gate.release(); }
                   await rejected;
                   assert.equal(accepts, 1, "Logout during real JWT verification must prevent worker delivery");
+                  assert.equal(authorisation.resolve(intent), undefined, "Persisted original ownership cannot authorise after logout");
+                  await assert.rejects(guarded.accept(intent, signal), /owner context missing/);
                   assert.equal((await guarded.report(intent.command.operationId, signal))?.operationId, intent.command.operationId);
                 } finally { worker.close(); }
               } finally { backend.close(); }
@@ -154,7 +160,7 @@ export async function proveBackendSessions(browser: Browser, config: Application
     assert.equal(audit.filter((event) => event.operation === "session-login").length, accounts.length + 1);
     assert.equal(audit.filter((event) => event.operation === "session-logout").length, accounts.length);
     assert.ok(!JSON.stringify(audit).includes(config.clientSecret));
-    console.log("PASS real Keycloak backend session lookup, direct membership, rotation, guarded dispatch and concurrent logout fencing");
+    console.log("PASS real Keycloak backend session lookup, direct membership, rotation, durable opaque ownership and concurrent logout fencing");
   } finally {
     if (server.listening) {
       server.closeAllConnections();

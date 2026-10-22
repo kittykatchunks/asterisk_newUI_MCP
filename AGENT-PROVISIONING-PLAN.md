@@ -485,3 +485,29 @@ and launcher proofs passed together and their owned fixture was removed. This is
 local integration evidence only: no PBX execution, production owner resolver,
 issuer-side revocation subscription or post-acceptance worker cancellation was
 added. The signed-token regression remains the expiry/cancellation proof.
+
+### Durable original-owner reference: selected restart policy
+
+The user selected a durable **opaque non-login authorisation reference**, not
+persistent/shared browser sessions. Each successful login has a separate random
+reference held by its process-local session manager. Rotation/logout/expiry or
+backend restart invalidate it; a fresh sign-in must not adopt old queued work.
+No cookie, access token or CSRF value is persisted in provisioning ownership.
+
+`enqueueOwned` now atomically records exact issuer/subject/customer/reference,
+original session expiry, device, generation and extension with the intent, audit
+context and revision. Retries cannot rebind it or retrofit ownership onto an old
+unowned operation. Schema 2 transactionally upgrades version-1 backend and worker
+files without changing command hashes/history; old operations stay unowned.
+The opt-in session authorisation factory resolves this protected persisted
+mapping and retains the existing JWT/assignment/lease checks. Ownership never
+travels to the worker.
+
+The local ownership/session regressions and real Keycloak integration prove
+atomic failure/reopen, exact retry, scoped lookup, reference-not-cookie behaviour,
+restart denial and concurrent logout fencing. This closes the durable mapping
+primitive, not production capture/audit/launcher wiring. An unresolved original
+owner still blocks its ordered head; no automatic abandonment/rebinding policy
+has been selected. Explicit recovery, supervision and post-acceptance worker
+fencing remain production gates. See the
+[opaque ownership contract](./README.md#durable-opaque-provisioning-ownership).

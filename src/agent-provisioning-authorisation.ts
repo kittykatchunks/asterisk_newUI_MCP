@@ -1,11 +1,11 @@
-import type { AccessResult } from "./access.ts";
+import type { AccessResult, createAccessVerifier } from "./access.ts";
 import { assertAgentIdentity, assertAgentProfile } from "./agent-directory.ts";
 import type { AgentDirectory } from "./agent-directory.ts";
 import type { AgentDeviceLeaseStore, AgentDeviceOwner } from "./agent-device-lease.ts";
-import type { ApplicationSessionIdentity } from "./application-session.ts";
+import type { ApplicationSessionIdentity, createApplicationSessions } from "./application-session.ts";
 import type { AgentProvisioningTransport } from "./agent-provisioning-dispatcher.ts";
 import { AgentProvisioningConflict, parseProvisioningAcceptance } from "./agent-provisioning-store.ts";
-import type { ProvisioningIntent, ProvisioningJournalBinding } from "./agent-provisioning-store.ts";
+import type { AgentProvisioningStore, ProvisioningIntent, ProvisioningJournalBinding } from "./agent-provisioning-store.ts";
 
 export interface ProvisioningOwnerContext {
   owner: AgentDeviceOwner;
@@ -20,6 +20,37 @@ export interface ProvisioningAuthorisation {
   agentAccess(owner: AgentDeviceOwner, signal: AbortSignal): Promise<AccessResult>;
   agents: AgentDirectory;
   leases: AgentDeviceLeaseStore;
+}
+
+export function createSessionProvisioningAuthorisation(input: {
+  store: AgentProvisioningStore;
+  sessions: ReturnType<typeof createApplicationSessions>;
+  verify: ReturnType<typeof createAccessVerifier>;
+  agents: AgentDirectory;
+  leases: AgentDeviceLeaseStore;
+}): ProvisioningAuthorisation {
+  const { store, sessions, verify, agents, leases } = input;
+  return {
+    resolve(intent) {
+      const saved = store.operation(intent.command.customer, intent.command.operationId);
+      if (!saved || saved.intent.sha256 !== intent.sha256 ||
+          JSON.stringify(saved.intent.command) !== JSON.stringify(intent.command)) {
+        throw new AgentProvisioningConflict("Provisioning ownership intent mismatch");
+      }
+      const recorded = store.ownership(intent.command.customer, intent.command.operationId);
+      if (!recorded) return undefined;
+      const session = sessions.resolveAuthorisation(recorded);
+      if (!session) return undefined;
+      return {
+        owner: { issuer: recorded.issuer, subject: recorded.subject, customer: recorded.customer,
+          sessionId: session.sessionId, sessionExpiresAt: recorded.sessionExpiresAt, deviceId: recorded.deviceId },
+        generationId: recorded.generationId, extension: recorded.extension,
+      };
+    },
+    session: sessions.lookupIdentity,
+    agentAccess: (owner, signal) => sessions.verifyAgentAccess(owner, verify, signal),
+    agents, leases,
+  };
 }
 
 export function createAuthorisedProvisioningTransport(

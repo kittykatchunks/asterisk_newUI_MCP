@@ -1690,7 +1690,7 @@ remain prerequisites before enabling a phone.
 
 `src/agent-provisioning-store.ts` begins stage A of the
 [worker plan](./AGENT-PROVISIONING-PLAN.md). `openAgentProvisioningStore` uses a
-separate absolute-path SQLite database (schema 1, FULL synchronous, DELETE journal,
+separate absolute-path SQLite database (schema 2, FULL synchronous, DELETE journal,
 250ms busy timeout). It is not opened by the launcher or connected to any HTTP
 route. There is no worker, dispatcher, secret storage, PBX adapter or new privilege.
 Diagnostic and assignment backups do not include this database.
@@ -2289,9 +2289,10 @@ signed-token OIDC fixture to check exact scope, detached results, rotation,
 logout and real expiry, as well as an independent manager rejecting a still-live
 session from another instance. The real-Keycloak fixture coverage is described below.
 Sessions remain process-local: restarted or separate managers have no session
-history and must deny lookup. Durable original-owner resolution, shared session
-storage/worker application wiring remain needed before production background
-dispatch is enabled. The companion access check is described below.
+history and must deny lookup. Production application wiring remains needed before
+background dispatch is enabled. The companion access check and durable
+original-owner reference are described below; shared session persistence is not
+enabled.
 
 #### Session-backed agent access verification
 
@@ -2338,9 +2339,75 @@ controller/worker authorisation claim.
 The real Keycloak fixture, identity browser proof, application-session proof and
 launcher proof have passed together; the launcher tears down its owned identity
 container afterward. This remains local fixture evidence, not production service
-wiring. Durable owner resolution, audit integration and post-acceptance worker
+wiring. Production ownership capture, audit integration and post-acceptance worker
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
+
+#### Durable opaque provisioning ownership
+
+The selected policy is to persist a non-login authorisation reference, not the
+browser cookie or access token. Each successful application login creates a
+separate random reference. Backend-only
+`sessions.authorisationReference(owner)` returns it only for the exact live
+issuer/subject/customer/session owner. `sessions.resolveAuthorisation(reference)`
+resolves an exact identity/reference through the same live manager; it is not an
+HTTP route, login credential, or substitute for JWT verification. Rotation,
+logout, expiry and a fresh manager invalidate resolution. A new sign-in does not
+adopt the old reference.
+
+`store.enqueueOwned(command, context, ownership)` stores these exact fields
+alongside the immutable operation, in the **same transaction** as its command,
+audit context and authority revision:
+
+```typescript
+{
+  issuer, subject, customer, authorisationId, sessionExpiresAt,
+  deviceId, generationId, extension
+}
+```
+
+The trusted producer must obtain these from the authenticated session and its
+verified assignment/lease, never browser-submitted ownership metadata. The
+primitive validates field shape, customer/generation/extension consistency and
+the original session deadline, but is not itself a session/lease authorisation
+check. Only prepare/activate/extend accept ownership. Exact retries require the
+same original ownership; rebinding, attaching ownership retroactively to an
+unowned operation, or retrying an owned operation through `enqueue` is rejected.
+`store.ownership(customer, operationId)` returns a validated detached snapshot.
+The existing unowned API remains for the established fixtures and trusted cleanup,
+not as a way around the guarded transport.
+
+`createSessionProvisioningAuthorisation({ store, sessions, verify, agents, leases })`
+provides the authorisation callbacks for the guarded transport. It matches the
+submitted command/hash to the persisted intent and resolves the original opaque
+reference into an in-memory session owner. The transport still checks JWT direct
+membership, session liveness after verification, current assignment and exact
+owned lease/deadline. Missing ownership or an invalidated reference blocks new
+acceptance; report readback and trusted cleanup keep their existing paths.
+Ownership is not added to `ProvisioningIntent`, the command hash, wire requests,
+worker reports or worker journal rows. The provisioning database stores no raw
+session cookie, bearer token or CSRF value.
+
+Schema 2 adds the ownership table to the shared persistence engine; worker
+journals have an empty table and expose no ownership-write API. Existing version-1
+backend/journal files upgrade transactionally without changing historical
+commands, hashes, audit context, receipts or worker binding. Old intents remain
+unowned and fail the new resolver rather than receiving an invented owner.
+Older binaries reject schema 2; do not run them against an upgraded file.
+
+The ownership/session regressions prove rollback, lock failure, exact retry,
+cross-customer isolation, invalid/extra-field rejection, migration, reopen,
+no worker-reference leakage, cookie replay denial and restart blocking. The real
+Keycloak proof now uses this persisted owner resolver for guarded dispatch and
+rejects subsequent resolution after logout.
+
+This is an opt-in backend primitive, not production enqueue/HTTP/launcher wiring.
+Sessions intentionally remain process-local. A backend restart or fresh sign-in
+does **not** reauthorise old queued commands, and ownership cannot be rebound.
+Such an unresolved ordered head remains blocked; no automatic skip, abandonment
+or replacement policy is introduced. Explicit recovery handling, application
+audit policy and post-acceptance worker fencing still need implementation before
+production use.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

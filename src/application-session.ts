@@ -19,6 +19,7 @@ export interface ApplicationSessionConfig {
 }
 
 interface Session {
+  authorisationId: string;
   token: string;
   csrf: string;
   subject: string;
@@ -96,6 +97,24 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
 
   return {
     lookupIdentity,
+    authorisationReference(owner: AgentIdentity & { sessionId: string }): string | undefined {
+      if(!lookupIdentity(owner)) return undefined;
+      return sessions.get(owner.sessionId)!.authorisationId;
+    },
+    resolveAuthorisation(owner: AgentIdentity & { authorisationId: string }): ApplicationSessionIdentity | undefined {
+      assertAgentIdentity(owner);
+      if(typeof owner.authorisationId!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(owner.authorisationId)) {
+        throw new Error("Invalid application authorisation reference");
+      }
+      cleanup();
+      if(owner.issuer!==config.issuer) return undefined;
+      for(const [sessionId,session] of sessions) {
+        if(session.authorisationId===owner.authorisationId&&session.subject===owner.subject&&session.customer===owner.customer) {
+          return { sessionId,subject: session.subject,customer: session.customer,expiresAt: session.expiresAt };
+        }
+      }
+      return undefined;
+    },
     async verifyAgentAccess(input: AgentIdentity & { sessionId: string },
       verify: ReturnType<typeof createAccessVerifier>, signal: AbortSignal): Promise<AccessResult> {
       const owner={ ...input };
@@ -213,6 +232,7 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
           if(oldId) sessions.delete(oldId);
           const sessionId=random();
           sessions.set(sessionId,{
+            authorisationId: random(),
             token: tokens.access_token,csrf: random(),
             subject: access.payload.sub,customer: login.customer,expiresAt
           });

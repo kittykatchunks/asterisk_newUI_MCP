@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { assertAgentIdentity } from "./agent-directory.ts";
+import type { AgentIdentity } from "./agent-directory.ts";
 
 interface CommandBase {
   version: 1;
@@ -31,6 +33,14 @@ export interface ProvisioningIntent {
   context: ProvisioningContext;
 }
 
+export interface ProvisioningOwnership extends AgentIdentity {
+  authorisationId: string;
+  sessionExpiresAt: number;
+  deviceId: string;
+  generationId: string;
+  extension: string;
+}
+
 export interface ProvisioningReceipt {
   receiptId: string;
   sequence: number;
@@ -51,6 +61,8 @@ export interface ProvisioningReport {
 export interface AgentProvisioningStore {
   enrol(customer: string, epoch: string): void;
   enqueue(command: AgentProvisioningCommand, context: ProvisioningContext): ProvisioningIntent;
+  enqueueOwned(command: AgentProvisioningCommand, context: ProvisioningContext, owner: ProvisioningOwnership): ProvisioningIntent;
+  ownership(customer: string, operationId: string): ProvisioningOwnership | undefined;
   operation(customer: string, operationId: string): { intent: ProvisioningIntent; receipts: ProvisioningReceipt[] } | undefined;
   pending(customer: string, limit?: number): ProvisioningIntent[];
   next(customer: string, epoch: string): ProvisioningWork;
@@ -160,6 +172,26 @@ export function parseProvisioningAcceptance(input: unknown) {
   return { command: canonicalCommand(input.command), context: context(input.context) };
 }
 
+function canonicalOwnership(input: unknown, command: AgentProvisioningCommand): ProvisioningOwnership {
+  exact(input, ["issuer", "subject", "customer", "authorisationId", "sessionExpiresAt", "deviceId", "generationId", "extension"]);
+  if (typeof input.issuer !== "string" || typeof input.subject !== "string" || typeof input.customer !== "string") {
+    throw new Error("Invalid provisioning owner identity");
+  }
+  const identity = { issuer: input.issuer, subject: input.subject, customer: input.customer };
+  assertAgentIdentity(identity);
+  assertUuid(input.deviceId); assertUuid(input.generationId);
+  if (typeof input.authorisationId !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(input.authorisationId) ||
+      typeof input.sessionExpiresAt !== "number" || !Number.isSafeInteger(input.sessionExpiresAt) ||
+      input.sessionExpiresAt < command.notAfter || typeof input.extension !== "string" || !/^[0-9]{1,16}$/.test(input.extension) ||
+      input.customer !== command.customer || input.generationId !== command.payload.generationId ||
+      (command.action === "prepare" && input.extension !== command.payload.extension) ||
+      command.action === "drain" || command.action === "revoke") {
+    throw new Error("Invalid provisioning ownership");
+  }
+  return { ...identity, authorisationId: input.authorisationId, sessionExpiresAt: input.sessionExpiresAt,
+    deviceId: input.deviceId, generationId: input.generationId, extension: input.extension };
+}
+
 // Trusted backend persistence only: callers must authenticate and verify ownership before enqueue.
 export function openAgentProvisioningStore(path: string, options: { now?: () => number } = {}): AgentProvisioningStore {
   return openProvisioningStorage(path, options).store;
@@ -186,7 +218,7 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
   try {
     db.exec("PRAGMA busy_timeout = 250; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;");
     const version = db.prepare("PRAGMA user_version").get()?.user_version;
-    if (version !== 0 && version !== 1) throw new Error("Unsupported provisioning database version");
+    if (version !== 0 && version !== 1 && version !== 2) throw new Error("Unsupported provisioning database version");
     if (version === 0) {
       if (db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").get()) {
         throw new Error("Refusing to initialise a nonempty unversioned provisioning database");
@@ -211,17 +243,26 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
     db.prepare("SELECT customer, epoch, revision FROM provisioning_authorities LIMIT 0");
     db.prepare("SELECT operation_id, customer, epoch, revision, command, sha256, accepted_at, context FROM provisioning_intents LIMIT 0");
     db.prepare("SELECT receipt_id, operation_id, sequence, receipt FROM provisioning_receipts LIMIT 0");
-    const hasBinding = !!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provisioning_worker_binding'").get();
-    if (!binding && hasBinding) throw new Error("Worker journal cannot be opened as a backend provisioning store");
-    if (binding) {
-      db.exec("BEGIN IMMEDIATE");
-      try {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const hasBinding = !!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provisioning_worker_binding'").get();
+      if (!binding && hasBinding) throw new Error("Worker journal cannot be opened as a backend provisioning store");
+      // Recheck the schema under the writer lock for concurrent upgrades.
+      if (db.prepare("PRAGMA user_version").get()?.user_version === 1) {
+        db.exec(`CREATE TABLE provisioning_ownership (
+          operation_id TEXT PRIMARY KEY, ownership TEXT NOT NULL
+        ) STRICT;
+        PRAGMA user_version = 2;`);
+      }
+      db.prepare("SELECT operation_id, ownership FROM provisioning_ownership LIMIT 0");
+      if (binding) {
         // Recheck under the writer lock so competing first opens cannot choose different bindings.
         const exists = !!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provisioning_worker_binding'").get();
         if (!exists) {
           if (db.prepare("SELECT 1 FROM provisioning_authorities LIMIT 1").get() ||
               db.prepare("SELECT 1 FROM provisioning_intents LIMIT 1").get() ||
-              db.prepare("SELECT 1 FROM provisioning_receipts LIMIT 1").get()) {
+              db.prepare("SELECT 1 FROM provisioning_receipts LIMIT 1").get() ||
+              db.prepare("SELECT 1 FROM provisioning_ownership LIMIT 1").get()) {
             throw new Error("Refusing to repurpose a backend provisioning database as a worker journal");
           }
           db.exec("CREATE TABLE provisioning_worker_binding (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, epoch TEXT NOT NULL) STRICT");
@@ -234,10 +275,10 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
             authorities.length !== 1 || authorities[0].customer !== binding.customer || authorities[0].epoch !== binding.epoch) {
           throw new AgentProvisioningConflict("Worker journal customer or authority binding mismatch");
         }
-        db.exec("COMMIT");
-      } catch (error) { db.exec("ROLLBACK"); throw error; }
-      ownershipPath = `${realpathSync(path)}.executor-lock.sqlite`;
-    }
+        ownershipPath = `${realpathSync(path)}.executor-lock.sqlite`;
+      }
+      db.exec("COMMIT");
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
   } catch (error) { db.close(); throw error; }
   function transaction<T>(action: () => T): T {
     db.exec("BEGIN IMMEDIATE");
@@ -270,6 +311,44 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
       transition(previous, receipt);
       previous = receipt;
       return receipt;
+    });
+  }
+  function ownership(intent: ProvisioningIntent): ProvisioningOwnership | undefined {
+    const row = db.prepare("SELECT ownership FROM provisioning_ownership WHERE operation_id = ?").get(intent.command.operationId);
+    if (!row) return undefined;
+    if (typeof row.ownership !== "string") throw new Error("Invalid stored provisioning ownership");
+    const owner = canonicalOwnership(JSON.parse(row.ownership), intent.command);
+    if (JSON.stringify(owner) !== row.ownership) throw new Error("Stored provisioning ownership mismatch");
+    return owner;
+  }
+  function enqueue(input: AgentProvisioningCommand, auditContext: ProvisioningContext, owner?: ProvisioningOwnership) {
+    const command = canonicalCommand(input);
+    const recordedContext = context(auditContext);
+    const recordedOwner = owner === undefined ? undefined : canonicalOwnership(owner, command);
+    if (binding && recordedOwner) throw new Error("Worker journal cannot store backend ownership");
+    const json = JSON.stringify(command);
+    return transaction(() => {
+      const existing = read(command.customer, command.operationId);
+      if (existing) {
+        if (existing.sha256 !== hash(json)) throw new AgentProvisioningConflict("Provisioning operation payload conflict");
+        if (JSON.stringify(ownership(existing)) !== JSON.stringify(recordedOwner)) {
+          throw new AgentProvisioningConflict("Provisioning operation ownership conflict");
+        }
+        return existing;
+      }
+      const authority = db.prepare("SELECT epoch, revision FROM provisioning_authorities WHERE customer = ?").get(command.customer);
+      if (!authority || authority.epoch !== command.epoch) throw new AgentProvisioningConflict("Provisioning authority mismatch");
+      if (typeof authority.revision !== "number" || !Number.isSafeInteger(authority.revision) || authority.revision < 0) {
+        throw new Error("Invalid stored provisioning revision");
+      }
+      if (command.revision !== authority.revision + 1) throw new AgentProvisioningConflict("Provisioning revision out of order");
+      const acceptedAt = now();
+      if (command.notAfter <= acceptedAt) throw new AgentProvisioningConflict("Provisioning authorisation expired");
+      db.prepare("INSERT INTO provisioning_intents VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(command.operationId, command.customer, command.epoch, command.revision, json, hash(json), acceptedAt, JSON.stringify(recordedContext));
+      if (recordedOwner) db.prepare("INSERT INTO provisioning_ownership VALUES (?, ?)").run(command.operationId, JSON.stringify(recordedOwner));
+      db.prepare("UPDATE provisioning_authorities SET revision = ? WHERE customer = ?").run(command.revision, command.customer);
+      return { command, sha256: hash(json), acceptedAt, context: recordedContext };
     });
   }
   function transition(previous: ProvisioningReceipt | undefined, next: ProvisioningReceipt) {
@@ -328,28 +407,16 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
         if (!row) db.prepare("INSERT INTO provisioning_authorities VALUES (?, ?, 0)").run(customer, epoch);
       });
     },
-    enqueue(input, auditContext) {
-      const command = canonicalCommand(input);
-      const recordedContext = context(auditContext);
-      const json = JSON.stringify(command);
+    enqueue,
+    enqueueOwned(input, auditContext, owner) {
+      if (owner === undefined) throw new Error("Provisioning ownership required");
+      return enqueue(input, auditContext, owner);
+    },
+    ownership(customer, id) {
+      assertCustomer(customer); assertUuid(id);
       return transaction(() => {
-        const existing = read(command.customer, command.operationId);
-        if (existing) {
-          if (existing.sha256 !== hash(json)) throw new AgentProvisioningConflict("Provisioning operation payload conflict");
-          return existing;
-        }
-        const authority = db.prepare("SELECT epoch, revision FROM provisioning_authorities WHERE customer = ?").get(command.customer);
-        if (!authority || authority.epoch !== command.epoch) throw new AgentProvisioningConflict("Provisioning authority mismatch");
-        if (typeof authority.revision !== "number" || !Number.isSafeInteger(authority.revision) || authority.revision < 0) {
-          throw new Error("Invalid stored provisioning revision");
-        }
-        if (command.revision !== authority.revision + 1) throw new AgentProvisioningConflict("Provisioning revision out of order");
-        const acceptedAt = now();
-        if (command.notAfter <= acceptedAt) throw new AgentProvisioningConflict("Provisioning authorisation expired");
-        db.prepare("INSERT INTO provisioning_intents VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-          .run(command.operationId, command.customer, command.epoch, command.revision, json, hash(json), acceptedAt, JSON.stringify(recordedContext));
-        db.prepare("UPDATE provisioning_authorities SET revision = ? WHERE customer = ?").run(command.revision, command.customer);
-        return { command, sha256: hash(json), acceptedAt, context: recordedContext };
+        const intent = read(customer, id);
+        return intent ? ownership(intent) : undefined;
       });
     },
     operation(customer, id) {
