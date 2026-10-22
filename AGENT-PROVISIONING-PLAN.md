@@ -420,3 +420,13 @@ mandatory. Execution/reporting latency can delay expiry and failures stop the
 awaited lifetime. Production supervision, expiry latency acceptance, live
 authorisation and restore/runtime fencing remain gates. Nothing auto-starts.
 See the [worker contract](./README.md#serial-worker-lifetime-injected-adapters-off-by-default).
+
+The mTLS integration suite now drives that actual serial loop with the reusable
+durable fake adapters. Prepare/activate/extend travel over authenticated transport;
+the controller-facing listener then goes offline before extension completion is
+read back. The worker survives the old deadline and drains at the renewed real
+deadline, preserves the simulated call and removes the generation after its end.
+Reopening the backend and listener reconciles delayed historical receipts without
+replaying effects. The idle fixture fences within one second of expiry, not a
+production latency guarantee. This joins stage B components but does not close
+application authorisation, restore fencing, deployment/supervision or PBX gates.

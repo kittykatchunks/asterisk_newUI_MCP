@@ -2191,6 +2191,20 @@ activate, expiry preserving the current call, old-generation removal before
 queued replacement, continued sweeps with an expired head, failure ordering,
 interrupted-effect observation without replay, cancellation and lock release.
 
+The mTLS suite additionally runs the real serial worker loop against the reusable
+durable fake runtime. Backend prepare, activate and extend commands travel over
+mutual TLS and verified receipts return through report reconciliation. The test
+then closes the controller-facing listener before reading the extension's
+completion: no transport is available, but the worker survives the old deadline,
+fences at the renewed deadline within one second in the idle fixture, preserves
+its active simulated call and removes the generation only after call completion.
+A reopened backend and restarted listener recover the delayed receipt without
+reissuing an effect. That historical `verified` receipt is **not** evidence the
+now-removed generation remains active. The worker is explicitly cancelled and
+awaited before fixture cleanup. This combines the stage B primitives, not a
+production service: no real PBX, multi-host partition, restore detection, power
+loss or production expiry-lag guarantee is established.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

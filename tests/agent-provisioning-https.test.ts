@@ -7,12 +7,15 @@ import { createServer, request } from "node:https";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { test } from "node:test";
 import { createAgentProvisioningHttpsWorker, createAgentProvisioningHttpsTransport } from "../src/agent-provisioning-https.ts";
 import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
 import { createAgentProvisioningExecutor } from "../src/agent-provisioning-executor.ts";
+import { runAgentProvisioningWorker } from "../src/agent-provisioning-worker.ts";
+import { openFakeProvisioningRuntime } from "./identity/fake-provisioning-runtime.ts";
 import { openAgentProvisioningJournal, openAgentProvisioningStore } from "../src/agent-provisioning-store.ts";
 import type { AgentProvisioningCommand } from "../src/agent-provisioning-store.ts";
 
@@ -26,6 +29,109 @@ const fixture = run("pwsh", ["-NoProfile", "-File",
   join(dirname(fileURLToPath(import.meta.url)), "identity", "New-ProvisioningTlsFixture.ps1")],
 { timeout: 30000 }).then(({ stdout }) => JSON.parse(stdout) as Certificates);
 const pin = (identity: Identity) => new X509Certificate(identity.cert).fingerprint256;
+
+test("mTLS commands drive the serial fake worker and disconnected real expiry preserves then drains the call", async () => {
+  const certificates = await fixture;
+  const directory = await mkdtemp(join(tmpdir(), "asterisk-worker-mtls-"));
+  const binding = { customer: "customer-a", epoch: randomUUID() };
+  const backendPath = join(directory, "backend.sqlite");
+  const journal = openAgentProvisioningJournal(join(directory, "journal.sqlite"), binding);
+  const runtime = openFakeProvisioningRuntime(join(directory, "runtime.sqlite"), binding);
+  let store = openAgentProvisioningStore(backendPath);
+  const errors: unknown[] = [];
+  const server = createAgentProvisioningHttpsWorker(journal, {
+    ...certificates.worker, ca: certificates.ca, peerFingerprint256: pin(certificates.controller),
+  }, (error) => errors.push(error));
+  const controller = new AbortController();
+  const watchdog = setTimeout(() => controller.abort(new Error("fixture worker lifetime timed out")), 10000);
+  let drainObservedAt = 0;
+  let removalObservedAt = 0;
+  const running = runAgentProvisioningWorker(journal, runtime, controller.signal, async (cycle) => {
+    for (const result of cycle.expiry) {
+      if (result.state === "draining" && !drainObservedAt) drainObservedAt = Date.now();
+      if (result.state === "revoked") removalObservedAt = Date.now();
+    }
+  });
+  const stopped = running.then(() => undefined, (error: unknown) => error);
+  const waitFor = async (predicate: () => boolean) => {
+    const end = Date.now() + 4000;
+    while (!predicate()) {
+      if (Date.now() >= end) assert.fail("Fake-worker integration condition timed out");
+      await Promise.race([delay(20), running]);
+    }
+  };
+  const connect = async () => {
+    server.listen(0, "localhost"); await once(server, "listening");
+    const address = server.address(); assert.ok(address && typeof address !== "string");
+    return createAgentProvisioningDispatcher(store, binding,
+      createAgentProvisioningHttpsTransport(`https://localhost:${address.port}`, {
+        ...certificates.controller, ca: certificates.ca, peerFingerprint256: pin(certificates.worker),
+      }));
+  };
+  const disconnect = () => new Promise<void>((resolve, reject) =>
+    server.close((error) => error ? reject(error) : resolve()));
+  const generationId = randomUUID();
+  let revision = 0;
+  const initialDeadline = Date.now() + 3000;
+  const enqueue = (action: "prepare" | "activate" | "extend", deadline: number) => {
+    const base = { version: 1 as const, ...binding, operationId: randomUUID(), leaseId: randomUUID(),
+      revision: ++revision, notAfter: deadline };
+    const command: AgentProvisioningCommand = action === "prepare" ?
+      { ...base, action, payload: { generationId, extension: "1001" } } :
+      { ...base, action, payload: { generationId } };
+    store.enqueue(command, { requestId: randomUUID(), actor: "fixture", reason: "Full fake worker integration" });
+    return command;
+  };
+  try {
+    store.enrol(binding.customer, binding.epoch);
+    const dispatcher = await connect();
+    for (const action of ["prepare", "activate"] as const) {
+      const command = enqueue(action, initialDeadline);
+      assert.equal((await dispatcher.dispatch()).state, "accepted");
+      await waitFor(() => journal.operation(command.operationId)?.receipts.at(-1)?.stage === "verified");
+      assert.equal((await dispatcher.dispatch()).state, "verified");
+    }
+    runtime.startCall(generationId);
+    const renewedDeadline = initialDeadline + 700;
+    const extension = enqueue("extend", renewedDeadline);
+    assert.equal((await dispatcher.dispatch()).state, "accepted");
+    await waitFor(() => journal.operation(extension.operationId)?.receipts.at(-1)?.stage === "verified");
+    // Drop the controller-facing listener before its completion is read back.
+    await disconnect();
+    assert.equal(server.listening, false);
+    await assert.rejects(dispatcher.dispatch());
+    await waitFor(() => Date.now() > initialDeadline);
+    assert.equal(runtime.generation(generationId).phase, "active", "Renewal must survive the old deadline");
+    await waitFor(() => drainObservedAt !== 0);
+    assert.ok(drainObservedAt >= renewedDeadline);
+    assert.ok(drainObservedAt - renewedDeadline < 1000, "Idle worker must fence within the fixture threshold");
+    assert.equal(runtime.generation(generationId).dialogs, 1);
+    assert.throws(() => runtime.startCall(generationId), /new call denied/);
+    assert.equal(removalObservedAt, 0, "Disconnection must not force hangup");
+    runtime.setDialogs(generationId, 0);
+    await waitFor(() => removalObservedAt !== 0);
+    assert.equal(runtime.generation(generationId).phase, "removed");
+    assert.equal(runtime.effectCount(), 3);
+    store.close(); store = openAgentProvisioningStore(backendPath);
+    const recovered = await connect();
+    assert.equal((await recovered.dispatch()).state, "verified",
+      "Late completion is a historical receipt, not a claim that the expired generation is active");
+    assert.equal((await recovered.dispatch()).state, "idle");
+    assert.deepEqual(store.operation(binding.customer, extension.operationId)?.receipts.map((r) => r.stage),
+      ["applying", "verified"]);
+    assert.deepEqual(errors, []);
+    controller.abort(new Error("fixture complete"));
+    const error = await stopped;
+    assert.ok(error instanceof Error);
+    assert.ok(error === controller.signal.reason ||
+      (error.name === "AbortError" && error.cause === controller.signal.reason));
+    assert.equal(await journal.exclusive(async () => "released"), "released");
+  } finally {
+    clearTimeout(watchdog); controller.abort(); await stopped;
+    if (server.listening) await disconnect();
+    store.close(); journal.close(); runtime.close(); await rm(directory, { recursive: true });
+  }
+});
 
 test("process exits around a durable fake effect recover over mTLS after expiry without replay", async () => {
   const certificates = await fixture;
