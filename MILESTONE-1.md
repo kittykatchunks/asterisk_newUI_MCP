@@ -18,6 +18,9 @@ The initial engineering proof also captures local UDP SIP per customer, correlat
 an accepted call to CEL through an explicit dialplan event, and exports a redacted
 HTML signalling report with hashes. The 15-second duration limit is tested; hard
 byte quotas, interactive incident controls, and general export safety are not.
+The standalone report now supports dialog/message filtering, expandable provenance,
+and complete print output, verified using Playwright. This is not an authenticated
+multi-incident engineering workspace or a raw-message viewer.
 
 Parent document: [Project plan](./PROJECT-PLAN.md).
 

@@ -39,11 +39,21 @@ class ReportTests(unittest.TestCase):
     def test_whitelist_redaction_and_correlation(self):
         document, dialogs, correlations = report.make_report(*self.fixture())
         self.assertEqual((dialogs, correlations), (1, 1))
-        for value in ("192.0.2.1", "192.0.2.2", "private-id", "private-channel", "<script>"):
+        for value in ("192.0.2.1", "192.0.2.2", "private-id", "private-channel", "alert(1)"):
             self.assertNotIn(value, document)
         self.assertIn("dialog-1", document)
         self.assertIn("ANSWER", document)
         self.assertIn("SIP 401", document)
+        self.assertEqual(document.count("<script>"), 1)
+        self.assertIn("script-src &#x27;sha256-", document)
+        self.assertIn("connect-src &#x27;none&#x27;", document)
+
+    def test_incident_metadata_is_escaped(self):
+        manifest, packets, cel = self.fixture()
+        manifest["incident"] = '<img src="https://example.invalid/leak">'
+        document, _, _ = report.make_report(manifest, packets, cel)
+        self.assertNotIn('<img src=', document)
+        self.assertIn("&lt;img", document)
 
     def test_unmatched_cel_is_explicit_failure(self):
         manifest, packets, _ = self.fixture()

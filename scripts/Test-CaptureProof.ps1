@@ -67,6 +67,8 @@ try {
         }
         if ($manifest.kernel_dropped_packets -ne 0) { throw 'Packet loss detected in synthetic proof.' }
         if ($manifest.stop_reason -ne 'duration_limit') { throw 'Unexpected capture stop reason.' }
+        & node (Join-Path $root 'tests\diagnostics\report-ui.mjs') (Join-Path $directory 'report.html')
+        if ($LASTEXITCODE -ne 0) { throw "$customer report browser tests failed." }
         Write-Host "PASS $customer incident evidence: $(Join-Path $directory 'report.html')"
     }
 } finally {

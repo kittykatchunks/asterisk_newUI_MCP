@@ -194,14 +194,32 @@ The synthetic echo route emits `PROOF_SIP_DIALOG` containing the received Call-I
 Report correlation uses that exact value, not temporal proximity. Report output
 uses allowlisted fields and pseudonymised endpoint/dialog/channel identifiers,
 excluding raw SIP, SDP, authentication headers, names, and raw call identifiers.
-It includes no attachments or active scripts. Raw evidence remains separately
+It includes no attachments or externally loaded resources. A fixed embedded
+script enables dialog/message filters, expandable packet provenance, visible
+counts, and reset/empty states. A hash-based Content Security Policy allows only
+the bundled script/style and blocks network connections. Packet data never
+becomes executable code. Raw evidence remains separately
 restricted; hashes detect modification but do not make files immutable.
 
 Validated locally on 22 October 2026: three captured SIP dialogs per customer,
 one explicitly correlated accepted call per customer, duration-limit shutdown,
 zero reported kernel drops, original hash verification, and readable HTML output.
-Four unit tests cover whitelist redaction, missing correlation, incomplete
-synthetic call evidence, and unsupported input.
+Five unit tests cover whitelist redaction, missing correlation, incomplete
+synthetic call evidence, unsupported input, and HTML escaping of incident metadata.
+The capture runner also executes Playwright tests on each generated report:
+dialog/message filtering, expanded details, no matches/reset, complete printing
+despite active filters, no-JavaScript fallback, and no external requests.
+
+For these browser checks, install the declared npm dependencies and Chromium
+using the WebRTC prerequisites above. A report can be rechecked independently:
+
+```powershell
+node .\tests\diagnostics\report-ui.mjs "C:\absolute\path\to\report.html"
+```
+
+The report's challenge/BYE counts are observed-message counts, not diagnoses.
+Retransmissions may contribute to those counts. A 401 can be normal authentication;
+a BYE alone does not prove every dialog completed successfully.
 
 Run those tests without network access:
 
@@ -213,7 +231,7 @@ docker run --rm --network none --user 1000:999 --cap-drop ALL `
   -B -m unittest discover -s tests -p test_diagnostic_report.py
 ```
 
-This is not the full engineering workspace: interactive search/raw-message
+This is not the full engineering workspace: cross-incident search/raw-message
 inspection, manual/automatic incident controls, audit/authorisation, encrypted
 application signalling ingestion, AI diagnosis, PDF export, retention, immutable
 storage, and arbitrary-customer-data redaction remain to implement.

@@ -53,7 +53,8 @@ The README records reproduction, thresholds, and outstanding tests.
 A subsequent tcpdump/tshark proof captures synthetic UDP SIP on each customer's
 network namespace with bounded duration. It exports a whitelist-based HTML
 signalling table, explicit Call-ID/CEL correlations, packet-loss counters, and
-integrity manifests. Four report failure/redaction unit tests pass. This validates
+integrity manifests. Five report failure/redaction unit tests and browser report
+filter/print/offline checks are implemented. This validates
 a narrow evidence path, not an interactive engineering application, encrypted SIP
 capture, hard byte quotas, or general customer-data export. No HOMER runtime
 evaluation or AI analysis has been performed.

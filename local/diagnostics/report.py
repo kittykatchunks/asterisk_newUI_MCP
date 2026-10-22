@@ -1,6 +1,7 @@
 """Whitelist-only synthetic incident report; never embeds raw SIP or attachments."""
 
 import argparse
+import base64
 import csv
 import datetime
 import hashlib
@@ -89,13 +90,32 @@ def make_report(manifest, packets, cel_text):
         raise ValueError("Capture does not contain the expected challenged and completed call")
     escaped = lambda value: html.escape(str(value), quote=True)
     ladder_rows = "\n".join(
-        "<tr>" + "".join(f"<td>{escaped(value)}</td>" for value in row) + "</tr>"
-        for row in ladders
+        f'<tr data-dialog="{call}" data-message="{escaped(label)}">'
+        f'<td><details><summary>Packet {frame}</summary>'
+        f'<p>Network evidence; UDP SIP. {source} to {target}. '
+        'Raw headers and payload are excluded from this redacted export.</p>'
+        f'</details></td><td>{escaped(timestamp)}</td><td>{call}</td>'
+        f'<td>{source}</td><td class="message">{escaped(label)} &#8594;</td><td>{target}</td></tr>'
+        for frame, timestamp, call, source, label, target in ladders
     )
     history_rows = "\n".join(
-        "<tr>" + "".join(f"<td>{escaped(value)}</td>" for value in row) + "</tr>"
+        f'<tr data-dialog="{row[0]}">' + "".join(f"<td>{escaped(value)}</td>" for value in row) + "</tr>"
         for row in history
     )
+    dialog_options = "".join(
+        f'<option value="{value}">{value}</option>' for value in calls.values()
+    )
+    # Only fixed local assets are executable; packet values never enter JavaScript.
+    script = Path(__file__).with_name("report.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    style = Path(__file__).with_name("report.css").read_text(encoding="utf-8").replace("\r\n", "\n")
+    digest = lambda text: base64.b64encode(hashlib.sha256(text.encode()).digest()).decode()
+    csp = (
+        "default-src 'none'; "
+        f"script-src 'sha256-{digest(script)}'; style-src 'sha256-{digest(style)}'; "
+        "connect-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'"
+    )
+    challenge_count = sum(1 for row in ladders if row[4] == "SIP 401")
+    bye_count = sum(1 for row in ladders if row[4] == "BYE")
     safe_manifest = {
         key: manifest[key] for key in (
             "incident", "started_utc", "ended_utc", "filter", "seconds_limit", "bytes_limit",
@@ -104,7 +124,9 @@ def make_report(manifest, packets, cel_text):
     }
     document = f"""<!doctype html>
 <html lang="en"><meta charset="utf-8"><title>Synthetic engineering evidence</title>
-<style>body{{font:16px system-ui;margin:2rem;max-width:1100px}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #aaa;padding:.4rem}}pre{{white-space:pre-wrap}}@media print{{body{{margin:0}}}}</style>
+<meta http-equiv="Content-Security-Policy" content="{escaped(csp)}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>{style}</style>
 <h1>Synthetic engineering incident evidence</h1>
 <p>Incident: {escaped(manifest["incident"])}</p>
 <p>Source: network packets at one customer container interface. UTC timestamps.
@@ -113,11 +135,26 @@ Scope: local UDP SIP test calls; not TLS/WSS or RTP payload capture.</p>
 Raw messages, credentials, caller identities, SDP and packet attachments are excluded.
 No AI analysis or engineer-reviewed fault attribution is included.</p>
 <h2>Observed signalling ladder</h2>
-<table><tr><th>Packet</th><th>UTC</th><th>Dialog</th><th>From</th><th>Message →</th><th>To</th></tr>{ladder_rows}</table>
+<p class="notice">{challenge_count} authentication challenge responses (401) and
+{bye_count} BYE requests observed. A 401 is part of normal digest authentication;
+neither count establishes a fault or successful completion of every dialog.</p>
+<div class="controls">
+<div><label for="dialog-filter">Dialog</label><select id="dialog-filter"><option value="">All dialogs</option>{dialog_options}</select></div>
+<div><label for="message-filter">Message filter</label><input id="message-filter" type="search" placeholder="INVITE, BYE, SIP 401" autocomplete="off"></div>
+<button id="reset-filters" type="button">Reset filters</button></div>
+<p id="visible-count" role="status">All packets shown; filters require JavaScript.</p>
+<p id="empty-state" hidden>No packets match these filters.</p>
+<noscript><p>Interactive filtering is unavailable. All packet evidence remains visible.</p></noscript>
+<p>Printing includes all packets, regardless of the current filters.</p>
+<div class="table-scroll"><table id="packets"><caption>Observed SIP messages</caption>
+<thead><tr><th scope="col">Packet</th><th scope="col">UTC</th><th scope="col">Dialog</th><th scope="col">From</th><th scope="col">Message</th><th scope="col">To</th></tr></thead>
+<tbody>{ladder_rows}</tbody></table></div>
 <h2>Explicit CEL correlations</h2>
 <p>Matched using a synthetic dialplan CEL event carrying the received SIP Call-ID,
 not timestamps alone. Only correlated channel event types are shown.</p>
-<table><tr><th>Dialog</th><th>Channel</th><th>Event</th></tr>{history_rows}</table>
+<div class="table-scroll"><table id="events"><caption>Correlated channel events</caption>
+<thead><tr><th scope="col">Dialog</th><th scope="col">Channel</th><th scope="col">Event</th></tr></thead>
+<tbody>{history_rows}</tbody></table></div>
 <h2>Observations and limitations</h2>
 <p>Observed challenges and call termination do not establish a provider fault.
 Capture starts after activation; no earlier packets exist in this evidence.
@@ -125,7 +162,8 @@ Kernel loss statistics do not prove end-to-end completeness.
 This local fixture is not approved for arbitrary customer trace export.</p>
 <h2>Original packet integrity and capture limits</h2>
 <pre>{escaped(json.dumps(safe_manifest, indent=2))}</pre>
-<p>Hash identifies the captured file; it does not prove fault attribution.</p></html>
+<p>Hash identifies the captured file; it does not prove fault attribution.</p>
+<script>{script}</script></html>
 """
     return document, len(calls), len(correlations)
 
