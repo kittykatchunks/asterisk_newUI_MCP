@@ -511,3 +511,25 @@ owner still blocks its ordered head; no automatic abandonment/rebinding policy
 has been selected. Explicit recovery, supervision and post-acceptance worker
 fencing remain production gates. See the
 [opaque ownership contract](./README.md#durable-opaque-provisioning-ownership).
+
+### Worker health: selected fail-stop policy
+
+The user selected observable worker health without automatic restart/replay.
+An opt-in single-use supervisor now wraps the same serial expiry/execution/report
+lifetime. Pull-based detached snapshots expose the current phase, monotonic phase
+age, successfully reported cycle count, stop request and explicit
+idle/running/stalled/stopping/stopped/failed state. The caller supplies the stall
+threshold; reaching it observes a stall but does not cancel work or release its
+execution lock. Original exceptions/cancellation still propagate to the awaited
+caller, and an unrelated failure concurrent with shutdown remains a failure.
+
+Tests cover phase stalls, the exact threshold, default real-time observation,
+uncooperative cancellation with ownership retained, no restart, and failure
+classification. The disconnected mTLS fake-worker proof uses the supervisor
+while local expiry continues without the controller listener.
+
+This adds no external process manager, health HTTP route, automatic alert or
+failure-recovery action. A dead process/blocked event loop requires an independent
+monitor; a failed lifetime no longer enforces expiry. Deployment supervision,
+measured expiry guarantees and a safe runtime failure response remain gates.
+See the [worker health contract](./README.md#worker-health-and-fail-stop-supervision-opt-in).

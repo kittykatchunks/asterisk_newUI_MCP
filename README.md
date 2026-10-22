@@ -2153,6 +2153,66 @@ hand-written generation model. This supplies repeatable stage B fake-runtime
 evidence only; production allocation, replacement fencing and Asterisk enforcement
 remain unimplemented.
 
+#### Worker health and fail-stop supervision (opt-in)
+
+`createAgentProvisioningWorkerSupervisor(journal, adapters, { stallAfterMs })`
+wraps the serial worker lifetime below. It starts no listener, process, watchdog
+or retry loop. Call and await `supervisor.run(signal, onCycle)` once; its original
+error/cancellation is still rejected to the caller, which must handle it through
+its operational logging/alerting path. A second run is rejected, including after
+failure or cancellation. No automatic restart or effect replay is introduced.
+
+`supervisor.health()` returns a detached, allowlisted process-local snapshot:
+
+```typescript
+{
+  state,           // idle | running | stalled | stopping | stopped | failed
+  phase,           // null | expiry | execution | reporting | waiting
+  phaseAgeMs,      // monotonic elapsed time in the current phase; zero when settled
+  completedCycles, // only cycles whose reporting callback returned successfully
+  stopRequested
+}
+```
+
+The caller must supply a finite positive `stallAfterMs`; there is no implicit
+production expiry-lag threshold. At exactly that elapsed phase age an unsettled
+lifetime is `stalled`. Before that threshold, requested cancellation is
+`stopping`; after it, `stalled` plus `stopRequested: true` preserves visibility
+of an uncooperative shutdown. The default health clock is monotonic
+`performance.now()`, separate from the wall clock used for command expiry.
+An optional `monotonicNow` is for controlled tests and rejects invalid/backward
+readings. A later phase resets the age, so a stall can recover naturally without
+starting a new worker.
+
+After the awaited lifetime settles, `stopped` means caller cancellation propagated
+as the original reason or its standard `AbortError` wrapper; unrelated failures,
+even concurrent with cancellation, remain `failed`. The last phase is retained
+for diagnosis. No error messages, customer identifiers, commands, tokens or
+runtime adapter data are copied into health snapshots. The original rejection
+still carries failure details for the caller's protected error handling.
+
+Health is **responsiveness evidence, not PBX readiness or expiry protection**.
+Even `running` may have an expired/blocked head, uncertain receipts, or draining
+dialogs; cycle results and adapter verification remain separate. `failed` means
+this lifetime no longer performs expiry sweeps. A stalled effect keeps its
+execution lock until its actual promise settles; observation never frees the
+lock, kills the process, cancels an effect, or starts another sweep concurrently.
+Long inventory sweeps can legitimately exceed a chosen threshold, so operators
+must choose and measure it for their deployment.
+
+The worker tests cover exact threshold boundaries, a real-time held inventory,
+each active phase, reporting counts, concurrent cancellation/failure, single-use
+behaviour and lock retention. The disconnected mTLS fake-worker proof now uses
+this supervisor and confirms local cycles continue with the controller listener
+offline before explicit shutdown.
+
+This is in-process fail-stop observation, not a deployed supervisor or public
+health endpoint. A dead process or blocked event loop cannot answer a health
+query; an independent monitor/service manager and a separately designed safe
+failure response are still required. Snapshots are not persisted or published
+automatically. No production worker, Asterisk adapter or browser calling is
+enabled.
+
 #### Serial worker lifetime (injected adapters, off by default)
 
 `src/agent-provisioning-worker.ts` exposes `runAgentProvisioningWorker(journal,

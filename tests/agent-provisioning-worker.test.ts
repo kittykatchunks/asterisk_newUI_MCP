@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { runAgentProvisioningWorker } from "../src/agent-provisioning-worker.ts";
+import { runAgentProvisioningWorker, createAgentProvisioningWorkerSupervisor } from "../src/agent-provisioning-worker.ts";
 import { openAgentProvisioningJournal } from "../src/agent-provisioning-store.ts";
 import type { AgentProvisioningCommand } from "../src/agent-provisioning-store.ts";
 import { openFakeProvisioningRuntime } from "./identity/fake-provisioning-runtime.ts";
@@ -146,5 +146,210 @@ test("cancellation during expiry never starts execution or reports a successful 
       } },
     }, controller.signal, async () => assert.fail("No completed cycle"), f.options), /fixture cancelled/);
     assert.equal(f.runtime.effectCount(), 0);
+  } finally { await f.close(); }
+});
+
+test("supervisor exposes detached phase health, exact stall threshold and pending shutdown without releasing an effect", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  const watchdog = setTimeout(() => controller.abort(new Error("fixture timeout")), 5000);
+  let tick = 100;
+  let enter!: () => void;
+  let release!: () => void;
+  const entered = new Promise<void>((resolve) => { enter = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const command = f.enqueue("prepare", randomUUID());
+  const supervisor = createAgentProvisioningWorkerSupervisor(f.journal, {
+    execution: {
+      ...f.runtime.execution,
+      async apply() { enter(); await gate; },
+    }, expiry: f.runtime.expiry,
+  }, { ...f.options, stallAfterMs: 1000, monotonicNow: () => tick });
+  let lifetime: Promise<void> | undefined;
+  try {
+    assert.deepEqual(supervisor.health(), {
+      state: "idle", phase: null, phaseAgeMs: 0, completedCycles: 0, stopRequested: false,
+    });
+    lifetime = supervisor.run(controller.signal, async () => assert.fail("Cancelled effect cannot complete a cycle"));
+    const rejected = assert.rejects(lifetime, /fixture stopped/);
+    await entered;
+    assert.equal(supervisor.health().phase, "execution");
+    tick = 1099;
+    assert.equal(supervisor.health().state, "running");
+    tick = 1100;
+    const snapshot = supervisor.health();
+    assert.equal(snapshot.state, "stalled");
+    assert.equal(snapshot.phaseAgeMs, 1000);
+    snapshot.completedCycles = 99;
+    assert.equal(supervisor.health().completedCycles, 0);
+    tick = 1101;
+    controller.abort(new Error("fixture stopped"));
+    assert.equal(supervisor.health().state, "stalled");
+    assert.equal(supervisor.health().stopRequested, true);
+    await assert.rejects(f.journal.exclusive(async () => assert.fail("Stalled effect still owns journal")), /locked/);
+    assert.equal(f.journal.operation(command.operationId)?.receipts.at(-1)?.stage, "applying");
+    await assert.rejects(supervisor.run(new AbortController().signal, async () => {}), /single-use/);
+    release();
+    await rejected;
+    assert.equal(supervisor.health().state, "stopped");
+    assert.equal(supervisor.health().phase, "execution");
+    assert.equal(await f.journal.exclusive(async () => "released"), "released");
+    await assert.rejects(supervisor.run(new AbortController().signal, async () => {}), /single-use/);
+  } finally {
+    release(); clearTimeout(watchdog); controller.abort();
+    if (lifetime) await lifetime.catch(() => {});
+    await f.close();
+  }
+});
+
+test("default monotonic health clock detects a real stalled inventory without a timer-driven restart", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  let enter!: () => void;
+  let release!: () => void;
+  const entered = new Promise<void>((resolve) => { enter = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let attempts = 0;
+  const supervisor = createAgentProvisioningWorkerSupervisor(f.journal, {
+    execution: f.runtime.execution,
+    expiry: { ...f.runtime.expiry, async inventory() { attempts++; enter(); await gate; return []; } },
+  }, { ...f.options, stallAfterMs: 30 });
+  const lifetime = supervisor.run(controller.signal, async () => assert.fail("No cancelled cycle"));
+  const rejected = assert.rejects(lifetime, (error: unknown) => error === controller.signal.reason);
+  try {
+    await entered;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(supervisor.health().state, "stalled");
+    assert.ok(supervisor.health().phaseAgeMs >= 30);
+    assert.equal(attempts, 1);
+    controller.abort(new Error("fixture completed"));
+    release();
+    await rejected;
+    assert.equal(supervisor.health().state, "stopped");
+  } finally { release(); controller.abort(); await lifetime.catch(() => {}); await f.close(); }
+});
+
+test("supervisor reports expiry and reporting stalls and counts only successfully reported cycles", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  let tick = 0;
+  let inventoryEnter!: () => void;
+  let inventoryRelease!: () => void;
+  const inventoryEntered = new Promise<void>((resolve) => { inventoryEnter = resolve; });
+  const inventoryGate = new Promise<void>((resolve) => { inventoryRelease = resolve; });
+  let reportEnter!: () => void;
+  let reportRelease!: () => void;
+  const reportEntered = new Promise<void>((resolve) => { reportEnter = resolve; });
+  const reportGate = new Promise<void>((resolve) => { reportRelease = resolve; });
+  const supervisor = createAgentProvisioningWorkerSupervisor(f.journal, {
+    execution: f.runtime.execution,
+    expiry: { ...f.runtime.expiry, async inventory() { inventoryEnter(); await inventoryGate; return []; } },
+  }, { ...f.options, stallAfterMs: 500, monotonicNow: () => tick });
+  let lifetime: Promise<void> | undefined;
+  try {
+    lifetime = supervisor.run(controller.signal, async () => { reportEnter(); await reportGate; });
+    const rejected = assert.rejects(lifetime, (error: unknown) => error === controller.signal.reason ||
+      (error instanceof Error && error.cause === controller.signal.reason));
+    await inventoryEntered;
+    assert.equal(supervisor.health().phase, "expiry");
+    tick = 500;
+    assert.equal(supervisor.health().state, "stalled");
+    inventoryRelease();
+    await reportEntered;
+    assert.equal(supervisor.health().phase, "reporting");
+    assert.equal(supervisor.health().state, "running");
+    tick = 1000;
+    assert.equal(supervisor.health().state, "stalled");
+    assert.equal(supervisor.health().completedCycles, 0);
+    reportRelease();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(supervisor.health().phase, "waiting");
+    assert.equal(supervisor.health().completedCycles, 1);
+    assert.equal(supervisor.health().state, "running");
+    controller.abort(new Error("fixture done"));
+    assert.equal(supervisor.health().state, "stopping");
+    await rejected;
+    assert.equal(supervisor.health().state, "stopped");
+  } finally {
+    inventoryRelease(); reportRelease(); controller.abort();
+    if (lifetime) await lifetime.catch(() => {});
+    await f.close();
+  }
+});
+
+test("supervisor fails explicitly on adapter/reporting errors, never restarts and preserves the original rejection", async () => {
+  const f = await fixture();
+  try {
+    for (const failurePhase of ["expiry", "execution", "reporting"] as const) {
+      const failure = new Error(`fixture ${failurePhase} failure with private adapter details`);
+      const controller = new AbortController();
+      let attempts = 0;
+      const supervisor = createAgentProvisioningWorkerSupervisor(f.journal, {
+        execution: {
+          ...f.runtime.execution,
+          async apply() { attempts++; controller.abort(new Error("concurrent shutdown")); throw failure; },
+        },
+        expiry: {
+          ...f.runtime.expiry,
+          async inventory() {
+            if (failurePhase === "expiry") { attempts++; throw failure; }
+            return [];
+          },
+        },
+      }, { ...f.options, stallAfterMs: 1000 });
+      if (failurePhase === "execution") f.enqueue("prepare", randomUUID());
+      // The interrupted execution head is observed, never replayed, on the reporting run.
+      await assert.rejects(supervisor.run(controller.signal, async () => { attempts++; throw failure; }),
+        (error) => error === failure);
+      assert.equal(supervisor.health().state, "failed");
+      assert.equal(supervisor.health().phase, failurePhase);
+      assert.equal(supervisor.health().completedCycles, 0);
+      assert.equal(attempts, 1);
+      assert.ok(!JSON.stringify(supervisor.health()).includes("private"));
+      await assert.rejects(supervisor.run(new AbortController().signal, async () => {}), /single-use/);
+      assert.equal(await f.journal.exclusive(async () => "released"), "released");
+    }
+  } finally { await f.close(); }
+});
+
+test("supervisor handles pre-cancellation and rejects invalid thresholds or non-monotonic health clocks", async () => {
+  const f = await fixture();
+  try {
+    for (const stallAfterMs of [0, -1, NaN, Infinity]) {
+      assert.throws(() => createAgentProvisioningWorkerSupervisor(f.journal,
+        { execution: f.runtime.execution, expiry: f.runtime.expiry }, { stallAfterMs }), /stall threshold/);
+    }
+    const reason = new Error("fixture pre-cancelled");
+    const stopped = createAgentProvisioningWorkerSupervisor(f.journal,
+      { execution: f.runtime.execution, expiry: f.runtime.expiry }, { stallAfterMs: 1000 });
+    await assert.rejects(stopped.run(AbortSignal.abort(reason), async () => assert.fail("No cancelled cycle")),
+      (error) => error === reason);
+    assert.equal(stopped.health().state, "stopped");
+    for (const value of [NaN, Infinity, -1]) {
+      const invalid = createAgentProvisioningWorkerSupervisor(f.journal,
+        { execution: f.runtime.execution, expiry: f.runtime.expiry }, { stallAfterMs: 1000, monotonicNow: () => value });
+      await assert.rejects(invalid.run(new AbortController().signal, async () => {}), /health clock/);
+      assert.equal(invalid.health().state, "failed");
+    }
+    let tick = 10;
+    const controller = new AbortController();
+    let entered!: () => void;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    const backwards = createAgentProvisioningWorkerSupervisor(f.journal, {
+      execution: f.runtime.execution,
+      expiry: { ...f.runtime.expiry, async inventory() { entered(); await gate; return []; } },
+    }, { stallAfterMs: 1000, monotonicNow: () => tick });
+    const lifetime = backwards.run(controller.signal, async () => {});
+    const rejected = assert.rejects(lifetime, /health clock/);
+    try {
+      await started;
+      tick = 9;
+      assert.throws(() => backwards.health(), /health clock/);
+      release();
+      await rejected;
+      assert.equal(backwards.health().state, "failed");
+    } finally { release(); controller.abort(); await lifetime.catch(() => {}); }
   } finally { await f.close(); }
 });

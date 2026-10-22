@@ -17,7 +17,7 @@ import { createAgentProvisioningExecutor } from "../src/agent-provisioning-execu
 import { createAuthorisedProvisioningTransport } from "../src/agent-provisioning-authorisation.ts";
 import { openAgentDeviceLeaseStore } from "../src/agent-device-lease.ts";
 import type { ApplicationSessionIdentity } from "../src/application-session.ts";
-import { runAgentProvisioningWorker } from "../src/agent-provisioning-worker.ts";
+import { createAgentProvisioningWorkerSupervisor } from "../src/agent-provisioning-worker.ts";
 import { openFakeProvisioningRuntime } from "./identity/fake-provisioning-runtime.ts";
 import { openAgentProvisioningJournal, openAgentProvisioningStore } from "../src/agent-provisioning-store.ts";
 import type { AgentProvisioningCommand } from "../src/agent-provisioning-store.ts";
@@ -141,7 +141,8 @@ test("mTLS commands drive the serial fake worker and disconnected real expiry pr
   const watchdog = setTimeout(() => controller.abort(new Error("fixture worker lifetime timed out")), 10000);
   let drainObservedAt = 0;
   let removalObservedAt = 0;
-  const running = runAgentProvisioningWorker(journal, runtime, controller.signal, async (cycle) => {
+  const supervisor = createAgentProvisioningWorkerSupervisor(journal, runtime, { stallAfterMs: 1500 });
+  const running = supervisor.run(controller.signal, async (cycle) => {
     for (const result of cycle.expiry) {
       if (result.state === "draining" && !drainObservedAt) drainObservedAt = Date.now();
       if (result.state === "revoked") removalObservedAt = Date.now();
@@ -207,6 +208,8 @@ test("mTLS commands drive the serial fake worker and disconnected real expiry pr
     await waitFor(() => removalObservedAt !== 0);
     assert.equal(runtime.generation(generationId).phase, "removed");
     assert.equal(runtime.effectCount(), 3);
+    assert.equal(supervisor.health().state, "running", "Disconnected control transport must not stop local protection");
+    assert.ok(supervisor.health().completedCycles > 0);
     store.close(); store = openAgentProvisioningStore(backendPath);
     const recovered = await connect();
     assert.equal((await recovered.dispatch()).state, "verified",
@@ -220,6 +223,7 @@ test("mTLS commands drive the serial fake worker and disconnected real expiry pr
     assert.ok(error instanceof Error);
     assert.ok(error === controller.signal.reason ||
       (error.name === "AbortError" && error.cause === controller.signal.reason));
+    assert.equal(supervisor.health().state, "stopped");
     assert.equal(await journal.exclusive(async () => "released"), "released");
   } finally {
     clearTimeout(watchdog); controller.abort(); await stopped;
