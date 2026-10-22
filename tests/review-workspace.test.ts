@@ -94,7 +94,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         if (new URL(request.url()).pathname.startsWith("/api/customers/customer-a/diagnostics/reviews")) reviewRequests++;
         if (new URL(request.url()).origin !== origin) unexpected.push(request.url());
         if (request.headers().authorization && !new URL(request.url()).pathname.startsWith("/api/customers/customer-a/diagnostics/reviews") &&
-            new URL(request.url()).pathname !== "/api/customers/customer-a/pbx/status") {
+            !["/api/customers/customer-a/pbx/status", "/api/customers/customer-a/pbx/endpoints"].includes(new URL(request.url()).pathname)) {
           unexpected.push("Authorization sent outside review API");
         }
         if (request.method() === "POST") posts.push(request.postData() ?? "");
@@ -1063,6 +1063,42 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.ok((await pbxRegion.getByRole("status").textContent())?.includes("No current PBX status confirmed"));
       await page.unroute(pbxUrl);
       assert.equal(posts.length, beforePbx);
+      const endpointRegion = page.getByRole("region", { name: "SIP endpoint visibility", exact: true });
+      const endpointUrl = "**/api/customers/customer-a/pbx/endpoints";
+      const endpointName = '<img src="https://untrusted.invalid/endpoint">';
+      for (const probe of [
+        { status: 200, body: { customer: "customer-a", checkedAt: "2026-10-22T12:00:00Z",
+          endpoints: [{ id: endpointName, deviceState: "Unavailable", hasContacts: false, activeChannels: 0 }] }, expected: "1 configured endpoint(s)." },
+        { status: 503, body: { code: "pbx_endpoints_unavailable" }, expected: "pbx_endpoints_unavailable" },
+        { status: 200, body: { customer: "customer-b", checkedAt: "2026-10-22T12:00:00Z", endpoints: [] }, expected: "Invalid PBX endpoint response" },
+        { status: 200, body: { customer: "customer-a", checkedAt: "2026-10-22T12:00:00Z",
+          endpoints: [{ id: "phone", deviceState: "Unavailable", hasContacts: "private-invalid", activeChannels: 0 }] }, expected: "Invalid PBX endpoint response" },
+        { status: 200, body: { customer: "customer-a", checkedAt: "2026-10-22T12:00:00Z", endpoints: [] }, expected: "0 configured endpoint(s)." },
+      ]) {
+        await page.route(endpointUrl, (route) => route.fulfill({
+          status: probe.status, headers: { "X-Request-Id": referenceId },
+          contentType: "application/json", json: probe.body,
+        }));
+        await page.getByRole("button", { name: "Check SIP endpoints", exact: true }).click();
+        if (probe.expected.includes("configured")) {
+          await endpointRegion.getByRole("status").filter({ hasText: probe.expected }).waitFor();
+          assert.equal(await endpointRegion.locator("article").count(), probe.body.endpoints?.length);
+          assert.ok((await endpointRegion.getByRole("status").textContent())?.includes(referenceId));
+          if (probe.body.endpoints?.length) {
+            assert.ok((await endpointRegion.textContent())?.includes(endpointName));
+            assert.ok((await endpointRegion.textContent())?.includes("Observed contacts: none"));
+          }
+        } else {
+          const alert = page.getByRole("alert").filter({ hasText: probe.expected });
+          await alert.waitFor();
+          assert.ok((await alert.textContent())?.includes(referenceId));
+          assert.ok(!(await alert.textContent())?.includes("private"));
+          assert.equal(await endpointRegion.locator("article").count(), 0);
+        }
+        assert.equal(await endpointRegion.locator("img, script, iframe").count(), 0);
+        assert.equal(posts.length, beforePbx);
+        await page.unroute(endpointUrl);
+      }
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);
       assert.equal(await pendingOrder.isVisible(), false);
       await connect(await jwt("reviewer", true));

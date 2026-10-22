@@ -15,6 +15,19 @@ for (const customer of ["customer-a", "customer-b"]) {
   assert.ok(Number.isFinite(Date.parse(status.checkedAt)));
 }
 await assert.rejects(source.status("customer-unknown"), /not configured/);
+await assert.rejects(source.endpoints("customer-a"), /denied/, "Reporting-only credentials must not gain endpoint action authority");
+const endpointSource = await loadLocalPbxStatus(localEngineeringRoot, true);
+assert.ok(endpointSource);
+for (const customer of ["customer-a", "customer-b"]) {
+  const snapshot = await endpointSource.endpoints(customer);
+  assert.equal(snapshot.customer, customer);
+  assert.equal(snapshot.endpoints.length, 2);
+  assert.deepEqual(snapshot.endpoints.map((endpoint) => [endpoint.id, endpoint.hasContacts]),
+    [[`${customer}-offline`, false], [`${customer}-static`, true]]);
+  assert.ok(snapshot.endpoints.every((endpoint) => endpoint.activeChannels === 0));
+  assert.ok(!JSON.stringify(snapshot).includes("sip:"), "Contact addresses must not be disclosed");
+}
+console.log("PASS separate endpoint credentials enumerate only their own PBX; static contacts are not labelled registrations");
 
 // Independent unauthenticated probe must not obtain CoreStatus.
 const socket = connect({ host: "127.0.0.1", port: 15038 });

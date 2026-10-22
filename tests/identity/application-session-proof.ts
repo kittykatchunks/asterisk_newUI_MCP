@@ -17,7 +17,9 @@ const accounts: { subject: string; username: string; password: string; customer:
 const client: { clientId: string; secret: string } =
   JSON.parse(await readFile(new URL("../../.local-proof/identity/application-client.json", import.meta.url), "utf8"));
 const pbx = process.env.ASTERISK_TEST_REAL_AMI === "1" ? await loadLocalPbxStatus(localEngineeringRoot) : undefined;
+const endpoints = process.env.ASTERISK_TEST_REAL_AMI === "1" ? await loadLocalPbxStatus(localEngineeringRoot, true) : undefined;
 if (process.env.ASTERISK_TEST_REAL_AMI === "1") assert.ok(pbx, "Combined proof requires configured real AMI");
+if (process.env.ASTERISK_TEST_REAL_AMI === "1") assert.ok(endpoints, "Combined proof requires separate endpoint credentials");
 const discoveryResponse = await fetch(`${issuer}/.well-known/openid-configuration`);
 assert.equal(discoveryResponse.status, 200);
 const discovery = await discoveryResponse.json();
@@ -48,7 +50,7 @@ const api = createDiagnosticApi({
   tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
   clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
   allowLoopbackHttpForTests: true,
-}, pbx);
+}, pbx, endpoints);
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   api.listen(18766, "127.0.0.1");
@@ -139,6 +141,24 @@ try {
         } finally { statusReader.close(); }
         const foreign = account.customer === "customer-a" ? "customer-b" : "customer-a";
         assert.equal((await fetch(statusUrl.replace(account.customer, foreign), { headers: { Cookie: cookie } })).status, 403);
+        const endpointUrl = `${origin}/api/customers/${account.customer}/pbx/endpoints`;
+        const endpointResponse = page.waitForResponse(endpointUrl);
+        await page.getByRole("button", { name: "Check SIP endpoints", exact: true }).click();
+        const endpointRead = await endpointResponse;
+        assert.equal(endpointRead.status(), 200);
+        const endpointRegion = page.getByRole("region", { name: "SIP endpoint visibility", exact: true });
+        await endpointRegion.getByRole("status").filter({ hasText: "2 configured endpoint(s)." }).waitFor();
+        assert.equal(await endpointRegion.locator("article").count(), 2);
+        assert.ok((await endpointRegion.textContent())?.includes(`${account.customer}-offline`));
+        assert.ok((await endpointRegion.textContent())?.includes("present (may be static)"));
+        assert.ok(!(await endpointRead.text()).includes("sip:"));
+        assert.equal((await fetch(endpointUrl.replace(account.customer, foreign), { headers: { Cookie: cookie } })).status, 403);
+        const endpointAudit = new DatabaseSync(databasePath, { readOnly: true });
+        try {
+          const audit = endpointAudit.prepare("SELECT customer, subject, operation FROM access_audit WHERE request_id = ?")
+            .get(endpointRead.headers()["x-request-id"]);
+          assert.deepEqual({ ...audit }, { customer: account.customer, subject: account.subject, operation: "pbx-endpoints" });
+        } finally { endpointAudit.close(); }
         console.log(`PASS ${account.username}: authenticated browser to real own-customer AMI, durable status audit and cross-customer denial`);
         if (account.username !== "alice") {
           await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
@@ -432,6 +452,8 @@ try {
       if (pbx) {
         assert.equal(await page.getByRole("region", { name: "PBX operational status", exact: true }).count(), 0);
         assert.equal((await fetch(`${origin}/api/customers/${account.customer}/pbx/status`,
+          { headers: { Cookie: cookie } })).status, 401);
+        assert.equal((await fetch(`${origin}/api/customers/${account.customer}/pbx/endpoints`,
           { headers: { Cookie: cookie } })).status, 401);
       }
       assert.equal((await context.cookies(origin)).filter((cookie) => cookie.name === "asterisk-test-session").length, 0);

@@ -289,6 +289,21 @@ recheck, busy controls, request-correlated 503 feedback and explicit manual
 recovery to a new snapshot. It sends no decision POST or automatic recheck.
 This uses injected browser responses alongside the separate real AMI outage proof.
 
+The selected endpoint milestone now has an initial read-only endpoint/contact
+visibility slice: audited customer-scoped GET, explicit workspace loading, and
+allowlisted endpoint ID/device state/contact-presence/active-channel fields.
+Contact URIs/auth details are excluded, completion/counts are checked, and
+three-second/64 KiB/200-endpoint bounds fail closed rather than truncate.
+
+Following explicit approval, a separate system+reporting AMI account is used:
+upstream endpoint enumeration requires system authority. Core credentials remain
+reporting-only. The separate credential has broader power outside this fixed-action
+application and is not intrinsically read-only; production provisioning must
+account for that risk. Real two-PBX/browser tests distinguish no-contact/static
+contact endpoints and verify isolation, audit and logout boundaries. Static
+contacts are not labelled registrations; dynamic registration/expiry/reachability
+transitions remain a subsequent milestone.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

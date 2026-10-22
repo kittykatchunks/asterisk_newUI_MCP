@@ -297,6 +297,19 @@ snapshot clears while a recheck is held, controls lock, 503 feedback retains the
 request reference and manual recovery displays only the new snapshot. No decision
 POST or automatic recheck is sent.
 
+Endpoint/contact visibility now adds a bounded `PJSIPShowEndpoints` list consumer
+over the shared AMI transport. The API/UI disclose only endpoint IDs, device state,
+contact presence and active-channel count under audited diagnostics-read access.
+Real/runtime/browser tests verify no-contact versus static-contact results and
+customer boundaries; protocol tests verify completion counts, limits and Unicode
+framing. Dynamic registration status is not inferred from static contacts.
+
+Upstream requires AMI system authority for this action. An explicitly approved,
+separate system+reporting account is therefore used while core status remains
+reporting-only. Fixed application actions do not remove the credential's broader
+system privilege if used elsewhere. Production credential/network controls and
+actual registration/expiry acceptance remain outstanding.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

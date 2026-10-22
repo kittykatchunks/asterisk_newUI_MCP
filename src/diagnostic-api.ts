@@ -8,7 +8,7 @@ import type { DiagnosticStore } from "./diagnostic-store.ts";
 import { handleReviewRequest } from "./review-http.ts";
 import { createApplicationSessions } from "./application-session.ts";
 import type { ApplicationSessionConfig } from "./application-session.ts";
-import type { PbxStatusSource } from "./pbx-status.ts";
+import type { PbxStatusSource, PbxEndpointSource } from "./pbx-status.ts";
 
 export interface AccessAudit {
   requestId: string;
@@ -18,7 +18,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "session-login" | "session-logout";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "session-login" | "session-logout";
   incident?: string;
 }
 
@@ -30,6 +30,7 @@ export function createDiagnosticApi(
   reviews?: Pick<DiagnosticStore, "pending" | "candidate" | "review" | "history">,
   sessionConfig?: ApplicationSessionConfig,
   pbx?: PbxStatusSource,
+  pbxEndpoints?: PbxEndpointSource,
 ) {
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
       sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
@@ -80,6 +81,51 @@ export function createDiagnosticApi(
       }
       const reviewMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics\/reviews(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/);
       const pbxMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/status$/);
+      const endpointMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/endpoints$/);
+      if (endpointMatch) {
+        customer = endpointMatch[1];
+        const access = await verify(request.headers.authorization, customer, "diagnostics:read");
+        if (!access.allowed) {
+          await audit({ requestId, timestamp: new Date().toISOString(), customer,
+            status: access.status, outcome: access.code, operation: "pbx-endpoints" });
+          request.resume(); send(access.status, access.code); return;
+        }
+        if (request.method !== "GET") {
+          response.setHeader("Allow", "GET");
+          await audit({ requestId, timestamp: new Date().toISOString(), customer, subject: access.subject,
+            basis: access.basis, status: 405, outcome: "method_not_allowed", operation: "pbx-endpoints" });
+          request.resume(); send(405, "method_not_allowed"); return;
+        }
+        if (!pbxEndpoints) {
+          await audit({ requestId, timestamp: new Date().toISOString(), customer, subject: access.subject,
+            basis: access.basis, status: 503, outcome: "pbx_endpoints_unavailable", operation: "pbx-endpoints" });
+          send(503, "pbx_endpoints_unavailable"); return;
+        }
+        let snapshot;
+        try {
+          snapshot = await pbxEndpoints.endpoints(customer);
+          if (snapshot.customer !== customer || !Number.isFinite(Date.parse(snapshot.checkedAt)) ||
+              !Array.isArray(snapshot.endpoints) || snapshot.endpoints.length > 200 ||
+              !snapshot.endpoints.every((endpoint) => typeof endpoint.id === "string" &&
+                !!endpoint.id.trim() && endpoint.id.length <= 128 && !/[\x00-\x1f\x7f]/.test(endpoint.id) &&
+                typeof endpoint.deviceState === "string" && /^[A-Za-z][A-Za-z0-9 _-]{0,63}$/.test(endpoint.deviceState) &&
+                typeof endpoint.hasContacts === "boolean" && Number.isSafeInteger(endpoint.activeChannels) && endpoint.activeChannels >= 0) ||
+              new Set(snapshot.endpoints.map((endpoint) => endpoint.id)).size !== snapshot.endpoints.length) {
+            throw new Error("Invalid PBX endpoint snapshot");
+          }
+        } catch (error) {
+          logError(error, requestId);
+          await audit({ requestId, timestamp: new Date().toISOString(), customer, subject: access.subject,
+            basis: access.basis, status: 503, outcome: "pbx_endpoints_unavailable", operation: "pbx-endpoints" });
+          send(503, "pbx_endpoints_unavailable"); return;
+        }
+        await audit({ requestId, timestamp: new Date().toISOString(), customer, subject: access.subject,
+          basis: access.basis, status: 200, outcome: "pbx_endpoints_checked", operation: "pbx-endpoints" });
+        response.writeHead(200).end(JSON.stringify({ requestId, customer, checkedAt: snapshot.checkedAt,
+          endpoints: snapshot.endpoints.map(({ id, deviceState, hasContacts, activeChannels }) =>
+            ({ id, deviceState, hasContacts, activeChannels })) }));
+        return;
+      }
       if (pbxMatch) {
         customer = pbxMatch[1];
         const access = await verify(request.headers.authorization, customer, "diagnostics:read");

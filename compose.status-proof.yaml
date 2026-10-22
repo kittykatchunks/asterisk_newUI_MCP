@@ -23,6 +23,7 @@ services:
     volumes:
       - ./local/asterisk:/etc/asterisk:ro
       - ./.local-proof/pbx-status/customer-a.conf:/etc/asterisk/manager.conf:ro
+      - ./.local-proof/pbx-status/customer-a-pjsip.conf:/etc/asterisk/pjsip.conf:ro
       - customer-a-state:/var/lib/asterisk
   customer-b:
     <<: *status-pbx
@@ -31,6 +32,7 @@ services:
     volumes:
       - ./local/asterisk:/etc/asterisk:ro
       - ./.local-proof/pbx-status/customer-b.conf:/etc/asterisk/manager.conf:ro
+      - ./.local-proof/pbx-status/customer-b-pjsip.conf:/etc/asterisk/pjsip.conf:ro
       - customer-b-state:/var/lib/asterisk
 
 networks:

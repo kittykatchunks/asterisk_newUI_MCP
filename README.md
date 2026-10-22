@@ -1073,6 +1073,60 @@ new observation/startup times and clear the error, without any decision POST.
 These browser responses are injected; the real outage proof above separately
 validates the AMI runtime behaviour.
 
+### SIP endpoint visibility (observed contacts, not registration proof)
+
+`GET /api/customers/{customer}/pbx/endpoints` is GET-only and requires that
+customer's `diagnostics:read`. Successful disclosure waits for a durable
+`pbx-endpoints` access audit. The response contains `requestId`, `customer`,
+`checkedAt` and `endpoints`; each endpoint includes only `id`, `deviceState`,
+`hasContacts` and `activeChannels`. Raw contact URIs, IP addresses, transport/AOR
+details and authentication names/secrets are excluded. Endpoint IDs themselves
+remain operator-provisioned identifiers and should not contain sensitive data.
+
+The workspace loads this snapshot only when **Check SIP endpoints** is selected.
+It protects an open draft, renders all endpoint data as literal text, clears old
+results before checking, and removes results on failure/session disposal. Empty
+lists mean a completed check found no configured endpoints; denied, incomplete,
+malformed or oversized lists produce explicit unavailable errors, never an empty
+healthy fallback. The list is capped at 200; exceeding either that cap, the 64 KiB
+AMI response cap or the three-second deadline fails the whole check rather than
+silently truncating it. Completion/action IDs and item counts must match.
+
+**Meaning:** `hasContacts` means Asterisk reported at least one associated contact,
+which may be statically configured. It does not distinguish dynamic registration,
+expired contacts or reachability. Reported device state is not a health verdict.
+This increment therefore provides endpoint/contact visibility, **not yet a
+verified registered/unregistered phone inventory**. Actual dynamic REGISTER,
+expiry and qualification transitions require a subsequent acceptance proof.
+
+**Separate credential authority:** Asterisk 22 classifies `PJSIPShowEndpoints`
+under the AMI `system` action class, not `reporting`. Following the explicit design
+decision, endpoint enumeration uses a separately provisioned account with
+`read = none` and `write = system,reporting`. The original core-status account
+remains reporting-only and the real proof verifies it cannot enumerate endpoints.
+The new account's class permits other system actions if its credentials are
+misused outside this application: it is **not a server-enforced read-only AMI
+account**. Keep it private, tenant-bound and on a restricted management network;
+production use needs explicit operator acceptance of that broader authority.
+No arbitrary AMI action or system-control route is exposed by the application.
+
+The optional eighth `createDiagnosticApi` argument is a `PbxEndpointSource`.
+The local launcher separately loads ignored
+`.local-proof/pbx-status/endpoint-connections.json`, with the same connection
+schema/TLS constraints as core status but distinct `endpoint-reader` credentials.
+Absence leaves endpoint visibility explicitly unavailable. Never replace the
+reporting-only core-status mapping with the broader account.
+
+The existing `Test-PbxStatusProof.ps1` fixture now provisions distinct endpoint
+credentials and two synthetic endpoints per PBX: one without contacts and one
+with a static contact. It modifies only this isolated fixture, not existing PBXs.
+`-WithIdentity` additionally verifies Alice and Bob's own-customer endpoint
+snapshots, durable audit correlation, foreign-scope denial and logout replay
+denial through real browser sessions. AMI unit tests cover fragmented Unicode,
+zero/exact-limit/over-limit lists, duplicate IDs, malformed state, wrong counts
+and missing completion; API/browser tests cover permission/audit gating, safe
+allowlisted output and hostile-looking endpoint names.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

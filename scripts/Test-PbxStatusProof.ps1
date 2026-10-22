@@ -17,9 +17,11 @@ try {
         try { $listener.Start() } finally { $listener.Stop() }
     }
     $connections = @()
+    $endpointConnections = @()
     foreach ($index in @(0, 1)) {
         $customer = @('customer-a', 'customer-b')[$index]
         $secret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        $endpointSecret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
         $manager = @"
 [general]
 enabled = yes
@@ -31,13 +33,50 @@ displayconnects = no
 secret = $secret
 read = none
 write = reporting
+
+[endpoint-reader]
+secret = $endpointSecret
+read = none
+write = system,reporting
 "@
         [IO.File]::WriteAllText((Join-Path $directory "$customer.conf"), $manager, [Text.UTF8Encoding]::new($false))
         $connections += @{ customer = $customer; host = '127.0.0.1'; port = 15038 + $index
             username = 'status-reader'; secret = $secret; tls = $false }
+        $endpointConnections += @{ customer = $customer; host = '127.0.0.1'; port = 15038 + $index
+            username = 'endpoint-reader'; secret = $endpointSecret; tls = $false }
+        $pjsip = @"
+[global]
+type = global
+user_agent = Asterisk-Endpoint-Proof
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0:5060
+[$customer-offline]
+type = endpoint
+context = default
+disallow = all
+allow = ulaw
+aors = $customer-offline
+[$customer-offline]
+type = aor
+max_contacts = 1
+[$customer-static]
+type = endpoint
+context = default
+disallow = all
+allow = ulaw
+aors = $customer-static
+[$customer-static]
+type = aor
+contact = sip:synthetic@127.0.0.1:5099
+"@
+        [IO.File]::WriteAllText((Join-Path $directory "$customer-pjsip.conf"), $pjsip, [Text.UTF8Encoding]::new($false))
     }
     [IO.File]::WriteAllText((Join-Path $directory 'connections.json'),
         (ConvertTo-Json -InputObject $connections), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $directory 'endpoint-connections.json'),
+        (ConvertTo-Json -InputObject $endpointConnections), [Text.UTF8Encoding]::new($false))
     try {
         & docker compose -f $compose up -d
         if ($LASTEXITCODE -ne 0) { throw 'PBX status fixture startup failed.' }

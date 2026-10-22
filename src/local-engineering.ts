@@ -9,9 +9,10 @@ import { assertApprovedIncident } from "./incidents.ts";
 import { createAmiStatusSource } from "./pbx-status.ts";
 import type { AmiConnection } from "./pbx-status.ts";
 
-export async function loadLocalPbxStatus(root: string) {
+export async function loadLocalPbxStatus(root: string, endpoints = false) {
   let text: string;
-  try { text = await readFile(join(root, ".local-proof", "pbx-status", "connections.json"), "utf8"); }
+  try { text = await readFile(join(root, ".local-proof", "pbx-status",
+    endpoints ? "endpoint-connections.json" : "connections.json"), "utf8"); }
   catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
     throw error;
@@ -105,6 +106,7 @@ export async function loadCapturedIncidents(root: string): Promise<ApprovedIncid
 export async function startLocalEngineering(root: string, stageCapturedReports = false) {
   const { accounts, client } = await configuration(root);
   const pbx = await loadLocalPbxStatus(root);
+  const endpoints = await loadLocalPbxStatus(root, true);
   const issuer = "http://127.0.0.1:18080/realms/local-proof";
   const origin = "http://127.0.0.1:18766";
   const discoveryResponse = await fetch(`${issuer}/.well-known/openid-configuration`, {
@@ -156,7 +158,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
       tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
       clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
       allowLoopbackHttpForTests: true,
-    }, pbx);
+    }, pbx, endpoints);
     const active = server;
     await new Promise<void>((resolve, reject) => {
       const failed = (error: Error) => reject(error);

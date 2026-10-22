@@ -181,6 +181,18 @@ export async function connectReviewWorkspace(connection) {
     element("p", "Read-only, on-demand AMI core check. This does not prove SIP registration, trunk availability, audio quality or capacity. Startup time is in the PBX's local timezone. Requires diagnostics read permission. Checking closes an open review after any draft-discard confirmation."),
     checkPbx, pbxResult);
   root.append(pbx);
+  const endpoints = document.createElement("section");
+  endpoints.setAttribute("aria-label", "SIP endpoint visibility");
+  const checkEndpoints = document.createElement("button");
+  checkEndpoints.textContent = "Check SIP endpoints";
+  const endpointStatus = element("p", "Not checked.");
+  endpointStatus.setAttribute("role", "status");
+  endpointStatus.tabIndex = -1;
+  const endpointResults = document.createElement("div");
+  endpoints.append(element("h2", "SIP endpoint visibility"),
+    element("p", "Configured PJSIP endpoints and observed contacts only. A contact may be static: contact presence is not proof of registration, reachability or working audio. Device state is reported by Asterisk, not a health verdict. Contact addresses and authentication details are excluded. Checks are read-only snapshots and close the open review after draft-discard confirmation."),
+    checkEndpoints, endpointStatus, endpointResults);
+  root.append(endpoints);
 
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-label", "Confirm review decision");
@@ -289,6 +301,8 @@ export async function connectReviewWorkspace(connection) {
     historyStatus.textContent = "";
     historyResults.replaceChildren();
     pbxResult.textContent = "No current PBX status confirmed. Check again explicitly.";
+    endpointStatus.textContent = "No current endpoint snapshot confirmed. Check again explicitly.";
+    endpointResults.replaceChildren();
     clearReview();
     focusAfterRequest = error;
   }
@@ -373,6 +387,34 @@ export async function connectReviewWorkspace(connection) {
     status.textContent = "PBX status check complete. No decision sent.";
     focusAfterRequest = pbxResult;
   }), "Check PBX core status and close the current review?", "Discard and check PBX");
+  checkEndpoints.onclick = () => leaveReview(() => run(async () => {
+    clearReview();
+    endpointResults.replaceChildren();
+    endpointStatus.textContent = "Checking SIP endpoints...";
+    const { body, requestId } = await request(`/api/customers/${customer}/pbx/endpoints`);
+    if (!record(body) || body.customer !== customer || typeof body.checkedAt !== "string" ||
+        !Number.isFinite(Date.parse(body.checkedAt)) || !Array.isArray(body.endpoints) || body.endpoints.length > 200 ||
+        !body.endpoints.every((endpoint) => record(endpoint) &&
+          typeof endpoint.id === "string" && !!endpoint.id.trim() && endpoint.id.length <= 128 &&
+          !/[\x00-\x1f\x7f]/.test(endpoint.id) && typeof endpoint.deviceState === "string" &&
+          /^[A-Za-z][A-Za-z0-9 _-]{0,63}$/.test(endpoint.deviceState) &&
+          typeof endpoint.hasContacts === "boolean" && typeof endpoint.activeChannels === "number" &&
+          Number.isSafeInteger(endpoint.activeChannels) && endpoint.activeChannels >= 0) ||
+        new Set(body.endpoints.map((endpoint) => endpoint.id)).size !== body.endpoints.length) {
+      throw new Error(`Invalid PBX endpoint response (request ${requestId}). No current snapshot confirmed.`);
+    }
+    if (disposed) return;
+    for (const endpoint of body.endpoints) {
+      const card = document.createElement("article");
+      card.append(element("h3", endpoint.id), element("p", `Reported device state: ${endpoint.deviceState}`),
+        element("p", `Observed contacts: ${endpoint.hasContacts ? "present (may be static)" : "none"}`),
+        element("p", `Active channels: ${endpoint.activeChannels}`));
+      endpointResults.append(card);
+    }
+    endpointStatus.textContent = `${body.endpoints.length} configured endpoint(s). Checked: ${body.checkedAt}. Snapshot only. Request reference: ${requestId}.`;
+    status.textContent = "Endpoint check complete. No decision sent.";
+    focusAfterRequest = endpointStatus;
+  }), "Check SIP endpoints and close the current review?", "Discard and check endpoints");
   async function load() {
     if (disposed) return;
     clearReview();
