@@ -52,6 +52,7 @@ export interface AgentProvisioningStore {
   enqueue(command: AgentProvisioningCommand, context: ProvisioningContext): ProvisioningIntent;
   operation(customer: string, operationId: string): { intent: ProvisioningIntent; receipts: ProvisioningReceipt[] } | undefined;
   pending(customer: string, limit?: number): ProvisioningIntent[];
+  next(customer: string, epoch: string): ProvisioningWork;
   record(customer: string, operationId: string, receipt: ProvisioningReceipt): void;
   reconcile(worker: ProvisioningJournalBinding, report: ProvisioningReport): { inserted: number; unchanged: number };
   close(): void;
@@ -63,14 +64,16 @@ export interface AgentProvisioningJournal {
   accept(command: AgentProvisioningCommand, context: ProvisioningContext): ProvisioningIntent;
   operation(operationId: string): ReturnType<AgentProvisioningStore["operation"]>;
   report(operationId: string): ProvisioningReport | undefined;
-  next(): { state: "idle" } | {
-    state: "ready" | "expired" | "reconcile" | "blocked";
-    intent: ProvisioningIntent;
-    receipts: ProvisioningReceipt[];
-  };
+  next(): ProvisioningWork;
   record(operationId: string, receipt: ProvisioningReceipt): void;
   close(): void;
 }
+
+export type ProvisioningWork = { state: "idle" } | {
+  state: "ready" | "expired" | "reconcile" | "blocked";
+  intent: ProvisioningIntent;
+  receipts: ProvisioningReceipt[];
+};
 
 export interface ProvisioningJournalBinding {
   customer: string;
@@ -279,19 +282,32 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
     transition(history.at(-1), receipt);
     db.prepare("INSERT INTO provisioning_receipts VALUES (?, ?, ?, ?)").run(receipt.receiptId, id, receipt.sequence, json);
   }
-  function head(customer: string) {
+  function head(customer: string, epoch = binding?.epoch) {
     let expectedRevision = 1;
     for (const row of db.prepare("SELECT operation_id FROM provisioning_intents WHERE customer = ? ORDER BY revision").iterate(customer)) {
       if (typeof row.operation_id !== "string") throw new Error("Invalid stored provisioning operation ID");
       const intent = read(customer, row.operation_id);
       if (!intent || intent.command.revision !== expectedRevision++ ||
-          (binding && intent.command.epoch !== binding.epoch)) throw new Error("Worker journal revision or authority mismatch");
+          (epoch && intent.command.epoch !== epoch)) throw new Error("Provisioning revision or authority mismatch");
       const history = receipts(row.operation_id);
       if (history.at(-1)?.stage !== "verified") return { intent, receipts: history };
     }
     const authority = db.prepare("SELECT revision FROM provisioning_authorities WHERE customer = ?").get(customer);
     if (!authority || authority.revision !== expectedRevision - 1) throw new Error("Worker journal revision gap");
     return undefined;
+  }
+  function next(customer: string, epoch: string): ProvisioningWork {
+    return transaction(() => {
+      const authority = db.prepare("SELECT epoch FROM provisioning_authorities WHERE customer = ?").get(customer);
+      if (!authority || authority.epoch !== epoch) throw new AgentProvisioningConflict("Provisioning authority mismatch");
+      const time = now();
+      const first = head(customer, epoch);
+      if (!first) return { state: "idle" };
+      const stage = first.receipts.at(-1)?.stage;
+      const state = stage === "failed" ? "blocked" : stage ? "reconcile" :
+        first.intent.command.notAfter <= time ? "expired" : "ready";
+      return { state, ...first };
+    });
   }
   const store: AgentProvisioningStore = {
     enrol(customer, epoch) {
@@ -348,6 +364,10 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
         }
         return result;
       });
+    },
+    next(customer, epoch) {
+      assertCustomer(customer); assertUuid(epoch);
+      return next(customer, epoch);
     },
     record(customer, id, input) {
       assertCustomer(customer); assertUuid(id);
@@ -411,15 +431,7 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
     },
     next() {
       if (!binding) throw new Error("Worker journal binding required");
-      return transaction(() => {
-        const time = now();
-        const first = head(binding.customer);
-        if (!first) return { state: "idle" };
-        const stage = first.receipts.at(-1)?.stage;
-        const state = stage === "failed" ? "blocked" : stage ? "reconcile" :
-          first.intent.command.notAfter <= time ? "expired" : "ready";
-        return { state, ...first };
-      });
+      return next(binding.customer, binding.epoch);
     },
     record(id, input) {
       if (!binding) throw new Error("Worker journal binding required");

@@ -280,7 +280,7 @@ without claiming a working phone or expanding PBX privileges.
 `src/agent-provisioning-store.ts` now implements the first backend-only part of
 stage A: explicit customer/epoch enrolment, ordered immutable command intents
 with atomic audit context, a pending outbox view and append-only receipt stages.
-It is not wired into session/lease APIs or the launcher. No dispatcher, worker
+It is not wired into session/lease APIs or the launcher. No production dispatcher, worker
 server, authenticated receipt ingestion or PBX adapter is implemented.
 The [README contract](./README.md#durable-provisioning-intent-store-backend-only)
 records exact behaviour and remaining gates. Stage A is not complete.
@@ -305,3 +305,13 @@ reconciliation contract, not authenticated ingestion or verified PBX execution.
 Reports are limited to 100 receipts and longer histories fail explicitly; transport
 bounds, pagination and authority-restore detection remain unimplemented. See the
 [report contract](./README.md#worker-report-reconciliation-in-process-contract).
+
+An opt-in single-step dispatcher now consumes a customer/epoch-validated ordered
+backend head through an injected transport. It queries reports before acceptance,
+rechecks head/history/deadline after awaits, reconciles lost responses, propagates
+transport errors and shares a cooperative five-second cancellation budget. It
+does not execute work, start a loop, authenticate a worker or revalidate live
+leases. Multiple instances still rely on immutable idempotent acceptance.
+Missing remote history with local receipts blocks acceptance; undetectable loss
+of acceptance-only history remains a recovery-fencing gate before real effects.
+See the [dispatcher contract](./README.md#single-step-provisioning-dispatcher-injected-transport-only).

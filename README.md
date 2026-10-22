@@ -1727,7 +1727,8 @@ Trusted backend methods:
   order, including applying/uncertain operations and expired intents requiring
   reconciliation. Terminal receipts remain accessible by exact lookup. Pending
   is not permission to apply later revisions after an earlier failed/uncertain
-  operation; a future dispatcher must reconcile/sequence them explicitly.
+  operation; use the ordered-head contract rather than treating this as a queue
+  of independently executable work.
 
 Reads validate canonical command/context data, hashes, scope, receipt structure
 and transitions. Pending scans validate visited rows before skipping terminal
@@ -1785,7 +1786,7 @@ Four competing worker processes with different applying receipts produce exactly
 one accepted start record. This is **not** an exactly-once execution claim:
 recording a receipt has no PBX side effect, identical delivery may be retried,
 and crashes still require runtime reconciliation. There is no exclusive runtime
-executor lock, worker listener, certificate validation, dispatcher, local expiry
+executor lock, worker listener, certificate validation, production dispatcher, local expiry
 enforcement, credential storage or PBX adapter yet. A journal deadline check at
 start cannot cancel an external side effect occurring later.
 
@@ -1835,6 +1836,52 @@ restart/lost-response recovery, exact and delayed reports, detached/allowlisted
 output, scope/hash/revision conflicts, malformed histories, lock contention and
 mid-batch rollback/retry. No dispatch, runtime side effect, secret handling or
 phone activation is introduced.
+
+#### Single-step provisioning dispatcher (injected transport only)
+
+`src/agent-provisioning-dispatcher.ts` provides an opt-in, in-process coordinator.
+Nothing starts it in the launcher or HTTP API. Its injected transport must
+authenticate the configured customer/epoch worker; no network client, listener,
+certificate handling, background retry loop or executor is supplied.
+
+`store.next(customer, epoch)` validates the enrolled authority, scans contiguous
+revisions and returns the same ordered-head states as the journal. Only verified
+heads are skipped. Unlike the pending view, a failed head blocks later revisions.
+An unknown authority is an error, not an empty queue.
+
+Each `dispatch()` handles at most one operation:
+
+- Query the worker's report before sending anything. An existing report is
+  reconciled against that exact operation, including after expiry. No accepted
+  command is automatically executed or restarted.
+- If the worker has no operation, require no local receipt history, recheck the
+  backend head/history and deadline after the asynchronous query, then send the
+  original intent for durable acceptance. Never infer “missing” from a transport
+  exception. A missing remote operation with local receipts fails explicitly.
+- Reconcile the returned report transactionally. Return `accepted` for empty
+  receipt history, `reconcile` for applying/uncertain, `verified` or `blocked`
+  for terminal stages, or `expired`/`idle` when appropriate. These describe
+  assertions/journal state, not registration, media or lease readiness.
+
+Calls share a five-second abort signal across query and acceptance. The transport
+must honour cancellation; this is a cooperative budget, not a forced interruption
+of an uncooperative adapter. Errors and timeouts propagate, release the local
+in-flight guard and never produce a success result. Another explicit attempt
+queries the same operation first, so a lost acceptance response does not require
+creating a replacement UUID. There is no automatic retry or process-level lock:
+multiple coordinator instances may send the same immutable command, and worker
+acceptance must remain idempotent. This is not exactly-once execution.
+
+Deadline checks are not live lease/session revalidation or recovery fencing. A
+worker restore that loses accepted history without any backend receipts is still
+indistinguishable from first delivery, so no real adapter may be enabled on this
+contract alone. Application authorisation, authenticated transport, autonomous
+expiry, recovery/authority fencing and runtime verification remain gates.
+
+`node --test .\tests\agent-provisioning-dispatcher.test.ts` covers ordered delivery,
+failed-head blocking, lost-response recovery with a fresh coordinator after
+expiry, foreign reports/authority, deadlines racing queries, missing/changed
+history, invalid clocks, transport failure, cooperative timeout and local overlap.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
