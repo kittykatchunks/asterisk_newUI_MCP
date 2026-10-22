@@ -1054,6 +1054,16 @@ owned fixtures on completion/failure. `-WithIdentity` and `-Interactive` are
 mutually exclusive. This local end-to-end proof does not validate remote TLS or
 production monitoring.
 
+The status fixture also exercises real outage isolation before any optional
+identity run. One long-lived adapter instance first checks both cores, then the
+test stops only its owned customer-A container. Two concurrent A/B check rounds
+must reject A's unavailable status within five seconds while B remains reachable;
+no cached healthy snapshot or zero-call fallback is accepted. After restarting A
+and waiting for core boot, the same adapter and credentials must read it again.
+The application adapter itself has no Docker access: fixed container stop/start
+commands exist only in the exclusive test fixture. This proves local adapter
+recovery, not browser outage UX or production failover.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

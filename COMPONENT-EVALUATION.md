@@ -286,6 +286,12 @@ including the metadata-only user. It verifies durable request/subject/customer
 correlation, foreign-customer denial and logout replay denial while retaining the
 existing identity/session/launcher proofs and scoped fixture cleanup.
 
+Real AMI outage/recovery checks additionally stop the owned customer-A fixture,
+verify bounded failures alongside successful concurrent customer-B checks, and
+recover through the same adapter after restart. This tests tenant-local failure
+and in-flight cleanup without introducing Docker privileges into the application
+or claiming production failover.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

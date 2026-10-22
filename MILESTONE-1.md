@@ -278,6 +278,12 @@ customer/subject audits, foreign scopes are denied and logout prevents replay.
 Both fixture lifecycles are cleaned up and ordinary identity runs stay independent
 of PBX availability. Remote TLS/production acceptance is still outstanding.
 
+The real AMI fixture now verifies outage isolation and recovery with one adapter
+instance: stop only customer A, reject its reads within a bounded interval while
+concurrent customer-B reads succeed, then restart A and recover with unchanged
+credentials. No stale healthy fallback is accepted. Docker control remains solely
+in the owned test fixture, not the application status adapter.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

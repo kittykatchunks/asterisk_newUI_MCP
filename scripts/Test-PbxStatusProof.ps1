@@ -63,6 +63,8 @@ write = reporting
         try {
             & node .\tests\identity\pbx-status-proof.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real AMI status proof failed.' }
+            & node .\tests\identity\pbx-status-recovery.ts
+            if ($LASTEXITCODE -ne 0) { throw 'Real AMI outage/recovery proof failed.' }
             if ($WithIdentity) {
                 $previous = $env:ASTERISK_TEST_REAL_AMI
                 try {
