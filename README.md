@@ -1618,6 +1618,45 @@ contacts into proof of registration. WebRTC registration and audio-path acceptan
 are outside this increment. Tested expiry of a synthetic
 dynamic contact does not make every contact a current or reachable registration.
 
+#### Isolated per-lease SIP credential/revocation proof
+
+`Test-PbxStatusProof.ps1` now also runs
+`tests\identity\pbx-device-credential-proof.ts`. For each customer it acquires a
+real backend SQLite device lease, generates a fresh `lease-<lease UUID>` SIP
+username and 256-bit random secret, and installs a temporary endpoint/auth/AOR in
+only the owned fixture's PJSIP configuration. The context has no call-routing
+rules. Provisioning uses fixture-owner Docker CLI access, **not** application AMI
+credentials or a new application mutation endpoint. Browser activation stays off.
+
+Real challenged REGISTER transactions verify authentication denial before
+provisioning, foreign-PBX denial, wrong-secret denial and successful registration
+after provisioning. The accepted contact lifetime is four or five remaining whole
+seconds for the requested five seconds. AMI confirms the lease endpoint's contact
+and customer isolation while unrelated static contacts remain present.
+
+Two cycles exercise explicit lease release and simulated backend lease expiry.
+For expiry, the test advances an injected backend clock to the lease deadline and
+verifies renewal is rejected; this is **not** a wall-clock scheduler acceptance
+test. The fixture controller then removes the temporary endpoint/auth/AOR,
+reloads PJSIP and verifies the endpoint disappears from the real AMI listing.
+Previously issued credentials must receive SIP authentication denial, rather than
+merely timing out. The CLI contact inventory must lose the retired contact within
+a further 40-second cleanup bound without a client unregister; a new lease uses
+a different username/secret, rejects the previous secret and does not resurrect
+the previous identity. Original configuration is restored in `finally`; temporary
+lease storage is removed and the owning runner tears down its PBX volumes.
+The existing registration/qualification proof shares the same bounded digest
+REGISTER client to avoid divergent test authentication logic.
+
+This proves an **explicit fixture-controller revocation sequence**, not automatic
+secret expiry at Asterisk. Removing a lease row alone does not revoke SIP access.
+There is no production credential issuer, reconciliation worker, protected secret
+delivery, atomic lease/PBX transaction, restart recovery or SIP call fencing.
+Contact expiry/endpoint disappearance does not prove active dialogs are drained
+or terminated. WSS/TLS browser delivery, extension-to-lease routing, shared-extension
+conflict safety and the agreed stop-new-offers/finish-current-call sign-out policy
+remain prerequisites before enabling a phone.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

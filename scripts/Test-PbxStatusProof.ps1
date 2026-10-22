@@ -145,6 +145,8 @@ contact = sip:synthetic@127.0.0.1:5099
             } finally { $env:NODE_EXTRA_CA_CERTS = $previousCa }
             & node .\tests\identity\pbx-registration-proof.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real SIP registration visibility proof failed.' }
+            & node .\tests\identity\pbx-device-credential-proof.ts
+            if ($LASTEXITCODE -ne 0) { throw 'Per-lease SIP credential revocation proof failed.' }
             $previousCa = $env:NODE_EXTRA_CA_CERTS
             $previousTls = $env:ASTERISK_TEST_AMI_TLS
             $originalMappings = @{}

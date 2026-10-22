@@ -464,6 +464,17 @@ the console, reservation persistence/session invalidation, stale/missing assignm
 refusal, safe defaults and Bob's denial. This remains a local HTTP proof without
 SIP or calling, not production identity continuity or membership administration.
 
+The isolated Asterisk fixture now also proves temporary per-lease SIP identities:
+a real backend lease supplies the username suffix, each issuance gets a fresh
+secret, and only the fixture owner installs/removes PJSIP endpoint/auth/AOR
+configuration. Challenged REGISTER verifies pre-provision, wrong-secret,
+foreign-PBX and retired-credential denial, plus valid contact appearance.
+Explicit release and injected-clock expiry trigger test-controller removal/reload;
+AMI endpoint disappearance and bounded contact cleanup are checked without client
+unregister. Reissued credentials differ and cannot revive the previous identity.
+This is not an autonomous revocation worker, wall-clock expiry proof, active-call
+draining or production provisioning interface. Browser activation remains disabled.
+
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.
 

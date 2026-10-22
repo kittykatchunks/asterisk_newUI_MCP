@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { createSocket, type RemoteInfo } from "node:dgram";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
@@ -8,6 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
 import type { PbxEndpointSnapshot } from "../../src/pbx-status.ts";
 import { createFixtureSipSocket } from "./fixture-sip-socket.ts";
+import { createSipRegistrationClient } from "./sip-registration-client.ts";
 
 interface Registration {
   customer: string;
@@ -16,18 +17,11 @@ interface Registration {
   port: number;
 }
 
-interface RegistrationResponse {
-  code: number;
-  challenge?: string;
-  contactExpiry?: number;
-}
-
 const accounts: Registration[] = JSON.parse(await readFile(
   join(localEngineeringRoot, ".local-proof", "pbx-status", "registrations.json"), "utf8"));
 assert.equal(accounts.length, 2);
 const source = await loadLocalPbxStatus(localEngineeringRoot, true);
 assert.ok(source);
-const md5 = (value: string) => createHash("md5").update(value).digest("hex");
 
 for (const account of accounts) {
   const foreign = accounts.find((item) => item.customer !== account.customer);
@@ -38,10 +32,7 @@ for (const account of accounts) {
   let socket: typeof hostSocket | Awaited<ReturnType<typeof createFixtureSipSocket>> = hostSocket;
   let localPort = socket.address().port;
   let destinationPort = account.port;
-  const callId = randomUUID();
   const tag = randomUUID();
-  const uri = "sip:127.0.0.1";
-  let sequence = 0;
   let registered = false;
   let answerOptions = false;
   let answeredOptions = 0;
@@ -70,67 +61,8 @@ for (const account of accounts) {
     });
   };
   socket.on("message", respondOptions);
-  const exchange = (expires: number, authorization?: string): Promise<RegistrationResponse> => {
-    sequence++;
-    const packet = Buffer.from([
-      `REGISTER ${uri} SIP/2.0`,
-      `Via: SIP/2.0/UDP 127.0.0.1:${localPort};branch=z9hG4bK${randomUUID()};rport`,
-      "Max-Forwards: 10", `From: <sip:${account.username}@127.0.0.1>;tag=${tag}`,
-      `To: <sip:${account.username}@127.0.0.1>`, `Call-ID: ${callId}`,
-      `CSeq: ${sequence} REGISTER`, `Contact: <sip:${account.username}@127.0.0.1:${localPort}>`,
-      `Expires: ${expires}`, ...(authorization ? [`Authorization: ${authorization}`] : []),
-      "Content-Length: 0", "", "",
-    ].join("\r\n"));
-    return new Promise((resolve, reject) => {
-      const finish = (error?: Error, result?: RegistrationResponse) => {
-        clearTimeout(timeout); clearInterval(retry);
-        socket.off("message", receive); socket.off("error", fail);
-        if (error) reject(error);
-        else if (result) resolve(result);
-      };
-      const fail = (error: Error) => finish(error);
-      const receive = (data: Buffer) => {
-        const text = data.toString("utf8");
-        if (!text.includes(`Call-ID: ${callId}\r\n`) || !text.includes(`CSeq: ${sequence} REGISTER\r\n`)) return;
-        const code = Number(/^SIP\/2\.0 (\d{3})/.exec(text)?.[1]);
-        if (code < 200) return;
-        if (!Number.isInteger(code)) { finish(new Error("Invalid synthetic REGISTER response")); return; }
-        const contact = /^Contact:\s*(.+)\r?$/mi.exec(text)?.[1];
-        const expiry = contact && /;\s*expires=(\d+)(?:[;\s,]|$)/i.exec(contact)?.[1];
-        finish(undefined, {
-          code, challenge: /^WWW-Authenticate:\s*(.+)\r?$/mi.exec(text)?.[1].trim(),
-          contactExpiry: expiry ? Number(expiry) : undefined,
-        });
-      };
-      const send = () => socket.send(packet, destinationPort, "127.0.0.1", (error) => { if (error) finish(error); });
-      const timeout = setTimeout(() => finish(new Error("Synthetic REGISTER timed out")), 5000);
-      const retry = setInterval(send, 500);
-      socket.on("message", receive); socket.once("error", fail);
-      send();
-    });
-  };
-  const register = async (expires: number, password = account.secret) => {
-    const challenged = await exchange(expires);
-    assert.equal(challenged.code, 401, "Synthetic registration must require digest authentication");
-    assert.ok(challenged.challenge && challenged.challenge.startsWith("Digest "));
-    const fields = Object.fromEntries(Array.from(
-      challenged.challenge.matchAll(/(\w+)=(?:"([^"]*)"|([^,\s]+))/g),
-      (match) => [match[1].toLowerCase(), match[2] ?? match[3]]));
-    assert.equal((fields.algorithm ?? "MD5").toUpperCase(), "MD5");
-    const ha1 = md5(`${account.username}:${fields.realm}:${password}`);
-    const ha2 = md5(`REGISTER:${uri}`);
-    const cnonce = randomUUID().replaceAll("-", "");
-    const qop = fields.qop ? "auth" : undefined;
-    if (qop) assert.ok(fields.qop.split(",").includes("auth"));
-    const response = qop ? md5(`${ha1}:${fields.nonce}:00000001:${cnonce}:auth:${ha2}`)
-      : md5(`${ha1}:${fields.nonce}:${ha2}`);
-    return exchange(expires, "Digest " + [
-      `username="${account.username}"`, `realm="${fields.realm}"`, `nonce="${fields.nonce}"`,
-      `uri="${uri}"`, `response="${response}"`, "algorithm=MD5",
-      ...(qop ? [`qop=auth`, "nc=00000001", `cnonce="${cnonce}"`] : []),
-      ...(fields.opaque ? [`opaque="${fields.opaque}"`] : []),
-    ].join(", "));
-  };
+  const client = createSipRegistrationClient(account, () => ({ socket, localPort, destinationPort }));
+  const register = client.register;
   const expectContact = async (present: boolean, timeoutMs = 2500, earliestAbsenceAt?: number,
     deviceState?: string) => {
     const deadline = performance.now() + timeoutMs;
@@ -177,10 +109,10 @@ for (const account of accounts) {
     assert.ok(expiring.contactExpiry !== undefined && expiring.contactExpiry >= 4 && expiring.contactExpiry <= 5,
       "PBX must report four or five whole seconds remaining for the requested five-second lifetime");
     await expectContact(true);
-    const expirySequence = sequence;
+    const expirySequence = client.sequence;
     // Allow the registrar's periodic cleanup sweep, without refreshing or unregistering.
     await expectContact(false, 40000, acceptedAt + (expiring.contactExpiry - 1) * 1000);
-    assert.equal(sequence, expirySequence, "No SIP transaction may cause the natural-expiry transition");
+    assert.equal(client.sequence, expirySequence, "No SIP transaction may cause the natural-expiry transition");
     registered = false;
     console.log(`PASS ${account.customer}: accepted five-second contact expires without refresh/unregister; static and foreign contacts unchanged`);
 
@@ -195,7 +127,7 @@ for (const account of accounts) {
     registered = true;
     await expectContact(true, 15000, undefined, "Not in use");
     assert.ok(answeredOptions > 0, "Reachability must follow a real successful OPTIONS response");
-    const qualificationSequence = sequence;
+    const qualificationSequence = client.sequence;
     const ignoredBefore = ignoredOptions;
     answerOptions = false;
     await expectContact(true, 15000, undefined, "Unavailable");
@@ -204,7 +136,7 @@ for (const account of accounts) {
     answerOptions = true;
     await expectContact(true, 15000, undefined, "Not in use");
     assert.ok(answeredOptions > answeredBefore, "Recovery must follow a fresh OPTIONS response");
-    assert.equal(sequence, qualificationSequence, "Qualification recovery must not refresh or replace the registration");
+    assert.equal(client.sequence, qualificationSequence, "Qualification recovery must not refresh or replace the registration");
     assert.equal((await register(0)).code, 200);
     registered = false;
     await expectContact(false);
