@@ -200,6 +200,10 @@ explicit unavailable references before headers and retained status/reference for
 body interruption. Browser tests exercise disconnects before and after server
 commit, verifying no retry and preserved durable outcomes.
 
+A real-time timeout regression holds a committed approval's acknowledgement past
+the 15-second deadline, verifies the conservative timeout UI and releases the late
+success. Refresh then reconciles pending state without a second decision POST.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

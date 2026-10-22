@@ -811,6 +811,14 @@ server delivery and after an actual commit, verifying the differing stored
 outcomes and the same conservative browser recovery guidance. Refresh/re-sign-in
 and inspect the pending/published state before deciding whether to retry.
 
+The browser regression also exercises the real 15-second request timeout without
+mocking browser timers: an approval commits while its acknowledgement is held
+back. The test verifies the timeout does not occur before 15 seconds and is
+reported within the test's 20-second wait window, with no retry or remaining
+decision controls. Releasing the late success cannot overwrite the timeout;
+refresh reconciles the pending list against the committed approval without a
+second decision POST. This deliberately adds about 15 seconds to the UI test.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

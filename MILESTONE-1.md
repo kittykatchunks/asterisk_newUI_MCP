@@ -180,6 +180,11 @@ Browser tests disconnect approval before server delivery and after commit,
 verifying no automatic retry and differing durable outcomes. Session-driven
 cancellation preserves the session cleanup message.
 
+The browser regression now tests the real 15-second deadline with a committed
+approval and held acknowledgement. It verifies explicit timeout, no automatic
+retry or late UI restoration, then reconciles the pending list by refresh without
+replaying the decision.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

@@ -461,6 +461,58 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         await page.unroute(decisionUrl);
       }
 
+      const timedOut = stage("3");
+      await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+      await page.getByRole("button", { name: `Inspect ${timedOut.id}`, exact: true }).click();
+      await page.getByLabel("Review reason", { exact: true }).fill("Committed approval with stalled acknowledgement");
+      await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+      const timeoutUrl = `**/api/customers/customer-a/diagnostics/reviews/${timedOut.id}`;
+      let releaseTimeout!: () => void;
+      let committedTimeout!: () => void;
+      let finishedTimeout!: () => void;
+      const heldTimeout = new Promise<void>((resolve) => { releaseTimeout = resolve; });
+      const timeoutCommitted = new Promise<void>((resolve) => { committedTimeout = resolve; });
+      const timeoutFinished = new Promise<void>((resolve) => { finishedTimeout = resolve; });
+      await page.route(timeoutUrl, async (route) => {
+        try {
+          const response = await route.fetch();
+          assert.equal(response.status(), 200);
+          committedTimeout();
+          await heldTimeout;
+          await route.fulfill({ response });
+        } finally { finishedTimeout(); }
+      });
+      const beforeTimeout: number = posts.length;
+      try {
+        await page.getByRole("button", { name: "Approve report", exact: true }).click();
+        const sentAt = Date.now();
+        await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
+        await timeoutCommitted;
+        assert.equal(await store.catalog.report("customer-a", "incident-" + "3".repeat(32)), html);
+        const alert = page.getByRole("alert").filter({ hasText: "Request timed out (request unavailable)." });
+        await alert.waitFor({ timeout: 20000 });
+        assert.ok(Date.now() - sentAt >= 15000, "The real request deadline must not expire before 15 seconds");
+        assert.ok((await alert.textContent())?.includes("committed decision"));
+        assert.ok((await alert.textContent())?.includes("No automatic retry was sent."));
+        assert.equal(posts.length, beforeTimeout + 1);
+        assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+        assert.equal((await focused()).role, "alert");
+      } finally {
+        releaseTimeout();
+        await timeoutFinished;
+        await page.unroute(timeoutUrl);
+      }
+      assert.equal(await page.getByRole("alert").filter({ hasText: "Request timed out" }).count(), 1,
+        "A late successful acknowledgement must not overwrite the timeout");
+      assert.equal(posts.length, beforeTimeout + 1);
+      await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "pending report(s)." }).first().waitFor();
+      assert.equal(await page.getByRole("button", { name: `Inspect ${timedOut.id}`, exact: true }).count(), 0,
+        "Refreshing must reconcile the committed approval without replaying it");
+      assert.equal(await store.catalog.report("customer-a", "incident-" + "3".repeat(32)), html);
+      assert.equal(posts.length, beforeTimeout + 1);
+
       await connect(await jwt("reader"));
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);
