@@ -2087,10 +2087,40 @@ cannot prevent races with signalling. The sweep does not implement that adapter.
 SQLite fake runtime to check expiry, active-call preservation, unknown dialogs,
 restart/clock rollback, eventual removal and untouched unexpired generations.
 It also covers inventory rejection, fence/removal failures, cancellation and
-ownership contention. No scheduler is started, so this does **not** yet enforce
-autonomous expiry. Real routing/dialog correlation, replacement blocking,
+ownership contention. No scheduler is started by default; the explicit monitor
+below proves controller-independent scheduling only against a fake runtime.
+Real routing/dialog correlation, replacement blocking,
 inventory completeness, expiry lag limits and crash/race-safe PBX removal remain
 acceptance gates. No PBX privileges, credentials or browser calling are added.
+
+#### Explicit expiry monitor (fake-runtime scheduling proof)
+
+`runAgentProvisioningExpiry(expiry, signal, onSweep)` immediately performs a sweep,
+awaits its mandatory async reporting callback, waits 250 ms, and repeats. Sweeps
+and callbacks never overlap; there is no catch-up burst or unbounded work queue.
+The supplied abort signal cancels both sweep work and the between-pass timer.
+The returned lifetime promise rejects on cancellation, adapter/storage errors,
+ownership contention or callback failures. The owner must await it and surface
+failure; the function does not silently retry or imply continued protection.
+No launcher, web route or service starts it automatically.
+
+Shutdown waits for active adapter work to actually settle before releasing its
+execution lock. As with a sweep, an adapter ignoring cancellation can delay
+shutdown indefinitely. Reporting callbacks must also be bounded by their owner;
+a blocked callback delays the next pass. The 250 ms pause is not a guaranteed
+expiry lag: sweep duration, callback latency, scheduling and lock contention all
+matter. Running a separate executor against the same journal can make the
+monitor fail immediately on ownership contention. A production single-owner
+coordinator, health supervision and measured worst-case expiry limits remain
+required; this monitor alone is not a deployment-ready worker.
+
+`node --test .\tests\agent-provisioning-expiry-monitor.test.ts` proves real-time
+expiry without a controller or network client against a durable SQLite fake
+runtime: fencing is not early and occurs within one second in the idle fixture,
+an active call is preserved, then removal follows call completion. Further tests
+cover serial timing, callback/adapter failures, pre-cancellation, shutdown while
+waiting and ownership retention during an unsettled adapter. All test monitors
+are awaited and stopped; no long-running process is left behind.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

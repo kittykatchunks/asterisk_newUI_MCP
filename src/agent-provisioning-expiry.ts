@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import type { AgentProvisioningJournal } from "./agent-provisioning-store.ts";
 
 export interface ExpiringGeneration {
@@ -83,4 +84,20 @@ export function createAgentProvisioningExpiry(journal: AgentProvisioningJournal,
       });
     },
   };
+}
+
+// The caller must await this lifetime and explicitly handle cancellation/failure.
+export async function runAgentProvisioningExpiry(
+  expiry: ReturnType<typeof createAgentProvisioningExpiry>,
+  signal: AbortSignal,
+  onSweep: (results: Awaited<ReturnType<typeof expiry.sweep>>) => Promise<void>,
+) {
+  while (true) {
+    signal.throwIfAborted();
+    const results = await expiry.sweep(signal);
+    signal.throwIfAborted();
+    await onSweep(results);
+    signal.throwIfAborted();
+    await delay(250, undefined, { signal });
+  }
 }

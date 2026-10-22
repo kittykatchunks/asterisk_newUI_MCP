@@ -385,5 +385,16 @@ the complete bounded inventory, fences new calls before dialog observation and
 requires verified zero dialogs before revocation, then verifies removal. Unknown
 dialogs stay uncertain; active dialogs stay draining without forced hangup.
 Persisted drain remains irreversible across restart/clock rollback. There is no
-automatic scheduler, real routing/dialog adapter or replacement activation gate;
+default scheduler, real routing/dialog adapter or replacement activation gate;
 the production policy is not yet enforced. Stage B remains incomplete.
+
+An explicitly started expiry monitor now performs an immediate sweep followed by
+serial sweeps with 250 ms pauses after reporting. Real-time durable fake-runtime
+tests verify controller-independent fencing within one second in an idle fixture,
+call preservation and eventual removal. Cancellation and any adapter, storage,
+ownership or reporting failure reject its awaited lifetime; nothing auto-starts
+or silently retries it. This is not a production expiry latency guarantee:
+uncooperative adapters/reporting and competing execution can delay or stop it.
+Single-owner work coordination, health supervision, measured worst-case expiry,
+real PBX fences and replacement blocking remain gates. See the
+[monitor contract](./README.md#explicit-expiry-monitor-fake-runtime-scheduling-proof).
