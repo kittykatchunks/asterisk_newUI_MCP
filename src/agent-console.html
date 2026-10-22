@@ -16,6 +16,15 @@
     <dl id="assignment" hidden></dl>
     <button id="refresh" hidden>Refresh assignment</button>
   </section>
+  <section id="device-reservation" aria-label="Device reservation" hidden>
+    <h2>Device reservation (not a phone connection)</h2>
+    <p>Reserve this page's device identity for up to 60 seconds. Renew explicitly; there is no automatic heartbeat. Reloading creates a new device identity.</p>
+    <p>Release before sign-out to avoid waiting for expiry. Sign-out or closing this page does not confirm release. No calls or SIP credentials are enabled.</p>
+    <p id="device-status" role="status">No device reservation confirmed.</p>
+    <button id="reserve-device">Reserve this device</button>
+    <button id="renew-device" hidden>Renew reservation</button>
+    <button id="release-device" hidden>Release reservation</button>
+  </section>
   <section aria-label="Phone availability">
     <h2>Phone availability</h2>
     <p>Phone connection is not enabled. An assigned extension does not mean registered, reachable, available to a queue or on a call.</p>

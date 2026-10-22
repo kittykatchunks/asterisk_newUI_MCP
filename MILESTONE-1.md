@@ -427,7 +427,7 @@ policy, scoped by issuer/subject/customer and bound to a backend session plus de
 UUID. Separate SQLite transactions enforce exclusivity across processes; explicit
 renewals are capped at 60 seconds and verified session expiry. Release/expiry permit
 a fresh lease, and old IDs cannot mutate its replacement. This is not wired to
-console controls, logout release or SIP. It neither reserves an extension
+phone activation, logout release or SIP. It neither reserves an extension
 nor disconnects an endpoint on expiry, and live leases are not assignment-backup
 data. The selected future sign-out policy stops new offers, finishes the current
 call and then releases the phone session; call-aware draining and credential
@@ -442,6 +442,16 @@ success receipt. Real Keycloak browser sessions prove Alice's lifecycle, Bob's
 denial, persisted intent and rejected post-logout renewal. Logout leaves a
 reservation to expire within its remaining 60 seconds; explicit release avoids
 the wait. The normal launcher does not configure this optional store.
+
+The console now offers explicit reserve/renew/release buttons after a valid
+assignment loads. Device and lease IDs remain in page memory; reload creates a
+new device identity. There is no automatic acquisition, heartbeat, retry or
+release. Local expiry and session termination clear stale displays, and held
+responses cannot restore them after logout. Uncertain changes remain explicit
+with request references and retry guidance. Browser tests cover lifecycle and
+failure boundaries; the real Keycloak proof clicks Alice's buttons and verifies
+Bob cannot see or use the reservation controls. This is a backend reservation,
+not a connected phone, queue availability or a SIP registration.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.

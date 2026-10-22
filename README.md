@@ -1152,8 +1152,8 @@ Offsite recovery, full-system restore and production recovery timing remain open
 #### Authenticated assignment console
 
 With application sessions configured, `/agent/{customer}` now serves a
-metadata-only console: sign in, view your own assignment, explicitly refresh it
-and sign out. The fixed login selector `workspace=agent` is bound to the pending
+non-calling console: sign in, view your own assignment, explicitly refresh it,
+manage a short backend device reservation and sign out. The fixed login selector `workspace=agent` is bound to the pending
 OIDC flow and returns only to that customer's console. Arbitrary return URLs are
 not accepted; existing review login remains the default.
 
@@ -1212,8 +1212,8 @@ explicit codes; invalid input, corrupt rows and SQLite failures throw.
 The caller must supply server-verified session/identity data and independently
 enforce `agent:access` and a valid assignment. This module does not authenticate,
 read cookies, grant membership, check assignment existence, reserve an extension,
-or authorise a SIP operation. There is no console/device activation control,
-heartbeat, logout release hook or credential issuance yet. Distinct
+or authorise a SIP operation. There is no phone activation, automatic heartbeat,
+logout release hook or credential issuance yet. Distinct
 agents sharing a provisioned extension are not made safe by identity exclusivity.
 Expired rows are replaced on the next acquisition for that identity. Database
 reopen preserves reservations, not application sessions or permission to reconnect.
@@ -1281,8 +1281,45 @@ input, conflicts, renewal/release, stale holders, expiry, failure handling and
 logout during an awaited audit. `.\scripts\Test-IdentityProof.ps1` also exercises
 these routes through real Alice/Bob Keycloak browser sessions: Alice acquires,
 renews and releases, Bob is denied, intent audit persists in SQLite, and a
-logged-out cookie cannot renew a retained lease. The console still has no device
-activation UI or automatic heartbeat.
+logged-out cookie cannot renew a retained lease. The console now exposes explicit
+reservation controls as described below; it still has no phone activation or
+automatic heartbeat.
+
+#### Explicit console reservation controls (phone still disabled)
+
+After a valid own assignment loads, the console offers **Reserve this device**,
+**Renew reservation** and **Release reservation**. Only an explicit button click
+sends a lease request. The page generates a random device UUID in memory, retains
+the returned lease ID in memory, and uses the bootstrapped CSRF token with
+same-origin cookies. No browser storage, bearer token, SIP secret or microphone
+request is introduced. This UUID identifies this page instance, not attested
+hardware. Reloading, another tab or reopening creates a different device UUID
+and can conflict until the previous reservation is released or expires.
+
+A confirmed reservation shows its expiry and explicitly says the phone remains
+disabled. Expiry clears the local lease and offers acquisition again; it never
+automatically renews, retries or releases. Visibility/pageshow deadline checks
+also recheck lease expiry. Refreshing an assignment hides acquisition until a
+valid profile returns, but preserves release/renew controls for a known lease.
+Missing backend configuration surfaces an explicit request-correlated failure.
+
+Conflicts and malformed/failed responses never manufacture success. Uncertain
+acquisition retains the same page device identity for an explicit retry.
+Uncertain release retains the known lease handle for retry until its expiry.
+Responses validate customer, UUID, bounded future expiry and renewal identity;
+release requires the explicit release response code. Buttons are disabled during
+a lease request, but sign-out remains available. A confirmed sign-out, session
+expiry, 401 or page closure aborts in-flight lease requests and clears/hides local
+reservation data; a late response cannot restore it. These actions do not confirm
+server release: explicitly release before sign-out or wait for the remaining
+lease expiry. This is not the future call-aware draining workflow.
+
+`node --test .\tests\agent-console.test.ts` covers reserve/renew/release, request
+shape, explicit-only behavior, failures and malformed responses, conflicts, local
+expiry, reload identity, access denial and a held acquisition across logout.
+The real identity proof clicks Alice's actual reservation buttons and checks the
+persisted intent audit; Bob's denied assignment keeps the controls hidden and
+the backend still denies a direct request.
 
 ### Read-only PBX operational status (local AMI proof)
 

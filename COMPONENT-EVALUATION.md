@@ -448,7 +448,7 @@ owner can acquire; renewals are bounded by 60 seconds and verified session expir
 and replacement lease IDs fence stale mutations. Tests exercise six simultaneous
 processes with exactly one winner, session/scope boundaries, persistence, locking
 and rollback. The store itself is not an HTTP/authentication boundary and is not
-integrated with console activation, logout release or SIP. Shared-extension safety,
+integrated with phone activation, logout release or SIP. Shared-extension safety,
 SIP revocation/fencing and the selected finish-current-call sign-out policy remain
 future integration work; a reservation is not evidence of a connected phone.
 
@@ -459,8 +459,18 @@ intent audit gates mutation and live-session revalidation fences logout races.
 The audit records intent rather than final success, retaining one record per
 request. Real Keycloak sessions prove lifecycle/denial and post-logout replay
 rejection with persisted SQLite audit. Logout leaves the short reservation to
-expire; no console activation, automatic heartbeat, call draining or SIP
+expire; no phone activation, automatic heartbeat, call draining or SIP
 revocation is implied, and the normal launcher leaves the routes unconfigured.
+
+The console now exposes explicit reserve, renew and release actions after loading
+a valid assignment. Each page has a fresh in-memory device UUID; no browser
+storage or automatic heartbeat is used. Local lease expiry, session expiry and
+logout clear stale reservation displays, with lifetime cancellation preventing
+late response restoration. Request-correlated uncertain failures preserve retry
+handles rather than inventing success. Browser tests cover lifecycle/conflicts,
+malformed responses, reload and logout races; real Keycloak acceptance clicks
+Alice's controls and verifies Bob's denial. Reservation is still not phone
+readiness, and reload/close/logout can leave a reservation until its short expiry.
 
 ## 2. Asterisk container
 

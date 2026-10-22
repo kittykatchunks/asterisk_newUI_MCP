@@ -568,7 +568,7 @@ try {
       await page.getByRole("button", { name: "Refresh assignment", exact: true }).click();
       assert.equal((await refreshResponse).status(), account.username === "alice" ? 200 : 403);
       const deviceUrl = `${origin}/api/customers/${account.customer}/agent/device-lease`;
-      const deviceId = randomUUID();
+      let deviceId = randomUUID();
       const deviceCall = (action = "", leaseId?: string) => page.evaluate(async ({ url, deviceId, leaseId }) => {
         const session = await (await fetch("/auth/session")).json();
         const response = await fetch(url, { method: "POST",
@@ -577,23 +577,40 @@ try {
         return { status: response.status, body: await response.json(), requestId: response.headers.get("x-request-id") };
       }, { url: deviceUrl + (action ? "/" + action : ""), deviceId, leaseId });
       let retainedLeaseId: string | undefined;
-      const activation = await deviceCall();
-      assert.equal(activation.status, account.username === "alice" ? 200 : 403);
       if (account.username === "alice") {
-        const lease = activation.body.lease;
+        const reserveDevice = page.getByRole("button", { name: "Reserve this device", exact: true });
+        const reserveResponse = page.waitForResponse(deviceUrl);
+        await reserveDevice.click();
+        const activation = await reserveResponse;
+        assert.equal(activation.status(), 200);
+        deviceId = activation.request().postDataJSON().deviceId;
+        const lease = (await activation.json()).lease;
         assert.deepEqual(Object.keys(lease).sort(), ["expiresAt", "id"]);
-        assert.equal((await deviceCall("renew", lease.id)).body.lease.id, lease.id);
-        assert.equal((await deviceCall("release", lease.id)).status, 200);
+        await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
+        const renewed = page.waitForResponse(deviceUrl + "/renew");
+        await page.getByRole("button", { name: "Renew reservation", exact: true }).click();
+        assert.equal((await (await renewed).json()).lease.id, lease.id);
+        await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
+        const released = page.waitForResponse(deviceUrl + "/release");
+        await page.getByRole("button", { name: "Release reservation", exact: true }).click();
+        assert.equal((await released).status(), 200);
+        await page.locator("#device-status").filter({ hasText: "Reservation released" }).waitFor();
         assert.equal((await deviceCall("renew", lease.id)).status, 409);
-        retainedLeaseId = (await deviceCall()).body.lease.id;
+        const reservedAgain = page.waitForResponse(deviceUrl);
+        await reserveDevice.click();
+        retainedLeaseId = (await (await reservedAgain).json()).lease.id;
+        await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
         assert.notEqual(retainedLeaseId, lease.id);
         const auditReader = new DatabaseSync(databasePath, { readOnly: true });
         try {
           const record = auditReader.prepare("SELECT customer, subject, operation, outcome FROM access_audit WHERE request_id = ?")
-            .get(activation.requestId);
+            .get(activation.headers()["x-request-id"]);
           assert.deepEqual({ ...record }, { customer: account.customer, subject: account.subject,
             operation: "agent-device-acquire", outcome: "agent_device_acquire_requested" });
         } finally { auditReader.close(); }
+      } else {
+        assert.equal(await page.locator("#device-reservation").isHidden(), true);
+        assert.equal((await deviceCall()).status, 403);
       }
       const logoutResponse = page.waitForResponse(origin + "/auth/logout");
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
