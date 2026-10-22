@@ -266,12 +266,15 @@ try {
             await expiryPage.reload({ waitUntil: "commit" });
             await listRequested;
             await expiryPage.getByRole("status").filter({ hasText: "Loading pending reports..." }).waitFor();
+            assert.equal(await expiryPage.locator("#review-workspace").getAttribute("aria-busy"), "true");
+            assert.equal(await expiryPage.getByRole("button", { name: "Sign out", exact: true }).isEnabled(), true);
             const requestFailed = expiryPage.waitForEvent("requestfailed", {
               predicate: (request) => request.url() === reviewRoot,
             });
             await expiryPage.clock.fastForward(5000);
             await expiryPage.getByText("Session expired. Sign in again.", { exact: true }).waitFor();
             await requestFailed;
+            assert.equal(await expiryPage.locator("#review-workspace").getAttribute("aria-busy"), "false");
             assert.equal(await expiryPage.getByText("Review connection closed.", { exact: true }).count(), 1);
             assert.equal(await expiryPage.getByRole("region", { name: "Pending reports", exact: true }).count(), 0);
             assert.equal(await expiryPage.getByRole("button", { name: "Sign out", exact: true }).count(), 0);

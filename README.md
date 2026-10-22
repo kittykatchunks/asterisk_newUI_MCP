@@ -839,6 +839,16 @@ clears evidence/decision controls and does not replace the last confirmed outcom
 or retry. Tests cover unrecognised JSON both without server delivery and after a
 real approval commit; raw response fields are not displayed in the error.
 
+While a review request is in flight, the workspace sets `aria-busy` and disables
+its buttons, search/filter/order inputs, reason and scope checkbox. Decision
+submission explicitly says it is awaiting confirmation. This prevents local
+inputs from drifting from the submitted decision; it does not change the
+hash-bound request or make it safe to retry an uncertain outcome. Controls are
+re-enabled after completion/failure and busy state is cleared on disposal.
+The separate session-header sign-out remains usable during workspace loading.
+Browser coverage checks the locked form during a stalled acknowledgement,
+recovery after timeout, and busy cleanup on session expiry during initial load.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

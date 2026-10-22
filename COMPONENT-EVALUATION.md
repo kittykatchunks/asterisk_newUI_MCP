@@ -214,6 +214,11 @@ are available. Unrecognised successful JSON warns of possible commit rather than
 claiming success or rollback; browser tests verify pending/committed variants and
 no replacement of the last confirmed outcome.
 
+Workspace request state now includes `aria-busy` and disabled form/search controls,
+preventing input drift during decision submission. Browser tests check pending
+inputs, timeout recovery and expiry cleanup; session-header sign-out is independent
+of the workspace lock.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

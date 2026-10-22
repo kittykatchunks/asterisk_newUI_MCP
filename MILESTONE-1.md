@@ -196,6 +196,12 @@ explicit uncertain-outcome treatment as damaged responses. Tests cover null,
 arrays and wrong codes before/after commit, retained request references, no
 automatic retry and preservation of the previous confirmed outcome.
 
+In-flight review requests now expose workspace busy state and lock local form,
+search and navigation controls. Submission explicitly awaits confirmation;
+completion/failure restores controls and disposal clears busy state. Tests cover
+stalled-decision inputs, timeout recovery and expiry during busy initial loading,
+while session-header sign-out remains available.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

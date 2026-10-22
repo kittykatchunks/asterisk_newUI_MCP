@@ -233,11 +233,12 @@ export async function connectReviewWorkspace(connection) {
     return body;
   }
   function controls() {
-    refresh.disabled = busy;
-    filter.disabled = busy;
-    order.disabled = busy;
-    root.querySelectorAll("button").forEach((button) => {
-      if (button !== refresh) button.disabled = busy;
+    root.setAttribute("aria-busy", String(busy));
+    root.querySelectorAll("button, input, textarea, select").forEach((control) => {
+      if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement ||
+          control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) {
+        control.disabled = busy;
+      }
     });
   }
   /** @param {unknown} cause */
@@ -383,6 +384,7 @@ export async function connectReviewWorkspace(connection) {
         confirmation.textContent = `${decision === "approve" ? "Approve disclosure of" : "Reject"} "${snapshot.title}" for ${customer}, incident ${snapshot.incident}? Snapshot ${snapshot.sha256}. Reason: ${reviewReason}`;
         confirm.textContent = decision === "approve" ? "Confirm approval" : "Confirm rejection";
         commit = () => run(async () => {
+          status.textContent = `Submitting ${decision}. Awaiting confirmation; do not submit another decision.`;
           await request(`${endpoint}/${snapshot.id}`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ decision, reason: reviewReason, sha256: snapshot.sha256 }),
@@ -415,6 +417,7 @@ export async function connectReviewWorkspace(connection) {
     commit = undefined;
     cards = [];
     filter.value = "";
+    root.setAttribute("aria-busy", "false");
     root.replaceChildren(element("p", "Review connection closed."));
   };
   disconnect = dispose;

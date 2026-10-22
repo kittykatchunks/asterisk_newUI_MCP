@@ -499,6 +499,17 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         const sentAt = Date.now();
         await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
         await timeoutCommitted;
+        assert.equal(await page.locator("#review-workspace").getAttribute("aria-busy"), "true");
+        assert.equal(await page.getByLabel("Review reason", { exact: true }).isDisabled(), true);
+        assert.equal(await page.getByLabel("Review reason", { exact: true }).inputValue(), "Committed approval with stalled acknowledgement");
+        assert.equal(await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").isDisabled(), true);
+        assert.equal(await page.getByLabel("Find evidence text", { exact: true }).isDisabled(), true);
+        assert.equal(await pendingFilter.isDisabled(), true);
+        assert.equal(await pendingOrder.isDisabled(), true);
+        assert.equal(await page.getByRole("button", { name: "Refresh pending reports", exact: true }).isDisabled(), true);
+        assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).isDisabled(), true);
+        assert.equal(await page.getByRole("button", { name: "Close review without deciding", exact: true }).isDisabled(), true);
+        assert.ok((await page.locator("#review-workspace").textContent())?.includes("Submitting approve. Awaiting confirmation"));
         assert.equal(await store.catalog.report("customer-a", "incident-" + "3".repeat(32)), html);
         const alert = page.getByRole("alert").filter({ hasText: "Request timed out (request unavailable)." });
         await alert.waitFor({ timeout: 20000 });
@@ -509,6 +520,10 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
         assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
         assert.equal((await focused()).role, "alert");
+        assert.equal(await page.locator("#review-workspace").getAttribute("aria-busy"), "false");
+        assert.equal(await page.getByRole("button", { name: "Refresh pending reports", exact: true }).isEnabled(), true);
+        assert.equal(await pendingFilter.isEnabled(), true);
+        assert.equal(await pendingOrder.isEnabled(), true);
       } finally {
         releaseTimeout();
         await timeoutFinished;
