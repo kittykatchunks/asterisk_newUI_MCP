@@ -190,6 +190,11 @@ response headers. Real-login tests correlate logout audit failure with the serve
 error logger and verify explicit unavailable references for transport or invalid
 headers, without introducing successful-looking audit receipts.
 
+Review-response errors share validated header references with session errors.
+Malformed JSON preserves status/correlation without rendering upstream bodies;
+error codes are bounded identifiers. A committed-approval/corrupted-response test
+verifies explicit ambiguity handling and no automatic decision retry.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

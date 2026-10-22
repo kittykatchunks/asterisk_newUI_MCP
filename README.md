@@ -788,6 +788,17 @@ missing/invalid-reference and transport-failure cases. An audit failure may leav
 no durable audit row; the ID then correlates with the operational error logger,
 not a claimed successful logout receipt.
 
+Review-list, candidate and decision responses now use the same validated
+`X-Request-Id` helper as session errors. Malformed JSON produces an explicit
+error with HTTP status and request reference without displaying raw upstream
+content. Valid JSON errors display only bounded identifier-shaped error codes;
+body-provided request IDs are not trusted in place of the response header.
+Missing/invalid references show `unavailable`. A malformed decision acknowledgement
+does not imply rollback: the browser removes the selected evidence/decision
+controls and warns that the decision may already have committed, without retrying.
+Browser tests cover malformed list/candidate responses, invalid references/codes
+and an approval actually committed in storage before its response is damaged.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

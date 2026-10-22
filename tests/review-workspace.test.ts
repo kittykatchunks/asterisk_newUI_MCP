@@ -379,6 +379,56 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
       await page.unroute(changedUrl);
 
+      const referenceId = "12345678-1234-1234-1234-123456789abc";
+      for (const probe of [
+        { status: 502, body: "<html>private upstream error</html>", id: referenceId, expected: `Invalid JSON response (502; request ${referenceId})` },
+        { status: 200, body: "{", id: referenceId, expected: `Invalid JSON response (200; request ${referenceId})` },
+        { status: 503, body: JSON.stringify({ code: "<img src=x>private-error", requestId: "private-body-id" }), id: "invalid-private-id", expected: "503: invalid_error_response; request unavailable" },
+        { status: 503, body: JSON.stringify({ code: "synthetic_storage_failure", requestId: "private-body-id" }), id: referenceId, expected: `503: synthetic_storage_failure; request ${referenceId}` },
+      ]) {
+        await page.route("**/api/customers/customer-a/diagnostics/reviews", (route) => route.fulfill({
+          status: probe.status, headers: { "X-Request-Id": probe.id },
+          contentType: "application/json", body: probe.body,
+        }));
+        await connect(reviewer);
+        const alert = page.getByRole("alert");
+        await alert.filter({ hasText: probe.expected }).waitFor();
+        assert.ok(!(await alert.textContent())?.includes("private-"));
+        assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        assert.equal((await focused()).role, "alert");
+        await page.unroute("**/api/customers/customer-a/diagnostics/reviews");
+      }
+      await connect(reviewer);
+      await page.route(changedUrl, (route) => route.fulfill({
+        status: 502, headers: { "X-Request-Id": referenceId }, contentType: "text/html",
+        body: "<html>private candidate gateway error</html>",
+      }));
+      await page.getByRole("button", { name: `Inspect ${changed.id}`, exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: `Invalid JSON response (502; request ${referenceId})` }).waitFor();
+      assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+      await page.unroute(changedUrl);
+      await page.getByRole("button", { name: `Inspect ${additional.id}`, exact: true }).click();
+      await page.getByLabel("Review reason", { exact: true }).fill("Committed decision with damaged response");
+      await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+      let committedReference = "";
+      await page.route(`**/api/customers/customer-a/diagnostics/reviews/${additional.id}`, async (route) => {
+        const response = await route.fetch();
+        assert.equal(response.status(), 200);
+        committedReference = response.headers()["x-request-id"];
+        await route.fulfill({ response, body: "{" });
+      });
+      const beforeDamagedDecision = posts.length;
+      await page.getByRole("button", { name: "Approve report", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "Invalid JSON response (200;" }).waitFor();
+      assert.ok((await page.getByRole("alert").textContent())?.includes(`request ${committedReference}`));
+      assert.ok((await page.getByRole("alert").textContent())?.includes("committed decision"));
+      assert.equal(posts.length, beforeDamagedDecision + 1);
+      assert.equal(await store.catalog.report("customer-a", "incident-" + "e".repeat(32)), html);
+      assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+      await page.unroute(`**/api/customers/customer-a/diagnostics/reviews/${additional.id}`);
+
       await connect(await jwt("reader"));
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);

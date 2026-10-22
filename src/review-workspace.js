@@ -1,6 +1,12 @@
 // @ts-check
 import { createReviewPreview } from "./review-preview.js";
 
+/** @param {Response} response */
+export function requestReference(response) {
+  const id = response.headers.get("X-Request-Id");
+  return id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) ? id : "unavailable";
+}
+
 /** @param {string} tag @param {string} text */
 function element(tag, text) {
   const node = document.createElement(tag);
@@ -194,10 +200,16 @@ export async function connectReviewWorkspace(connection) {
       onUnauthorized();
       throw new Error("Application session is no longer valid. Sign in again. Check the report state before retrying any decision.");
     }
-    const body = await response.json();
+    const requestId = requestReference(response);
+    let body;
+    try { body = await response.json(); }
+    catch (cause) {
+      if (!(cause instanceof SyntaxError)) throw cause;
+      throw new Error(`Invalid JSON response (${response.status}; request ${requestId}). Refresh before retrying; a lost response may follow a committed decision.`);
+    }
     if (!response.ok) {
-      const code = record(body) && typeof body.code === "string" ? body.code : "invalid_error_response";
-      const requestId = record(body) && typeof body.requestId === "string" ? body.requestId : "unavailable";
+      const code = record(body) && typeof body.code === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(body.code)
+        ? body.code : "invalid_error_response";
       throw new Error(`Request failed (${response.status}: ${code}; request ${requestId}). Refresh before retrying; a lost response may follow a committed decision.`);
     }
     return body;

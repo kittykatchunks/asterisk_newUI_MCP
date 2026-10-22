@@ -1,5 +1,5 @@
 // @ts-check
-import { connectReviewWorkspace } from "./review-workspace.js";
+import { connectReviewWorkspace, requestReference } from "./review-workspace.js";
 
 const match = location.pathname.match(/^\/engineering\/reviews\/([a-z0-9][a-z0-9-]{0,63})$/);
 if (!match) throw new Error("Invalid review workspace path");
@@ -14,12 +14,6 @@ login.textContent = "Sign in";
 login.href = `/auth/login?customer=${encodeURIComponent(match[1])}`;
 bar.append(status, expiryWarning, login);
 document.body.prepend(bar);
-
-/** @param {Response} response */
-function requestReference(response) {
-  const id = response.headers.get("X-Request-Id");
-  return id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) ? id : "unavailable";
-}
 
 let bootstrapRequestId = "unavailable";
 try {

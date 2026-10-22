@@ -170,6 +170,11 @@ operational correlation, including malformed responses. Browser tests match a
 failed logout's displayed ID to the server logger/header; missing/invalid headers
 and transport failures show an explicit unavailable reference.
 
+Review API malformed-JSON errors now preserve HTTP status and validated header
+request references while omitting raw upstream content. Browser tests cover
+list/candidate failures and a committed approval with a corrupted acknowledgement:
+the UI warns of possible commit, clears decision controls and never retries.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.
