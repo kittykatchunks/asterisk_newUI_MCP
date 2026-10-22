@@ -2205,6 +2205,56 @@ awaited before fixture cleanup. This combines the stage B primitives, not a
 production service: no real PBX, multi-host partition, restore detection, power
 loss or production expiry-lag guarantee is established.
 
+#### Live provisioning acceptance gate (opt-in backend integration primitive)
+
+`src/agent-provisioning-authorisation.ts` wraps an existing authenticated transport
+with `createAuthorisedProvisioningTransport`. It is not enabled by the launcher
+and does not create an API or desired-state producer. For prepare, activate and
+extend, acceptance requires:
+
+- A protected backend resolver mapping the exact intent to its original owner,
+  generation and assigned extension. Actor/reason fields are never authority.
+- A live session matching the original session ID, subject and customer.
+- A fresh agent-access decision for that issuer/subject/customer with direct
+  membership, never a support grant or a different subject.
+- A second session read after asynchronous access verification, plus a current
+  validated assignment matching the resolved extension.
+- The existing device lease store's exact owner/session/device/lease check, with
+  the effective session deadline capped to both original and live expiry.
+  Command `notAfter` must not exceed that lease deadline; it is rejected, not
+  silently rewritten or extended.
+
+Input and owner snapshots are detached before verification; the final assignment
+and lease reads occur immediately before calling the underlying transport.
+Errors and cancellations propagate without an acceptance or synthetic receipt.
+Readback is not gated on a still-live browser session: historical recovery must
+remain possible after logout. Customer/epoch-scoped drain/revoke commands also
+remain available to the trusted controller after logout; this wrapper is **not**
+their controller authentication, ownership validation or drain-policy boundary.
+
+The mandatory resolver/session/access callbacks are trusted backend integration
+points, not caller JSON. Resolve must bind the immutable operation/generation to
+protected original ownership, and agentAccess must use the existing verifier for
+`agent:access` under that identity. No durable resolver mapping or background
+session lookup is supplied yet. Tests use the real lease persistence and injected
+session/access/directory state; they do not prove a new real OIDC integration.
+Raw session IDs/device IDs are not added to commands, reports or audit context.
+
+This gate checks immediately before **dispatch acceptance**, not remote execution.
+Logout/release after the check or after a command is accepted still requires
+worker cancellation/drain and generation fencing; a distributed atomic check is
+not claimed. Already accepted empty-history work can still execute later under
+its stored deadline. Production wiring, atomic desired-state/ownership capture,
+audit integration, worker-side execution fencing and restore protection remain
+required. The unwrapped transport remains a low-level trusted primitive.
+
+`node --test .\tests\agent-provisioning-authorisation.test.ts` covers dispatcher
+integration, logout/session rotation, shortened expiry, lease release/expiry
+during query or verification, assignment changes/removal, denied/foreign/support
+access, missing/wrong owner mappings, deadline bounds, successful activate/extend,
+cleanup after logout, errors/cancellation and absence of session/device data in
+worker storage. Lease checks never acquire or renew reservations.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

@@ -430,3 +430,17 @@ Reopening the backend and listener reconciles delayed historical receipts withou
 replaying effects. The idle fixture fences within one second of expiry, not a
 production latency guarantee. This joins stage B components but does not close
 application authorisation, restore fencing, deployment/supervision or PBX gates.
+
+### Live dispatch authorisation: integration primitive
+
+The selected next boundary is live authorisation before prepare/activate/extend
+acceptance. An opt-in transport wrapper now checks trusted original-owner
+resolution, matching live session, direct agent membership, current assignment
+and exact owned device lease with a bounded command deadline. Session/assignment/
+lease are rechecked after asynchronous access verification. Historical readback
+and trusted controller drain/revoke remain possible after browser logout.
+Tests use real lease persistence and injected session/access state; no new OIDC
+flow or production producer is wired. Durable original-owner mapping, application
+audit/desired-state capture and remote execution fencing after acceptance remain
+unimplemented. This is a pre-dispatch check, not atomic distributed authorisation.
+See the [live gate contract](./README.md#live-provisioning-acceptance-gate-opt-in-backend-integration-primitive).
