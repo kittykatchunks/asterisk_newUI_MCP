@@ -559,6 +559,48 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         assert.equal(posts.length, beforeConfirmed + 1);
       }
 
+      for (const probe of [
+        { digit: "7", body: null, committed: false },
+        { digit: "8", body: [], committed: true },
+        { digit: "9", body: { code: "private-unexpected-success", report: "private-response-content" }, committed: true },
+      ]) {
+        const candidate = stage(probe.digit);
+        await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+        await page.getByRole("button", { name: `Inspect ${candidate.id}`, exact: true }).click();
+        await page.getByLabel("Review reason", { exact: true }).fill("Unrecognised acknowledgement");
+        await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+        const previousReceipt = await page.getByRole("status", { name: "Last confirmed review", exact: true }).textContent();
+        const beforePosts: number = posts.length;
+        const decisionUrl = `**/api/customers/customer-a/diagnostics/reviews/${candidate.id}`;
+        let responseReference = referenceId;
+        await page.route(decisionUrl, async (route) => {
+          if (probe.committed) {
+            const response = await route.fetch();
+            assert.equal(response.status(), 200);
+            responseReference = response.headers()["x-request-id"];
+          }
+          await route.fulfill({
+            status: 200, contentType: "application/json",
+            headers: { "X-Request-Id": responseReference }, body: JSON.stringify(probe.body),
+          });
+        });
+        await page.getByRole("button", { name: "Approve report", exact: true }).click();
+        await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
+        const alert = page.getByRole("alert").filter({ hasText: "Invalid review confirmation response (200;" });
+        await alert.waitFor();
+        assert.ok((await alert.textContent())?.includes(`request ${responseReference}`));
+        assert.ok((await alert.textContent())?.includes("may already have committed"));
+        assert.ok(!(await alert.textContent())?.includes("private-"));
+        assert.equal(posts.length, beforePosts + 1);
+        assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).textContent(), previousReceipt);
+        assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+        assert.equal((await focused()).role, "alert");
+        assert.equal(await store.catalog.report("customer-a", "incident-" + probe.digit.repeat(32)), probe.committed ? html : undefined);
+        assert.equal(store.pending("customer-a").some((entry) => entry.id === candidate.id), !probe.committed);
+        await page.unroute(decisionUrl);
+      }
+
       await connect(await jwt("reader"));
       assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();

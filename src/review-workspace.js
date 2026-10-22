@@ -192,8 +192,8 @@ export async function connectReviewWorkspace(connection) {
     detail.hidden = true;
   }
 
-  /** @param {string} path @param {RequestInit} [options] @returns {Promise<unknown>} */
-  async function request(path, options = {}) {
+  /** @param {string} path @param {RequestInit} [options] @param {string} [expectedCode] @returns {Promise<unknown>} */
+  async function request(path, options = {}, expectedCode) {
     if (disposed) throw new DOMException("Review connection closed", "AbortError");
     /** @type {Response} */
     let response;
@@ -226,6 +226,9 @@ export async function connectReviewWorkspace(connection) {
       const code = record(body) && typeof body.code === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(body.code)
         ? body.code : "invalid_error_response";
       throw new Error(`Request failed (${response.status}: ${code}; request ${requestId}). Refresh before retrying; a lost response may follow a committed decision.`);
+    }
+    if (expectedCode && (!record(body) || body.code !== expectedCode)) {
+      throw new Error(`Invalid review confirmation response (${response.status}; request ${requestId}). Refresh before retrying; the decision may already have committed. No automatic retry was sent.`);
     }
     return body;
   }
@@ -380,11 +383,10 @@ export async function connectReviewWorkspace(connection) {
         confirmation.textContent = `${decision === "approve" ? "Approve disclosure of" : "Reject"} "${snapshot.title}" for ${customer}, incident ${snapshot.incident}? Snapshot ${snapshot.sha256}. Reason: ${reviewReason}`;
         confirm.textContent = decision === "approve" ? "Confirm approval" : "Confirm rejection";
         commit = () => run(async () => {
-          const result = await request(`${endpoint}/${snapshot.id}`, {
+          await request(`${endpoint}/${snapshot.id}`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ decision, reason: reviewReason, sha256: snapshot.sha256 }),
-          });
-          if (!record(result) || result.code !== "incident_review_recorded") throw new Error("Invalid review confirmation response");
+          }, "incident_review_recorded");
           if (disposed) return;
           decisionReceipt.textContent = `Confirmed review: ${decision}. Candidate: ${snapshot.id}. Snapshot SHA-256: ${snapshot.sha256}. This decision was recorded; any following list-refresh error does not undo it. Do not submit it again.`;
           decisionReceipt.hidden = false;

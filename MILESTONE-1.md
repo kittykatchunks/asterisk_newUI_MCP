@@ -191,6 +191,11 @@ the list and advises against resubmission. Browser tests cover approved/rejected
 durable outcomes with refresh failure/recovery and no duplicate POST. It is
 connection-local acknowledgement, not a persisted review-history screen.
 
+Valid JSON with an unrecognised success acknowledgement now receives the same
+explicit uncertain-outcome treatment as damaged responses. Tests cover null,
+arrays and wrong codes before/after commit, retained request references, no
+automatic retry and preservation of the previous confirmed outcome.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

@@ -831,6 +831,14 @@ acknowledgements do not create a confirmation. Browser tests cover both approve
 and reject followed by a 503 list refresh, recovery without a second POST, and
 preservation of the previous confirmation when another response is damaged.
 
+HTTP success alone does not confirm a review: the response must be a JSON object
+with the recognised `incident_review_recorded` code. Null, arrays and unexpected
+codes produce an explicit unconfirmed-outcome error with HTTP status and validated
+header reference. The browser warns that the decision may already have committed,
+clears evidence/decision controls and does not replace the last confirmed outcome
+or retry. Tests cover unrecognised JSON both without server delivery and after a
+real approval commit; raw response fields are not displayed in the error.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
