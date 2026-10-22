@@ -9,7 +9,10 @@ complete. See the README for the limited executed proof and exclusions.
 Executed so far: runtime/module readiness, Local-channel recording and queue events,
 restart persistence, and an optional authenticated UDP/PCMU echo-call proof per
 customer with CEL/audio verification. None completes the browser-call acceptance
-criteria or production isolation/capacity tests.
+criteria or production isolation/capacity tests. A subsequent SIP.js/headless
+Chromium test also verifies WSS registration and synthetic bidirectional encrypted
+media with decoded audio energy. Its test-key trust and mDNS/ICE constraints are
+documented in the README; the actual agent console remains unimplemented.
 
 Parent document: [Project plan](./PROJECT-PLAN.md).
 

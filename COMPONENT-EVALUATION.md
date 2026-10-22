@@ -43,7 +43,14 @@ CEL lifecycles, and valid audio recordings. Wrong and other-customer credentials
 were rejected. This is not browser signalling, registration, or adversarial
 isolation validation. See the README for reproduction and boundaries.
 
-No browser, identity-provider, capture, AI, or provider component has passed runtime testing.
+SIP.js 0.21.2 subsequently passed a local headless Chromium proof of WSS
+registration and two-way synthetic DTLS-SRTP audio for both customer instances.
+The runner uses exact test-key certificate exemptions, loopback media mappings,
+explicit passive DTLS, and disabled mDNS candidate hiding in the test browser.
+These are local-fixture constraints, not default-browser or production validation.
+The README records reproduction, thresholds, and outstanding tests.
+
+No identity-provider, capture, AI, or provider component has passed runtime testing.
 The exact digest is selected for this local experiment only, not approved for
 production. Official release support and advisory review remain production gates.
 

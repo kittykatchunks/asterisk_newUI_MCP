@@ -1,0 +1,21 @@
+services:
+  customer-a:
+    networks: !override [webrtc-a]
+    ports:
+      - "127.0.0.1:18089:8089/tcp"
+      - "127.0.0.1:10000-10019:10000-10019/udp"
+    volumes:
+      - ./.local-proof/webrtc/customer-a:/run/webrtc:ro
+      - ./.local-proof/webrtc/customer-a/rtp.conf:/etc/asterisk/rtp.conf:ro
+  customer-b:
+    networks: !override [webrtc-b]
+    ports:
+      - "127.0.0.1:28089:8089/tcp"
+      - "127.0.0.1:10100-10119:10100-10119/udp"
+    volumes:
+      - ./.local-proof/webrtc/customer-b:/run/webrtc:ro
+      - ./.local-proof/webrtc/customer-b/rtp.conf:/etc/asterisk/rtp.conf:ro
+
+networks:
+  webrtc-a: {}
+  webrtc-b: {}
