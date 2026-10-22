@@ -8,6 +8,8 @@ import { createAccessVerifier } from "../src/access.ts";
 import { createDiagnosticApi } from "../src/diagnostic-api.ts";
 import type { AccessAudit } from "../src/diagnostic-api.ts";
 import type { AccessConfig } from "../src/access.ts";
+import { createIncidentCatalog } from "../src/incidents.ts";
+import { createHash } from "node:crypto";
 
 const keys = await generateKeyPair("RS256");
 const foreignKeys = await generateKeyPair("RS256");
@@ -19,6 +21,15 @@ let issuer: string;
 let base: string;
 let config: AccessConfig;
 let auditFailure = false;
+const incidentA = "incident-" + "a".repeat(32);
+const incidentB = "incident-" + "b".repeat(32);
+const reportHtml = "<!doctype html><title>Approved synthetic report</title><h1>Redacted evidence</h1>";
+const catalog = createIncidentCatalog([
+  { customer: "customer-a", summary: { id: incidentA, title: "A synthetic incident", createdAt: "2026-10-22T12:00:00Z" },
+    report: { html: reportHtml, sha256: createHash("sha256").update(reportHtml).digest("hex") } },
+  { customer: "customer-b", summary: { id: incidentB, title: "B synthetic incident", createdAt: "2026-10-22T12:00:00Z" },
+    report: { html: reportHtml, sha256: createHash("sha256").update(reportHtml).digest("hex") } },
+]);
 
 async function listen(server: Server): Promise<string> {
   server.listen(0, "127.0.0.1");
@@ -48,6 +59,7 @@ before(async () => {
     memberships: [
       { issuer, subject: "alice", customer: "customer-a", permissions: ["diagnostics:read"] },
       { issuer, subject: "bob", customer: "customer-b", permissions: ["diagnostics:read"] },
+      { issuer, subject: "report-reader", customer: "customer-a", permissions: ["diagnostics:read", "diagnostics:report"] },
     ],
     supportGrants: [
       { issuer, subject: "engineer", customer: "customer-a", permissions: ["diagnostics:read"],
@@ -61,7 +73,7 @@ before(async () => {
   api = createDiagnosticApi(config, async (event) => {
     if (auditFailure) throw new Error("Synthetic audit storage failure");
     audit.push(event);
-  }, (error) => errors.push(error));
+  }, (error) => errors.push(error), catalog);
   base = await listen(api);
 });
 
@@ -94,7 +106,8 @@ test("valid OIDC signature and provisioned membership allow only assigned custom
   assert.equal(allowed.status, 200);
   const body = await allowed.json();
   assert.equal(body.captureEnabled, false);
-  assert.equal(body.evidenceServingEnabled, false);
+  assert.equal(body.evidenceServingEnabled, true);
+  assert.equal(body.rawEvidenceServingEnabled, false);
   assert.equal((await access("customer-b", jwt)).status, 403);
   assert.equal((await access("customer-a", await token("bob"))).status, 403);
   assert.equal((await access("customer-b", await token("bob"))).status, 200);
@@ -182,4 +195,98 @@ test("later configuration mutation cannot expand existing verifier access", asyn
   const result = await verify(`Bearer ${await token()}`, "customer-b");
   assert.equal(result.allowed, false);
   if (!result.allowed) assert.equal(result.status, 403);
+});
+
+async function incidentRequest(path: string, subject = "alice") {
+  return fetch(`${base}/api/customers/${path}`, {
+    headers: { Authorization: `Bearer ${await token(subject)}` },
+  });
+}
+
+test("incident lists are customer-scoped and return only allowlisted metadata", async () => {
+  const response = await incidentRequest("customer-a/diagnostics/incidents");
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.incidents, [
+    { id: incidentA, title: "A synthetic incident", createdAt: "2026-10-22T12:00:00Z" },
+  ]);
+  assert.equal((await incidentRequest("customer-b/diagnostics/incidents")).status, 403);
+  assert.equal(JSON.stringify(body).includes("sha256"), false);
+  assert.equal(JSON.stringify(body).includes(reportHtml), false);
+});
+
+test("metadata permission and diagnostics-only support do not grant report access", async () => {
+  for (const subject of ["alice", "engineer"]) {
+    assert.equal((await incidentRequest(
+      `customer-a/diagnostics/incidents/${incidentA}/report`, subject)).status, 403);
+  }
+});
+
+test("approved reports require permission, remain tenant-bound, and are sandboxed", async () => {
+  const response = await incidentRequest(
+    `customer-a/diagnostics/incidents/${incidentA}/report`, "report-reader");
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), reportHtml);
+  assert.match(response.headers.get("content-security-policy") ?? "", /sandbox allow-scripts;/);
+  assert.doesNotMatch(response.headers.get("content-security-policy") ?? "", /allow-same-origin/);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  assert.equal((await incidentRequest(
+    `customer-a/diagnostics/incidents/${incidentB}/report`, "report-reader")).status, 404);
+  assert.equal((await incidentRequest(
+    `customer-b/diagnostics/incidents/${incidentB}/report`, "report-reader")).status, 403);
+  assert.ok(audit.some((event) => event.operation === "report-view" && event.incident === incidentA && event.status === 200));
+});
+
+test("raw evidence routes and path tricks cannot access packet or CEL files", async () => {
+  for (const suffix of ["signalling.pcap", "cel.csv", "manifest.json", "report.html", "%2e%2e%2fsecret"]) {
+    assert.equal((await incidentRequest(
+      `customer-a/diagnostics/incidents/${incidentA}/${suffix}`, "report-reader")).status, 404);
+  }
+});
+
+test("audit failure denies report bytes", async () => {
+  auditFailure = true;
+  try {
+    const response = await incidentRequest(
+      `customer-a/diagnostics/incidents/${incidentA}/report`, "report-reader");
+    assert.equal(response.status, 503);
+    assert.equal((await response.text()).includes("Redacted evidence"), false);
+  } finally { auditFailure = false; }
+});
+
+test("incident catalog rejects tampered reports and cannot be mutated through returned summaries", async () => {
+  assert.throws(() => createIncidentCatalog([{
+    customer: "customer-a", summary: { id: incidentA, title: "Test", createdAt: "2026-10-22T12:00:00Z" },
+    report: { html: reportHtml, sha256: "0".repeat(64) },
+  }]), /integrity/);
+  const list = await catalog.list("customer-a");
+  list[0].title = "Changed";
+  assert.equal((await catalog.list("customer-a"))[0].title, "A synthetic incident");
+  assert.equal(await catalog.report("customer-a", incidentB), undefined);
+});
+
+test("unconfigured or failed catalog produces explicit unavailability, not an empty success", async () => {
+  for (const catalogOption of [
+    undefined,
+    {
+      async list(): Promise<never> { throw new Error("Synthetic repository failure"); },
+      async report(): Promise<never> { throw new Error("Synthetic repository failure"); },
+    },
+  ]) {
+    const events: AccessAudit[] = [];
+    const logged: unknown[] = [];
+    const server = createDiagnosticApi(config, async (event) => { events.push(event); },
+      (error) => logged.push(error), catalogOption);
+    const origin = await listen(server);
+    try {
+      const response = await fetch(`${origin}/api/customers/customer-a/diagnostics/incidents`, {
+        headers: { Authorization: `Bearer ${await token()}` },
+      });
+      assert.equal(response.status, 503);
+      assert.equal((await response.text()).includes('"incidents":[]'), false);
+      if (catalogOption) assert.equal(logged.length, 1);
+      else assert.equal(events[0].outcome, "incident_catalog_unavailable");
+    } finally { await close(server); }
+  }
 });

@@ -33,6 +33,12 @@ login for both synthetic customers and API rejection across customer boundaries.
 Development-mode identity is removed after each run. Production identity storage,
 TLS, MFA/federation, application sessions, and durable permissions/audit remain open.
 
+The API now has customer-scoped incident metadata and separately authorised report
+access through a trusted in-memory catalog. The Keycloak proof loads generated
+packet/CEL reports and verifies actual browser viewing/filtering, sandbox storage
+denial, metadata-only report denial, and cross-customer denial. Persistent incident
+ingestion, production sessions, and capture controls remain outstanding.
+
 Parent document: [Project plan](./PROJECT-PLAN.md).
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based

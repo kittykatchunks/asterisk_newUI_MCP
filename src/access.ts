@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-export type DiagnosticPermission = "diagnostics:read";
+export type DiagnosticPermission = "diagnostics:read" | "diagnostics:report";
 
 export interface Membership {
   issuer: string;
@@ -47,7 +47,8 @@ export function createAccessVerifier(config: AccessConfig) {
   for (const membership of [...config.memberships, ...config.supportGrants]) {
     if (membership.issuer !== config.issuer || !membership.subject.trim() ||
         !/^[a-z0-9][a-z0-9-]{0,63}$/.test(membership.customer) ||
-        membership.permissions.some((permission) => permission !== "diagnostics:read")) {
+        membership.permissions.some((permission) =>
+          permission !== "diagnostics:read" && permission !== "diagnostics:report")) {
       throw new Error("Invalid provisioned customer membership");
     }
   }
@@ -64,7 +65,11 @@ export function createAccessVerifier(config: AccessConfig) {
   const audience = config.audience;
   const jwks = createRemoteJWKSet(jwksUrl, { timeoutDuration: 2000 });
 
-  return async (authorization: string | undefined, customer: string): Promise<AccessResult> => {
+  return async (
+    authorization: string | undefined,
+    customer: string,
+    permission: DiagnosticPermission = "diagnostics:read",
+  ): Promise<AccessResult> => {
     const match = authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/);
     if (!match) return { allowed: false, status: 401, code: "invalid_bearer_token" };
     let subject: string;
@@ -90,7 +95,7 @@ export function createAccessVerifier(config: AccessConfig) {
       throw error;
     }
     const permits = (entry: Membership) => entry.subject === subject &&
-      entry.customer === customer && entry.permissions.includes("diagnostics:read");
+      entry.customer === customer && entry.permissions.includes(permission);
     if (memberships.some(permits)) return { allowed: true, subject, basis: "membership" };
     const now = Date.now() / 1000;
     if (grants.some((grant) => permits(grant) && grant.startsAt <= now && now < grant.expiresAt)) {

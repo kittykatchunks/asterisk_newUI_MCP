@@ -258,10 +258,9 @@ The integration tests run an ephemeral loopback JWKS issuer and HTTP API and clo
 them afterward. They use generated RSA signing keys in memory, not production
 credentials or real user identities. No services remain running.
 
-The only API resource currently implemented is the permission proof
-`GET /api/customers/{customer}/diagnostics`. It does not read evidence files,
-list incidents, start captures, or expose the Docker socket. Its successful
-response explicitly reports capture and evidence serving as disabled.
+The base permission resource is `GET /api/customers/{customer}/diagnostics`.
+It reports whether an incident catalog is configured; capture and raw evidence
+serving remain disabled. The optional incident resources are described below.
 
 Access checks require RS256 signature, exact configured issuer/audience, subject,
 issued-at and expiry claims, and a maximum 15-minute token age. Production identity
@@ -280,7 +279,7 @@ access returns an explicit 503 and invokes the operational error logger. Tokens
 are not written to audit records. The test sink is memory-only; production durable
 audit storage, access reviews, and retention remain unimplemented.
 
-Ten automated tests cover customer separation, misleading token role claims,
+Automated tests cover customer separation, misleading token role claims,
 invalid/missing/expired/future/wrong-signature/issuer/audience tokens, required
 expiry, bounded support elevation, audit failure, unavailable JWKS, configuration
 mutation, and absence of capture mutation routes.
@@ -324,7 +323,7 @@ Verified locally:
 - Authorization code is exchanged with its verifier; consumed code replay fails.
 - Real access tokens allow the provisioned customer and deny the other customer.
 - ID tokens fail API audience validation.
-- Password-grant requests fail; all six API decisions are audited in memory.
+- Password-grant requests fail; API decisions are audited in memory.
 
 The runner closes browsers/HTTP listeners and removes the identity container and
 its project network even after failure. Its development database is ephemeral;
@@ -336,4 +335,58 @@ memory-only audit, and configuration-backed membership are deliberate limitation
 Deployment TLS, persistent database/backup, administrator recovery, secure
 application sessions, MFA, federation, logout/revocation, key rotation, customer
 onboarding, and grant administration remain outstanding. Passing this proof does
-not make the management application available or enable capture/evidence access.
+not make the management application available or enable capture controls.
+
+## Permission-controlled incident catalog and reports
+
+The API factory optionally accepts a provisioned incident catalog:
+
+| Resource | Required permission |
+|---|---|
+| `GET /api/customers/{customer}/diagnostics/incidents` | `diagnostics:read` |
+| `GET /api/customers/{customer}/diagnostics/incidents/{incident}/report` | `diagnostics:report` |
+
+Incident IDs must match `incident-` followed by 32 lowercase hexadecimal characters.
+Metadata access, including diagnostic-only support grants, does not imply report
+access. Every successful response waits for the access audit sink. Failure of
+audit persistence prevents report delivery. Cross-customer report guesses are
+denied, and unknown incidents within an authorised scope return 404.
+
+The current catalog is an immutable in-memory snapshot of trusted, approved
+entries, not a database or arbitrary directory browser. Lists return only ID,
+title, and creation time. Approved report bytes must match their supplied SHA-256
+and fit a 2-MiB size limit. A checksum verifies consistency, not redaction quality
+or HTML safety; trusted ingestion must approve the actual report. No HTTP route
+imports files or accepts a path from the caller.
+
+HTML reports are served without caching, with a sandboxed Content Security Policy
+that does not grant same-origin privileges, blocks network access and forms, and
+disallows embedding. The report's own hash-based policy further restricts its
+fixed interactive script. Raw PCAP, CEL, manifests, and filesystem paths have no
+API resource. Report delivery is a distinct disclosure permission, not a general
+right to export all engineering evidence.
+
+The real Keycloak proof now requires captured reports for both customers:
+
+```powershell
+.\scripts\Test-CaptureProof.ps1
+.\scripts\Test-IdentityProof.ps1
+```
+
+The test chooses the latest incident with both export manifests, verifies customer
+and incident provenance, and loads the report hashes through the catalog. Missing
+or tampered reports fail explicitly. It does not publish the evidence directory.
+Alice receives report permission for customer A; Bob has metadata-only access to
+customer B. Both can list their own captured incident. Alice can view and filter
+her report in Chromium, with sandboxed origin storage denied; Bob cannot view
+his report, and neither can access the other customer. Thirteen API decisions
+are audited in the successful identity test.
+
+Seventeen access tests cover the original authentication boundary plus incident
+metadata, report permission, report/audit failure, unavailable catalogs, tampering,
+path-like raw-file requests, and response restrictions.
+
+Outstanding: persistent incident storage and ingestion approval, durable audit,
+interactive application login/session handling, customer/engineer navigation,
+grant administration, and authenticated capture controls. Reports are exercised
+through test-controlled browser credentials, not a finished user-facing viewer.

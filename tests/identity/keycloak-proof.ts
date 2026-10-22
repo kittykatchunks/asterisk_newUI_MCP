@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
 import { chromium } from "playwright";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createDiagnosticApi } from "../../src/diagnostic-api.ts";
 import type { AccessAudit } from "../../src/diagnostic-api.ts";
+import { createIncidentCatalog } from "../../src/incidents.ts";
+import type { ApprovedIncident } from "../../src/incidents.ts";
 
 interface TestAccount {
   subject: string;
@@ -33,15 +35,45 @@ for (const key of ["authorization_endpoint", "token_endpoint", "jwks_uri", "end_
 }
 const audit: AccessAudit[] = [];
 const operationalErrors: unknown[] = [];
+const evidenceRoot = new URL("../../.local-proof/evidence/", import.meta.url);
+const directories = (await readdir(evidenceRoot, { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory() && /^incident-[0-9a-f]{32}$/.test(entry.name));
+const candidates = [];
+for (const entry of directories) {
+  try {
+    const manifests = await Promise.all(accounts.map((account) =>
+      readFile(new URL(`${entry.name}/${account.customer}/export-manifest.json`, evidenceRoot), "utf8")));
+    candidates.push({ id: entry.name, manifests: manifests.map((value) => JSON.parse(value)) });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
+    throw error;
+  }
+}
+candidates.sort((a, b) => b.manifests[0].started_utc.localeCompare(a.manifests[0].started_utc));
+const evidence = candidates[0];
+assert.ok(evidence, "Run Test-CaptureProof.ps1 first to generate evidence for both customers");
+const entries: ApprovedIncident[] = [];
+for (const [index, account] of accounts.entries()) {
+  const manifest = evidence.manifests[index];
+  assert.equal(manifest.customer, account.customer);
+  assert.equal(manifest.incident, evidence.id);
+  const html = await readFile(new URL(`${evidence.id}/${account.customer}/report.html`, evidenceRoot), "utf8");
+  entries.push({
+    customer: account.customer,
+    summary: { id: evidence.id, title: "Synthetic SIP evidence", createdAt: manifest.started_utc },
+    report: { html, sha256: manifest.report_sha256 },
+  });
+}
+const catalog = createIncidentCatalog(entries);
 const api = createDiagnosticApi({
   issuer, audience: "diagnostic-api", jwksUrl: discovery.jwks_uri,
   allowLoopbackHttpForTests: true,
   memberships: accounts.map((account) => ({
     issuer, subject: account.subject, customer: account.customer,
-    permissions: ["diagnostics:read"],
+    permissions: account.username === "alice" ? ["diagnostics:read", "diagnostics:report"] : ["diagnostics:read"],
   })),
   supportGrants: [],
-}, async (event) => { audit.push(event); }, (error) => { operationalErrors.push(error); });
+}, async (event) => { audit.push(event); }, (error) => { operationalErrors.push(error); }, catalog);
 
 let pending: { state: string; accept: (code: string) => void; reject: (error: Error) => void } | undefined;
 const callback = createServer((request, response) => {
@@ -164,6 +196,34 @@ try {
       assert.equal((await fetch(`${apiBase}/api/customers/${account.customer}/diagnostics`, {
         headers: { Authorization: `Bearer ${tokens.id_token}` },
       })).status, 401, "ID token must not be accepted as API access token");
+      const headers = { Authorization: `Bearer ${tokens.access_token}` };
+      const listed = await fetch(`${apiBase}/api/customers/${account.customer}/diagnostics/incidents`, { headers });
+      assert.equal(listed.status, 200);
+      assert.deepEqual((await listed.json()).incidents.map((entry: { id: string }) => entry.id), [evidence.id]);
+      const reportUrl = `${apiBase}/api/customers/${account.customer}/diagnostics/incidents/${evidence.id}/report`;
+      const report = await fetch(reportUrl, { headers });
+      if (account.username === "alice") {
+        assert.equal(report.status, 200);
+        assert.match(await report.text(), /Observed signalling ladder/);
+        assert.match(report.headers.get("content-security-policy") ?? "", /sandbox allow-scripts/);
+        const viewer = await browser.newContext({ extraHTTPHeaders: headers });
+        try {
+          const reportPage = await viewer.newPage();
+          await reportPage.goto(reportUrl);
+          await reportPage.getByRole("heading", { name: "Observed signalling ladder" }).waitFor();
+          await reportPage.getByLabel("Message filter").fill("SIP 401");
+          assert.ok(await reportPage.locator("#packets tbody tr:visible").count() > 0);
+          assert.equal(await reportPage.evaluate(() => {
+            try { localStorage.getItem("sandbox-probe"); return false; }
+            catch (error) { return error instanceof DOMException && error.name === "SecurityError"; }
+          }), true, "Sandboxed report must not inherit application-origin storage access");
+        } finally { await viewer.close(); }
+      } else {
+        assert.equal(report.status, 403, "Metadata-only user must not view report");
+      }
+      assert.equal((await fetch(
+        `${apiBase}/api/customers/${other.customer}/diagnostics/incidents/${evidence.id}/report`, { headers },
+      )).status, 403);
       const replay = await fetch(discovery.token_endpoint, {
         method: "POST",
         body: new URLSearchParams({
@@ -173,6 +233,7 @@ try {
       });
       assert.equal(replay.status, 400, "Consumed authorization code must not be reusable");
       console.log(`PASS ${account.username}: real browser PKCE login, ID-token nonce, own-customer API, cross-customer denial, ID-token denial, code replay denial`);
+      console.log(`PASS ${account.username}: captured incident listing and report permission boundary`);
     } finally { await context.close(); }
   }
   const directGrant = await fetch(discovery.token_endpoint, {
@@ -182,9 +243,9 @@ try {
     }),
   });
   assert.equal(directGrant.status, 400, "Password grant must be disabled");
-  assert.equal(audit.length, 6);
+  assert.equal(audit.length, 13);
   assert.deepEqual(operationalErrors, []);
-  console.log("PASS disabled password grant; six audited API decisions; no access tokens logged or persisted");
+  console.log("PASS disabled password grant; thirteen audited API decisions; no access tokens logged or persisted");
 } finally {
   if (browser) await browser.close();
   await Promise.all([close(api), close(callback)]);
