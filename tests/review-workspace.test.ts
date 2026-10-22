@@ -454,7 +454,41 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.unroute(changedUrl);
 
       const referenceId = "12345678-1234-1234-1234-123456789abc";
+      const beforeInvalidResponses: number = posts.length;
       for (const probe of [
+        { kind: "snapshot", id: referenceId, expected: `Candidate snapshot changed or response is invalid (request ${referenceId})` },
+        { kind: "scope", id: referenceId, expected: `Invalid candidate content or customer scope (request ${referenceId})` },
+        { kind: "metadata", id: referenceId, expected: `Candidate metadata changed (request ${referenceId})` },
+        { kind: "metadata", id: "private-invalid-reference", expected: "Candidate metadata changed (request unavailable)" },
+        { kind: "metadata", id: undefined, expected: "Candidate metadata changed (request unavailable)" },
+      ]) {
+        await page.route(changedUrl, async (route) => {
+          const response = await route.fetch();
+          const body = await response.json();
+          if (probe.kind === "snapshot") body.candidate.sha256 = "0".repeat(64);
+          else if (probe.kind === "scope") body.candidate.entry.customer = "private-wrong-customer";
+          else body.candidate.entry.summary.title = "private-changed-title";
+          body.requestId = referenceId;
+          const headers = { ...response.headers() };
+          delete headers["x-request-id"];
+          if (probe.id !== undefined) headers["x-request-id"] = probe.id;
+          await route.fulfill({ response, headers, json: body });
+        });
+        await page.getByRole("button", { name: `Inspect ${changed.id}`, exact: true }).click();
+        const alert = page.getByRole("alert").filter({ hasText: probe.expected });
+        await alert.waitFor();
+        assert.ok(!(await alert.textContent())?.includes("private-"));
+        if (probe.id !== referenceId) assert.ok(!(await alert.textContent())?.includes(referenceId));
+        assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        assert.equal(await page.getByLabel("Inert report preview").count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+        assert.equal((await focused()).role, "alert");
+        assert.equal(posts.length, beforeInvalidResponses);
+        await page.unroute(changedUrl);
+      }
+      for (const probe of [
+        { status: 200, body: JSON.stringify({ candidates: null, requestId: "private-body-id" }), id: referenceId, expected: `Invalid pending report response (request ${referenceId})` },
+        { status: 200, body: JSON.stringify({ candidates: [{ id: "private-invalid-candidate" }], requestId: referenceId }), id: "private-invalid-reference", expected: "Invalid pending report response (request unavailable)" },
         { status: 502, body: "<html>private upstream error</html>", id: referenceId, expected: `Invalid JSON response (502; request ${referenceId})` },
         { status: 200, body: "{", id: referenceId, expected: `Invalid JSON response (200; request ${referenceId})` },
         { status: 503, body: JSON.stringify({ code: "<img src=x>private-error", requestId: "private-body-id" }), id: "invalid-private-id", expected: "503: invalid_error_response; request unavailable" },
@@ -469,6 +503,8 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         await alert.filter({ hasText: probe.expected }).waitFor();
         assert.ok(!(await alert.textContent())?.includes("private-"));
         assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        assert.equal(await pendingList.locator("article").count(), 0);
+        assert.equal(posts.length, beforeInvalidResponses);
         assert.equal((await focused()).role, "alert");
         await page.unroute("**/api/customers/customer-a/diagnostics/reviews");
       }

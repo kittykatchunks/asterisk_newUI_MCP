@@ -274,9 +274,9 @@ export async function connectReviewWorkspace(connection) {
     filterControls.hidden = true;
     filterStatus.textContent = "";
     status.textContent = "Loading pending reports...";
-    const { body } = await request(endpoint);
+    const { body, requestId } = await request(endpoint);
     if (!record(body) || !Array.isArray(body.candidates) || !body.candidates.every(pendingReference)) {
-      throw new Error("Invalid pending report response");
+      throw new Error(`Invalid pending report response (request ${requestId}). Refresh pending reports.`);
     }
     if (disposed) return;
     for (const candidate of body.candidates) {
@@ -305,21 +305,21 @@ export async function connectReviewWorkspace(connection) {
   /** @param {{ id: string, sha256: string, summary: { id: string, title: string, createdAt: string } }} candidate */
   async function inspect(candidate) {
     clearReview();
-    const { body } = await request(`${endpoint}/${candidate.id}`);
+    const { body, requestId } = await request(`${endpoint}/${candidate.id}`);
     if (!record(body) || !reference(body.candidate) || body.candidate.id !== candidate.id ||
         body.candidate.sha256 !== candidate.sha256 || !record(body.candidate.entry)) {
-      throw new Error("Candidate snapshot changed or response is invalid. Refresh pending reports.");
+      throw new Error(`Candidate snapshot changed or response is invalid (request ${requestId}). Refresh pending reports.`);
     }
     const entry = body.candidate.entry;
     if (entry.customer !== customer || !record(entry.summary) ||
         typeof entry.summary.id !== "string" || !/^incident-[0-9a-f]{32}$/.test(entry.summary.id) ||
         typeof entry.summary.title !== "string" || typeof entry.summary.createdAt !== "string" ||
         (entry.report !== undefined && (!record(entry.report) || typeof entry.report.html !== "string"))) {
-      throw new Error("Invalid candidate content or customer scope");
+      throw new Error(`Invalid candidate content or customer scope (request ${requestId}). Refresh pending reports.`);
     }
     if (entry.summary.id !== candidate.summary.id || entry.summary.title !== candidate.summary.title ||
         entry.summary.createdAt !== candidate.summary.createdAt) {
-      throw new Error("Candidate metadata changed. Refresh pending reports.");
+      throw new Error(`Candidate metadata changed (request ${requestId}). Refresh pending reports.`);
     }
     if (disposed) return;
     selected = { ...candidate, title: entry.summary.title, incident: entry.summary.id };

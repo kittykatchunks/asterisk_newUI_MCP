@@ -218,6 +218,10 @@ for correlation with the persisted access audit. Missing/invalid header referenc
 remain explicitly unavailable without undoing a valid acknowledgement; later
 refreshes retain the original decision reference.
 
+Pending-list and candidate validation failures now retain validated header request
+references too, including snapshot/scope/metadata mismatches. Browser probes cover
+safe error text, unavailable references, cleared evidence and no decision POST.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

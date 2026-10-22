@@ -836,6 +836,12 @@ preservation of the previous confirmation when another response is damaged.
 They also match successful decision references to persisted access audits and
 verify that refresh references cannot replace them.
 
+Invalid successful pending-list or candidate JSON also retains the validated
+header request reference in its validation error, including snapshot, customer-scope
+and metadata mismatches. These failures expose neither response fields nor evidence
+or decision controls; missing/invalid headers show `unavailable` rather than a
+body-supplied ID. An explicit refresh or inspection is required to recover.
+
 HTTP success alone does not confirm a review: the response must be a JSON object
 with the recognised `incident_review_recorded` code. Null, arrays and unexpected
 codes produce an explicit unconfirmed-outcome error with HTTP status and validated

@@ -233,6 +233,11 @@ Browser tests match approval/rejection references to durable access audits, reta
 them through failed/successful list refreshes, and reject missing/invalid header
 references without trusting body-supplied IDs.
 
+Successful but invalid list/candidate payloads retain their validated header
+reference in explicit validation errors, without echoing upstream content. Browser
+tests cover malformed list shapes and snapshot/scope/metadata mismatches, including
+missing/invalid references and no remaining evidence or decision controls.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only
