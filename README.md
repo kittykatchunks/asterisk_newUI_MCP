@@ -2122,6 +2122,37 @@ cover serial timing, callback/adapter failures, pre-cancellation, shutdown while
 waiting and ownership retention during an unsettled adapter. All test monitors
 are awaited and stopped; no long-running process is left behind.
 
+#### Durable fake generation lifecycle (test-only)
+
+`tests/identity/fake-provisioning-runtime.ts` is a reusable SQLite fixture with
+separate execution and expiry adapters over the same durable state. Its database
+is pinned to a customer/epoch and separate from both backend intents and worker
+receipts. All five fixed actions commit generation changes and an immutable
+operation/effect row together; exact retries do not repeat effects and changed
+operations fail. Its observation verifies recorded fake command effects, **not**
+current registration, media readiness or continued live authorisation.
+
+The fixture deliberately models **one generation slot per customer**, not the
+eventual multi-agent allocation design. Prepare cannot replace any existing
+nonremoved generation. Prepared state denies calls; activation permits simulated
+calls only before its deadline. Extension cannot shorten that deadline or
+reactivate expired/draining state. Drain is irreversible. Revoke checks the
+durable drain latch and zero known dialogs in the same transaction as removal.
+Unknown/active dialogs block removal and replacement. After verified removal a
+fresh generation may prepare. No PBX configuration, SIP authentication, real call
+or lease/session validation is involved.
+
+`node --test .\tests\agent-provisioning-lifecycle.test.ts` exercises executor-driven
+prepare/activate/extend, surviving the old deadline, restart, expiry with an active
+call, denied new calls, blocked replacement/extension, unknown-dialog recovery,
+clock rollback and eventual removal before replacement. It also covers explicit
+drain/revoke, exact/conflicting retries, foreign scope/authority, expired input,
+and two local handles attempting replacement (not a multiprocess race proof).
+The real-time expiry monitor test reuses this adapter rather than a separate
+hand-written generation model. This supplies repeatable stage B fake-runtime
+evidence only; production allocation, replacement fencing and Asterisk enforcement
+remain unimplemented.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

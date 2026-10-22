@@ -3,40 +3,43 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 import { createAgentProvisioningExpiry, runAgentProvisioningExpiry } from "../src/agent-provisioning-expiry.ts";
 import type { AgentProvisioningExpiryAdapter } from "../src/agent-provisioning-expiry.ts";
 import { openAgentProvisioningJournal } from "../src/agent-provisioning-store.ts";
+import type { AgentProvisioningCommand } from "../src/agent-provisioning-store.ts";
+import { openFakeProvisioningRuntime } from "./identity/fake-provisioning-runtime.ts";
 
 test("monitor fences at real expiry without a controller, drains the call and revokes after it ends", async () => {
   const directory = await mkdtemp(join(tmpdir(), "asterisk-expiry-monitor-"));
-  const journal = openAgentProvisioningJournal(join(directory, "journal.sqlite"),
-    { customer: "customer-a", epoch: randomUUID() });
-  const runtime = new DatabaseSync(join(directory, "runtime.sqlite"));
+  const binding = { customer: "customer-a", epoch: randomUUID() };
+  const journal = openAgentProvisioningJournal(join(directory, "journal.sqlite"), binding);
+  const runtime = openFakeProvisioningRuntime(join(directory, "runtime.sqlite"), binding);
   const id = randomUUID();
   const deadline = Date.now() + 400;
-  runtime.exec("CREATE TABLE generation (draining INTEGER, dialogs INTEGER, removed INTEGER) STRICT");
-  runtime.exec("INSERT INTO generation VALUES (0, 1, 0)");
-  const row = () => runtime.prepare("SELECT * FROM generation").get()!;
+  const setupSignal = AbortSignal.timeout(5000);
+  const base = { version: 1 as const, ...binding, leaseId: randomUUID(), notAfter: deadline };
+  const prepare: AgentProvisioningCommand = { ...base, operationId: randomUUID(), revision: 1,
+    action: "prepare", payload: { generationId: id, extension: "1001" } };
+  await runtime.execution.apply(prepare, setupSignal);
+  await runtime.execution.apply({ ...base, operationId: randomUUID(), revision: 2,
+    action: "activate", payload: { generationId: id } }, setupSignal);
+  runtime.startCall(id);
   let fencedAt = 0;
   let revokedAt = 0;
   let calls = 0;
   const adapter: AgentProvisioningExpiryAdapter = {
-    async inventory() {
-      return row().removed ? [] : [{ generationId: id, notAfter: deadline, draining: row().draining === 1 }];
-    },
-    async fence() {
+    ...runtime.expiry,
+    async fence(generationId, signal) {
       if (!fencedAt) fencedAt = Date.now();
-      runtime.exec("UPDATE generation SET draining = 1");
+      await runtime.expiry.fence(generationId, signal);
     },
-    async observe() {
-      return { newCallsBlocked: row().draining === 1, dialogs: Number(row().dialogs), removed: row().removed === 1 };
-    },
-    async revoke() {
-      assert.equal(row().dialogs, 0); assert.equal(row().draining, 1);
-      revokedAt = Date.now(); runtime.exec("UPDATE generation SET removed = 1");
+    async revoke(generationId, signal) {
+      assert.equal(runtime.generation(id).dialogs, 0);
+      assert.equal(runtime.generation(id).phase, "draining");
+      await runtime.expiry.revoke(generationId, signal);
+      revokedAt = Date.now();
     },
   };
   const controller = new AbortController();
@@ -46,9 +49,9 @@ test("monitor fences at real expiry without a controller, drains the call and re
     controller.signal, async (results) => {
       calls++;
       if (results[0]?.state === "draining") {
-        assert.equal(row().dialogs, 1, "Expiry must preserve the active call");
-        assert.equal(row().removed, 0);
-        runtime.exec("UPDATE generation SET dialogs = 0");
+        assert.equal(runtime.generation(id).dialogs, 1, "Expiry must preserve the active call");
+        assert.equal(runtime.generation(id).phase, "draining");
+        runtime.setDialogs(id, 0);
       }
       if (results[0]?.state === "revoked") finished();
     });

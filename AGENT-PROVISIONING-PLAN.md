@@ -398,3 +398,14 @@ uncooperative adapters/reporting and competing execution can delay or stop it.
 Single-owner work coordination, health supervision, measured worst-case expiry,
 real PBX fences and replacement blocking remain gates. See the
 [monitor contract](./README.md#explicit-expiry-monitor-fake-runtime-scheduling-proof).
+
+The fake-runtime evidence now uses a reusable customer/epoch-pinned SQLite
+generation lifecycle adapter, shared with the real-time monitor test. It models
+prepare/activate/extend/drain/revoke, atomic effect records, immutable exact
+retries and transactionally checked zero-dialog removal. Tests prove renewal
+past the old deadline, restart, expiry-call preservation, unknown-dialog blocking,
+irreversible drain and replacement only after removal. Its deliberately single
+customer-wide generation slot is a fixture simplification, **not** the production
+multi-agent allocation policy. No production replacement gate, live ownership
+validation or PBX adapter is introduced. See the
+[fake-runtime contract](./README.md#durable-fake-generation-lifecycle-test-only).
