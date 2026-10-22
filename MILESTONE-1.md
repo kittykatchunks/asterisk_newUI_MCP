@@ -284,6 +284,11 @@ concurrent customer-B reads succeed, then restart A and recover with unchanged
 credentials. No stale healthy fallback is accepted. Docker control remains solely
 in the owned test fixture, not the application status adapter.
 
+Browser outage coverage now verifies stale-success clearing during a held
+recheck, busy controls, request-correlated 503 feedback and explicit manual
+recovery to a new snapshot. It sends no decision POST or automatic recheck.
+This uses injected browser responses alongside the separate real AMI outage proof.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

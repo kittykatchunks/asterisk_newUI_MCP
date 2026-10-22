@@ -1064,6 +1064,15 @@ The application adapter itself has no Docker access: fixed container stop/start
 commands exist only in the exclusive test fixture. This proves local adapter
 recovery, not browser outage UX or production failover.
 
+Separate browser fault-injection coverage verifies the outage UX: after a
+successful snapshot, a held recheck immediately replaces the old reachable text
+with a checking state and locks controls. A 503 response clears the old status,
+shows its validated request reference and focuses the error. No automatic recheck
+is started. An explicit check can then display a new successful snapshot with its
+new observation/startup times and clear the error, without any decision POST.
+These browser responses are injected; the real outage proof above separately
+validates the AMI runtime behaviour.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

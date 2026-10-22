@@ -996,6 +996,63 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.ok((await pbxRegion.textContent())?.includes("not live monitoring"));
       assert.equal(await pbxRegion.getByRole("status").evaluate((node) => node === document.activeElement), true);
       await page.unroute(pbxUrl);
+      let statusChecks = 0;
+      let releasePbx!: () => void;
+      let pbxStarted!: () => void;
+      let pbxFinished!: () => void;
+      const heldPbx = new Promise<void>((resolve) => { releasePbx = resolve; });
+      const startedPbx = new Promise<void>((resolve) => { pbxStarted = resolve; });
+      const finishedPbx = new Promise<void>((resolve) => { pbxFinished = resolve; });
+      await page.route(pbxUrl, async (route) => {
+        statusChecks++;
+        if (statusChecks === 1) {
+          try {
+            pbxStarted();
+            await heldPbx;
+            await route.fulfill({
+              status: 503, headers: { "X-Request-Id": referenceId }, contentType: "application/json",
+              json: { code: "pbx_status_unavailable" },
+            });
+          } finally { pbxFinished(); }
+        } else {
+          await route.fulfill({
+            status: 200, headers: { "X-Request-Id": referenceId }, contentType: "application/json",
+            json: { customer: "customer-a", checkedAt: "2026-10-22T12:35:00Z",
+              coreStartedAtLocal: "2026-10-22 12:34:00", activeCalls: 0 },
+          });
+        }
+      });
+      try {
+        await page.getByRole("button", { name: "Check PBX core status", exact: true }).click();
+        await startedPbx;
+        assert.equal(await pbxRegion.getByRole("status").textContent(), "Checking PBX core...");
+        assert.ok(!(await pbxRegion.getByRole("status").textContent())?.includes("reachable"),
+          "The previous successful snapshot must clear before awaiting a recheck");
+        assert.equal(await page.locator("#review-workspace").getAttribute("aria-busy"), "true");
+        assert.equal(await page.locator("#review-workspace button:enabled, #review-workspace input:enabled").count(), 0);
+      } finally {
+        releasePbx();
+        await finishedPbx;
+      }
+      try {
+        const unavailable = page.getByRole("alert").filter({ hasText: "503: pbx_status_unavailable" });
+        await unavailable.waitFor();
+        assert.ok((await unavailable.textContent())?.includes(referenceId));
+        assert.equal(await pbxRegion.getByRole("status").textContent(),
+          "No current PBX status confirmed. Check again explicitly.");
+        assert.equal((await focused()).role, "alert");
+        assert.equal(await page.locator("#review-workspace").getAttribute("aria-busy"), "false");
+        assert.equal(await page.getByRole("button", { name: "Check PBX core status", exact: true }).isEnabled(), true);
+        assert.equal(statusChecks, 1, "Failure must not start an automatic recheck");
+        await page.getByRole("button", { name: "Check PBX core status", exact: true }).click();
+        await pbxRegion.getByRole("status").filter({ hasText: "AMI core reachable. Active calls: 0." }).waitFor();
+        assert.equal(statusChecks, 2);
+        assert.ok((await pbxRegion.getByRole("status").textContent())?.includes("2026-10-22T12:35:00Z"));
+        assert.ok(!(await pbxRegion.getByRole("status").textContent())?.includes("12:30:00"));
+        assert.equal(await page.getByRole("alert").textContent(), "");
+        assert.equal(await pbxRegion.getByRole("status").evaluate((node) => node === document.activeElement), true);
+        assert.equal(posts.length, beforePbx);
+      } finally { await page.unroute(pbxUrl); }
       await page.route(pbxUrl, (route) => route.fulfill({
         status: 200, contentType: "application/json",
         json: { customer: "customer-b", checkedAt: "2026-10-22T12:30:00Z",

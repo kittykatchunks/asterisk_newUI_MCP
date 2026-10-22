@@ -292,6 +292,11 @@ recover through the same adapter after restart. This tests tenant-local failure
 and in-flight cleanup without introducing Docker privileges into the application
 or claiming production failover.
 
+Injected browser outage tests complement the real AMI proof: an old reachable
+snapshot clears while a recheck is held, controls lock, 503 feedback retains the
+request reference and manual recovery displays only the new snapshot. No decision
+POST or automatic recheck is sent.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only
