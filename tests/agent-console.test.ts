@@ -23,6 +23,7 @@ test("agent console renders literal profiles, clears stale data, guards session 
   let sessionMode = "valid";
   let failLogout = true;
   let profileReads = 0;
+  let releaseProfile: (() => void) | undefined;
   const requestId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
   const errors: string[] = [];
   try {
@@ -34,6 +35,7 @@ test("agent console renders literal profiles, clears stale data, guards session 
         csrf: "a".repeat(43), expiresAt: new Date(Date.now() + 300000).toISOString() }) }));
     await page.route("**/api/customers/customer-a/agent/profile", async (route) => {
       profileReads++;
+      if (mode === "held-logout") await new Promise<void>((resolve) => { releaseProfile = resolve; });
       if (mode === "held") await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({ status: mode === "failed" ? 503 : mode === "unauthorized" ? 401 : 200,
         contentType: "application/json", headers: { "X-Request-Id": requestId },
@@ -93,6 +95,21 @@ test("agent console renders literal profiles, clears stale data, guards session 
     await page.reload();
     await page.getByText("Application session is no longer valid. Sign in again.", { exact: true }).waitFor();
     assert.equal(await page.locator("#assignment dd").count(), 0);
+    mode = "valid";
+    await page.reload();
+    await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+    mode = "held-logout";
+    const pending = page.waitForRequest("**/api/customers/customer-a/agent/profile");
+    await page.getByRole("button", { name: "Refresh assignment" }).click();
+    await pending;
+    assert.equal(await page.getByRole("button", { name: "Sign out", exact: true }).isEnabled(), true);
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await page.getByText("Sign in to view your agent assignment.", { exact: true }).waitFor();
+    assert.ok(releaseProfile);
+    releaseProfile();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator("#assignment dd").count(), 0, "Late profile response must not repopulate a signed-out console");
+    assert.equal(await page.getByRole("button", { name: "Refresh assignment" }).isVisible(), false);
     assert.deepEqual(errors, []);
   } finally {
     await context.close(); await browser.close();

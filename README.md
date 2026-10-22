@@ -1177,7 +1177,9 @@ Bob is denied.
 
 `node --test .\tests\agent-console.test.ts .\tests\application-session.test.ts`
 covers literal hostile-looking names, stale-data clearing, errors/manual recovery,
-mismatched sessions/results, expiry, 401 and logout confirmation. The real identity
+mismatched sessions/results, expiry, 401 and logout confirmation, including a held
+profile response across sign-out: logout stays available and a late response cannot
+repopulate the cleared console. The real identity
 proof additionally opens the console with ordinary Alice/Bob sessions, checking
 Alice's assignment and Bob's explicit access denial before returning to the review
 workspace. This is an authenticated assignment screen, not yet a phone console.
