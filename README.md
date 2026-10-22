@@ -1096,8 +1096,9 @@ silently truncating it. Completion/action IDs and item counts must match.
 which may be statically configured. It does not distinguish dynamic registration,
 expired contacts or reachability. Reported device state is not a health verdict.
 This increment therefore provides endpoint/contact visibility, **not yet a
-verified registered/unregistered phone inventory**. Actual dynamic REGISTER,
-expiry and qualification transitions require a subsequent acceptance proof.
+verified registered/unregistered phone inventory**. Dynamic REGISTER/unregister
+transitions are now covered by the local proof below; natural expiry and
+qualification transitions still require subsequent acceptance proofs.
 
 **Separate credential authority:** Asterisk 22 classifies `PJSIPShowEndpoints`
 under the AMI `system` action class, not `reporting`. Following the explicit design
@@ -1126,6 +1127,27 @@ denial through real browser sessions. AMI unit tests cover fragmented Unicode,
 zero/exact-limit/over-limit lists, duplicate IDs, malformed state, wrong counts
 and missing completion; API/browser tests cover permission/audit gating, safe
 allowlisted output and hostile-looking endpoint names.
+
+The same fixture additionally publishes synthetic SIP only on loopback UDP ports
+15060/15061 and provisions separate per-customer digest-auth secrets in ignored
+`.local-proof/pbx-status/registrations.json`. It checks those ports before startup.
+The registration probe uses bounded, retransmitted REGISTER transactions—no calls
+or RTP—and verifies for each customer:
+
+- An unauthenticated REGISTER receives a 401 digest challenge.
+- The other customer's secret cannot register the endpoint.
+- A valid authenticated REGISTER succeeds and the AMI snapshot gains a contact.
+- The other customer's dynamic endpoint remains without contacts.
+- Authenticated unregister (`Expires: 0`) removes the observed contact.
+- The configured endpoint remains listed and its static-contact neighbour stays
+  present throughout.
+
+Successful and cleanup unregister transactions are checked explicitly; the owned
+fixture is removed on failure. This proof exercises dynamic contact transitions
+through the real adapter, not browser registration controls. It does not add
+registration/mutation routes, save SIP credentials in the browser or make static
+contacts into proof of registration. Natural contact expiry, SIP qualification,
+WebRTC registration and audio-path acceptance are outside this increment.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

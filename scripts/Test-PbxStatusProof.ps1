@@ -16,12 +16,19 @@ try {
         $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $port)
         try { $listener.Start() } finally { $listener.Stop() }
     }
+    foreach ($port in @(15060, 15061)) {
+        $udp = [Net.Sockets.UdpClient]::new()
+        try { $udp.Client.Bind([Net.IPEndPoint]::new([Net.IPAddress]::Loopback, $port)) }
+        finally { $udp.Dispose() }
+    }
     $connections = @()
     $endpointConnections = @()
+    $registrations = @()
     foreach ($index in @(0, 1)) {
         $customer = @('customer-a', 'customer-b')[$index]
         $secret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
         $endpointSecret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        $sipSecret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
         $manager = @"
 [general]
 enabled = yes
@@ -44,6 +51,7 @@ write = system,reporting
             username = 'status-reader'; secret = $secret; tls = $false }
         $endpointConnections += @{ customer = $customer; host = '127.0.0.1'; port = 15038 + $index
             username = 'endpoint-reader'; secret = $endpointSecret; tls = $false }
+        $registrations += @{ customer = $customer; username = "$customer-offline"; secret = $sipSecret; port = 15060 + $index }
         $pjsip = @"
 [global]
 type = global
@@ -58,6 +66,13 @@ context = default
 disallow = all
 allow = ulaw
 aors = $customer-offline
+auth = $customer-auth
+rewrite_contact = yes
+[$customer-auth]
+type = auth
+auth_type = userpass
+username = $customer-offline
+password = $sipSecret
 [$customer-offline]
 type = aor
 max_contacts = 1
@@ -77,6 +92,8 @@ contact = sip:synthetic@127.0.0.1:5099
         (ConvertTo-Json -InputObject $connections), [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText((Join-Path $directory 'endpoint-connections.json'),
         (ConvertTo-Json -InputObject $endpointConnections), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $directory 'registrations.json'),
+        (ConvertTo-Json -InputObject $registrations), [Text.UTF8Encoding]::new($false))
     try {
         & docker compose -f $compose up -d
         if ($LASTEXITCODE -ne 0) { throw 'PBX status fixture startup failed.' }
@@ -102,6 +119,8 @@ contact = sip:synthetic@127.0.0.1:5099
         try {
             & node .\tests\identity\pbx-status-proof.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real AMI status proof failed.' }
+            & node .\tests\identity\pbx-registration-proof.ts
+            if ($LASTEXITCODE -ne 0) { throw 'Real SIP registration visibility proof failed.' }
             & node .\tests\identity\pbx-status-recovery.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real AMI outage/recovery proof failed.' }
             if ($WithIdentity) {

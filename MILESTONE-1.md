@@ -302,7 +302,14 @@ application and is not intrinsically read-only; production provisioning must
 account for that risk. Real two-PBX/browser tests distinguish no-contact/static
 contact endpoints and verify isolation, audit and logout boundaries. Static
 contacts are not labelled registrations; dynamic registration/expiry/reachability
-transitions remain a subsequent milestone.
+transitions remain distinct from contact-presence reporting.
+
+The isolated fixture now proves real digest-auth REGISTER/unregister contact
+transitions for both customers using separate generated SIP secrets and loopback
+UDP ports. Foreign secrets are denied, own contacts appear/disappear, other-customer
+dynamic contacts stay absent and static contacts remain unchanged. No calls, RTP
+or application mutation endpoint are introduced. Natural expiry, qualification
+and a verified registration-state UI remain outstanding.
 
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no

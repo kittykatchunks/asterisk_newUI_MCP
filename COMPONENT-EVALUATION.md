@@ -308,7 +308,14 @@ Upstream requires AMI system authority for this action. An explicitly approved,
 separate system+reporting account is therefore used while core status remains
 reporting-only. Fixed application actions do not remove the credential's broader
 system privilege if used elsewhere. Production credential/network controls and
-actual registration/expiry acceptance remain outstanding.
+natural registration expiry/qualification acceptance remain outstanding.
+
+Real dynamic registration transitions are now tested separately: each isolated
+PBX challenges REGISTER, rejects the foreign customer's secret, exposes the new
+authenticated contact through the AMI adapter and removes it after authenticated
+unregister. Static contacts and foreign dynamic endpoints retain their original
+states. The probe uses bounded synthetic SIP over loopback UDP without calls/RTP;
+it does not change the UI's intentionally limited contact-presence semantics.
 
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and

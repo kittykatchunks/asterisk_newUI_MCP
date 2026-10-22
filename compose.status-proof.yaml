@@ -18,7 +18,7 @@ x-status-pbx: &status-pbx
 services:
   customer-a:
     <<: *status-pbx
-    ports: ["127.0.0.1:15038:5038"]
+    ports: ["127.0.0.1:15038:5038", "127.0.0.1:15060:5060/udp"]
     networks: [customer-a]
     volumes:
       - ./local/asterisk:/etc/asterisk:ro
@@ -27,7 +27,7 @@ services:
       - customer-a-state:/var/lib/asterisk
   customer-b:
     <<: *status-pbx
-    ports: ["127.0.0.1:15039:5038"]
+    ports: ["127.0.0.1:15039:5038", "127.0.0.1:15061:5060/udp"]
     networks: [customer-b]
     volumes:
       - ./local/asterisk:/etc/asterisk:ro
