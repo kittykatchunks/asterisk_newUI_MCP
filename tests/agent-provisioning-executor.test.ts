@@ -22,7 +22,7 @@ async function fixture() {
     version: 1, ...binding, revision, operationId: randomUUID(), leaseId: randomUUID(), notAfter: 160000,
     action: "prepare", payload: { generationId: randomUUID(), extension: "1001" },
   });
-  return { get journal() { return journal; }, path, context, command,
+  return { get journal() { return journal; }, path, context, command, options,
     setTime(value: number) { time = value; },
     reopen() { journal.close(); journal = openAgentProvisioningJournal(path, binding, options); },
     async close() { journal.close(); await rm(directory, { recursive: true }); } };
@@ -43,7 +43,7 @@ test("executor commits applying before fixed-action adapter work and requires ob
         return "verified";
       },
     };
-    const executor = createAgentProvisioningExecutor(f.journal, adapter);
+    const executor = createAgentProvisioningExecutor(f.journal, adapter, f.options);
     assert.deepEqual(await executor.step(), { state: "idle" });
     const actions = ["prepare", "activate", "extend", "drain", "revoke"] as const;
     for (const [index, action] of actions.entries()) {
@@ -68,10 +68,10 @@ test("restart after an effect but before its receipt observes without replay eve
       async apply() { applies++; throw new Error("fixture crash after effect"); },
       async observe() { return "verified"; },
     };
-    await assert.rejects(createAgentProvisioningExecutor(f.journal, adapter).step(), /crash after effect/);
+    await assert.rejects(createAgentProvisioningExecutor(f.journal, adapter, f.options).step(), /crash after effect/);
     assert.equal(f.journal.next().state, "reconcile");
     f.reopen(); f.setTime(command.notAfter);
-    assert.equal((await createAgentProvisioningExecutor(f.journal, adapter).step()).state, "verified");
+    assert.equal((await createAgentProvisioningExecutor(f.journal, adapter, f.options).step()).state, "verified");
     assert.equal(applies, 1);
   } finally { await f.close(); }
 });
@@ -86,7 +86,7 @@ test("unknown observations remain uncertain without replay or receipt growth and
     const adapter: AgentProvisioningAdapter = {
       async apply() { applies++; }, async observe() { return result; },
     };
-    const executor = createAgentProvisioningExecutor(f.journal, adapter);
+    const executor = createAgentProvisioningExecutor(f.journal, adapter, f.options);
     assert.equal((await executor.step()).state, "uncertain");
     for (let index = 0; index < 105; index++) assert.equal((await executor.step()).state, "uncertain");
     assert.equal(f.journal.report(first.operationId)?.receipts.length, 2);
@@ -104,7 +104,7 @@ test("expired, aborted and failed applying commits never invoke an adapter", asy
     const command = f.command(); f.journal.accept(command, f.context);
     const adapter: AgentProvisioningAdapter = { async apply() { assert.fail("Unexpected apply"); },
       async observe() { assert.fail("Unexpected observe"); } };
-    const executor = createAgentProvisioningExecutor(f.journal, adapter);
+    const executor = createAgentProvisioningExecutor(f.journal, adapter, f.options);
     f.setTime(command.notAfter);
     assert.equal((await executor.step()).state, "expired");
     await assert.rejects(executor.step(AbortSignal.abort(new Error("fixture cancelled"))), /cancelled/);
@@ -131,10 +131,10 @@ test("errors and cancellation after applying leave reconcilable evidence and rel
       async apply() { applies++; await gate; controller.abort(new Error("fixture cancelled during apply")); },
       async observe() { throw new Error("fixture observation failed"); },
     };
-    const executor = createAgentProvisioningExecutor(f.journal, adapter);
+    const executor = createAgentProvisioningExecutor(f.journal, adapter, f.options);
     const running = executor.step(controller.signal);
     try {
-      await assert.rejects(createAgentProvisioningExecutor(f.journal, adapter).step(), /already in flight/);
+      await assert.rejects(createAgentProvisioningExecutor(f.journal, adapter, f.options).step(), /already in flight/);
     } finally { unblock(); }
     await assert.rejects(running, /cancelled during apply/);
     await assert.rejects(executor.step(), /observation failed/);
@@ -152,7 +152,7 @@ test("a crash between applying commit and effect is observation-only, never a bl
     f.reopen();
     const adapter: AgentProvisioningAdapter = { async apply() { assert.fail("No blind replay"); },
       async observe() { return "unknown"; } };
-    assert.equal((await createAgentProvisioningExecutor(f.journal, adapter).step()).state, "uncertain");
+    assert.equal((await createAgentProvisioningExecutor(f.journal, adapter, f.options).step()).state, "uncertain");
     assert.equal(f.journal.next().state, "reconcile");
   } finally { await f.close(); }
 });
@@ -167,7 +167,7 @@ test("a failed completion commit recovers by observation and invalid observation
       async apply() { applies++; },
       async observe() { return invalid ? JSON.parse('"ready"') : "verified"; },
     };
-    const executor = createAgentProvisioningExecutor(f.journal, adapter);
+    const executor = createAgentProvisioningExecutor(f.journal, adapter, f.options);
     const db = new DatabaseSync(f.path);
     try {
       db.exec(`CREATE TRIGGER reject_completion BEFORE INSERT ON provisioning_receipts WHEN NEW.sequence = 2
@@ -200,10 +200,93 @@ test("the shared five-second adapter budget surfaces timeout and never records v
           });
         } finally { clearTimeout(keepAlive); }
       },
-    });
+    }, f.options);
     const start = performance.now();
     await assert.rejects(executor.step(), { name: "TimeoutError" });
     assert.ok(performance.now() - start >= 4900);
     assert.equal(f.journal.operation(command.operationId)?.receipts.at(-1)?.stage, "applying");
+  } finally { await f.close(); }
+});
+
+test("deadline and invalid-clock races prevent adapter entry before or after the applying commit", async () => {
+  const f = await fixture();
+  try {
+    const command = f.command(); f.journal.accept(command, f.context);
+    const adapter: AgentProvisioningAdapter = {
+      async apply() { assert.fail("Expired work cannot start"); },
+      async observe() { assert.fail("No observation in this attempt"); },
+    };
+    await assert.rejects(createAgentProvisioningExecutor(f.journal, adapter, { now: () => NaN }).step(),
+      /Invalid provisioning executor clock/);
+    assert.equal(f.journal.operation(command.operationId)?.receipts.length, 0);
+    assert.equal((await createAgentProvisioningExecutor(f.journal, adapter,
+      { now: () => command.notAfter }).step()).state, "expired");
+    assert.equal(f.journal.operation(command.operationId)?.receipts.length, 0);
+    let reads = 0;
+    await assert.rejects(createAgentProvisioningExecutor(f.journal, adapter, {
+      now: () => ++reads === 1 ? command.notAfter - 1 : command.notAfter,
+    }).step(), /apply authorisation expired/);
+    assert.equal(f.journal.operation(command.operationId)?.receipts.at(-1)?.stage, "applying");
+  } finally { await f.close(); }
+});
+
+test("real command expiry aborts apply before five seconds; ownership lasts until it settles and recovery only observes", async () => {
+  const f = await fixture();
+  const command = { ...f.command(), notAfter: Date.now() + 500 };
+  f.journal.accept(command, f.context);
+  const other = openAgentProvisioningJournal(f.path,
+    { customer: command.customer, epoch: command.epoch }, f.options);
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => { finish = resolve; });
+  let expired!: () => void;
+  const deadline = new Promise<void>((resolve) => { expired = resolve; });
+  let applies = 0;
+  let observations = 0;
+  let adapterSignal: AbortSignal | undefined;
+  const keepAlive = setTimeout(() => {}, 10000);
+  const running = createAgentProvisioningExecutor(f.journal, {
+    async apply(_command, signal) {
+      applies++; adapterSignal = signal;
+      await new Promise<void>((resolve) => {
+        signal.addEventListener("abort", () => { expired(); resolve(); }, { once: true });
+      });
+      await gate;
+    },
+    async observe() { observations++; return "verified"; },
+  }).step();
+  try {
+    const start = Date.now();
+    await deadline;
+    assert.ok(Date.now() >= command.notAfter, "Apply budget must not expire before authorisation deadline");
+    assert.ok(Date.now() - start < 2000, "A short remaining deadline must not receive five seconds");
+    assert.equal(adapterSignal?.aborted, true);
+    await assert.rejects(createAgentProvisioningExecutor(other, {
+      async apply() { assert.fail("Owner still applying"); },
+      async observe() { assert.fail("Owner still applying"); },
+    }).step(), /locked/);
+    finish();
+    await assert.rejects(running, { name: "TimeoutError" });
+    assert.equal(observations, 0);
+    assert.equal(f.journal.operation(command.operationId)?.receipts.at(-1)?.stage, "applying");
+    assert.equal((await createAgentProvisioningExecutor(other, {
+      async apply() { applies++; assert.fail("Expired recovery cannot replay"); },
+      async observe(_command, signal) { assert.equal(signal.aborted, false); return "verified"; },
+    }).step()).state, "verified");
+    assert.equal(applies, 1);
+  } finally {
+    finish(); await running.catch(() => {});
+    clearTimeout(keepAlive); other.close(); await f.close();
+  }
+});
+
+test("a clock reaching expiry on apply return cannot manufacture verification before recovery", async () => {
+  const f = await fixture();
+  try {
+    const command = f.command(); f.journal.accept(command, f.context);
+    await assert.rejects(createAgentProvisioningExecutor(f.journal, {
+      async apply() { f.setTime(command.notAfter); },
+      async observe() { assert.fail("Expired apply must reconcile in a later step"); },
+    }, f.options).step(), /apply authorisation expired/);
+    assert.equal(f.journal.next().state, "reconcile");
   } finally { await f.close(); }
 });

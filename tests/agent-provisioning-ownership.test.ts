@@ -38,23 +38,23 @@ test("separate handles cannot overlap; journal I/O and other customer execution 
   const applying = new Promise<void>((resolve) => { started = resolve; });
   const running = createAgentProvisioningExecutor(f.first, {
     async apply() { started(); await gate; }, async observe() { assert.fail("Cancelled before observation"); },
-  }).step(controller.signal);
+  }, f.options).step(controller.signal);
   try {
     await applying;
     controller.abort(new Error("fixture cancellation"));
     const forbidden = { async apply() { assert.fail("Concurrent apply"); },
       async observe(): Promise<"verified"> { assert.fail("Concurrent observation"); } };
-    await assert.rejects(createAgentProvisioningExecutor(f.second, forbidden).step(), /locked/);
+    await assert.rejects(createAgentProvisioningExecutor(f.second, forbidden, f.options).step(), /locked/);
     assert.equal(f.second.report(f.command.operationId)?.receipts[0].stage, "applying");
     const later = { ...f.command, operationId: randomUUID(), revision: 2 };
     f.second.accept(later, f.context);
     assert.equal(f.second.operation(later.operationId)?.receipts.length, 0);
-    assert.deepEqual(await createAgentProvisioningExecutor(other, forbidden).step(), { state: "idle" });
+    assert.deepEqual(await createAgentProvisioningExecutor(other, forbidden, f.options).step(), { state: "idle" });
     finish();
     await assert.rejects(running, /fixture cancellation/);
     assert.equal((await createAgentProvisioningExecutor(f.second, {
       async apply() { assert.fail("Recovery must not replay"); }, async observe() { return "verified"; },
-    }).step()).state, "verified");
+    }, f.options).step()).state, "verified");
   } finally {
     finish(); await running.catch(() => {});
     other.close(); await f.close();
@@ -75,7 +75,7 @@ test("an actual owner process excludes another process and crash releases owners
     await createAgentProvisioningExecutor(journal, {
       async apply() { process.send("applying"); await new Promise(() => {}); },
       async observe() { throw new Error("Unexpected owner observation"); },
-    }).step();
+    }, { now: () => 100000 }).step();
     clearTimeout(keepAlive);
   `], { stdio: ["ignore", "pipe", "pipe", "ipc"] });
   const exit = once(owner, "exit");
@@ -87,7 +87,7 @@ test("an actual owner process excludes another process and crash releases owners
         await createAgentProvisioningExecutor(journal, {
           async apply() { throw new Error("Concurrent apply"); },
           async observe() { throw new Error("Concurrent observe"); },
-        }).step();
+        }, { now: () => 100000 }).step();
         throw new Error("Expected ownership rejection");
       } catch (error) {
         if (!/locked/.test(error.message)) throw error;
@@ -109,7 +109,7 @@ test("an actual owner process excludes another process and crash releases owners
     assert.equal((await createAgentProvisioningExecutor(f.second, {
       async apply() { assert.fail("Crash recovery cannot reapply"); },
       async observe() { return "verified"; },
-    }).step()).state, "verified");
+    }, f.options).step()).state, "verified");
   } finally {
     if (owner.exitCode === null && owner.signalCode === null) owner.kill();
     await exit;
@@ -123,7 +123,7 @@ test("foreign, unsupported and externally locked sidecars fail before adapter en
   const writer = new DatabaseSync(path);
   const executor = createAgentProvisioningExecutor(f.first, {
     async apply() { assert.fail("Unexpected apply"); }, async observe() { assert.fail("Unexpected observe"); },
-  });
+  }, f.options);
 
   try {
     writer.exec("CREATE TABLE unrelated (id INTEGER); INSERT INTO unrelated VALUES (42)");
@@ -147,7 +147,7 @@ test("a corrupt lock sidecar fails explicitly without starting or repairing jour
     await writeFile(`${f.path}.executor-lock.sqlite`, "not a SQLite database");
     await assert.rejects(createAgentProvisioningExecutor(f.first, {
       async apply() { assert.fail("Unexpected apply"); }, async observe() { assert.fail("Unexpected observe"); },
-    }).step(), /not a database/);
+    }, f.options).step(), /not a database/);
     assert.equal(f.first.next().state, "ready");
     assert.equal(f.first.operation(f.command.operationId)?.receipts.length, 0);
   } finally { await f.close(); }

@@ -93,7 +93,7 @@ test("mutual TLS pins both peers before durable customer-scoped acceptance; no e
     const executor = createAgentProvisioningExecutor(journal, {
       async apply() { fakeEffects++; },
       async observe() { return "verified"; },
-    });
+    }, { now });
     assert.equal((await executor.step()).state, "verified");
     assert.equal((await dispatcher.dispatch()).state, "verified");
     assert.equal((await dispatcher.dispatch()).state, "idle");

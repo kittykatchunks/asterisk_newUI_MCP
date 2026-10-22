@@ -352,3 +352,13 @@ adapter keeps ownership even after cancellation. The sidecar must not be removed
 or replaced while workers are live. This is cooperative single-host ownership,
 not distributed/runtime generation fencing or exactly-once execution. See the
 [ownership contract](./README.md#cross-process-worker-execution-ownership-local-sqlite-only).
+
+Apply now has an additional cooperative budget capped to the command's remaining
+authorisation time, rather than receiving a fresh five seconds near expiry.
+Checks around the applying commit and on adapter return preserve interrupted
+evidence without fabricating verification. Real sub-second expiry tests keep
+ownership until the adapter settles, then recover through observation only.
+Observation after expiry remains permitted, not renewed execution authority.
+Clock maintenance, side-effect-boundary checks and autonomous revocation of
+already-applied state remain adapter/deployment gates; this is not disconnected
+expiry enforcement or a forced interruption of uncooperative effects.

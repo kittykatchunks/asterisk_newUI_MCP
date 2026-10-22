@@ -1969,7 +1969,21 @@ The tests use only fake effects; this is not permission to attach a PBX adapter.
   an earlier effect but cannot renew authorisation.
 
 Apply and observation share a cooperative five-second abort budget, optionally
-combined with caller cancellation. Exceptions, invalid observations, cancelled
+combined with caller cancellation. Apply additionally receives a signal capped
+to the remaining command authorisation time, checked before and after the
+applying commit and again when apply returns. Expiry before the commit returns
+`expired` without a receipt; expiry after it throws and preserves `applying` for
+observation-only recovery. A timed-out/expired apply does not proceed directly to
+observation in that attempt. A later explicit step can still observe after expiry
+under its own five-second budget, but cannot replay or extend the command.
+The optional executor `now` clock must use the same epoch-millisecond time basis
+as journal deadlines (production defaults to `Date.now`); invalid clocks fail.
+The relative abort timer does not track later wall-clock jumps: clocks must be
+maintained reliably and adapters must recheck deadlines at the actual side-effect
+boundary. Post-apply checking catches an observed forward jump, not an effect
+that already happened.
+
+Exceptions, invalid observations, cancelled
 work and storage failures propagate to the caller; no catch converts them to
 success or a fabricated terminal receipt. Durable applying/uncertain evidence
 survives for subsequent observation. Adapter cancellation must be honoured;
@@ -1989,6 +2003,9 @@ failed initial/completion writes, detached commands, expiry, uncertain/failure
 blocking, bounded receipt growth, errors, invalid observations, cancellation,
 same-object overlap and the real five-second timeout. The mTLS integration test
 also runs a fake step and reconciles its verified report back to the backend.
+Additional deadline tests check exact expiry and invalid clocks, expiry racing
+the applying commit/return, and real sub-second apply cancellation while ownership
+remains held until the adapter settles, followed by observation-only recovery.
 Stage B remains incomplete; no real phone capability is enabled.
 
 #### Cross-process worker execution ownership (local SQLite only)

@@ -16,7 +16,13 @@ const active = new WeakSet<AgentProvisioningJournal>();
 
 // All executors for this journal must participate in its local ownership lock.
 export function createAgentProvisioningExecutor(journal: AgentProvisioningJournal,
-  adapter: AgentProvisioningAdapter) {
+  adapter: AgentProvisioningAdapter, options: { now?: () => number } = {}) {
+  const clock = options.now ?? Date.now;
+  const remaining = (deadline: number) => {
+    const time = clock();
+    if (!Number.isSafeInteger(time) || time < 0) throw new Error("Invalid provisioning executor clock");
+    return deadline - time;
+  };
   return {
     async step(cancellation?: AbortSignal): Promise<ProvisioningExecutionResult> {
       if (active.has(journal)) throw new AgentProvisioningConflict("Provisioning executor already in flight");
@@ -37,10 +43,18 @@ export function createAgentProvisioningExecutor(journal: AgentProvisioningJourna
             previous = receipt;
           };
           if (work.state === "ready") {
+            if (remaining(work.intent.command.notAfter) <= 0) return { state: "expired", operationId };
             // Commit before yielding to an adapter; a crash here requires observation, not replay.
             record("applying", "adapter_apply_requested");
             signal.throwIfAborted();
-            await adapter.apply(structuredClone(work.intent.command), signal);
+            const milliseconds = remaining(work.intent.command.notAfter);
+            if (milliseconds <= 0) throw new AgentProvisioningConflict("Provisioning apply authorisation expired");
+            const applySignal = AbortSignal.any([signal, AbortSignal.timeout(Math.min(milliseconds, 5000))]);
+            await adapter.apply(structuredClone(work.intent.command), applySignal);
+            applySignal.throwIfAborted();
+            if (remaining(work.intent.command.notAfter) <= 0) {
+              throw new AgentProvisioningConflict("Provisioning apply authorisation expired");
+            }
             signal.throwIfAborted();
           }
           const observed = await adapter.observe(structuredClone(work.intent.command), signal);
