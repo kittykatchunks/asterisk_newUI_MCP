@@ -277,7 +277,15 @@ the trusted matching simulator; untrusted, wrong-identity and expired peers fail
 before any credentials/application bytes are sent, with exact TLS failure causes
 verified separately from sanitised adapter errors. Repeated rejection releases
 the per-customer busy guard. Generated credentials are cleaned afterward.
-Real Asterisk TLS listeners, remote networks and production PKI remain unproven.
+The isolated two-customer runtime now additionally enables real Asterisk TLS
+listeners on loopback ports 15048/15049 with separate fresh one-day IP-SAN
+identities. Dedicated child-process fixture trust permits both fixed AMI reads;
+reporting-only enumeration and foreign secrets remain denied. Missing trust fails
+with the expected certificate error, no plain fallback, and repeat-safe adapter
+rejection. The local launcher/browser proof retains its plain-loopback mappings.
+The shared generator preserves simulator coverage; ignored runtime keys/trust
+regenerate per fixture run and must be protected. Remote networks, DNS/SNI and
+production PKI provisioning/rotation remain unproven.
 
 The combined `Test-PbxStatusProof.ps1 -WithIdentity` proof now joins real Keycloak
 browser sessions, the audited API and both real isolated AMI runtimes. Alice and

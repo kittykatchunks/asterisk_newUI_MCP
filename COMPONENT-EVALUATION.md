@@ -289,6 +289,17 @@ released in-flight guards on repeat attempts. Test keys/trust files are deleted.
 This adds no production trust configuration or verification bypass and does not
 establish real Asterisk TLS listener, DNS/SNI or remote-network acceptance.
 
+The real-runtime fixture now separately enables Asterisk AMI TLS for both
+customers using distinct one-day self-signed IP-SAN identities from a shared proof
+generator. Loopback ports 15048/15049 and read-only key mounts are fixture-owned.
+Dedicated child-process trust supports core and endpoint reads; reporting-only
+enumeration and foreign secrets stay denied. Without fixture trust, exact
+self-signed certificate rejection and sanitised repeat-safe adapter errors occur
+without plain fallback. Existing launcher/browser mappings remain plain loopback;
+their combined proof is a regression check, not browser-to-PBX TLS acceptance.
+Ignored fixture keys/trust regenerate each run and remain credential material.
+Remote networks, DNS/SNI, production PKI and rotation still require acceptance.
+
 Combined real-runtime/identity validation now exercises the complete browser
 session -> audited customer status API -> restricted AMI path for both customers,
 including the metadata-only user. It verifies durable request/subject/customer

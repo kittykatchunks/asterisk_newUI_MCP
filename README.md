@@ -1033,8 +1033,35 @@ Run the isolated real-runtime proof with:
 ```
 
 It starts two separate pinned Asterisk 22 containers, publishes AMI only on
-loopback ports 15038/15039, generates distinct ignored credentials, checks both
+loopback TCP ports 15038/15039 (plain) and 15048/15049 (TLS), generates distinct
+ignored credentials, checks both
 cores, and verifies unauthenticated access plus `Command`/`Originate` are denied.
+
+The same runner now enables real Asterisk AMI TLS on container port 5039 with a
+fresh one-day self-signed IP-SAN identity per customer. The shared proof certificate
+generator is also used by the simulator test. Read-only mounts hold the ignored
+per-customer certificate/key files, and both TLS host ports are checked before
+startup. A dedicated child Node process trusts only the fixture identities added
+through `NODE_EXTRA_CA_CERTS`; its prior environment value is restored afterward.
+Against both real TLS listeners the adapter verifies:
+
+- Core reads and complete endpoint snapshots with distinct mapped credentials.
+- The reporting-only account cannot enumerate endpoints.
+- A different customer's secret cannot authenticate.
+- The same core adapter remains usable after action denial.
+- A fresh process without the fixture trust rejects both self-signed peers with
+  the expected TLS verification cause and sanitised adapter errors on repeated
+  core/endpoint requests, without falling back to the plain listener.
+
+The test uses TLS connection copies; it does not replace the local launcher's
+plain-loopback mappings or claim the combined browser proof traverses TLS.
+Certificates, private keys and the trust bundle remain in ignored
+`.local-proof/pbx-status` beside the fixture's existing credentials and regenerate
+on each run; protect them and do not share them. Owned containers/networks/volumes
+are removed as before. The application gains no Docker access or TLS verification
+bypass. Real local Asterisk TLS is now accepted; DNS/SNI, remote networking,
+production PKI provisioning/rotation and end-to-end production TLS remain open.
+
 The probe does not originate a call. Its fixture lock/port/ownership checks
 prevent taking over existing services; cleanup removes only this compose
 project's containers, networks and disposable state volumes.

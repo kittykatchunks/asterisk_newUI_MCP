@@ -3,6 +3,7 @@ param([switch]$Interactive, [switch]$WithIdentity)
 $ErrorActionPreference = 'Stop'
 if ($Interactive -and $WithIdentity) { throw 'Choose interactive mode or the combined identity proof, not both.' }
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'New-ProofTlsIdentity.ps1')
 $compose = Join-Path $root 'compose.status-proof.yaml'
 $directory = Join-Path $root '.local-proof\pbx-status'
 New-Item -ItemType Directory -Force -Path $directory | Out-Null
@@ -12,7 +13,7 @@ try {
     $existing = & docker compose -f $compose ps -a --format json
     if ($LASTEXITCODE -ne 0) { throw 'Could not check PBX status fixture ownership.' }
     if ($existing) { throw 'PBX status fixture already exists; stop its owner first.' }
-    foreach ($port in @(15038, 15039)) {
+    foreach ($port in @(15038, 15039, 15048, 15049)) {
         $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $port)
         try { $listener.Start() } finally { $listener.Stop() }
     }
@@ -24,17 +25,26 @@ try {
     $connections = @()
     $endpointConnections = @()
     $registrations = @()
+    $trusted = ''
     foreach ($index in @(0, 1)) {
         $customer = @('customer-a', 'customer-b')[$index]
         $secret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
         $endpointSecret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
         $sipSecret = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        $identity = New-ProofTlsIdentity -Name $customer
+        $trusted += "$($identity.Certificate)`n"
+        [IO.File]::WriteAllText((Join-Path $directory "$customer-cert.pem"), $identity.Certificate, [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText((Join-Path $directory "$customer-key.pem"), $identity.PrivateKey, [Text.UTF8Encoding]::new($false))
         $manager = @"
 [general]
 enabled = yes
 port = 5038
 bindaddr = 0.0.0.0
 displayconnects = no
+tlsenable = yes
+tlsbindaddr = 0.0.0.0:5039
+tlscertfile = /run/ami-cert.pem
+tlsprivatekey = /run/ami-key.pem
 
 [status-reader]
 secret = $secret
@@ -99,6 +109,8 @@ contact = sip:synthetic@127.0.0.1:5099
         (ConvertTo-Json -InputObject $endpointConnections), [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText((Join-Path $directory 'registrations.json'),
         (ConvertTo-Json -InputObject $registrations), [Text.UTF8Encoding]::new($false))
+    $ca = Join-Path $directory 'trusted.pem'
+    [IO.File]::WriteAllText($ca, $trusted, [Text.UTF8Encoding]::new($false))
     try {
         & docker compose -f $compose up -d
         if ($LASTEXITCODE -ne 0) { throw 'PBX status fixture startup failed.' }
@@ -124,6 +136,12 @@ contact = sip:synthetic@127.0.0.1:5099
         try {
             & node .\tests\identity\pbx-status-proof.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real AMI status proof failed.' }
+            $previousCa = $env:NODE_EXTRA_CA_CERTS
+            try {
+                $env:NODE_EXTRA_CA_CERTS = $ca
+                & node .\tests\identity\pbx-tls-proof.ts
+                if ($LASTEXITCODE -ne 0) { throw 'Real Asterisk AMI TLS proof failed.' }
+            } finally { $env:NODE_EXTRA_CA_CERTS = $previousCa }
             & node .\tests\identity\pbx-registration-proof.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real SIP registration visibility proof failed.' }
             & node .\tests\identity\pbx-status-recovery.ts

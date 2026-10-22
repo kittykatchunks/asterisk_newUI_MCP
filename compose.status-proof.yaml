@@ -18,21 +18,25 @@ x-status-pbx: &status-pbx
 services:
   customer-a:
     <<: *status-pbx
-    ports: ["127.0.0.1:15038:5038", "127.0.0.1:15060:5060/udp"]
+    ports: ["127.0.0.1:15038:5038", "127.0.0.1:15048:5039", "127.0.0.1:15060:5060/udp"]
     networks: [customer-a]
     volumes:
       - ./local/asterisk:/etc/asterisk:ro
       - ./.local-proof/pbx-status/customer-a.conf:/etc/asterisk/manager.conf:ro
       - ./.local-proof/pbx-status/customer-a-pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./.local-proof/pbx-status/customer-a-cert.pem:/run/ami-cert.pem:ro
+      - ./.local-proof/pbx-status/customer-a-key.pem:/run/ami-key.pem:ro
       - customer-a-state:/var/lib/asterisk
   customer-b:
     <<: *status-pbx
-    ports: ["127.0.0.1:15039:5038", "127.0.0.1:15061:5060/udp"]
+    ports: ["127.0.0.1:15039:5038", "127.0.0.1:15049:5039", "127.0.0.1:15061:5060/udp"]
     networks: [customer-b]
     volumes:
       - ./local/asterisk:/etc/asterisk:ro
       - ./.local-proof/pbx-status/customer-b.conf:/etc/asterisk/manager.conf:ro
       - ./.local-proof/pbx-status/customer-b-pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./.local-proof/pbx-status/customer-b-cert.pem:/run/ami-cert.pem:ro
+      - ./.local-proof/pbx-status/customer-b-key.pem:/run/ami-key.pem:ro
       - customer-b-state:/var/lib/asterisk
 
 networks:
