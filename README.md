@@ -1786,8 +1786,9 @@ Four competing worker processes with different applying receipts produce exactly
 one accepted start record. This is **not** an exactly-once execution claim:
 recording a receipt has no PBX side effect, identical delivery may be retried,
 and crashes still require runtime reconciliation. There is no exclusive runtime
-executor lock, worker listener, certificate validation, production dispatcher, local expiry
-enforcement, credential storage or PBX adapter yet. A journal deadline check at
+executor lock, local expiry enforcement, credential storage or PBX adapter in
+the journal itself. The optional mTLS transport below does not execute work.
+A journal deadline check at
 start cannot cancel an external side effect occurring later.
 
 `node --test .\tests\agent-provisioning-journal.test.ts .\tests\agent-provisioning-store.test.ts`
@@ -1812,7 +1813,8 @@ expected customer/epoch, then matches the existing intent's operation UUID,
 customer, epoch, revision and canonical command SHA-256. The caller must derive
 that binding from trusted configuration/authenticated worker identity, **not**
 copy it from the received report. This parameter is not itself authentication.
-There is no HTTP receipt-ingestion route or network transport.
+There is no HTTP receipt-write route. The optional mTLS transport below carries
+readback reports; it does not make the in-process binding parameter an authenticator.
 
 The complete report must have valid contiguous stages and distinct receipt IDs.
 Its shared history must exactly match the backend's existing prefix. New receipts
@@ -1841,8 +1843,8 @@ phone activation is introduced.
 
 `src/agent-provisioning-dispatcher.ts` provides an opt-in, in-process coordinator.
 Nothing starts it in the launcher or HTTP API. Its injected transport must
-authenticate the configured customer/epoch worker; no network client, listener,
-certificate handling, background retry loop or executor is supplied.
+authenticate the configured customer/epoch worker. The optional mTLS
+implementation below supplies a client/listener, not a retry loop or executor.
 
 `store.next(customer, epoch)` validates the enrolled authority, scans contiguous
 revisions and returns the same ordered-head states as the journal. Only verified
@@ -1882,6 +1884,64 @@ expiry, recovery/authority fencing and runtime verification remain gates.
 failed-head blocking, lost-response recovery with a fresh coordinator after
 expiry, foreign reports/authority, deadlines racing queries, missing/changed
 history, invalid clocks, transport failure, cooperative timeout and local overlap.
+
+#### Customer-pinned mutual-TLS journal transport (no executor)
+
+`src/agent-provisioning-https.ts` provides explicit factories for an HTTPS client
+and a journal-only HTTPS server. Neither is wired into the launcher, web routes
+or any default listener. The caller owns the listener, journal and shutdown.
+This establishes part of the stage B transport boundary, **not** stage B completion
+or approval to enable real effects; stage A application/recovery gates also remain.
+
+Each side requires its own certificate/private key, an explicit CA and one
+operator-configured uppercase SHA-256 peer certificate fingerprint. TLS 1.2 or
+later, normal chain/expiry checks and client certificate authentication are
+mandatory. The client additionally checks the worker hostname and pinned leaf
+certificate before HTTP bytes are sent. The worker requires a trusted client
+certificate and checks the pinned controller leaf before any journal access.
+A different CA-signed controller gets 403; missing, untrusted or expired client
+certificates fail TLS. No bearer token, forwarded identity or browser cookie is
+accepted as an alternative. Certificates/keys are injected by the owning process,
+never commands or generated repository configuration.
+
+The client accepts a fixed HTTPS origin without user info, path, query or
+fragment; per-call endpoints and TLS overrides are not supported. The only
+worker routes are:
+
+- `GET /v1/operations/{UUID}`: allowlisted report, or the exact missing-operation
+  response. No arbitrary customer selector or receipt-write endpoint exists.
+- `POST /v1/operations`: exact `{ command, context }` envelope, validated before
+  journal acceptance. The pinned journal checks customer/epoch, command hash,
+  deadline and revision; success returns its report with no apply action.
+
+Requests require JSON, reject compression/extra fields and are bounded to 8 KiB
+with a five-second body budget. Client responses are limited to 32 KiB, require
+uncompressed JSON and strict report shape, and do not follow redirects. Only the
+exact GET 404 missing-operation code becomes `undefined`; other statuses,
+malformed responses, disconnects and TLS failures reject. The client honours the
+dispatcher's abort signal and has an additional five-second socket timeout.
+Worker headers/requests have finite timeouts and connections close after replies.
+Input/conflict responses are sanitised; storage/unexpected errors return a generic
+500 and are passed to the mandatory owning-process error callback, never replaced
+with an empty report.
+
+The worker is bound by its local journal and controller pin. The backend must
+associate the worker certificate/origin with its configured customer/epoch; the
+dispatcher reconciles returned reports against that binding and stored intent.
+Protect configuration and local files. There is no certificate enrolment,
+rotation overlap, revocation distribution, deployment service, runtime lock,
+fake/PBX executor, disconnected expiry enforcement or restore fencing yet.
+Changing certificates requires explicit reconfiguration/restart; do not bypass
+verification to rotate them.
+
+`node --test .\tests\agent-provisioning-https.test.ts` generates an ephemeral CA
+and leaf keys in memory using PowerShell 7/.NET. Real loopback TLS tests cover
+valid dispatch/readback, exact retry, foreign customer, extra/unsafe fields,
+oversized/malformed input, nonexistent routes, storage-error reporting, missing/
+foreign/untrusted/expired clients, and worker chain/expiry/hostname/pin rejection
+before HTTP requests. Client tests also cover response bounds, redirects,
+truncation and cancellation. No trust-store modifications or persisted private
+keys are used; owned servers and temporary databases are closed/removed.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

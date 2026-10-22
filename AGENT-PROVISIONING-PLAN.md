@@ -280,8 +280,8 @@ without claiming a working phone or expanding PBX privileges.
 `src/agent-provisioning-store.ts` now implements the first backend-only part of
 stage A: explicit customer/epoch enrolment, ordered immutable command intents
 with atomic audit context, a pending outbox view and append-only receipt stages.
-It is not wired into session/lease APIs or the launcher. No production dispatcher, worker
-server, authenticated receipt ingestion or PBX adapter is implemented.
+It is not wired into session/lease APIs or the launcher. No production service,
+receipt-write endpoint or PBX adapter is implemented.
 The [README contract](./README.md#durable-provisioning-intent-store-backend-only)
 records exact behaviour and remaining gates. Stage A is not complete.
 
@@ -315,3 +315,17 @@ leases. Multiple instances still rely on immutable idempotent acceptance.
 Missing remote history with local receipts blocks acceptance; undetectable loss
 of acceptance-only history remains a recovery-fencing gate before real effects.
 See the [dispatcher contract](./README.md#single-step-provisioning-dispatcher-injected-transport-only).
+
+### Stage B transport proof: journal only
+
+Explicit HTTPS client/server factories now carry fixed acceptance/readback routes
+over mutually authenticated TLS. Both peers require configured CA trust and exact
+leaf certificate pins; the client also verifies hostname. The worker's local
+journal enforces customer/epoch scope. Real ephemeral-CA loopback tests reject
+missing/foreign/untrusted/expired clients and invalid worker identities, exercise
+strict bounded input/output and cancellation, and surface storage failures.
+No listener is enabled by default. There is no executor, certificate lifecycle
+automation, disconnected expiry enforcement or authority-restore fencing.
+Stage A application/recovery acceptance and the rest of stage B remain incomplete;
+this transport proof does not authorise PBX effects. See the
+[mTLS contract](./README.md#customer-pinned-mutual-tls-journal-transport-no-executor).

@@ -92,8 +92,8 @@ function exact(value: unknown, keys: readonly string[]): asserts value is Record
 function assertUuid(value: unknown): asserts value is string {
   if (typeof value !== "string" || !uuid.test(value)) throw new Error("Invalid provisioning UUID");
 }
-function assertCustomer(customer: string) {
-  if (!slug.test(customer)) throw new Error("Invalid provisioning customer");
+function assertCustomer(customer: unknown): asserts customer is string {
+  if (typeof customer !== "string" || !slug.test(customer)) throw new Error("Invalid provisioning customer");
 }
 function canonicalCommand(input: unknown): AgentProvisioningCommand {
   exact(input, ["version", "operationId", "customer", "epoch", "revision", "leaseId", "notAfter", "action", "payload"]);
@@ -122,10 +122,11 @@ function canonicalCommand(input: unknown): AgentProvisioningCommand {
   }
   throw new Error("Invalid provisioning action");
 }
-function context(input: ProvisioningContext): ProvisioningContext {
+function context(input: unknown): ProvisioningContext {
   exact(input, ["requestId", "actor", "reason"]);
   assertUuid(input.requestId);
-  if (![input.actor, input.reason].every((value) => typeof value === "string" && value.trim() && !/[\x00-\x1f\x7f]/.test(value)) ||
+  if (typeof input.actor !== "string" || typeof input.reason !== "string" ||
+      ![input.actor, input.reason].every((value) => value.trim() && !/[\x00-\x1f\x7f]/.test(value)) ||
       input.actor.length > 200 || input.reason.length > 2000) throw new Error("Invalid provisioning audit context");
   return { requestId: input.requestId, actor: input.actor, reason: input.reason };
 }
@@ -140,16 +141,21 @@ function canonicalReceipt(input: ProvisioningReceipt): ProvisioningReceipt {
   return { receiptId: input.receiptId, sequence: input.sequence, stage: input.stage, code: input.code };
 }
 
-function canonicalReport(input: ProvisioningReport): ProvisioningReport {
+export function parseProvisioningReport(input: unknown): ProvisioningReport {
   exact(input, ["version", "customer", "epoch", "operationId", "revision", "sha256", "receipts"]);
   assertCustomer(input.customer); assertUuid(input.epoch); assertUuid(input.operationId);
-  if (input.version !== 1 || !Number.isSafeInteger(input.revision) || input.revision < 1 ||
+  if (input.version !== 1 || typeof input.revision !== "number" || !Number.isSafeInteger(input.revision) || input.revision < 1 ||
       typeof input.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(input.sha256) ||
       !Array.isArray(input.receipts) || input.receipts.length > 100) {
     throw new Error("Invalid provisioning report");
   }
   return { version: 1, customer: input.customer, epoch: input.epoch, operationId: input.operationId,
     revision: input.revision, sha256: input.sha256, receipts: input.receipts.map(canonicalReceipt) };
+}
+
+export function parseProvisioningAcceptance(input: unknown) {
+  exact(input, ["command", "context"]);
+  return { command: canonicalCommand(input.command), context: context(input.context) };
 }
 
 // Trusted backend persistence only: callers must authenticate and verify ownership before enqueue.
@@ -377,7 +383,7 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
     reconcile(worker, input) {
       exact(worker, ["customer", "epoch"]);
       assertCustomer(worker.customer); assertUuid(worker.epoch);
-      const report = canonicalReport(input);
+      const report = parseProvisioningReport(input);
       if (worker.customer !== report.customer || worker.epoch !== report.epoch) {
         throw new AgentProvisioningConflict("Provisioning report worker scope mismatch");
       }
@@ -426,7 +432,7 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
       const operation = store.operation(binding.customer, id);
       if (!operation) return undefined;
       if (operation.intent.command.epoch !== binding.epoch) throw new Error("Worker report authority mismatch");
-      return canonicalReport({ version: 1, ...binding, operationId: id,
+      return parseProvisioningReport({ version: 1, ...binding, operationId: id,
         revision: operation.intent.command.revision, sha256: operation.intent.sha256, receipts: operation.receipts });
     },
     next() {
