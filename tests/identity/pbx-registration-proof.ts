@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { createSocket } from "node:dgram";
+import { createSocket, type RemoteInfo } from "node:dgram";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
 import type { PbxEndpointSnapshot } from "../../src/pbx-status.ts";
+import { createFixtureSipSocket } from "./fixture-sip-socket.ts";
 
 interface Registration {
   customer: string;
@@ -31,15 +32,44 @@ const md5 = (value: string) => createHash("md5").update(value).digest("hex");
 for (const account of accounts) {
   const foreign = accounts.find((item) => item.customer !== account.customer);
   assert.ok(foreign);
-  const socket = createSocket("udp4");
-  socket.bind(0, "127.0.0.1");
-  await once(socket, "listening");
-  const localPort = socket.address().port;
+  const hostSocket = createSocket("udp4");
+  hostSocket.bind(0, "127.0.0.1");
+  await once(hostSocket, "listening");
+  let socket: typeof hostSocket | Awaited<ReturnType<typeof createFixtureSipSocket>> = hostSocket;
+  let localPort = socket.address().port;
+  let destinationPort = account.port;
   const callId = randomUUID();
   const tag = randomUUID();
   const uri = "sip:127.0.0.1";
   let sequence = 0;
   let registered = false;
+  let answerOptions = false;
+  let answeredOptions = 0;
+  let ignoredOptions = 0;
+  let optionsError: Error | undefined;
+  const respondOptions = (data: Buffer, remote: Pick<RemoteInfo, "port" | "address">) => {
+    const text = data.toString("utf8");
+    if (!text.startsWith("OPTIONS ")) return;
+    if (!answerOptions) { ignoredOptions++; return; }
+    const headers = text.split("\r\n");
+    const values = (name: string) => headers.filter((line) => line.toLowerCase().startsWith(`${name.toLowerCase()}:`));
+    const via = values("Via");
+    const from = values("From")[0];
+    const to = values("To")[0];
+    const id = values("Call-ID")[0];
+    const cseq = values("CSeq")[0];
+    if (!via.length || !from || !to || !id || !cseq || !/\d+ OPTIONS$/i.test(cseq)) {
+      optionsError = new Error("Malformed synthetic OPTIONS request");
+      return;
+    }
+    const response = ["SIP/2.0 200 OK", ...via, from,
+      /;tag=/i.test(to) ? to : `${to};tag=${tag}`, id, cseq, "Content-Length: 0", "", ""].join("\r\n");
+    socket.send(response, remote.port, remote.address, (error) => {
+      if (error) optionsError = error;
+      else answeredOptions++;
+    });
+  };
+  socket.on("message", respondOptions);
   const exchange = (expires: number, authorization?: string): Promise<RegistrationResponse> => {
     sequence++;
     const packet = Buffer.from([
@@ -72,7 +102,7 @@ for (const account of accounts) {
           contactExpiry: expiry ? Number(expiry) : undefined,
         });
       };
-      const send = () => socket.send(packet, account.port, "127.0.0.1", (error) => { if (error) finish(error); });
+      const send = () => socket.send(packet, destinationPort, "127.0.0.1", (error) => { if (error) finish(error); });
       const timeout = setTimeout(() => finish(new Error("Synthetic REGISTER timed out")), 5000);
       const retry = setInterval(send, 500);
       socket.on("message", receive); socket.once("error", fail);
@@ -101,19 +131,24 @@ for (const account of accounts) {
       ...(fields.opaque ? [`opaque="${fields.opaque}"`] : []),
     ].join(", "));
   };
-  const expectContact = async (present: boolean, timeoutMs = 2500, earliestAbsenceAt?: number) => {
+  const expectContact = async (present: boolean, timeoutMs = 2500, earliestAbsenceAt?: number,
+    deviceState?: string) => {
     const deadline = performance.now() + timeoutMs;
+    let lastState: string | undefined;
     do {
       const snapshot: PbxEndpointSnapshot = await source.endpoints(account.customer);
       const observedAt = performance.now();
       const endpoint = snapshot.endpoints.find((item) => item.id === account.username);
       assert.ok(endpoint, "The configured endpoint must remain visible regardless of contact state");
+      lastState = endpoint.deviceState;
+      assert.equal(optionsError, undefined, "Synthetic OPTIONS responder must not fail");
+      if (deviceState !== undefined) assert.equal(endpoint.hasContacts, true, "Qualification must not remove the registered contact");
       assert.equal(snapshot.endpoints.find((item) => item.id === `${account.customer}-static`)?.hasContacts, true);
       const other: PbxEndpointSnapshot = await source.endpoints(foreign.customer);
       assert.equal(other.endpoints.find((item) => item.id === foreign.username)?.hasContacts, false);
       assert.equal(other.endpoints.find((item) => item.id === `${foreign.customer}-static`)?.hasContacts, true);
       assert.ok(!JSON.stringify(other).includes(account.username));
-      if (endpoint.hasContacts === present) {
+      if (endpoint.hasContacts === present && (deviceState === undefined || endpoint.deviceState === deviceState)) {
         if (!present && earliestAbsenceAt !== undefined) {
           assert.ok(observedAt >= earliestAbsenceAt, "Contact disappeared before its accepted lifetime");
         }
@@ -121,7 +156,7 @@ for (const account of accounts) {
       }
       await delay(250);
     } while (performance.now() < deadline);
-    assert.fail(`Expected synthetic contact presence ${present} for ${account.customer}`);
+    assert.fail(`Expected synthetic contact presence ${present}${deviceState ? ` and device state ${deviceState}` : ""} for ${account.customer}; last state=${lastState}, answered OPTIONS=${answeredOptions}, ignored OPTIONS=${ignoredOptions}`);
   };
   try {
     await expectContact(false);
@@ -148,9 +183,38 @@ for (const account of accounts) {
     assert.equal(sequence, expirySequence, "No SIP transaction may cause the natural-expiry transition");
     registered = false;
     console.log(`PASS ${account.customer}: accepted five-second contact expires without refresh/unregister; static and foreign contacts unchanged`);
+
+    const fixtureSocket = await createFixtureSipSocket(account.customer);
+    hostSocket.close();
+    socket = fixtureSocket;
+    localPort = socket.address().port;
+    destinationPort = 5060;
+    socket.on("message", respondOptions);
+    answerOptions = true;
+    assert.equal((await register(60)).code, 200);
+    registered = true;
+    await expectContact(true, 15000, undefined, "Not in use");
+    assert.ok(answeredOptions > 0, "Reachability must follow a real successful OPTIONS response");
+    const qualificationSequence = sequence;
+    const ignoredBefore = ignoredOptions;
+    answerOptions = false;
+    await expectContact(true, 15000, undefined, "Unavailable");
+    assert.ok(ignoredOptions > ignoredBefore, "Unreachability must follow intentionally unanswered OPTIONS");
+    const answeredBefore = answeredOptions;
+    answerOptions = true;
+    await expectContact(true, 15000, undefined, "Not in use");
+    assert.ok(answeredOptions > answeredBefore, "Recovery must follow a fresh OPTIONS response");
+    assert.equal(sequence, qualificationSequence, "Qualification recovery must not refresh or replace the registration");
+    assert.equal((await register(0)).code, 200);
+    registered = false;
+    await expectContact(false);
+    console.log(`PASS ${account.customer}: OPTIONS response/silence/recovery changes device state without losing its contact; static and foreign contacts unchanged`);
   } finally {
     try {
       if (registered) assert.equal((await register(0)).code, 200, "Synthetic contact cleanup must succeed");
-    } finally { socket.close(); }
+    } finally {
+      socket.off("message", respondOptions);
+      await socket.close();
+    }
   }
 }

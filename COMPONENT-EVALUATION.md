@@ -308,7 +308,7 @@ Upstream requires AMI system authority for this action. An explicitly approved,
 separate system+reporting account is therefore used while core status remains
 reporting-only. Fixed application actions do not remove the credential's broader
 system privilege if used elsewhere. Production credential/network controls and
-qualification acceptance remain outstanding.
+production-network qualification acceptance remain outstanding.
 
 Real dynamic registration transitions are now tested separately: each isolated
 PBX challenges REGISTER, rejects the foreign customer's secret, exposes the new
@@ -324,6 +324,17 @@ disappearance with a whole-second rounding allowance and bounds cleanup observat
 to forty seconds. Foreign dynamic endpoints and both static contacts are checked
 throughout. This fixture-only shortened lifetime does not establish production
 expiry latency, qualification/reachability or general registration classification.
+
+Synthetic qualification is now separately exercised using a third registration
+and a container-local loopback SIP client. Real OPTIONS responses, deliberate
+silence and renewed responses produce AMI device states `Not in use`,
+`Unavailable` and `Not in use`, with contact presence retained and no REGISTER
+refresh between transitions. Each phase has a fifteen-second bound and verifies
+OPTIONS traffic plus foreign/static contact isolation. A fixed-destination Python
+UDP bridge runs only in the owned fixture via test-owner Docker exec, avoiding
+host-loopback UDP forwarding limitations without additional ports or application
+Docker authority. These signalling tests do not prove RTP/audio, WebRTC, trunk
+health or production-network behaviour; the UI semantics stay unchanged.
 
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and

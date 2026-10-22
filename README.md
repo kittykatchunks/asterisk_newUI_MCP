@@ -1097,8 +1097,8 @@ which may be statically configured. It does not distinguish dynamic registration
 expired contacts or reachability. Reported device state is not a health verdict.
 This increment therefore provides endpoint/contact visibility, **not yet a
 verified registered/unregistered phone inventory**. Dynamic REGISTER/unregister
-and natural expiry transitions are now covered by the local proof below;
-qualification transitions still require subsequent acceptance proofs.
+and natural expiry transitions, plus synthetic SIP qualification loss/recovery,
+are now covered by the local proof below. These do not establish audio health.
 
 **Separate credential authority:** Asterisk 22 classifies `PJSIPShowEndpoints`
 under the AMI `system` action class, not `reporting`. Following the explicit design
@@ -1153,12 +1153,30 @@ periodic cleanup sweep. Every observation also checks the other customer's dynam
 endpoint remains contact-free and both static neighbours remain present. AMI
 observation is bounded test polling, not a new application polling behaviour.
 
+The dynamic fixture AOR also enables OPTIONS qualification once per second with a
+half-second timeout. A third, sixty-second registration uses a loopback SIP socket
+inside the owned customer container: host-loopback Docker UDP forwarding does not
+reliably carry new PBX-originated OPTIONS requests back to the host client.
+A test-only Python UDP bridge, controlled through `docker compose exec` standard
+input/output, permits only that container's `127.0.0.1:5060`. It adds no host port,
+container image, application Docker access or production configuration.
+
+For each customer the probe answers real OPTIONS with 200, then deliberately
+stops answering, then resumes. The same AMI source must observe `Not in use`,
+`Unavailable`, and `Not in use` again, each within fifteen seconds, while the
+contact remains present. Packet counters verify fresh OPTIONS traffic, no REGISTER
+is sent between these states, foreign dynamic contacts stay absent and both static
+contacts remain present. The probe explicitly unregisters and closes its bridge;
+the owned fixture is removed on failure. This demonstrates why contact presence
+alone is not reachability. It is synthetic SIP signalling acceptance, not audio,
+WebRTC, trunk or production-network health acceptance.
+
 Successful and cleanup unregister transactions are checked explicitly; the owned
 fixture is removed on failure. This proof exercises dynamic contact transitions
 through the real adapter, not browser registration controls. It does not add
 registration/mutation routes, save SIP credentials in the browser or make static
-contacts into proof of registration. SIP qualification, WebRTC registration and
-audio-path acceptance are outside this increment. Tested expiry of a synthetic
+contacts into proof of registration. WebRTC registration and audio-path acceptance
+are outside this increment. Tested expiry of a synthetic
 dynamic contact does not make every contact a current or reachable registration.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.

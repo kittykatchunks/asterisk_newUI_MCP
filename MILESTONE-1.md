@@ -311,8 +311,13 @@ dynamic contacts stay absent and static contacts remain unchanged. No calls, RTP
 or application mutation endpoint are introduced. A second five-second registration
 now proves natural contact expiry without refresh/unregister, with bounded
 observation, response lifetime checks and unchanged foreign/static contacts.
-The shortened lifetime is fixture-only. Qualification and a verified
-registration-state UI remain outstanding.
+The shortened lifetime is fixture-only. A third registration now proves real
+OPTIONS qualification response, timeout and recovery: reported device state changes
+from `Not in use` to `Unavailable` and back without losing the contact or refreshing
+registration. A container-local loopback SIP probe avoids host UDP forwarding
+limitations; only the exclusive test owner uses Docker, not the application.
+Each transition is bounded to fifteen seconds and foreign/static contacts remain
+unchanged. A verified registration-state UI and audio health remain outstanding.
 
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
