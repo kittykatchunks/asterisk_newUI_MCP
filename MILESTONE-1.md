@@ -370,7 +370,7 @@ Focused tests cover scope, permission, mutation, allowlisting and failure bounda
 The real confidential browser-session proof checks Alice's assignment, durable
 audit, diagnostics-only Bob denial, foreign denial and logout replay denial.
 Production provisioning workflow and session-bound SIP credential lifecycle
-remain open; the ordinary engineering launcher grants no agent access.
+remain open; the default engineering launcher grants no agent access.
 
 Assignment metadata now also has a separate versioned SQLite store and a trusted
 operator JSON provisioning CLI. The selected insert-only policy permits identical
@@ -441,7 +441,7 @@ the session is rechecked afterward to fence concurrent logout; the audit is not 
 success receipt. Real Keycloak browser sessions prove Alice's lifecycle, Bob's
 denial, persisted intent and rejected post-logout renewal. Logout leaves a
 reservation to expire within its remaining 60 seconds; explicit release avoids
-the wait. The normal launcher does not configure this optional store.
+the wait. The default launcher does not configure this optional store.
 
 The console now offers explicit reserve/renew/release buttons after a valid
 assignment loads. Device and lease IDs remain in page memory; reload creates a
@@ -452,6 +452,17 @@ with request references and retry guidance. Browser tests cover lifecycle and
 failure boundaries; the real Keycloak proof clicks Alice's buttons and verifies
 Bob cannot see or use the reservation controls. This is a backend reservation,
 not a connected phone, queue availability or a SIP registration.
+
+An explicit `-WithAgents` local launcher mode now grants synthetic Alice only
+`agent:access` in addition to her engineering permissions and requires her current
+operator-provisioned assignment in a separate existing readonly database. Bob
+stays denied. It opens the lease store after assignment validation and closes both
+stores on shutdown/startup failure. Agent mode preserves existing validated fixture
+subject IDs while rotating credentials; the default launcher/proof still generates
+new identities and grants no agent permission. Real launcher acceptance verifies
+the console, reservation persistence/session invalidation, stale/missing assignment
+refusal, safe defaults and Bob's denial. This remains a local HTTP proof without
+SIP or calling, not production identity continuity or membership administration.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.

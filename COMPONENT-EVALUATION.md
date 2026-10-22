@@ -397,7 +397,7 @@ refusal and CLI outcomes. The real session proof injects a reopened store.
 This does not publish PBX config, grant membership, create credentials or enforce
 extension/device exclusivity. The separate store is not included in diagnostic
 backups; history API/UI and reassignment remain
-unimplemented. The ordinary launcher stays unconfigured for agents.
+unimplemented. The default launcher stays unconfigured for agents.
 
 Schema version 2 adds successful provisioning receipts in the same transaction
 as assignment inserts. Generated UUID/time, bounded operator/reason, exact
@@ -460,7 +460,7 @@ The audit records intent rather than final success, retaining one record per
 request. Real Keycloak sessions prove lifecycle/denial and post-logout replay
 rejection with persisted SQLite audit. Logout leaves the short reservation to
 expire; no phone activation, automatic heartbeat, call draining or SIP
-revocation is implied, and the normal launcher leaves the routes unconfigured.
+revocation is implied, and the default launcher leaves the routes unconfigured.
 
 The console now exposes explicit reserve, renew and release actions after loading
 a valid assignment. Each page has a fresh in-memory device UUID; no browser
@@ -471,6 +471,18 @@ handles rather than inventing success. Browser tests cover lifecycle/conflicts,
 malformed responses, reload and logout races; real Keycloak acceptance clicks
 Alice's controls and verifies Bob's denial. Reservation is still not phone
 readiness, and reload/close/logout can leave a reservation until its short expiry.
+
+The local launcher now supports explicit `-WithAgents` configuration: Alice alone
+gets direct agent permission and must already have an operator-provisioned current
+assignment. The assignment database opens readonly, with no migration or implicit
+provisioning, and the lease database is separate. Bob remains denied; opting out
+on restart restores the existing diagnostics-only defaults. The PowerShell mode
+validates and preserves existing synthetic subject IDs while rotating credentials;
+ordinary proof/default startup still replaces IDs. Real Keycloak launcher tests
+verify missing/stale assignment refusal, console reservation, lease restart
+conflict with lost sessions, Bob denial and cleanup. Focused PowerShell preflight
+tests verify exact-ID preservation and invalid input refusal. This is not a
+production identity/membership lifecycle or phone activation.
 
 ## 2. Asterisk container
 

@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { chromium } from "playwright";
 import { localEngineeringRoot, startLocalEngineering } from "../../src/local-engineering.ts";
+import { openAgentStore } from "../../src/agent-store.ts";
 
 const directory = await mkdtemp(join(tmpdir(), "asterisk-launcher-"));
 const identityDirectory = join(directory, ".local-proof", "identity");
@@ -35,6 +36,7 @@ let app: Awaited<ReturnType<typeof startLocalEngineering>> | undefined;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   app = await startLocalEngineering(directory, true);
+  assert.equal(app.withAgents, false);
   assert.equal(app.staged, 2);
   assert.equal((await fetch(app.origin + "/auth/session")).status, 401);
   await assert.rejects(startLocalEngineering(directory), (error: unknown) =>
@@ -77,9 +79,86 @@ try {
     const cookie = (await context.cookies(app.origin)).find((cookie) => cookie.name === "asterisk-test-session");
     assert.ok(cookie);
     oldCookie = `${cookie.name}=${cookie.value}`;
+    assert.equal((await fetch(app.origin + "/api/customers/customer-a/agent/profile", {
+      headers: { Cookie: oldCookie },
+    })).status, 403, "Default launcher must not grant agent permission");
   } finally { await context.close(); }
   const databasePath = app.databasePath;
   await app.stop();
+  await app.stop();
+  app = undefined;
+  const agentPath = join(directory, ".local-proof", "engineering", "agents.sqlite");
+  const leasePath = join(directory, ".local-proof", "engineering", "device-leases.sqlite");
+  await assert.rejects(startLocalEngineering(directory, false, true), /unable to open database/);
+  await assert.rejects(access(agentPath), (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
+  await assert.rejects(access(leasePath), (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
+  const provisioning = openAgentStore(agentPath);
+  const issuer = "http://127.0.0.1:18080/realms/local-proof";
+  const assignment = { issuer, subject: alice.subject, customer: "customer-a", extension: "1001", displayName: "Synthetic launcher Alice" };
+  try {
+    provisioning.provision([{ ...assignment, subject: "old-fixture-subject" }], {
+      operator: "launcher-proof", reason: "Stale identity fixture",
+    });
+    await assert.rejects(startLocalEngineering(directory, false, true), /current synthetic Alice/);
+    await assert.rejects(access(leasePath), (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
+    provisioning.provision([assignment], { operator: "launcher-proof", reason: "Explicit synthetic Alice assignment" });
+  } finally { provisioning.close(); }
+  app = await startLocalEngineering(directory, false, true);
+  assert.equal(app.withAgents, true);
+  await assert.rejects(startLocalEngineering(directory, false, true), (error: unknown) =>
+    error instanceof Error && "code" in error && error.code === "EADDRINUSE");
+  const agentContext = await browser.newContext();
+  let reservationId = "";
+  let agentCookie = "";
+  try {
+    const page = await agentContext.newPage();
+    await page.goto(app.origin + "/agent/customer-a");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(alice.username);
+    await page.locator("#password").fill(alice.password);
+    await page.locator("#kc-login").click();
+    await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+    assert.ok((await page.locator("#assignment").textContent())?.includes("Synthetic launcher Alice"));
+    const response = page.waitForResponse(app.origin + "/api/customers/customer-a/agent/device-lease");
+    await page.getByRole("button", { name: "Reserve this device", exact: true }).click();
+    reservationId = (await (await response).json()).lease.id;
+    await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
+    const cookie = (await agentContext.cookies(app.origin)).find((value) => value.name === "asterisk-test-session")!;
+    agentCookie = `${cookie.name}=${cookie.value}`;
+  } finally { await agentContext.close(); }
+  await app.stop();
+  app = await startLocalEngineering(directory, false, true);
+  assert.equal((await fetch(app.origin + "/auth/session", { headers: { Cookie: agentCookie } })).status, 401);
+  const restarted = await browser.newContext();
+  try {
+    const page = await restarted.newPage();
+    await page.goto(app.origin + "/agent/customer-a");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(alice.username);
+    await page.locator("#password").fill(alice.password);
+    await page.locator("#kc-login").click();
+    await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+    await page.getByRole("button", { name: "Reserve this device", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "Device reservation conflict" }).waitFor();
+  } finally { await restarted.close(); }
+  const bob = accounts.find((account) => account.username === "bob")!;
+  const denied = await browser.newContext();
+  try {
+    const page = await denied.newPage();
+    await page.goto(app.origin + "/agent/customer-b");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(bob.username);
+    await page.locator("#password").fill(bob.password);
+    await page.locator("#kc-login").click();
+    await page.getByRole("alert").filter({ hasText: "Agent access is not permitted." }).waitFor();
+    assert.equal(await page.locator("#device-reservation").isHidden(), true);
+  } finally { await denied.close(); }
+  const leases = new DatabaseSync(leasePath, { readOnly: true });
+  try { assert.equal(leases.prepare("SELECT id FROM agent_device_leases").get()?.id, reservationId); }
+  finally { leases.close(); }
+  await app.stop();
+  app = await startLocalEngineering(directory);
+  assert.equal(app.withAgents, false, "Agent opt-in must not persist as a default permission grant");
   await app.stop();
   app = undefined;
   const released = createServer();
@@ -136,7 +215,7 @@ try {
   } finally {
     if (child.exitCode === null && child.signalCode === null) { child.kill(); await exited; }
   }
-  console.log("PASS launcher: real login/review, restart persistence, idempotent staging, changed-evidence refusal, occupied-port denial and graceful CLI shutdown");
+  console.log("PASS launcher: review persistence, explicit agent opt-in with existing assignment, Bob denial, lease restart conflict, safe defaults and graceful CLI shutdown");
 } finally {
   if (browser) await browser.close();
   if (app) await app.stop();

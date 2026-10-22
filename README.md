@@ -1054,7 +1054,7 @@ Validate persistence and the operator command with
 `node --test .\tests\agent-store.test.ts .\tests\agent-profile.test.ts`.
 The real confidential browser-session proof now provisions SQLite, closes it,
 reopens it as the API directory, and checks the existing profile/audit/customer/
-logout boundaries. The normal local launcher remains unconfigured for agents;
+logout boundaries. The default local launcher remains unconfigured for agents;
 the CLI does not automatically wire a database into it.
 
 Successful provisioning now writes `agent_provision_receipts` in schema version 2.
@@ -1171,7 +1171,7 @@ The phone section explicitly states that connection is disabled: assignment,
 registration/reachability, queue availability and call state are separate.
 No microphone prompt, WSS connection, SIP credential, call button or browser
 storage is introduced. Without configured application sessions, console routes
-return 503. The normal launcher still grants no agent access; synthetic Alice's
+return 503. The default launcher still grants no agent access; synthetic Alice's
 assignment is provisioned only in the real identity proof, and diagnostics-only
 Bob is denied.
 
@@ -1231,7 +1231,7 @@ producing exactly one winner.
 #### Authenticated backend device-lease routes
 
 An optional tenth `createDiagnosticApi` argument injects the lease store. It is
-not enabled by the ordinary engineering launcher. When explicitly configured with
+not enabled by the default engineering launcher. When explicitly configured with
 application sessions and the assignment directory, these routes are available:
 
 | Method and route | JSON body | Result |
@@ -1826,10 +1826,73 @@ Generate a new capture with a new incident ID for another review exercise.
 Diagnostic candidates, review receipts, published reports, and access audits are
 persisted at `.local-proof\engineering\diagnostics.sqlite`. Restarting preserves
 them but invalidates application sessions. The development Keycloak database is
-ephemeral: each launcher run generates fresh test credentials and subject IDs.
+ephemeral: each default launcher run generates fresh test credentials and subject IDs.
 Historical reviewer IDs remain recorded as originally issued; this is not
 production identity continuity. New generated credentials are required after
 restart. Sessions currently last at most the fixture's two-minute token lifetime.
+
+### Opt-in local agent reservations
+
+Use `-WithAgents` only for the synthetic Alice console. It explicitly adds
+`agent:access` for Alice/customer-a while retaining the existing diagnostics
+permissions; Bob/customer-b remains diagnostics-read-only. Without the flag,
+neither identity gains agent access, even if assignment and lease databases exist.
+This is local proof configuration, not a production membership administration API.
+
+Agent mode requires `.local-proof\engineering\agents.sqlite` to have been
+provisioned separately for Alice's **current verified issuer/subject/customer**.
+The launcher opens it read-only: it does not create, migrate, provision, reassign
+or infer permissions from its rows. Missing files, old schemas, corrupt assignments
+and an absent current Alice assignment fail startup. It opens a separate
+`.local-proof\engineering\device-leases.sqlite` only after validating the assignment.
+Both stores close on normal shutdown and startup failure.
+
+One-time setup:
+
+1. Run the default launcher once, then stop it gracefully. This creates the current
+   ignored identity configuration and engineering directory.
+2. Build a JSON assignment array using Alice's `subject` from the resulting
+   `.local-proof\identity\accounts.json`, issuer
+   `http://127.0.0.1:18080/realms/local-proof`, customer `customer-a`, and your chosen
+   synthetic extension/display name. Do not copy the account password into it.
+3. Run the existing operator CLI with absolute paths:
+
+   ```powershell
+   node .\scripts\Provision-AgentAssignments.ts 'C:\path\to\repo\.local-proof\engineering\agents.sqlite' 'C:\operator-data\assignments.json' 'local-operator' 'Approved synthetic Alice assignment'
+   ```
+
+4. Start the explicit mode, then open the printed agent-console URL:
+
+   ```powershell
+   .\scripts\Start-LocalEngineering.ps1 -WithAgents
+   # Optional independent report staging:
+   .\scripts\Start-LocalEngineering.ps1 -WithAgents -StageCapturedReports
+   ```
+
+In this mode the PowerShell owner validates and retains the two existing
+username/customer/subject mappings while regenerating passwords and the confidential
+client secret. Missing, malformed, foreign or duplicate mappings are refused before
+Docker startup or rewriting credentials. Retained IDs let the separately provisioned
+assignment survive this **explicit** fixture restart; no assignment is silently
+rewritten. Always use the newly generated passwords. Running the default launcher
+or ordinary identity proof later generates new subject IDs again; agent mode will
+then require separate operator provisioning for the new Alice identity. Historical
+assignments/receipts are not deleted or repointed.
+
+The TypeScript entry point accepts `--with-agents` against an already-running
+matching fixture; it does not recreate or preserve Keycloak itself. The PowerShell
+proof accepts `-WithAgents` only together with `-Interactive`. Review staging is
+independent of this flag. Restart invalidates application sessions but retains
+unexpired device reservations, so a newly signed-in session may need to wait up to
+the remaining 60 seconds; no automatic takeover or recovered phone session occurs.
+No SIP credentials, microphone, registration, queue operation or calling is enabled.
+
+The real launcher acceptance test exercises missing/stale assignment refusal,
+Alice's console and reservation, Bob's denial, lease persistence with old-session
+rejection, occupied-port cleanup and return to the safe default without the flag.
+`node --test .\tests\local-agent-launcher.test.ts` separately verifies the PowerShell
+identity preflight preserves exact IDs without rewriting the account file and
+rejects invalid/missing configuration.
 
 **Stop:** type `stop` and press Enter in the launcher terminal (recommended), or
 press Ctrl+C. The server closes its listener and database; the PowerShell owner

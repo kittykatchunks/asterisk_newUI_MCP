@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Interactive, [switch]$StageCapturedReports)
+param([switch]$Interactive, [switch]$StageCapturedReports, [switch]$WithAgents)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -10,6 +10,11 @@ $lock = [IO.File]::Open((Join-Path $directory 'fixture.lock'), [IO.FileMode]::Op
     [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
 try {
     if ($StageCapturedReports -and -not $Interactive) { throw 'Captured-report staging requires interactive mode.' }
+    if ($WithAgents -and -not $Interactive) { throw 'Agent mode requires interactive mode.' }
+    $retainedSubjects = @{}
+    if ($WithAgents) {
+        $retainedSubjects = & (Join-Path $PSScriptRoot 'Read-ProofAgentSubjects.ps1') -Root $root
+    }
     $existing = & docker compose -f $compose ps -a --format json
     if ($LASTEXITCODE -ne 0) { throw 'Could not check identity fixture ownership.' }
     if ($existing) { throw 'An identity fixture already exists; stop its owning launcher before starting another.' }
@@ -26,7 +31,7 @@ try {
     $users = @()
     $testAccounts = @()
     foreach ($account in $accounts) {
-        $id = [guid]::NewGuid().ToString()
+        $id = if ($WithAgents) { $retainedSubjects[$account.username] } else { [guid]::NewGuid().ToString() }
         $password = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
         $users += @{
             id = $id; username = $account.username; enabled = $true
@@ -110,6 +115,7 @@ try {
             if ($Interactive) {
                 $arguments = @('.\scripts\Start-LocalEngineering.ts')
                 if ($StageCapturedReports) { $arguments += '--stage-captured-reports' }
+                if ($WithAgents) { $arguments += '--with-agents' }
                 & node @arguments
                 if ($LASTEXITCODE -ne 0) { throw 'Interactive engineering application failed.' }
             } else {

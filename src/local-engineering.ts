@@ -8,6 +8,9 @@ import type { ApprovedIncident } from "./incidents.ts";
 import { assertApprovedIncident } from "./incidents.ts";
 import { createAmiStatusSource } from "./pbx-status.ts";
 import type { AmiConnection } from "./pbx-status.ts";
+import { openAgentStore } from "./agent-store.ts";
+import { openAgentDeviceLeaseStore } from "./agent-device-lease.ts";
+import type { CustomerPermission } from "./access.ts";
 
 export async function loadLocalPbxStatus(root: string, endpoints = false) {
   let text: string;
@@ -103,7 +106,7 @@ export async function loadCapturedIncidents(root: string): Promise<ApprovedIncid
   }));
 }
 
-export async function startLocalEngineering(root: string, stageCapturedReports = false) {
+export async function startLocalEngineering(root: string, stageCapturedReports = false, withAgents = false) {
   const { accounts, client } = await configuration(root);
   const pbx = await loadLocalPbxStatus(root);
   const endpoints = await loadLocalPbxStatus(root, true);
@@ -126,8 +129,18 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
   await mkdir(directory, { recursive: true });
   const databasePath = join(directory, "diagnostics.sqlite");
   const store = openDiagnosticStore(databasePath);
+  let agents: ReturnType<typeof openAgentStore> | undefined;
+  let deviceLeases: ReturnType<typeof openAgentDeviceLeaseStore> | undefined;
   let server: ReturnType<typeof createDiagnosticApi> | undefined;
   try {
+    if (withAgents) {
+      agents = openAgentStore(join(directory, "agents.sqlite"), { readOnly: true });
+      const alice = accounts.find((account) => account.username === "alice")!;
+      if (!agents.profile(issuer, alice.subject, alice.customer)) {
+        throw new Error("Agent mode requires an existing operator-provisioned assignment for the current synthetic Alice identity");
+      }
+      deviceLeases = openAgentDeviceLeaseStore(join(directory, "device-leases.sqlite"));
+    }
     let staged = 0;
     if (entries.length) {
       const reader = new DatabaseSync(databasePath, { readOnly: true });
@@ -146,10 +159,12 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
     }
     server = createDiagnosticApi({
       issuer, audience: "diagnostic-api", jwksUrl: discovery.jwks_uri, allowLoopbackHttpForTests: true,
-      memberships: accounts.map((account) => ({
-        issuer, subject: account.subject, customer: account.customer,
-        permissions: account.username === "alice" ? ["diagnostics:read", "diagnostics:report", "diagnostics:review"] : ["diagnostics:read"],
-      })), supportGrants: [],
+      memberships: accounts.map((account) => {
+        const permissions: CustomerPermission[] = account.username === "alice" ?
+          ["diagnostics:read", "diagnostics:report", "diagnostics:review"] : ["diagnostics:read"];
+        if (withAgents && account.username === "alice") permissions.push("agent:access");
+        return { issuer, subject: account.subject, customer: account.customer, permissions };
+      }), supportGrants: [],
     }, store.audit, (error, requestId) => {
       // Never dump request/token-exchange objects or credential-bearing payloads.
       console.error(`Local engineering operation failed; request ${requestId}; ${error instanceof Error ? error.name : "UnknownError"}`);
@@ -158,7 +173,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
       tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
       clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
       allowLoopbackHttpForTests: true,
-    }, pbx, endpoints);
+    }, pbx, endpoints, agents, deviceLeases);
     const active = server;
     await new Promise<void>((resolve, reject) => {
       const failed = (error: Error) => reject(error);
@@ -170,11 +185,13 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
     });
     let stopped: Promise<void> | undefined;
     return {
-      origin, databasePath, staged,
+      origin, databasePath, staged, withAgents,
       stop() {
         stopped ??= new Promise<void>((resolve, reject) => {
           active.close((error) => {
             store.close();
+            agents?.close();
+            deviceLeases?.close();
             if (error) reject(error); else resolve();
           });
           active.closeAllConnections();
@@ -188,6 +205,8 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
       await new Promise<void>((resolve) => server!.close(() => resolve()));
     }
     store.close();
+    agents?.close();
+    deviceLeases?.close();
     throw error;
   }
 }

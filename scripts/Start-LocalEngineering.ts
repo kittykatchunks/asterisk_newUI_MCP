@@ -2,12 +2,13 @@ import { createInterface } from "node:readline";
 import { localEngineeringRoot, startLocalEngineering } from "../src/local-engineering.ts";
 
 const args = process.argv.slice(2);
-if (args.some((arg) => arg !== "--stage-captured-reports")) throw new Error("Unknown local engineering argument");
-const app = await startLocalEngineering(localEngineeringRoot, args.includes("--stage-captured-reports"));
+if (args.some((arg) => !["--stage-captured-reports", "--with-agents"].includes(arg))) throw new Error("Unknown local engineering argument");
+const app = await startLocalEngineering(localEngineeringRoot, args.includes("--stage-captured-reports"), args.includes("--with-agents"));
 console.log(`Local engineering ready: ${app.origin}/engineering/reviews/customer-a`);
 console.log(`Customer B (metadata-only Bob): ${app.origin}/engineering/reviews/customer-b`);
 console.log(`Persistent database: ${app.databasePath}`);
 console.log(`New captured candidates staged: ${app.staged}; no reports automatically approved.`);
+if (app.withAgents) console.log(`Agent reservations (synthetic Alice only; phone disabled): ${app.origin}/agent/customer-a`);
 console.log("Synthetic credentials: .local-proof\\identity\\accounts.json (do not share).");
 console.log("Type stop then Enter, or press Ctrl+C, to shut down. Local HTTP proof only.");
 const input = createInterface({ input: process.stdin });
