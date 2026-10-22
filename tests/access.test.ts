@@ -10,6 +10,11 @@ import type { AccessAudit } from "../src/diagnostic-api.ts";
 import type { AccessConfig } from "../src/access.ts";
 import { createIncidentCatalog } from "../src/incidents.ts";
 import { createHash } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { openDiagnosticStore } from "../src/diagnostic-store.ts";
 
 const keys = await generateKeyPair("RS256");
 const foreignKeys = await generateKeyPair("RS256");
@@ -99,6 +104,54 @@ async function access(customer: string, bearer?: string) {
     headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
   });
 }
+
+test("persistent audit commit gates report bytes and storage failures return 503", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "asterisk-api-store-"));
+  const path = join(directory, "diagnostics.sqlite");
+  const store = openDiagnosticStore(path);
+  const observedErrors: unknown[] = [];
+  const persistentApi = createDiagnosticApi(config, store.audit,
+    (error) => observedErrors.push(error), store.catalog);
+  const reader = new DatabaseSync(path);
+  try {
+    const [candidate] = store.stage([{
+      customer: "customer-a", summary: { id: incidentA, title: "Persisted report", createdAt: "2026-10-22T12:00:00Z" },
+      report: { html: reportHtml, sha256: createHash("sha256").update(reportHtml).digest("hex") },
+    }]);
+    const origin = await listen(persistentApi);
+    const headers = { Authorization: `Bearer ${await token("report-reader")}` };
+    const url = `${origin}/api/customers/customer-a/diagnostics/incidents/${incidentA}/report`;
+    const pending = await fetch(url, { headers });
+    assert.equal(pending.status, 404);
+    assert.ok(!(await pending.text()).includes(reportHtml));
+    store.review(candidate.id, {
+      sha256: candidate.sha256, decision: "approve", reviewer: "synthetic-reviewer", reason: "Synthetic fixture review",
+    });
+    const allowed = await fetch(url, { headers });
+    assert.equal(allowed.status, 200);
+    assert.equal(await allowed.text(), reportHtml);
+    assert.equal(reader.prepare("SELECT count(*) AS total FROM access_audit").get()?.total, 2);
+    reader.exec("BEGIN IMMEDIATE");
+    try {
+      const denied = await fetch(url, { headers });
+      assert.equal(denied.status, 503);
+      assert.ok(!(await denied.text()).includes(reportHtml));
+    } finally { reader.exec("ROLLBACK"); }
+    assert.equal(reader.prepare("SELECT count(*) AS total FROM access_audit").get()?.total, 2);
+    reader.prepare("UPDATE incidents SET entry = ?").run("null");
+    const corrupt = await fetch(url, { headers });
+    assert.equal(corrupt.status, 503);
+    assert.ok(!(await corrupt.text()).includes(reportHtml));
+    assert.equal(reader.prepare("SELECT outcome FROM access_audit ORDER BY sequence DESC LIMIT 1").get()?.outcome,
+      "incident_catalog_unavailable");
+    assert.equal(observedErrors.length, 2);
+  } finally {
+    await close(persistentApi);
+    reader.close();
+    store.close();
+    await rm(directory, { recursive: true });
+  }
+});
 
 test("valid OIDC signature and provisioned membership allow only assigned customer", async () => {
   const jwt = await token();
@@ -286,7 +339,7 @@ test("unconfigured or failed catalog produces explicit unavailability, not an em
       assert.equal(response.status, 503);
       assert.equal((await response.text()).includes('"incidents":[]'), false);
       if (catalogOption) assert.equal(logged.length, 1);
-      else assert.equal(events[0].outcome, "incident_catalog_unavailable");
+      assert.equal(events[0].outcome, "incident_catalog_unavailable");
     } finally { await close(server); }
   }
 });

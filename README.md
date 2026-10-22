@@ -276,8 +276,9 @@ this initial configuration-backed verifier is not that workflow.
 
 Every evaluated access decision awaits an audit sink. If audit persistence fails,
 access returns an explicit 503 and invokes the operational error logger. Tokens
-are not written to audit records. The test sink is memory-only; production durable
-audit storage, access reviews, and retention remain unimplemented.
+are not written to audit records. The unit fixture uses an in-memory sink; the
+real identity proof uses the SQLite adapter described below. Production audit
+operations, access reviews, and retention remain unimplemented.
 
 Automated tests cover customer separation, misleading token role claims,
 invalid/missing/expired/future/wrong-signature/issuer/audience tokens, required
@@ -296,6 +297,7 @@ With Docker, PowerShell 7, Node.js 24, npm dependencies, and Playwright Chromium
 installed as above:
 
 ```powershell
+.\scripts\Test-CaptureProof.ps1 # Generate synthetic reports first, if absent
 .\scripts\Test-IdentityProof.ps1
 ```
 
@@ -323,7 +325,7 @@ Verified locally:
 - Authorization code is exchanged with its verifier; consumed code replay fails.
 - Real access tokens allow the provisioned customer and deny the other customer.
 - ID tokens fail API audience validation.
-- Password-grant requests fail; API decisions are audited in memory.
+- Password-grant requests fail; API decisions are committed to local SQLite.
 
 The runner closes browsers/HTTP listeners and removes the identity container and
 its project network even after failure. Its development database is ephemeral;
@@ -331,8 +333,8 @@ the next run imports fresh users. Generated files remain ignored locally.
 No Asterisk services need to run for this proof.
 
 **Not production identity:** development mode, loopback HTTP, one test realm,
-memory-only audit, and configuration-backed membership are deliberate limitations.
-Deployment TLS, persistent database/backup, administrator recovery, secure
+local-only audit, and configuration-backed membership are deliberate limitations.
+Deployment TLS, production database/backup, administrator recovery, secure
 application sessions, MFA, federation, logout/revocation, key rotation, customer
 onboarding, and grant administration remain outstanding. Passing this proof does
 not make the management application available or enable capture controls.
@@ -352,8 +354,9 @@ access. Every successful response waits for the access audit sink. Failure of
 audit persistence prevents report delivery. Cross-customer report guesses are
 denied, and unknown incidents within an authorised scope return 404.
 
-The current catalog is an immutable in-memory snapshot of trusted, approved
-entries, not a database or arbitrary directory browser. Lists return only ID,
+The catalog interface supports an immutable in-memory snapshot or the local
+SQLite adapter below, both provisioned with trusted, approved entries. Neither
+is an arbitrary directory browser. Lists return only ID,
 title, and creation time. Approved report bytes must match their supplied SHA-256
 and fit a 2-MiB size limit. A checksum verifies consistency, not redaction quality
 or HTML safety; trusted ingestion must approve the actual report. No HTTP route
@@ -382,11 +385,167 @@ her report in Chromium, with sandboxed origin storage denied; Bob cannot view
 his report, and neither can access the other customer. Thirteen API decisions
 are audited in the successful identity test.
 
-Seventeen access tests cover the original authentication boundary plus incident
+Eighteen access tests cover the original authentication boundary plus incident
 metadata, report permission, report/audit failure, unavailable catalogs, tampering,
 path-like raw-file requests, and response restrictions.
 
-Outstanding: persistent incident storage and ingestion approval, durable audit,
+Outstanding: production storage/backup and ingestion approval, audit operations,
 interactive application login/session handling, customer/engineer navigation,
 grant administration, and authenticated capture controls. Reports are exercised
 through test-controlled browser credentials, not a finished user-facing viewer.
+
+## Persistent diagnostic storage proof
+
+`openDiagnosticStore` in [src/diagnostic-store.ts](./src/diagnostic-store.ts)
+provides a local SQLite catalog and audit sink using Node 24's built-in,
+currently experimental `node:sqlite` module. No database package or service is
+added. This is a local adapter evaluation, not a production database selection.
+
+- A trusted absolute database path and an existing, private parent directory are
+  required. Do not use shared directories, network filesystems, or caller paths.
+  The operator must enforce filesystem ACLs and encryption; this adapter does
+  not provision them or encrypt the database.
+- Schema version 2 contains customer-keyed published incidents, staged candidate
+  snapshots, review receipts, and allowlisted access-audit columns. Unknown
+  versions, corrupt files, and nonempty unversioned databases fail explicitly.
+  The version-1 migration and its disclosure change are described below.
+- `stage` validates and stores a whole candidate batch atomically, without
+  publishing it. `review` records approval or rejection of an exact snapshot.
+  Existing customer/incident keys cannot be overwritten. These are trusted code
+  operations, not HTTP uploads or an automated approval workflow.
+- Report hashes and customer/incident provenance are checked again on reads.
+  Malformed or tampered entries cause an explicit 503, not empty successful lists.
+  Catalog errors are logged and audited when audit storage remains writable.
+- Each audit insert commits with `synchronous=FULL` and rollback journalling
+  before its promise resolves. Duplicate request IDs, unavailable storage, or
+  contention beyond the 250-ms busy timeout reject the write and block delivery.
+  Records contain no request headers, tokens, report HTML, or arbitrary extra fields.
+- The API still accepts the catalog and audit callback separately; deployment
+  code must explicitly wire both from the opened store and close it on shutdown.
+
+```powershell
+npm run typecheck
+node --test .\tests\access.test.ts .\tests\diagnostic-store.test.ts
+```
+
+Fourteen storage tests cover close/reopen persistence, customer isolation, atomic
+imports, integrity failures, committed audit visibility, lock/closed-store failures,
+invalid databases, staged approvals, migration, and the backup/restore failures below.
+The access suite additionally proves that a real database
+write lock prevents report bytes being served. The Keycloak proof imports both
+synthetic reports, closes/reopens their database before login, and independently
+reads back all thirteen committed access decisions. It also backs up and restores
+both captured reports and compares every restored audit, candidate, and review
+column. Its temporary SQLite files
+are removed after the test; normal adapter databases persist until explicitly
+removed by their operator.
+
+Limitations: synchronous operations can block the event loop, metadata listing
+currently validates full stored reports, and no paging, retention/deletion,
+off-host append-only audit, tamper-evident audit chain, off-host disaster recovery,
+multi-process load, or power-loss test exists. A matching hash is not independent
+approval evidence if an attacker can rewrite the database and hash together.
+Filesystem administrators can alter both evidence and audit; do not treat this
+proof as an immutable third-party evidence archive.
+
+### Local diagnostic backup and separate restore
+
+[src/diagnostic-backup.ts](./src/diagnostic-backup.ts) provides two trusted
+operator functions, not HTTP resources:
+
+1. `backupDiagnosticStore(sourcePath, parentDirectory)` opens an existing database
+   read-only and uses SQLite's online backup API, not a filesystem copy of a live
+   database. It returns a newly generated backup directory containing
+   `diagnostics.sqlite` and `manifest.json`.
+2. `restoreDiagnosticStore(backupDirectory, parentDirectory)` returns the database
+   path inside a newly generated, separate restore directory. It never restores
+   over the source or an existing application database.
+
+All arguments must be absolute paths in operator-controlled local directories.
+The parent directory must already exist and have appropriate private ACLs.
+The backup contains **every customer's approved, pending and rejected report,
+review receipts, and audit history** in that database; it is not a customer export.
+No raw capture files, credentials,
+membership configuration, or identity-provider database are included.
+
+The manifest records format version, creation time, database SHA-256, incident
+count, and audit count; version 2 also records candidate and review counts.
+Backup validation checks SQLite integrity, schema version, required columns,
+report hashes, incident/customer provenance, and approval/publication consistency.
+Restore copies
+into its new directory, checks that exact copy against the manifest, then repeats
+database/content validation and verifies counts before returning success.
+Failures remove only the newly allocated output directory and propagate the error.
+Missing database/manifest files never become empty successful restores.
+
+The automated recovery test takes a backup with the source store still open,
+adds a later audit event, removes the closed original database, and restores
+reports plus the exact pre-backup audit history. It verifies customer separation,
+new audit writes on the restored store, and a second independent restore without
+overwriting the first. Negative tests cover incomplete files, malformed manifests,
+count/checksum mismatch, invalid reports even with a recomputed database checksum,
+unsupported schemas, and missing sources. Run `npm run test:storage` for this proof.
+The real Keycloak proof additionally verifies backup/restore of generated packet
+reports and its thirteen access decisions.
+
+Backups are point-in-time copies, so later events require a later backup. The
+manifest is a consistency check, not a signature or independent approval record.
+Do not promote a restored copy into service until separately checking deployment
+identity, permissions, storage protection, and application configuration.
+Scheduling, encryption/key custody, off-host copies, retention, restore promotion,
+large-database/concurrent-write load, interrupted-process/power-loss recovery,
+and full PBX/recording/identity disaster recovery remain unverified. The backup
+directory and manifest are not claimed to be crash-atomically published.
+
+### Staged report review (trusted operator proof)
+
+The persistent adapter no longer has a direct `importApproved` operation.
+Merely placing evidence on disk, staging it, or knowing its hash does not publish
+it. Its local workflow is:
+
+1. A trusted importer validates customer/incident provenance and report content,
+   then calls `stage(entries)`. Each new candidate has a generated ID and a SHA-256
+   binding its complete stored customer/metadata/report snapshot.
+2. An authorised operator uses `pending(customer)` and `candidate(id)` to inspect
+   the candidate. These methods return sensitive, **unapproved** content and are
+   not connected to HTTP resources or the public incident catalog. Candidate HTML
+   must not be rendered as trusted application HTML.
+3. After actually reviewing scope, redaction and suitability for disclosure, the
+   operator calls `review(id, { decision, reviewer, reason, sha256 })` with
+   `decision` set to `approve` or `reject`. A nonempty reviewer/reason and the
+   exact reviewed snapshot hash are required.
+4. Approval publishes that exact snapshot in the same transaction as its review
+   receipt. Rejection records the decision without publishing anything. Failed
+   receipt or publication writes roll back both. Decisions are one-shot: this
+   proof has no overwrite, corrected resubmission, revocation, or reapproval path.
+
+Pending/rejected candidates are absent from customer incident lists; their report
+routes return 404 even to a permitted report reader. Published reads verify the
+snapshot against its candidate and approval receipt. Receipt deletion or mismatch
+fails explicitly rather than bypassing approval. Read/report permissions do not
+expose the operator staging/review methods.
+
+**Trust boundary:** these are privileged in-process functions, not authenticated
+reviewer APIs. The calling application must authenticate the operator and enforce
+customer-scoped approval permission before calling them; a reviewer string is
+not verified identity. No end-user approval UI or approval permission endpoint
+exists yet. The Keycloak test explicitly approves only known synthetic fixtures;
+it does not prove authenticated engineering approval or certify real redaction.
+The separate in-memory catalog still accepts trusted, already-approved entries;
+it is not the persistent ingestion workflow.
+
+**Version-1 migration:** opening a version-1 database transactionally moves its
+legacy published entries to pending candidates and clears their published copies,
+while preserving access-audit records. Legacy reports consequently disappear
+from customer listings until explicitly reviewed. It does not fabricate reviewers
+or approvals. Back up before opening an older database. Version-1 backups can
+still be validated/restored separately; opening the restored database performs
+the same migration. Version-2 backups retain pending/rejected state and validate
+approval receipts as well as the published reports.
+
+Tests cover hidden pending/rejected reports, hash-bound review, missing reviewer
+or reason, duplicate decisions, transaction rollback, receipt tampering,
+version-1 migration, and review-state recovery. Approval receipts are local
+records, not signatures or a tamper-proof external audit trail. Production
+reviewer authorisation, rejection correction, approval revocation, review UI,
+and retention remain outstanding.

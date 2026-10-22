@@ -74,6 +74,28 @@ the selected identity-provider configuration must be aligned and tested.
 The exact digest is selected for this local experiment only, not approved for
 production. Official release support and advisory review remain production gates.
 
+The incident access proof now separates metadata and HTML report permissions,
+denies raw evidence routes, and serves approved reports in a browser sandbox.
+The real Keycloak fixture checks captured report viewing/filtering and tenant
+denial. A subsequent local SQLite adapter uses Node 24's experimental built-in
+`node:sqlite` support, with atomic insert-only incident imports, read-time integrity
+checks, and audit commits awaited before delivery. Close/reopen, corruption,
+lock-contention and API failure tests are included. This is not a production
+database decision, immutable audit archive, or retention policy. Subsequent SQLite
+online-backup/separate-restore tests validate report hashes, customer provenance,
+database integrity, manifest counts, and exact audit preservation. Recovery after
+removing the source and rejection of incomplete/tampered backup files are tested.
+This excludes off-host/full-platform disaster recovery and power-loss testing;
+see the README for reproduction and limitations.
+
+Persistent ingestion now separates staged candidates from published reports.
+Hash-bound approve/reject receipts record reviewer and reason; approval and
+publication commit atomically. Schema-1 reports move to pending review on
+migration, preserving audit history without inventing approval. Backup/restore
+also validates and preserves candidates and review decisions. Tests cover hidden
+pending/rejected reports and rollback/tampering. The operator methods are trusted
+in-process calls, not authenticated approval endpoints or a production review UI.
+
 ## 2. Asterisk container
 
 ### Candidates reviewed

@@ -2,13 +2,17 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { once } from "node:events";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
 import { chromium } from "playwright";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createDiagnosticApi } from "../../src/diagnostic-api.ts";
 import type { AccessAudit } from "../../src/diagnostic-api.ts";
-import { createIncidentCatalog } from "../../src/incidents.ts";
+import { openDiagnosticStore } from "../../src/diagnostic-store.ts";
+import { backupDiagnosticStore, restoreDiagnosticStore } from "../../src/diagnostic-backup.ts";
 import type { ApprovedIncident } from "../../src/incidents.ts";
 
 interface TestAccount {
@@ -64,7 +68,28 @@ for (const [index, account] of accounts.entries()) {
     report: { html, sha256: manifest.report_sha256 },
   });
 }
-const catalog = createIncidentCatalog(entries);
+const storageDirectory = await mkdtemp(join(tmpdir(), "asterisk-identity-store-"));
+const databasePath = join(storageDirectory, "diagnostics.sqlite");
+let store = openDiagnosticStore(databasePath);
+try {
+  const staged = store.stage(entries);
+  for (const entry of entries) {
+    assert.deepEqual(await store.catalog.list(entry.customer), []);
+    assert.equal(await store.catalog.report(entry.customer, entry.summary.id), undefined);
+  }
+  for (const candidate of staged) {
+    store.review(candidate.id, {
+      sha256: candidate.sha256, decision: "approve", reviewer: "synthetic-fixture-reviewer",
+      reason: "Known synthetic packet report; no customer data",
+    });
+  }
+  store.close();
+  store = openDiagnosticStore(databasePath);
+} catch (error) {
+  store.close();
+  await rm(storageDirectory, { recursive: true });
+  throw error;
+}
 const api = createDiagnosticApi({
   issuer, audience: "diagnostic-api", jwksUrl: discovery.jwks_uri,
   allowLoopbackHttpForTests: true,
@@ -73,7 +98,10 @@ const api = createDiagnosticApi({
     permissions: account.username === "alice" ? ["diagnostics:read", "diagnostics:report"] : ["diagnostics:read"],
   })),
   supportGrants: [],
-}, async (event) => { audit.push(event); }, (error) => { operationalErrors.push(error); }, catalog);
+}, async (event) => {
+  await store.audit(event);
+  audit.push(event);
+}, (error) => { operationalErrors.push(error); }, store.catalog);
 
 let pending: { state: string; accept: (code: string) => void; reject: (error: Error) => void } | undefined;
 const callback = createServer((request, response) => {
@@ -245,8 +273,38 @@ try {
   assert.equal(directGrant.status, 400, "Password grant must be disabled");
   assert.equal(audit.length, 13);
   assert.deepEqual(operationalErrors, []);
-  console.log("PASS disabled password grant; thirteen audited API decisions; no access tokens logged or persisted");
+  const persisted = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const rows = persisted.prepare("SELECT request_id, outcome, status FROM access_audit ORDER BY sequence").all();
+    assert.deepEqual(rows.map((row) => ({ ...row })), audit.map((event) => ({
+      request_id: event.requestId, outcome: event.outcome, status: event.status,
+    })));
+    const records = JSON.stringify(persisted.prepare("SELECT * FROM access_audit").all());
+    assert.ok(!records.includes("Bearer") && !records.includes("eyJ"));
+  } finally { persisted.close(); }
+  const backupDirectory = await backupDiagnosticStore(databasePath, storageDirectory);
+  const restoredPath = await restoreDiagnosticStore(backupDirectory, storageDirectory);
+  const restored = openDiagnosticStore(restoredPath);
+  try {
+    for (const entry of entries) {
+      assert.deepEqual(await restored.catalog.list(entry.customer), [entry.summary]);
+      assert.equal(await restored.catalog.report(entry.customer, entry.summary.id), entry.report!.html);
+    }
+    const original = new DatabaseSync(databasePath, { readOnly: true });
+    const recovered = new DatabaseSync(restoredPath, { readOnly: true });
+    try {
+      assert.deepEqual(recovered.prepare("SELECT * FROM access_audit ORDER BY sequence").all(),
+        original.prepare("SELECT * FROM access_audit ORDER BY sequence").all());
+      assert.deepEqual(recovered.prepare("SELECT * FROM incident_reviews ORDER BY candidate").all(),
+        original.prepare("SELECT * FROM incident_reviews ORDER BY candidate").all());
+      assert.deepEqual(recovered.prepare("SELECT * FROM report_candidates ORDER BY id").all(),
+        original.prepare("SELECT * FROM report_candidates ORDER BY id").all());
+    } finally { original.close(); recovered.close(); }
+  } finally { restored.close(); }
+  console.log("PASS staged reports hidden until synthetic review; backup/restore preserves reports, reviews and thirteen access decisions");
 } finally {
   if (browser) await browser.close();
   await Promise.all([close(api), close(callback)]);
+  store.close();
+  await rm(storageDirectory, { recursive: true });
 }

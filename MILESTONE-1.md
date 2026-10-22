@@ -34,10 +34,25 @@ Development-mode identity is removed after each run. Production identity storage
 TLS, MFA/federation, application sessions, and durable permissions/audit remain open.
 
 The API now has customer-scoped incident metadata and separately authorised report
-access through a trusted in-memory catalog. The Keycloak proof loads generated
+access through a trusted catalog. The Keycloak proof loads generated
 packet/CEL reports and verifies actual browser viewing/filtering, sandbox storage
-denial, metadata-only report denial, and cross-customer denial. Persistent incident
-ingestion, production sessions, and capture controls remain outstanding.
+denial, metadata-only report denial, and cross-customer denial. The local SQLite
+adapter persists approved incidents and commits access audit records before
+delivery; close/reopen, atomic imports, tampering, and write-lock failure paths
+are tested. The Keycloak proof uses reopened storage and checks thirteen committed
+audit decisions. A subsequent online SQLite backup and separate restore proof
+checks both captured reports and exact audit history. Unit recovery tests also
+remove the original database, restore independently, and reject incomplete or
+tampered backups. Production ingestion/approval, off-host backup and full-system
+recovery, sessions, and capture controls remain outstanding.
+
+The persistent adapter now stages reports outside the public catalog and requires
+a hash-bound approve/reject decision with reviewer/reason before publication.
+Approval and publication are transactional; pending/rejected evidence remains
+hidden. Schema-1 imports migrate to pending review rather than receiving invented
+approvals, while access audits are preserved. Review state and receipts survive
+backup/restore. This is a trusted operator-code proof, not authenticated approval
+endpoints or a review UI; production reviewer authorisation remains open.
 
 Parent document: [Project plan](./PROJECT-PLAN.md).
 

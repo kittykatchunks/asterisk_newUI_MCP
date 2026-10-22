@@ -57,13 +57,21 @@ export function createDiagnosticApi(
         if (!catalog) {
           status = 503;
           outcome = "incident_catalog_unavailable";
-        } else if (incident) {
-          report = await catalog.report(customer, incident);
-          if (report === undefined) { status = 404; outcome = "not_found"; }
-          else { outcome = "incident_report_viewed"; }
         } else {
-          body = { requestId, incidents: await catalog.list(customer) };
-          outcome = "incidents_listed";
+          try {
+            if (incident) {
+              report = await catalog.report(customer, incident);
+              if (report === undefined) { status = 404; outcome = "not_found"; }
+              else { outcome = "incident_report_viewed"; }
+            } else {
+              body = { requestId, incidents: await catalog.list(customer) };
+              outcome = "incidents_listed";
+            }
+          } catch (error) {
+            logError(error, requestId);
+            status = 503;
+            outcome = "incident_catalog_unavailable";
+          }
         }
       }
       await audit({
