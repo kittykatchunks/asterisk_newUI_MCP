@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 import { test } from "node:test";
 import { createAgentProvisioningHttpsWorker, createAgentProvisioningHttpsTransport } from "../src/agent-provisioning-https.ts";
 import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
+import { createAgentProvisioningAssessment } from "../src/agent-provisioning-assessment.ts";
 import { createAgentProvisioningExecutor } from "../src/agent-provisioning-executor.ts";
 import { createAuthorisedProvisioningTransport } from "../src/agent-provisioning-authorisation.ts";
 import { openAgentDeviceLeaseStore } from "../src/agent-device-lease.ts";
@@ -104,6 +105,15 @@ test("live ownership gate prevents mTLS delivery after assignment/session/lease 
     assert.equal((await dispatcher.dispatch()).state, "accepted");
     assert.equal((await executor.step()).state, "verified");
     session = undefined;
+    const assessment = createAgentProvisioningAssessment(store, binding, transport,
+      { resolveAuthorisation() { return undefined; } }, options);
+    assert.deepEqual(await assessment.assess(), {
+      state: "assessed", operationId: renewal.operationId, revision: 3, deadlineExpired: false,
+      localStage: "none", workerStage: "verified", history: "worker-ahead", ownership: "missing",
+    });
+    assert.equal(posts, 3, "Read-only assessment must never POST to the TLS worker");
+    assert.deepEqual(store.operation(binding.customer, renewal.operationId)?.receipts, [],
+      "Assessment must not reconcile historical receipts implicitly");
     assert.equal((await dispatcher.dispatch()).state, "verified", "Logout must not block receipt recovery");
     const denied = enqueue("extend", lease.expiresAt);
     await assert.rejects(dispatcher.dispatch(), /Live provisioning session required/);

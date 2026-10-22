@@ -556,3 +556,26 @@ Keycloak proofs now use the producer before persisted-owner guarded dispatch.
 Production API/launcher capture, recovery and post-acceptance fencing remain
 unfinished. See the
 [producer contract](./README.md#session-authorised-provisioning-producer-backend-only).
+
+### Read-only recovery assessment: selected next boundary
+
+The user selected diagnostic assessment before any recovery mutation. The new
+opt-in assessment reads the ordered head, queries the authenticated worker and
+compares report evidence using the same validator as receipt reconciliation,
+without importing receipts or changing either queue. It reports local/worker
+stages, exact missing/ahead/delayed-prefix history, deadline status and whether
+the original session reference resolves. Scope/history divergence, concurrent
+head changes and transport/storage/cancellation failures reject explicitly.
+
+A resolved session is not a fresh membership/assignment/lease decision, and a
+missing report is not proof of no prior acceptance. No result permits skipping,
+rebinding, automatic replay or cleanup. History import remains a separate
+existing reconciliation action; cancellation of potentially accepted work needs
+a worker-side fence protocol and its own policy approval.
+
+Database-byte comparisons prove no persistent mutation. Tests cover historical
+readback over actual mTLS without POST/import, real session-manager restart
+resolution, expiry/logout status, divergent/missing/delayed evidence, stale
+heads and cooperative timeout. This adds no operator route/UI or automatic
+recovery. See the
+[assessment contract](./README.md#read-only-provisioning-recovery-assessment).

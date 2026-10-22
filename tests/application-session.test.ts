@@ -15,6 +15,7 @@ import { createAccessVerifier } from "../src/access.ts";
 import { openAgentDeviceLeaseStore } from "../src/agent-device-lease.ts";
 import { createAuthorisedProvisioningTransport, createSessionProvisioningAuthorisation, createSessionProvisioningProducer } from "../src/agent-provisioning-authorisation.ts";
 import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
+import { createAgentProvisioningAssessment } from "../src/agent-provisioning-assessment.ts";
 import { openAgentProvisioningStore, openAgentProvisioningJournal } from "../src/agent-provisioning-store.ts";
 
 async function listen(server: Server) {
@@ -263,6 +264,12 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
           async accept() { return assert.fail("A restarted session manager cannot deliver old queued work"); },
         }, binding, freshGate);
         await assert.rejects(createAgentProvisioningDispatcher(provisioning, binding, freshTransport).dispatch(), /owner context missing/);
+        const freshAssessment = await createAgentProvisioningAssessment(provisioning, binding,
+          { async report(id) { return worker.report(id); } }, fresh).assess();
+        assert.equal(freshAssessment.state === "assessed" && freshAssessment.ownership, "session-unresolved");
+        const liveAssessment = await createAgentProvisioningAssessment(provisioning, binding,
+          { async report(id) { return worker.report(id); } }, backendSessions).assess();
+        assert.equal(liveAssessment.state === "assessed" && liveAssessment.ownership, "session-resolved");
         const guarded = createAuthorisedProvisioningTransport({
           async report(id) { return worker.report(id); },
           async accept(intent) {

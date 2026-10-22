@@ -172,6 +172,46 @@ export function parseProvisioningAcceptance(input: unknown) {
   return { command: canonicalCommand(input.command), context: context(input.context) };
 }
 
+function transition(previous: ProvisioningReceipt | undefined, next: ProvisioningReceipt) {
+  const permitted = !previous ? ["applying", "uncertain"] :
+    previous.stage === "applying" ? ["verified", "failed", "uncertain"] :
+    previous.stage === "uncertain" ? ["applying", "verified", "failed"] : [];
+  if (next.sequence !== (previous?.sequence ?? 0) + 1 || !permitted.includes(next.stage)) {
+    throw new AgentProvisioningConflict("Invalid provisioning receipt transition");
+  }
+}
+
+// Compare evidence without importing it or treating receipt stages as runtime truth.
+export function compareProvisioningReport(worker: ProvisioningJournalBinding,
+  operation: { intent: ProvisioningIntent; receipts: ProvisioningReceipt[] }, input: ProvisioningReport) {
+  exact(worker, ["customer", "epoch"]);
+  assertCustomer(worker.customer); assertUuid(worker.epoch);
+  const report = parseProvisioningReport(input);
+  if (worker.customer !== report.customer || worker.epoch !== report.epoch) {
+    throw new AgentProvisioningConflict("Provisioning report worker scope mismatch");
+  }
+  const { intent, receipts: local } = operation;
+  if (intent.command.customer !== report.customer || intent.command.operationId !== report.operationId ||
+      intent.command.epoch !== report.epoch || intent.command.revision !== report.revision || intent.sha256 !== report.sha256) {
+    throw new AgentProvisioningConflict("Provisioning report intent mismatch");
+  }
+  let previous: ProvisioningReceipt | undefined;
+  const ids = new Set<string>();
+  for (const receipt of report.receipts) {
+    transition(previous, receipt);
+    if (ids.has(receipt.receiptId)) throw new AgentProvisioningConflict("Duplicate provisioning report receipt");
+    ids.add(receipt.receiptId);
+    previous = receipt;
+  }
+  const common = Math.min(local.length, report.receipts.length);
+  for (let index = 0; index < common; index++) {
+    if (JSON.stringify(local[index]) !== JSON.stringify(report.receipts[index])) {
+      throw new AgentProvisioningConflict("Provisioning report history diverged");
+    }
+  }
+  return { report, additional: report.receipts.slice(local.length), unchanged: common };
+}
+
 function canonicalOwnership(input: unknown, command: AgentProvisioningCommand): ProvisioningOwnership {
   exact(input, ["issuer", "subject", "customer", "authorisationId", "sessionExpiresAt", "deviceId", "generationId", "extension"]);
   if (typeof input.issuer !== "string" || typeof input.subject !== "string" || typeof input.customer !== "string") {
@@ -351,14 +391,6 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
       return { command, sha256: hash(json), acceptedAt, context: recordedContext };
     });
   }
-  function transition(previous: ProvisioningReceipt | undefined, next: ProvisioningReceipt) {
-    const permitted = !previous ? ["applying", "uncertain"] :
-      previous.stage === "applying" ? ["verified", "failed", "uncertain"] :
-      previous.stage === "uncertain" ? ["applying", "verified", "failed"] : [];
-    if (next.sequence !== (previous?.sequence ?? 0) + 1 || !permitted.includes(next.stage)) {
-      throw new AgentProvisioningConflict("Invalid provisioning receipt transition");
-    }
-  }
   function persistReceipt(customer: string, id: string, receipt: ProvisioningReceipt) {
     if (!read(customer, id)) throw new AgentProvisioningConflict("Provisioning operation not found");
     const json = JSON.stringify(receipt);
@@ -461,27 +493,10 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
       return transaction(() => {
         const intent = read(worker.customer, report.operationId);
         if (!intent) throw new AgentProvisioningConflict("Provisioning report operation not found");
-        if (intent.command.epoch !== report.epoch || intent.command.revision !== report.revision || intent.sha256 !== report.sha256) {
-          throw new AgentProvisioningConflict("Provisioning report intent mismatch");
-        }
-        const local = receipts(report.operationId);
-        let previous: ProvisioningReceipt | undefined;
-        const ids = new Set<string>();
-        for (const receipt of report.receipts) {
-          transition(previous, receipt);
-          if (ids.has(receipt.receiptId)) throw new AgentProvisioningConflict("Duplicate provisioning report receipt");
-          ids.add(receipt.receiptId);
-          previous = receipt;
-        }
-        const common = Math.min(local.length, report.receipts.length);
-        for (let index = 0; index < common; index++) {
-          if (JSON.stringify(local[index]) !== JSON.stringify(report.receipts[index])) {
-            throw new AgentProvisioningConflict("Provisioning report history diverged");
-          }
-        }
+        const comparison = compareProvisioningReport(worker, { intent, receipts: receipts(report.operationId) }, report);
         // An old exact prefix is a delayed snapshot, never permission to rewind local history.
-        for (const receipt of report.receipts.slice(local.length)) persistReceipt(worker.customer, report.operationId, receipt);
-        return { inserted: Math.max(0, report.receipts.length - local.length), unchanged: common };
+        for (const receipt of comparison.additional) persistReceipt(worker.customer, report.operationId, receipt);
+        return { inserted: comparison.additional.length, unchanged: comparison.unchanged };
       });
     },
     close() { db.close(); },

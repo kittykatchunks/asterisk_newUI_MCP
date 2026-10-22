@@ -2403,6 +2403,68 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Read-only provisioning recovery assessment
+
+`createAgentProvisioningAssessment(store, binding, transport, sessions, options)`
+provides an explicitly invoked `assess(signal?)` diagnostic for the current
+ordered head. It needs only `next`/`ownership` reads, worker `report` access and
+the backend session reference resolver. No listener or automatic loop is started.
+Use the authenticated customer/epoch-pinned transport; caller authentication,
+customer-scoped access and operational error logging remain the application's
+responsibility.
+
+An empty queue returns exactly `{ state: "idle" }`. Otherwise the allowlisted
+result contains:
+
+```typescript
+{
+  state: "assessed", operationId, revision, deadlineExpired,
+  localStage,  // none | applying | uncertain | verified | failed
+  workerStage, // missing | none | applying | uncertain | verified | failed
+  history,     // worker-missing | worker-history-missing | equal | worker-ahead | worker-behind
+  ownership    // missing | session-unresolved | session-resolved | trusted-cleanup
+}
+```
+
+`workerStage: "none"` means the worker returned an accepted operation with no
+receipts; `"missing"` means exact missing-operation readback. Missing remote
+history alongside local receipts is specifically `worker-history-missing`.
+`worker-behind` means an exact shorter history prefix, which may be a delayed
+snapshot rather than data loss. `worker-ahead` identifies additional validated
+receipts available for a separate reconciliation action. Equal empty histories
+do not prove an effect has or has not occurred. Receipt stages are historical
+evidence, never current runtime/PBX readiness.
+
+The assessment shares `compareProvisioningReport` with receipt reconciliation:
+worker scope, intent/hash/revision, sequence, transitions and common history
+prefix must match. Invalid or divergent evidence rejects; it is not converted
+into an ordinary status. Local head/receipt changes during the remote await also
+reject, avoiding a result for an operation that is no longer the same head.
+Readback has the existing cooperative five-second budget plus optional caller
+cancellation; outages, timeouts, storage/session failures and invalid clocks
+propagate explicitly. Overlapping calls on one assessment object are rejected.
+
+`session-resolved` only means the original process-local session reference
+currently resolves. It does **not** reverify JWT membership, assignment or lease,
+and must never be interpreted as permission to dispatch. `trusted-cleanup`
+identifies drain/revoke's separate policy path, not an approval for the viewer
+to run cleanup. Deadline status is sampled after readback. Any observation may
+become stale immediately afterward.
+
+The operation does not accept commands, import receipts, append audit context,
+advance revisions, skip heads, cancel effects or rebind ownership. A caller may
+separately audit access before exposing these diagnostics. Missing worker history
+is not proof that a command was never accepted, and no result authorises automatic
+abandonment or replay.
+
+Tests compare backend/worker database bytes before and after assessment, cover
+missing/accepted/ahead/delayed/failed history, expiry, invalidated ownership,
+foreign/divergent reports, stale-head races, cancellation and timeout recovery.
+The real-session regression distinguishes a live manager from a fresh manager;
+the mTLS regression checks historical verified readback without a POST or local
+receipt import. This remains an opt-in backend diagnostic, not an operator UI,
+recovery endpoint or worker cancellation/fence protocol.
+
 #### Session-authorised provisioning producer (backend only)
 
 `createSessionProvisioningProducer({ store, sessions, verify, agents, leases })`
