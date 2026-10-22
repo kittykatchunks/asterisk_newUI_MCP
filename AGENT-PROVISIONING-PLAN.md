@@ -281,6 +281,16 @@ without claiming a working phone or expanding PBX privileges.
 stage A: explicit customer/epoch enrolment, ordered immutable command intents
 with atomic audit context, a pending outbox view and append-only receipt stages.
 It is not wired into session/lease APIs or the launcher. No dispatcher, worker
-journal/server, authenticated receipt ingestion or PBX adapter is implemented.
+server, authenticated receipt ingestion or PBX adapter is implemented.
 The [README contract](./README.md#durable-provisioning-intent-store-backend-only)
 records exact behaviour and remaining gates. Stage A is not complete.
+
+The same persistence engine now supports a separate customer/epoch-pinned local
+worker journal. Binding is durable; remote command data cannot change it, and
+backend and bound-journal files cannot be interchanged through the public APIs.
+Ordered-head checks and receipt appends share a transaction. Restarted applying
+work requires reconciliation, expired work cannot start, and failed work blocks
+later revisions. Exact historical retries remain reconcilable. This establishes
+a local journal contract only, not worker authentication, exactly-once execution,
+exclusive executor ownership, PBX verification or automatic deadline enforcement.
+See the [worker-journal contract](./README.md#customer-pinned-worker-journal-no-execution).

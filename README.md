@@ -1750,6 +1750,52 @@ input, corrupt data and four competing processes producing one revision winner.
 Stage A still needs application integration, authenticated worker journal/receipt
 contracts and recovery/fencing acceptance before any PBX dispatch.
 
+#### Customer-pinned worker journal (no execution)
+
+`openAgentProvisioningJournal` reuses the validated intent/receipt engine in
+`src/agent-provisioning-store.ts` but opens a **different database** from the backend
+outbox. Its initial customer/epoch binding is committed locally and cannot be
+changed by commands or subsequent opens. It rejects an already-enrolled backend
+database, and a bound journal cannot be reopened through the backend store API.
+It exposes no authority-enrolment or arbitrary-customer lookup method. Binding
+is operator configuration, not remote authentication; protect local database access.
+
+- `accept(command, context)` requires the pinned customer/epoch and the same
+  strict envelope, hash, revision and exact-retry rules as the backend. It stores
+  acceptance only. The receiving caller must authenticate the controller first;
+  actor/context values are still trusted assertions.
+- `operation(operationId)` retrieves the pinned customer's exact intent/history.
+  Retry reconciliation does not create a new generation or extend authorisation.
+- `next()` examines revisions in order. Verified commands may be passed over;
+  the first unverified command is returned as `ready` (unstarted and unexpired),
+  `expired`, `reconcile` (applying/uncertain) or `blocked` (failed). With all
+  revisions verified it returns `idle`. Gaps, invalid authority, corrupt rows and
+  invalid clocks throw. Interrupted applying work is never automatically “ready.”
+- `record(operationId, receipt)` atomically checks the ordered head and appends a
+  valid transition. Later revisions cannot start until preceding ones are
+  verified. Entering/re-entering applying at or after `notAfter` is rejected.
+  Exact historical receipt retries remain harmless, including after a later
+  revision becomes the head. Uncertain/failed/verified observations can still
+  be recorded after expiry to reconcile an earlier effect; they do not authorise
+  endpoint activation. Failed heads require a future explicit recovery policy:
+  there is no silent skip, reset or epoch rotation.
+
+Reopen preserves the binding, command order, interrupted stage and receipts.
+Four competing worker processes with different applying receipts produce exactly
+one accepted start record. This is **not** an exactly-once execution claim:
+recording a receipt has no PBX side effect, identical delivery may be retried,
+and crashes still require runtime reconciliation. There is no exclusive runtime
+executor lock, worker listener, certificate validation, dispatcher, local expiry
+enforcement, credential storage or PBX adapter yet. A journal deadline check at
+start cannot cancel an external side effect occurring later.
+
+`node --test .\tests\agent-provisioning-journal.test.ts .\tests\agent-provisioning-store.test.ts`
+covers durable scope/authority pinning, backend-file misuse, ordered stages,
+restart reconciliation, exact retries, failed-head blocking, exact expiry,
+clock/lock/receipt failures, revision gaps and cross-process contention.
+Stage A remains incomplete until authenticated transport/receipt integration,
+application ownership validation and recovery acceptance are implemented.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

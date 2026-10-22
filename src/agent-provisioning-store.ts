@@ -48,6 +48,23 @@ export interface AgentProvisioningStore {
 
 export class AgentProvisioningConflict extends Error {}
 
+export interface AgentProvisioningJournal {
+  accept(command: AgentProvisioningCommand, context: ProvisioningContext): ProvisioningIntent;
+  operation(operationId: string): ReturnType<AgentProvisioningStore["operation"]>;
+  next(): { state: "idle" } | {
+    state: "ready" | "expired" | "reconcile" | "blocked";
+    intent: ProvisioningIntent;
+    receipts: ProvisioningReceipt[];
+  };
+  record(operationId: string, receipt: ProvisioningReceipt): void;
+  close(): void;
+}
+
+export interface ProvisioningJournalBinding {
+  customer: string;
+  epoch: string;
+}
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -110,6 +127,18 @@ function canonicalReceipt(input: ProvisioningReceipt): ProvisioningReceipt {
 
 // Trusted backend persistence only: callers must authenticate and verify ownership before enqueue.
 export function openAgentProvisioningStore(path: string, options: { now?: () => number } = {}): AgentProvisioningStore {
+  return openProvisioningStorage(path, options).store;
+}
+
+export function openAgentProvisioningJournal(path: string, binding: ProvisioningJournalBinding,
+  options: { now?: () => number } = {}): AgentProvisioningJournal {
+  exact(binding, ["customer", "epoch"]);
+  assertCustomer(binding.customer); assertUuid(binding.epoch);
+  return openProvisioningStorage(path, options, { ...binding }).journal;
+}
+
+function openProvisioningStorage(path: string, options: { now?: () => number },
+  binding?: ProvisioningJournalBinding) {
   if (!isAbsolute(path)) throw new Error("Provisioning database requires an absolute local path");
   const clock = options.now ?? Date.now;
   function now() {
@@ -146,6 +175,32 @@ export function openAgentProvisioningStore(path: string, options: { now?: () => 
     db.prepare("SELECT customer, epoch, revision FROM provisioning_authorities LIMIT 0");
     db.prepare("SELECT operation_id, customer, epoch, revision, command, sha256, accepted_at, context FROM provisioning_intents LIMIT 0");
     db.prepare("SELECT receipt_id, operation_id, sequence, receipt FROM provisioning_receipts LIMIT 0");
+    const hasBinding = !!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provisioning_worker_binding'").get();
+    if (!binding && hasBinding) throw new Error("Worker journal cannot be opened as a backend provisioning store");
+    if (binding) {
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        // Recheck under the writer lock so competing first opens cannot choose different bindings.
+        const exists = !!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provisioning_worker_binding'").get();
+        if (!exists) {
+          if (db.prepare("SELECT 1 FROM provisioning_authorities LIMIT 1").get() ||
+              db.prepare("SELECT 1 FROM provisioning_intents LIMIT 1").get() ||
+              db.prepare("SELECT 1 FROM provisioning_receipts LIMIT 1").get()) {
+            throw new Error("Refusing to repurpose a backend provisioning database as a worker journal");
+          }
+          db.exec("CREATE TABLE provisioning_worker_binding (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, epoch TEXT NOT NULL) STRICT");
+          db.prepare("INSERT INTO provisioning_worker_binding VALUES (1, ?, ?)").run(binding.customer, binding.epoch);
+          db.prepare("INSERT INTO provisioning_authorities VALUES (?, ?, 0)").run(binding.customer, binding.epoch);
+        }
+        const rows = db.prepare("SELECT id, customer, epoch FROM provisioning_worker_binding").all();
+        const authorities = db.prepare("SELECT customer, epoch FROM provisioning_authorities").all();
+        if (rows.length !== 1 || rows[0].id !== 1 || rows[0].customer !== binding.customer || rows[0].epoch !== binding.epoch ||
+            authorities.length !== 1 || authorities[0].customer !== binding.customer || authorities[0].epoch !== binding.epoch) {
+          throw new AgentProvisioningConflict("Worker journal customer or authority binding mismatch");
+        }
+        db.exec("COMMIT");
+      } catch (error) { db.exec("ROLLBACK"); throw error; }
+    }
   } catch (error) { db.close(); throw error; }
   function transaction<T>(action: () => T): T {
     db.exec("BEGIN IMMEDIATE");
@@ -188,7 +243,33 @@ export function openAgentProvisioningStore(path: string, options: { now?: () => 
       throw new AgentProvisioningConflict("Invalid provisioning receipt transition");
     }
   }
-  return {
+  function persistReceipt(customer: string, id: string, receipt: ProvisioningReceipt) {
+    if (!read(customer, id)) throw new AgentProvisioningConflict("Provisioning operation not found");
+    const json = JSON.stringify(receipt);
+    const history = receipts(id);
+    const existing = history.find((entry) => entry.receiptId === receipt.receiptId);
+    if (existing) {
+      if (JSON.stringify(existing) !== json) throw new AgentProvisioningConflict("Provisioning receipt conflict");
+      return;
+    }
+    transition(history.at(-1), receipt);
+    db.prepare("INSERT INTO provisioning_receipts VALUES (?, ?, ?, ?)").run(receipt.receiptId, id, receipt.sequence, json);
+  }
+  function head(customer: string) {
+    let expectedRevision = 1;
+    for (const row of db.prepare("SELECT operation_id FROM provisioning_intents WHERE customer = ? ORDER BY revision").iterate(customer)) {
+      if (typeof row.operation_id !== "string") throw new Error("Invalid stored provisioning operation ID");
+      const intent = read(customer, row.operation_id);
+      if (!intent || intent.command.revision !== expectedRevision++ ||
+          (binding && intent.command.epoch !== binding.epoch)) throw new Error("Worker journal revision or authority mismatch");
+      const history = receipts(row.operation_id);
+      if (history.at(-1)?.stage !== "verified") return { intent, receipts: history };
+    }
+    const authority = db.prepare("SELECT revision FROM provisioning_authorities WHERE customer = ?").get(customer);
+    if (!authority || authority.revision !== expectedRevision - 1) throw new Error("Worker journal revision gap");
+    return undefined;
+  }
+  const store: AgentProvisioningStore = {
     enrol(customer, epoch) {
       assertCustomer(customer); assertUuid(epoch);
       transaction(() => {
@@ -247,19 +328,53 @@ export function openAgentProvisioningStore(path: string, options: { now?: () => 
     record(customer, id, input) {
       assertCustomer(customer); assertUuid(id);
       const receipt = canonicalReceipt(input);
-      const json = JSON.stringify(receipt);
-      transaction(() => {
-        if (!read(customer, id)) throw new AgentProvisioningConflict("Provisioning operation not found");
-        const history = receipts(id);
-        const existing = history.find((entry) => entry.receiptId === receipt.receiptId);
-        if (existing) {
-          if (JSON.stringify(existing) !== json) throw new AgentProvisioningConflict("Provisioning receipt conflict");
-          return;
-        }
-        transition(history.at(-1), receipt);
-        db.prepare("INSERT INTO provisioning_receipts VALUES (?, ?, ?, ?)").run(receipt.receiptId, id, receipt.sequence, json);
-      });
+      transaction(() => persistReceipt(customer, id, receipt));
     },
     close() { db.close(); },
   };
+  const journal: AgentProvisioningJournal = {
+    accept(command, auditContext) {
+      if (!binding) throw new Error("Worker journal binding required");
+      if (command.customer !== binding.customer || command.epoch !== binding.epoch) {
+        throw new AgentProvisioningConflict("Worker command customer or authority mismatch");
+      }
+      return store.enqueue(command, auditContext);
+    },
+    operation(id) {
+      if (!binding) throw new Error("Worker journal binding required");
+      return store.operation(binding.customer, id);
+    },
+    next() {
+      if (!binding) throw new Error("Worker journal binding required");
+      return transaction(() => {
+        const time = now();
+        const first = head(binding.customer);
+        if (!first) return { state: "idle" };
+        const stage = first.receipts.at(-1)?.stage;
+        const state = stage === "failed" ? "blocked" : stage ? "reconcile" :
+          first.intent.command.notAfter <= time ? "expired" : "ready";
+        return { state, ...first };
+      });
+    },
+    record(id, input) {
+      if (!binding) throw new Error("Worker journal binding required");
+      assertUuid(id);
+      const receipt = canonicalReceipt(input);
+      transaction(() => {
+        const history = receipts(id);
+        if (history.some((entry) => entry.receiptId === receipt.receiptId)) {
+          persistReceipt(binding.customer, id, receipt);
+          return;
+        }
+        const first = head(binding.customer);
+        if (!first || first.intent.command.operationId !== id) throw new AgentProvisioningConflict("Worker operation is not the ordered head");
+        if (receipt.stage === "applying" && first.intent.command.notAfter <= now()) {
+          throw new AgentProvisioningConflict("Worker operation authorisation expired");
+        }
+        persistReceipt(binding.customer, id, receipt);
+      });
+    },
+    close() { store.close(); },
+  };
+  return { store, journal };
 }
