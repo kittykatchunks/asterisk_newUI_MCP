@@ -15,6 +15,12 @@ interface Registration {
   port: number;
 }
 
+interface RegistrationResponse {
+  code: number;
+  challenge?: string;
+  contactExpiry?: number;
+}
+
 const accounts: Registration[] = JSON.parse(await readFile(
   join(localEngineeringRoot, ".local-proof", "pbx-status", "registrations.json"), "utf8"));
 assert.equal(accounts.length, 2);
@@ -23,6 +29,8 @@ assert.ok(source);
 const md5 = (value: string) => createHash("md5").update(value).digest("hex");
 
 for (const account of accounts) {
+  const foreign = accounts.find((item) => item.customer !== account.customer);
+  assert.ok(foreign);
   const socket = createSocket("udp4");
   socket.bind(0, "127.0.0.1");
   await once(socket, "listening");
@@ -32,7 +40,7 @@ for (const account of accounts) {
   const uri = "sip:127.0.0.1";
   let sequence = 0;
   let registered = false;
-  const exchange = (expires: number, authorization?: string): Promise<{ code: number; challenge?: string }> => {
+  const exchange = (expires: number, authorization?: string): Promise<RegistrationResponse> => {
     sequence++;
     const packet = Buffer.from([
       `REGISTER ${uri} SIP/2.0`,
@@ -44,7 +52,7 @@ for (const account of accounts) {
       "Content-Length: 0", "", "",
     ].join("\r\n"));
     return new Promise((resolve, reject) => {
-      const finish = (error?: Error, result?: { code: number; challenge?: string }) => {
+      const finish = (error?: Error, result?: RegistrationResponse) => {
         clearTimeout(timeout); clearInterval(retry);
         socket.off("message", receive); socket.off("error", fail);
         if (error) reject(error);
@@ -57,7 +65,12 @@ for (const account of accounts) {
         const code = Number(/^SIP\/2\.0 (\d{3})/.exec(text)?.[1]);
         if (code < 200) return;
         if (!Number.isInteger(code)) { finish(new Error("Invalid synthetic REGISTER response")); return; }
-        finish(undefined, { code, challenge: /^WWW-Authenticate:\s*(.+)\r?$/mi.exec(text)?.[1].trim() });
+        const contact = /^Contact:\s*(.+)\r?$/mi.exec(text)?.[1];
+        const expiry = contact && /;\s*expires=(\d+)(?:[;\s,]|$)/i.exec(contact)?.[1];
+        finish(undefined, {
+          code, challenge: /^WWW-Authenticate:\s*(.+)\r?$/mi.exec(text)?.[1].trim(),
+          contactExpiry: expiry ? Number(expiry) : undefined,
+        });
       };
       const send = () => socket.send(packet, account.port, "127.0.0.1", (error) => { if (error) finish(error); });
       const timeout = setTimeout(() => finish(new Error("Synthetic REGISTER timed out")), 5000);
@@ -88,33 +101,53 @@ for (const account of accounts) {
       ...(fields.opaque ? [`opaque="${fields.opaque}"`] : []),
     ].join(", "));
   };
-  const expectContact = async (present: boolean) => {
-    for (let attempt = 0; attempt < 20; attempt++) {
+  const expectContact = async (present: boolean, timeoutMs = 2500, earliestAbsenceAt?: number) => {
+    const deadline = performance.now() + timeoutMs;
+    do {
       const snapshot: PbxEndpointSnapshot = await source.endpoints(account.customer);
+      const observedAt = performance.now();
       const endpoint = snapshot.endpoints.find((item) => item.id === account.username);
       assert.ok(endpoint, "The configured endpoint must remain visible regardless of contact state");
       assert.equal(snapshot.endpoints.find((item) => item.id === `${account.customer}-static`)?.hasContacts, true);
-      if (endpoint.hasContacts === present) return;
-      await delay(100);
-    }
+      const other: PbxEndpointSnapshot = await source.endpoints(foreign.customer);
+      assert.equal(other.endpoints.find((item) => item.id === foreign.username)?.hasContacts, false);
+      assert.equal(other.endpoints.find((item) => item.id === `${foreign.customer}-static`)?.hasContacts, true);
+      assert.ok(!JSON.stringify(other).includes(account.username));
+      if (endpoint.hasContacts === present) {
+        if (!present && earliestAbsenceAt !== undefined) {
+          assert.ok(observedAt >= earliestAbsenceAt, "Contact disappeared before its accepted lifetime");
+        }
+        return;
+      }
+      await delay(250);
+    } while (performance.now() < deadline);
     assert.fail(`Expected synthetic contact presence ${present} for ${account.customer}`);
   };
   try {
     await expectContact(false);
-    const foreign = accounts.find((item) => item.customer !== account.customer);
-    assert.ok(foreign);
     assert.notEqual((await register(60, foreign.secret)).code, 200, "Foreign customer credentials must not register this phone");
     await expectContact(false);
     assert.equal((await register(60)).code, 200);
     registered = true;
     await expectContact(true);
-    const other = await source.endpoints(foreign.customer);
-    assert.equal(other.endpoints.find((item) => item.id === foreign.username)?.hasContacts, false);
-    assert.ok(!JSON.stringify(other).includes(account.username));
     assert.equal((await register(0)).code, 200);
     registered = false;
     await expectContact(false);
     console.log(`PASS ${account.customer}: challenged REGISTER, foreign secret denied, contact appears, authenticated unregister removes it; static contact unchanged`);
+
+    const expiring = await register(5);
+    const acceptedAt = performance.now();
+    assert.equal(expiring.code, 200);
+    registered = true;
+    assert.ok(expiring.contactExpiry !== undefined && expiring.contactExpiry >= 4 && expiring.contactExpiry <= 5,
+      "PBX must report four or five whole seconds remaining for the requested five-second lifetime");
+    await expectContact(true);
+    const expirySequence = sequence;
+    // Allow the registrar's periodic cleanup sweep, without refreshing or unregistering.
+    await expectContact(false, 40000, acceptedAt + (expiring.contactExpiry - 1) * 1000);
+    assert.equal(sequence, expirySequence, "No SIP transaction may cause the natural-expiry transition");
+    registered = false;
+    console.log(`PASS ${account.customer}: accepted five-second contact expires without refresh/unregister; static and foreign contacts unchanged`);
   } finally {
     try {
       if (registered) assert.equal((await register(0)).code, 200, "Synthetic contact cleanup must succeed");

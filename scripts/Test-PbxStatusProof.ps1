@@ -76,6 +76,9 @@ password = $sipSecret
 [$customer-offline]
 type = aor
 max_contacts = 1
+minimum_expiration = 5
+maximum_expiration = 60
+default_expiration = 60
 [$customer-static]
 type = endpoint
 context = default

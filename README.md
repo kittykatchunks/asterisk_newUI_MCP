@@ -1097,7 +1097,7 @@ which may be statically configured. It does not distinguish dynamic registration
 expired contacts or reachability. Reported device state is not a health verdict.
 This increment therefore provides endpoint/contact visibility, **not yet a
 verified registered/unregistered phone inventory**. Dynamic REGISTER/unregister
-transitions are now covered by the local proof below; natural expiry and
+and natural expiry transitions are now covered by the local proof below;
 qualification transitions still require subsequent acceptance proofs.
 
 **Separate credential authority:** Asterisk 22 classifies `PJSIPShowEndpoints`
@@ -1139,15 +1139,27 @@ or RTP—and verifies for each customer:
 - A valid authenticated REGISTER succeeds and the AMI snapshot gains a contact.
 - The other customer's dynamic endpoint remains without contacts.
 - Authenticated unregister (`Expires: 0`) removes the observed contact.
+- A second registration requests a five-second lifetime and disappears naturally,
+  with no refresh, unregister or other SIP transaction during observation.
 - The configured endpoint remains listed and its static-contact neighbour stays
   present throughout.
+
+Only this synthetic fixture lowers the AOR minimum lifetime to five seconds; its
+default and maximum are sixty seconds. The probe checks the successful response's
+Contact expiry (four or five remaining whole seconds), observes initial contact
+presence, rejects premature disappearance with a one-second rounding allowance,
+and allows up to forty seconds for natural removal including the registrar's
+periodic cleanup sweep. Every observation also checks the other customer's dynamic
+endpoint remains contact-free and both static neighbours remain present. AMI
+observation is bounded test polling, not a new application polling behaviour.
 
 Successful and cleanup unregister transactions are checked explicitly; the owned
 fixture is removed on failure. This proof exercises dynamic contact transitions
 through the real adapter, not browser registration controls. It does not add
 registration/mutation routes, save SIP credentials in the browser or make static
-contacts into proof of registration. Natural contact expiry, SIP qualification,
-WebRTC registration and audio-path acceptance are outside this increment.
+contacts into proof of registration. SIP qualification, WebRTC registration and
+audio-path acceptance are outside this increment. Tested expiry of a synthetic
+dynamic contact does not make every contact a current or reachable registration.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

@@ -308,8 +308,11 @@ The isolated fixture now proves real digest-auth REGISTER/unregister contact
 transitions for both customers using separate generated SIP secrets and loopback
 UDP ports. Foreign secrets are denied, own contacts appear/disappear, other-customer
 dynamic contacts stay absent and static contacts remain unchanged. No calls, RTP
-or application mutation endpoint are introduced. Natural expiry, qualification
-and a verified registration-state UI remain outstanding.
+or application mutation endpoint are introduced. A second five-second registration
+now proves natural contact expiry without refresh/unregister, with bounded
+observation, response lifetime checks and unchanged foreign/static contacts.
+The shortened lifetime is fixture-only. Qualification and a verified
+registration-state UI remain outstanding.
 
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
