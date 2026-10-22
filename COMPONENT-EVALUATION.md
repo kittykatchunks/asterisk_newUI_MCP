@@ -280,6 +280,15 @@ Command and Originate probes are denied. Unit/API/browser regressions cover
 protocol errors, limits, isolation, audit gating and safe rendering. Remote TLS,
 SIP/RTP health, trunk monitoring and production capacity are not claimed.
 
+The separate synthetic AMI TLS transport proof exercises normal certificate
+verification using fresh temporary identities and child-process-only extra trust.
+Trusted matching TLS supports core and endpoint reads. Untrusted, IP-SAN-mismatched
+and expired peers are rejected with the expected underlying TLS verification
+causes, no application bytes/credentials sent, sanitised adapter errors and
+released in-flight guards on repeat attempts. Test keys/trust files are deleted.
+This adds no production trust configuration or verification bypass and does not
+establish real Asterisk TLS listener, DNS/SNI or remote-network acceptance.
+
 Combined real-runtime/identity validation now exercises the complete browser
 session -> audited customer status API -> restricted AMI path for both customers,
 including the metadata-only user. It verifies durable request/subject/customer

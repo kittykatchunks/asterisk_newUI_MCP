@@ -271,6 +271,14 @@ isolation, audit gating and safe output. The local launcher supports optional
 ignored AMI configuration and interactive synthetic runtime demonstrations.
 Production AMI TLS certificates/networking and continuous monitoring remain open.
 
+A separate synthetic TLS transport proof now generates temporary trusted,
+IP-SAN-mismatched and expired identities. Both fixed AMI reads succeed against
+the trusted matching simulator; untrusted, wrong-identity and expired peers fail
+before any credentials/application bytes are sent, with exact TLS failure causes
+verified separately from sanitised adapter errors. Repeated rejection releases
+the per-customer busy guard. Generated credentials are cleaned afterward.
+Real Asterisk TLS listeners, remote networks and production PKI remain unproven.
+
 The combined `Test-PbxStatusProof.ps1 -WithIdentity` proof now joins real Keycloak
 browser sessions, the audited API and both real isolated AMI runtimes. Alice and
 read-only Bob receive own-customer snapshots; request references match persisted

@@ -1008,6 +1008,24 @@ not proven by the local fixture. AMI accounts should have `read = none` and
 `write = reporting`; Asterisk classifies the read-only `CoreStatus` request in
 the reporting action class. This is not unrestricted `write = all` access.
 
+Run the separate synthetic AMI TLS transport proof with:
+
+```powershell
+.\scripts\Test-AmiTlsProof.ps1
+```
+
+It generates fresh short-lived self-signed test identities under a unique ignored
+directory, installs their explicit trust only in its child Node process, and
+removes the generated keys/certificates afterward. A loopback TLS AMI simulator
+verifies both fixed actions succeed with trusted matching identity. Untrusted,
+trusted-but-mismatched IP SAN and expired certificates must fail with their
+specific TLS verification errors; the adapter returns only its sanitised
+connection error and sends no credentials or application bytes. Repeated rejected
+queries also verify the customer's in-flight guard is released. No verification
+bypass, production trust change or application dependency is added. This is an
+adapter transport proof, not a real Asterisk TLS listener, DNS/SNI, remote network
+or production PKI acceptance proof.
+
 Run the isolated real-runtime proof with:
 
 ```powershell
