@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test:webrtc": "node ./tests/webrtc/run.mjs",
-    "test:access": "node --test ./tests/access.test.ts"
+    "test:access": "node --test ./tests/access.test.ts",
+    "test:identity": "node ./tests/identity/keycloak-proof.ts"
   },
   "dependencies": {
     "jose": "6.2.13",

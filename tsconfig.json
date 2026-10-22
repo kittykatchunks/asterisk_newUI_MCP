@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["tests/webrtc/client.ts", "src/**/*.ts", "tests/access.test.ts"]
+  "include": ["tests/webrtc/client.ts", "src/**/*.ts", "tests/access.test.ts", "tests/identity/**/*.ts"]
 }

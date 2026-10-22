@@ -1,0 +1,24 @@
+name: asterisk-identity-proof
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_HOSTNAME: http://127.0.0.1:18080
+      KC_HTTP_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - ./.local-proof/identity/realm.json:/opt/keycloak/data/import/local-proof-realm.json:ro
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    cpus: 2.0
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

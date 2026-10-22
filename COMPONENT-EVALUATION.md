@@ -59,7 +59,12 @@ a narrow evidence path, not an interactive engineering application, encrypted SI
 capture, hard byte quotas, or general customer-data export. No HOMER runtime
 evaluation or AI analysis has been performed.
 
-No identity-provider, AI, or provider component has passed runtime testing.
+Keycloak 26.8.1 subsequently passed the narrow browser PKCE proof described in
+the README: two customer identities, API audience enforcement, state/nonce checks,
+cross-customer denial, consumed-code replay rejection, and disabled password grants.
+The digest is pinned in the identity-only Compose fixture. Development-mode
+loopback HTTP and ephemeral identity state do not validate production deployment,
+MFA, or federation. No AI or provider component has passed runtime testing.
 
 The application-side access boundary now has a JOSE/JWKS integration test using
 an ephemeral synthetic issuer. This tests token validation and provisioned

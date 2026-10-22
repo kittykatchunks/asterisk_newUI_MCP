@@ -28,6 +28,11 @@ grants, and an awaited audit sink. It intentionally exposes no incident files or
 capture operations. Keycloak login, durable grants/audit, and production sessions
 remain outstanding.
 
+A separate Keycloak 26.8.1 fixture now proves real browser authorization-code/PKCE
+login for both synthetic customers and API rejection across customer boundaries.
+Development-mode identity is removed after each run. Production identity storage,
+TLS, MFA/federation, application sessions, and durable permissions/audit remain open.
+
 Parent document: [Project plan](./PROJECT-PLAN.md).
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based

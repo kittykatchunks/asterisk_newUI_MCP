@@ -290,3 +290,50 @@ interactive OIDC login, MFA, SAML/Entra federation, session handling, or product
 authorisation. JWTs already verified with cached keys can remain usable until
 expiry; immediate account/grant revocation and signing-key rotation require
 additional lifecycle design and tests.
+
+## Real Keycloak browser-login proof
+
+With Docker, PowerShell 7, Node.js 24, npm dependencies, and Playwright Chromium
+installed as above:
+
+```powershell
+.\scripts\Test-IdentityProof.ps1
+```
+
+This uses Keycloak 26.8.1 pinned by image digest, in a separate Compose project.
+The runner generates two synthetic users with different customer memberships and
+random credentials under ignored `.local-proof\identity`. The imported realm,
+including plaintext test passwords, must stay private; it is not an export
+template for real users. Access/ID tokens and signing private keys are not exported.
+
+Keycloak binds only host loopback port 18080; an ephemeral API listener and callback
+on loopback 18765 exist only for the browser test. If ports are occupied, the proof
+must fail rather than repurpose another service. It does not require a bootstrap
+administrator account or expose a management console with default credentials.
+
+The public client permits authorization-code login with S256 PKCE and one exact
+callback URL. Password grants, service accounts, registration, and password reset
+are disabled in this synthetic fixture. The API audience mapper applies to access
+tokens, not ID tokens.
+
+Verified locally:
+
+- Missing PKCE and an unapproved redirect URI are rejected.
+- Both users sign in through the real Keycloak browser form.
+- Callback state is checked and a signed ID token's nonce/subject is verified.
+- Authorization code is exchanged with its verifier; consumed code replay fails.
+- Real access tokens allow the provisioned customer and deny the other customer.
+- ID tokens fail API audience validation.
+- Password-grant requests fail; all six API decisions are audited in memory.
+
+The runner closes browsers/HTTP listeners and removes the identity container and
+its project network even after failure. Its development database is ephemeral;
+the next run imports fresh users. Generated files remain ignored locally.
+No Asterisk services need to run for this proof.
+
+**Not production identity:** development mode, loopback HTTP, one test realm,
+memory-only audit, and configuration-backed membership are deliberate limitations.
+Deployment TLS, persistent database/backup, administrator recovery, secure
+application sessions, MFA, federation, logout/revocation, key rotation, customer
+onboarding, and grant administration remain outstanding. Passing this proof does
+not make the management application available or enable capture/evidence access.
