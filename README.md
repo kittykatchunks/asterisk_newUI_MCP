@@ -1634,11 +1634,16 @@ after provisioning. The accepted contact lifetime is four or five remaining whol
 seconds for the requested five seconds. AMI confirms the lease endpoint's contact
 and customer isolation while unrelated static contacts remain present.
 
-Two cycles exercise explicit lease release and simulated backend lease expiry.
-For expiry, the test advances an injected backend clock to the lease deadline and
-verifies renewal is rejected; this is **not** a wall-clock scheduler acceptance
-test. The fixture controller then removes the temporary endpoint/auth/AOR,
-reloads PJSIP and verifies the endpoint disappears from the real AMI listing.
+Two cycles exercise explicit lease release and real wall-clock backend lease
+expiry. The expiry cycle uses the default backend clock and waits for an actual
+60-second lease, with a monotonic elapsed-time assertion. A fixture-owner timer
+is armed after provisioning and rechecks the deadline before revoking. Meanwhile
+the client refreshes only its five-second SIP registration, never its backend
+lease, up to shortly before the deadline. The timer verifies backend renewal is
+rejected, removes the temporary endpoint/auth/AOR and reloads PJSIP, completing
+no earlier than expiry and within ten seconds afterward. The test checks no
+REGISTER/unregister is sent while waiting for the final timer completion.
+The endpoint must then disappear from the real AMI listing.
 Previously issued credentials must receive SIP authentication denial, rather than
 merely timing out. The CLI contact inventory must lose the retired contact within
 a further 40-second cleanup bound without a client unregister; a new lease uses
@@ -1648,10 +1653,14 @@ lease storage is removed and the owning runner tears down its PBX volumes.
 The existing registration/qualification proof shares the same bounded digest
 REGISTER client to avoid divergent test authentication logic.
 
-This proves an **explicit fixture-controller revocation sequence**, not automatic
-secret expiry at Asterisk. Removing a lease row alone does not revoke SIP access.
+This proves a **fixture-controller release and scheduled expiry revocation
+sequence**, not native secret expiry at Asterisk. Removing a lease row alone does
+not revoke SIP access. Pending timers are cancelled and settled before restoring
+the original configuration during cleanup, so they cannot overwrite restoration.
 There is no production credential issuer, reconciliation worker, protected secret
-delivery, atomic lease/PBX transaction, restart recovery or SIP call fencing.
+delivery, atomic lease/PBX transaction, timer restart recovery, renewal-aware
+reconciliation or SIP call fencing. The proof timer handles a single unrenewed
+lease; it is not an application worker or persistent queue.
 Contact expiry/endpoint disappearance does not prove active dialogs are drained
 or terminated. WSS/TLS browser delivery, extension-to-lease routing, shared-extension
 conflict safety and the agreed stop-new-offers/finish-current-call sign-out policy

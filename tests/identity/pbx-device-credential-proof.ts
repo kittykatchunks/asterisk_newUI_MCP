@@ -16,13 +16,14 @@ const execute = promisify(execFile);
 const compose = join(localEngineeringRoot, "compose.status-proof.yaml");
 const root = join(localEngineeringRoot, ".local-proof", "pbx-status");
 const directory = await mkdtemp(join(tmpdir(), "asterisk-sip-lease-"));
-let now = Date.now();
-const leases = openAgentDeviceLeaseStore(join(directory, "leases.sqlite"), { now: () => now });
+const leases = openAgentDeviceLeaseStore(join(directory, "leases.sqlite"));
 const source = await loadLocalPbxStatus(localEngineeringRoot, true);
 assert.ok(source);
 const customers = ["customer-a", "customer-b"] as const;
 const originals = new Map<string, string>();
 const sockets: ReturnType<typeof createSocket>[] = [];
+const expiryControllers: AbortController[] = [];
+const expiryTasks: Promise<{ completedAt: number } | { error: unknown }>[] = [];
 const cli = async (customer: string, command: string) =>
   (await execute("docker", ["compose", "-f", compose, "exec", "-T", customer, "asterisk", "-rx", command],
     { timeout: 10000, maxBuffer: 65536 })).stdout;
@@ -73,7 +74,7 @@ try {
   for (const [index, customer] of customers.entries()) {
     const foreign = customers[1 - index];
     const owner = { issuer: "https://lease-proof.example", subject: "synthetic-agent", customer,
-      sessionId: randomBytes(32).toString("base64url"), sessionExpiresAt: now + 900000, deviceId: randomUUID() };
+      sessionId: randomBytes(32).toString("base64url"), sessionExpiresAt: Date.now() + 900000, deviceId: randomUUID() };
     const socket = createSocket("udp4");
     socket.bind(0, "127.0.0.1");
     await once(socket, "listening");
@@ -82,6 +83,7 @@ try {
     const transport = (port: number) => () => ({ socket, localPort, destinationPort: port });
     let previous: { username: string; secret: string } | undefined;
     for (const termination of ["release", "expiry"] as const) {
+      const acquiredAt = performance.now();
       const lease = leases.acquire(owner);
       const credential = { username: `lease-${lease.id}`, secret: randomBytes(32).toString("hex") };
       if (previous) {
@@ -94,6 +96,21 @@ try {
       // Fixture-only privileged provisioning; application AMI accounts are unchanged.
       await writeFile(join(root, `${customer}-pjsip.conf`), originals.get(customer)! + render(credential.username, credential.secret));
       await reload(customer);
+      let expiryTask: (typeof expiryTasks)[number] | undefined;
+      if (termination === "expiry") {
+        const controller = new AbortController();
+        expiryControllers.push(controller);
+        expiryTask = (async () => {
+          while (Date.now() < lease.expiresAt) {
+            await delay(lease.expiresAt - Date.now(), undefined, { signal: controller.signal });
+          }
+          assert.throws(() => leases.renew(owner, lease.id), /device_lease_not_owned/);
+          await writeFile(join(root, `${customer}-pjsip.conf`), originals.get(customer)!);
+          await reload(customer);
+          return { completedAt: Date.now() };
+        })().catch((error: unknown) => ({ error }));
+        expiryTasks.push(expiryTask);
+      }
       const foreignClient = createSipRegistrationClient(credential, transport(15060 + (1 - index)));
       assert.ok([401, 403].includes((await foreignClient.register(5)).code), "Lease credential must fail authentication on the foreign PBX");
       assert.ok([401, 403].includes((await client.register(5, previous?.secret ?? randomBytes(32).toString("hex"))).code));
@@ -106,13 +123,28 @@ try {
       assert.ok(accepted.contactExpiry !== undefined && accepted.contactExpiry >= 4 && accepted.contactExpiry <= 5);
       await observe(customer, credential.username, true);
       assert.ok(!(await source.endpoints(foreign)).endpoints.some((entry) => entry.id === credential.username));
-      if (termination === "release") leases.release(owner, lease.id);
-      else {
-        now = lease.expiresAt;
-        assert.throws(() => leases.renew(owner, lease.id), /device_lease_not_owned/);
+      if (termination === "release") {
+        leases.release(owner, lease.id);
+        await writeFile(join(root, `${customer}-pjsip.conf`), originals.get(customer)!);
+        await reload(customer);
+      } else {
+        // Refresh only SIP, never the backend lease, so contact presence cannot stand in for ownership.
+        while (Date.now() < lease.expiresAt - 3000) {
+          assert.equal((await client.register(5)).code, 200);
+          await delay(Math.min(2000, Math.max(0, lease.expiresAt - 3000 - Date.now())));
+        }
+        assert.ok(Date.now() < lease.expiresAt, "Pre-expiry registration must finish before the lease deadline");
+        assert.equal((await client.register(5)).code, 200);
+        await observe(customer, credential.username, true);
+        assert.ok(expiryTask);
+        const lastSequence = client.sequence;
+        const outcome = await expiryTask;
+        if ("error" in outcome) throw outcome.error;
+        assert.equal(client.sequence, lastSequence, "No client unregister or refresh may trigger expiry revocation");
+        assert.ok(performance.now() - acquiredAt >= 59000, "Expiry proof must wait for a real sixty-second lease, not advance a fake clock");
+        assert.ok(outcome.completedAt >= lease.expiresAt, "Expiry controller must not revoke early");
+        assert.ok(outcome.completedAt <= lease.expiresAt + 10000, "Expiry revocation must complete within ten seconds of the real deadline");
       }
-      await writeFile(join(root, `${customer}-pjsip.conf`), originals.get(customer)!);
-      await reload(customer);
       await observe(customer, credential.username, false);
       assert.ok([401, 403].includes((await client.register(5)).code), "Removed per-lease credentials must receive an authentication denial");
       const cleanupDeadline = performance.now() + 40000;
@@ -124,11 +156,13 @@ try {
       assert.ok(!contacts.includes(credential.username), "Retired contact must disappear within the five-second lifetime plus cleanup bound");
       assert.ok(contacts.includes(`${customer}-static`), "Revocation must preserve the unrelated static contact");
       previous = credential;
-      console.log(`PASS ${customer}: per-lease SIP identity, foreign/wrong-secret denial, ${termination}-driven fixture revocation, retired REGISTER denied and bounded contact cleanup`);
+      console.log(`PASS ${customer}: per-lease SIP identity, foreign/wrong-secret denial, ${termination === "expiry" ? "real wall-clock expiry" : "release"}-driven fixture revocation, retired REGISTER denied and bounded contact cleanup`);
     }
   }
 } finally {
   try {
+    for (const controller of expiryControllers) controller.abort();
+    await Promise.all(expiryTasks);
     for (const [customer, original] of originals) {
       await writeFile(join(root, `${customer}-pjsip.conf`), original);
       await reload(customer);

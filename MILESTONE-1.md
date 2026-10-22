@@ -469,10 +469,13 @@ a real backend lease supplies the username suffix, each issuance gets a fresh
 secret, and only the fixture owner installs/removes PJSIP endpoint/auth/AOR
 configuration. Challenged REGISTER verifies pre-provision, wrong-secret,
 foreign-PBX and retired-credential denial, plus valid contact appearance.
-Explicit release and injected-clock expiry trigger test-controller removal/reload;
+Explicit release and real 60-second lease expiry trigger fixture-controller
+removal/reload; a scheduled expiry task runs without client unregister, rechecks
+the deadline and completes within ten seconds of expiry. Only SIP registration,
+not the backend lease, is refreshed while waiting.
 AMI endpoint disappearance and bounded contact cleanup are checked without client
 unregister. Reissued credentials differ and cannot revive the previous identity.
-This is not an autonomous revocation worker, wall-clock expiry proof, active-call
+This is not a production revocation worker, renewal-aware reconciliation, active-call
 draining or production provisioning interface. Browser activation remains disabled.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based

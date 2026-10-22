@@ -488,13 +488,18 @@ Per-lease credential feasibility is now exercised against both isolated Asterisk
 instances. A real SQLite device lease names a unique temporary SIP endpoint; a
 fresh random secret is installed only through the owned fixture controller.
 Real digest REGISTER checks pre-provision/wrong-secret/foreign denial and valid
-registration. Explicit release and simulated backend expiry are followed by
-configuration removal/reload, AMI endpoint disappearance, retired authentication
+registration. Explicit release and real wall-clock 60-second backend expiry are
+followed by configuration removal/reload, AMI endpoint disappearance, retired authentication
 denial and contact cleanup within 40 seconds. Replacement identities/secrets are
 distinct and old credentials stay denied. The shared REGISTER helper preserves
 existing unregister/expiry/qualification acceptance. No application provisioning
-privilege, browser credentials, autonomous expiry scheduler, durable reconciliation
-or active-call fencing is established by this fixture-only sequence.
+privilege, browser credentials, production expiry scheduler, durable reconciliation
+or active-call fencing is established by this fixture-only sequence. The fixture
+timer waits for the real deadline, rejects backend renewal at expiry and completes
+revocation within ten seconds without a client unregister. SIP-only refreshes
+during the wait do not extend backend ownership. Timers are cancelled/settled
+before configuration restoration; restart recovery and renewed leases remain
+outside this bounded single-lease scheduler proof.
 
 ## 2. Asterisk container
 
