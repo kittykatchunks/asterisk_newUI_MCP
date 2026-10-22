@@ -70,12 +70,14 @@ Docker socket, recording storage and diagnostic captures are not mounted. Run as
 a dedicated non-root identity with bounded CPU/memory, no extra capabilities and
 bounded request/log storage.
 
-Candidate first adapter: generated PJSIP include files plus a fixed reload
-operation through customer-local Asterisk control access. The controller must
+Selected next design boundary: generated PJSIP include files plus a fixed reload
+operation through a separate customer-local fixed-operation broker. This is
+design approval, not approval to implement or deploy privileged services. The controller must
 generate a complete allowlisted model, never interpolate caller-provided config.
-A sidecar's access to Asterisk's control socket is powerful even if its remote
-API is narrow; compromise of that worker is a compromise of its customer PBX.
-Prove socket permissions and reload behaviour in a separate fixture before
+A broker's access to Asterisk's control socket is powerful even if its local
+API is narrow; compromise of that broker can compromise its customer PBX.
+The network-facing journal worker must not mount that socket or write PBX files.
+Prove broker socket permissions and reload behaviour in a separate fixture before
 adopting this adapter. Do not expand the existing read-only/reporting AMI accounts.
 Realtime PJSIP remains an alternative if file/reload consistency cannot meet gates.
 
@@ -84,6 +86,11 @@ reload. Fence duplicate worker processes; an expired generation's cleanup must
 never overwrite a replacement generation's include. Atomic rename requires a
 directory mount, not the current fixture's individual bind-mounted config file.
 Neither a reload timeout nor the appearance of a new file proves runtime apply.
+With the selected broker split, the journal lock remains worker-local; broker
+requests must be serialised under a separate broker-owned apply lock and durable
+operation ledger. These are not a distributed transaction. The ownership and
+crash-cut acceptance gates in section 9 must pass before either is used for PBX
+effects.
 
 ## 3. Authentication and command envelope
 
@@ -579,3 +586,136 @@ resolution, expiry/logout status, divergent/missing/delayed evidence, stale
 heads and cooperative timeout. This adds no operator route/UI or automatic
 recovery. See the
 [assessment contract](./README.md#read-only-provisioning-recovery-assessment).
+
+## 9. Selected Asterisk adapter design: fixed-operation broker
+
+Decision recorded 23 October 2026: keep provisioning recovery read-only for now,
+and develop a customer-local fixed-operation broker rather than giving the
+network-facing journal worker direct PBX control-socket access. This section is
+a design/acceptance contract only. No broker, privileged adapter, deployment
+mount or browser phone is implemented or authorised by this decision.
+
+### 9.1 Trust and resource ownership
+
+```text
+Application -- private pinned mTLS --> customer journal worker
+                                          |
+                              authenticated local fixed protocol
+                                          v
+                               customer apply broker
+                                 |              |
+                         managed include    PBX control socket
+                                 |              |
+                                 +-- customer Asterisk
+```
+
+- The journal worker retains command validation, ordered receipts, expiry
+  coordination and health. It has no Docker socket, shell-execution API, PBX
+  control socket or writable PBX configuration mount.
+- The broker has its own non-root identity and is pinned at deployment to one
+  customer/authority and one managed namespace. It owns its durable ledger,
+  managed include directory and only the required customer PBX control access.
+  It has no other-customer mounts, recording/capture storage or application
+  session/token access.
+- Use a private local Unix-domain protocol as the initial Linux fixture
+  candidate. Prove actual peer identity and filesystem/socket permissions under
+  the chosen container layout; a socket pathname or body customer field is not
+  authentication. No TCP listener or host publication is assumed. Namespace
+  UID/GID mappings and reconnect identity need explicit tests.
+- Local authentication is not a defence against a compromised authorised worker
+  sending its permitted operations. Bound the allowed model and damage scope.
+  The broker is a powerful customer-local trust boundary, not an Asterisk
+  sandbox; the control socket itself may permit much more than this API exposes.
+
+### 9.2 Fixed protocol, not CLI forwarding
+
+The protocol should mirror only the existing command/observation responsibilities:
+apply a fixed prepare/activate/extend/drain/revoke operation, observe an exact
+operation, and enumerate/observe expiry state for the pinned namespace. It must
+also support idempotent new-call fencing and zero-dialog removal for the expiry
+adapter. The wire schema, version and action mapping still need implementation
+review; do not assume every worker command maps to an arbitrary broker method.
+
+Every mutating request needs immutable operation identity, canonical intent
+digest and exact generation/deadline binding. Expiry effects need stable
+broker-ledger identity too, not a new random operation on every sweep. A retry
+with the same identity but different data is a conflict. Readback must not start
+an apply or repair. Bound message size, inventory, response size, execution time
+and concurrent connections; timeout/disconnect remains uncertain.
+
+Never accept paths, include filenames, templates, CLI arguments, dialplan text,
+module names, shell strings, environment overrides or credentials from a remote
+command. The broker selects its own fixed reload/readback operations and renders
+validated identifiers through a closed template. Desired endpoint/auth/AOR names
+derive from a protected namespace and generation mapping, not a caller-chosen
+base-object name. Existing shared transports/base dialplan remain operator-owned.
+
+### 9.3 Files, secrets and broker durability
+
+- Mount a managed directory into Asterisk read-only, with its parent/include
+  relationship established by an operator-owned base configuration. The broker
+  gets write access only to that managed directory; it must not rewrite the base
+  config. Do not repurpose the existing per-file bind-mount fixture as proof of
+  atomic replacement.
+- Confine generated filenames to the namespace; reject symlinks, path traversal,
+  foreign files, changed ownership and unsupported directory state. Temporary
+  files must have restricted permissions from creation. Prove atomic replacement,
+  file/directory durability and crash outcomes on the deployment filesystem;
+  Windows host bind mounts are not automatically evidence for Linux permissions
+  or crash durability.
+- The broker, not the journal worker, should own recoverable per-generation
+  credential material. Apply/observe replies expose no password, key or rendered
+  config. This does not select a sealing implementation/key lifecycle: section 5
+  remains an approval gate before credential-bearing prepare is implemented.
+- Persist immutable intent and applying evidence before touching files or runtime.
+  Record file-model digest and verified runtime evidence without recording
+  secrets in receipts/logs. Exact retries recover the same generation; missing
+  secrets/key material never cause silent replacement issuance.
+- Hold the broker's exclusive apply lock until the actual PBX operation settles,
+  including after client cancellation. A disconnected worker must not allow
+  a second request to overlap an uncooperative first operation. Worker and broker
+  locks/ledgers are separate; process crashes release OS locks, not uncertainty.
+
+### 9.4 Runtime truth, expiry and recovery constraints
+
+Successful reload output is not verified apply. Observation must compare the
+expected generation/model against runtime endpoint/auth/AOR and relevant routing
+state. Absent, partial, stale or contradictory evidence is unknown/failed as
+appropriate, not success. A prepared identity must not receive new-call access;
+activation remains gated until the separate routing/dialog proof passes.
+
+After an interrupted apply, the worker's observation-only executor must reach a
+broker observation that does not replay the effect. If a published file has not
+been loaded, readback must report that discrepancy; any later repair operation
+needs a separately reviewed authorisation/reconciliation rule. Retrying reload
+automatically from an observe endpoint is forbidden.
+
+The broker must enforce stored generation deadlines at mutating entry and
+before enabling any new access. Deadline checks alone do not revoke access
+afterward. Worker expiry currently provides periodic protection only while its
+lifetime runs; neither its in-process health nor a broker makes failed-worker
+expiry safe by itself. Independent expiry enforcement/failure response remains
+an unresolved deployment gate. Do not claim disconnected-expiry safety from the
+broker split alone.
+
+Keep the selected drain-until-finished policy: stop new calls/offers, preserve
+active dialogs, block replacement while state is unknown or dialogs remain,
+and verify fence plus zero dialogs before removal. Permanent cancellation
+tombstones, skipped revisions, authority replacement and lost-owner recovery
+mutations remain deferred. No broker API may create these policies implicitly.
+
+### 9.5 Bounded acceptance sequence before real effects
+
+| Step | Required evidence | Still forbidden |
+| --- | --- | --- |
+| Unprivileged protocol fixture | Exact/bounded schema, local peer rejection, customer binding, malformed/foreign requests, detached readback, explicit errors. | PBX socket, reload, secrets or browser delivery. |
+| Owned control-access probe | Actual Linux non-root socket permissions; only fixed broker-selected observation; worker denied direct file/socket access; unrelated customer unchanged. | Arbitrary CLI/shell route or expansion of reporting AMI permissions. |
+| Non-secret managed-include probe | Closed rendering, namespace collision rejection, symlink confinement, restricted temporary files, atomic publish and readback, duplicate broker exclusion. | Credential issuance or activation. |
+| Crash/uncertainty probe | Process exits before/after ledger commit, file publish, reload and runtime observation; response loss; same-identity retry; observation never applies; original uncertainty preserved. | Success-shaped fallback or blind repair/replay. |
+| Credential-bearing prepare | Separately approved secret/key lifecycle; exact generation recovered; unrelated/base objects unchanged; prepared new-call access denied. | Browser disclosure and usable active phone. |
+| Routing/dialog and expiry proof | Generation-aware call-path fence, active-call preservation, zero-dialog removal, replacement exclusion, independent failure/expiry policy and measured lag. | Production activation until all remaining stage C/D/E gates pass. |
+
+First proposed implementation is the unprivileged protocol fixture only. Further
+privilege probes require explicit scope/ownership confirmation and their own
+test fixture; existing Docker-driven SIP proofs are historical evidence, not
+authorisation to modify a live PBX.

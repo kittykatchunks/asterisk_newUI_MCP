@@ -2403,6 +2403,23 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Planned Asterisk adapter privilege boundary
+
+Recovery remains read-only by user choice. The next adapter design uses a
+separate customer-local **fixed-operation broker**: the network-facing journal
+worker gets no PBX control socket or writable PBX configuration mount. The
+broker would own the managed include directory, its durable operation ledger
+and that customer's local PBX control access. It must accept only fixed,
+validated operations, not CLI strings, file paths, templates or shell commands.
+
+This is design selection only; no broker/service, new mount, PBX effect or
+calling was enabled. The plan defines local peer authentication, filesystem
+confinement, separate worker/broker lock ownership, observation-only crash
+recovery and a staged acceptance sequence beginning with an unprivileged
+protocol fixture. Secret sealing, runtime routing/dialog fences and independent
+expiry protection after worker failure remain approval gates. See
+[the selected broker design](./AGENT-PROVISIONING-PLAN.md#9-selected-asterisk-adapter-design-fixed-operation-broker).
+
 #### Read-only provisioning recovery assessment
 
 `createAgentProvisioningAssessment(store, binding, transport, sessions, options)`
