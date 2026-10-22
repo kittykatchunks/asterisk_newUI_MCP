@@ -202,6 +202,12 @@ completion/failure restores controls and disposal clears busy state. Tests cover
 stalled-decision inputs, timeout recovery and expiry during busy initial loading,
 while session-header sign-out remains available.
 
+Review reasons now show associated live length feedback and reject over-limit
+input before confirmation. The exact encoded decision body is checked against
+the existing 8 KiB API cap as well as the 2,000-character reason limit, without
+truncation. Browser tests cover character boundaries, whitespace and oversized
+escaped JSON while server validation remains unchanged.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

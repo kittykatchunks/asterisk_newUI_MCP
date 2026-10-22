@@ -849,6 +849,16 @@ The separate session-header sign-out remains usable during workspace loading.
 Browser coverage checks the locked form during a stalled acknowledgement,
 recovery after timeout, and busy cleanup on session expiry during initial load.
 
+The review reason has associated live character-count feedback and a local
+2,000-character guard, using the same JavaScript string-length measurement as
+the server. Blank/whitespace-only reasons remain invalid. Before confirmation,
+the browser also checks the exact UTF-8 JSON decision body against the server's
+8,192-byte cap, since escaped control characters can exceed that cap within
+2,000 characters. It submits the checked body unchanged. Neither limit truncates
+the reason silently; oversized input shows an explicit error without a dialog
+or POST. Browser tests exercise 2,000/2,001 characters, blank reasons and JSON
+escaping beyond the byte cap. Server validation remains authoritative.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

@@ -344,14 +344,23 @@ export async function connectReviewWorkspace(connection) {
     const reasonLabel = element("label", "Review reason");
     const reason = document.createElement("textarea");
     reason.maxLength = 2000;
+    const reasonCount = element("p", "");
+    reasonCount.id = "review-reason-length";
+    reasonCount.setAttribute("role", "status");
+    reason.setAttribute("aria-describedby", reasonCount.id);
+    function updateReasonCount() {
+      reasonCount.textContent = `${reason.value.length} of 2000 characters used. A non-blank reason is required.`;
+      reason.setAttribute("aria-invalid", String(reason.value.length > reason.maxLength));
+    }
+    updateReasonCount();
     reasonLabel.append(reason);
     const checkedLabel = element("label", "I checked customer scope, redaction and disclosure suitability.");
     const checked = document.createElement("input");
     checked.type = "checkbox";
     checkedLabel.prepend(checked);
-    detail.append(reasonLabel, checkedLabel);
+    detail.append(reasonLabel, reasonCount, checkedLabel);
     hasDraft = () => reason.value.length > 0 || checked.checked;
-    reason.oninput = updateUnloadWarning;
+    reason.oninput = () => { updateReasonCount(); updateUnloadWarning(); };
     checked.onchange = updateUnloadWarning;
     const close = document.createElement("button");
     close.textContent = "Close review without deciding";
@@ -373,6 +382,12 @@ export async function connectReviewWorkspace(connection) {
       button.textContent = decision === "approve" ? "Approve report" : "Reject report";
       button.onclick = () => {
         if (busy || !selected) return;
+        if (reason.value.length > reason.maxLength) {
+          updateReasonCount();
+          error.textContent = "Review reason exceeds 2000 characters. Shorten it before continuing.";
+          error.focus();
+          return;
+        }
         if (!reason.value.trim() || !checked.checked) {
           error.textContent = "Enter a review reason and confirm the scope/redaction checks before continuing.";
           error.focus();
@@ -380,6 +395,12 @@ export async function connectReviewWorkspace(connection) {
         }
         const snapshot = selected;
         const reviewReason = reason.value;
+        const decisionBody = JSON.stringify({ decision, reason: reviewReason, sha256: snapshot.sha256 });
+        if (new TextEncoder().encode(decisionBody).length > 8192) {
+          error.textContent = "Encoded review exceeds the 8192-byte request limit. Shorten the reason or remove control characters before continuing.";
+          error.focus();
+          return;
+        }
         dialog.setAttribute("aria-label", "Confirm review decision");
         confirmation.textContent = `${decision === "approve" ? "Approve disclosure of" : "Reject"} "${snapshot.title}" for ${customer}, incident ${snapshot.incident}? Snapshot ${snapshot.sha256}. Reason: ${reviewReason}`;
         confirm.textContent = decision === "approve" ? "Confirm approval" : "Confirm rejection";
@@ -387,7 +408,7 @@ export async function connectReviewWorkspace(connection) {
           status.textContent = `Submitting ${decision}. Awaiting confirmation; do not submit another decision.`;
           await request(`${endpoint}/${snapshot.id}`, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ decision, reason: reviewReason, sha256: snapshot.sha256 }),
+            body: decisionBody,
           }, "incident_review_recorded");
           if (disposed) return;
           decisionReceipt.textContent = `Confirmed review: ${decision}. Candidate: ${snapshot.id}. Snapshot SHA-256: ${snapshot.sha256}. This decision was recorded; any following list-refresh error does not undo it. Do not submit it again.`;

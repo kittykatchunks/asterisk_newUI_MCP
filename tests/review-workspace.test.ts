@@ -192,6 +192,40 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("alert").filter({ hasText: "Enter a review reason" }).waitFor();
       assert.equal((await focused()).role, "alert");
       assert.equal(posts.length, 0);
+      const reasonInput = page.getByLabel("Review reason", { exact: true });
+      assert.equal(await reasonInput.getAttribute("aria-describedby"), "review-reason-length");
+      await page.getByRole("status").filter({ hasText: "0 of 2000 characters used." }).waitFor();
+      await reasonInput.fill("x".repeat(2000));
+      await page.getByRole("status").filter({ hasText: "2000 of 2000 characters used." }).waitFor();
+      await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+      await page.getByRole("button", { name: "Approve report", exact: true }).click();
+      await page.getByRole("dialog", { name: "Confirm review decision" }).waitFor();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await reasonInput.evaluate((input) => {
+        if (!(input instanceof HTMLTextAreaElement)) throw new Error("Missing review reason");
+        input.value = "x".repeat(2001);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await page.getByRole("button", { name: "Approve report", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "Review reason exceeds 2000 characters." }).waitFor();
+      assert.equal(await reasonInput.getAttribute("aria-invalid"), "true");
+      assert.equal(await page.getByRole("dialog", { name: "Confirm review decision" }).isVisible(), false);
+      assert.equal(posts.length, 0);
+      await reasonInput.evaluate((input) => {
+        if (!(input instanceof HTMLTextAreaElement)) throw new Error("Missing review reason");
+        input.value = "\u0001".repeat(2000);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await page.getByRole("button", { name: "Reject report", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "Encoded review exceeds the 8192-byte request limit." }).waitFor();
+      assert.equal(await page.getByRole("dialog", { name: "Confirm review decision" }).isVisible(), false);
+      assert.equal(posts.length, 0);
+      await reasonInput.fill("   ");
+      await page.getByRole("button", { name: "Reject report", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "Enter a review reason" }).waitFor();
+      assert.equal(await reasonInput.getAttribute("aria-invalid"), "false");
+      assert.equal(posts.length, 0);
+      await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").uncheck();
       await page.getByLabel("Review reason", { exact: true }).fill("Reviewed scope and redaction");
       assert.equal(await unloadIsBlocked(), true);
       const cancelledReload = page.waitForEvent("dialog").then(async (dialog) => {

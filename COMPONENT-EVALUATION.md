@@ -219,6 +219,11 @@ preventing input drift during decision submission. Browser tests check pending
 inputs, timeout recovery and expiry cleanup; session-header sign-out is independent
 of the workspace lock.
 
+Review reason feedback now exposes the current character count. Local checks
+enforce the existing 2,000-character and 8,192-byte encoded-body limits before
+confirmation, with explicit errors and no silent truncation. Browser tests cover
+character boundaries and control-character JSON expansion.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only
