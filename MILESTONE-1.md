@@ -6,6 +6,11 @@ Status: proposed specification with the initial runtime foundation implemented.
 Acceptance thresholds below remain planning proposals; the milestone is not
 complete. See the README for the limited executed proof and exclusions.
 
+Executed so far: runtime/module readiness, Local-channel recording and queue events,
+restart persistence, and an optional authenticated UDP/PCMU echo-call proof per
+customer with CEL/audio verification. None completes the browser-call acceptance
+criteria or production isolation/capacity tests.
+
 Parent document: [Project plan](./PROJECT-PLAN.md).
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based

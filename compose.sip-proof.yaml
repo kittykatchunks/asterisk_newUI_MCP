@@ -1,0 +1,39 @@
+services:
+  customer-a:
+    volumes:
+      - ./.local-proof/customer-a:/run/proof:ro
+  customer-b:
+    volumes:
+      - ./.local-proof/customer-b:/run/proof:ro
+  sip-test-a:
+    image: andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d
+    profiles: ["test"]
+    user: "1000:999"
+    entrypoint: ["python3", "-B", "/tests/sip_rtp_proof.py"]
+    command: ["--host", "customer-a"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    pids_limit: 32
+    networks: [customer-a]
+    volumes:
+      - ./tests:/tests:ro
+      - ./.local-proof/customer-a:/run/proof:ro
+      - ./.local-proof/customer-b:/run/foreign:ro
+  sip-test-b:
+    image: andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d
+    profiles: ["test"]
+    user: "1000:999"
+    entrypoint: ["python3", "-B", "/tests/sip_rtp_proof.py"]
+    command: ["--host", "customer-b"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    pids_limit: 32
+    networks: [customer-b]
+    volumes:
+      - ./tests:/tests:ro
+      - ./.local-proof/customer-b:/run/proof:ro
+      - ./.local-proof/customer-a:/run/foreign:ro

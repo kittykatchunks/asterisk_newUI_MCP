@@ -37,7 +37,13 @@ had to be configured in our fixture. Startup now creates the directory and tests
 required modules/CEL subscription rather than checking process liveness alone.
 The image's root entrypoint is bypassed in favour of a non-root local launcher.
 
-No browser, identity, capture, AI, or provider component has passed runtime testing.
+Subsequently, the optional SIP/RTP runner verified digest challenge/rejection,
+authenticated UDP/PCMU calls, 100/100 distinct echo payloads per customer, fresh
+CEL lifecycles, and valid audio recordings. Wrong and other-customer credentials
+were rejected. This is not browser signalling, registration, or adversarial
+isolation validation. See the README for reproduction and boundaries.
+
+No browser, identity-provider, capture, AI, or provider component has passed runtime testing.
 The exact digest is selected for this local experiment only, not approved for
 production. Official release support and advisory review remain production gates.
 

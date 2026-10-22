@@ -2,8 +2,9 @@
 
 Planning baseline: 22 October 2026.
 
-Status: discovery and architecture planning. No application has been implemented,
-and no production deployment or capacity claim has been validated.
+Status: planning with an initial local Asterisk runtime and authenticated SIP/RTP
+proof implemented. No management web application, production deployment, or capacity
+claim has been validated. See the README for executed tests and limitations.
 
 ## 1. Purpose
 
