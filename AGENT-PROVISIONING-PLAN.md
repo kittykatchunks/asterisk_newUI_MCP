@@ -719,3 +719,25 @@ First proposed implementation is the unprivileged protocol fixture only. Further
 privilege probes require explicit scope/ownership confirmation and their own
 test fixture; existing Docker-driven SIP proofs are historical evidence, not
 authorisation to modify a live PBX.
+
+### 9.6 First protocol subset: unprivileged readback fixture
+
+The initial implementation now supplies fixed inventory and generation readback
+only, with exact versioned JSON, pinned customer/epoch/principal checks, bounded
+request/output/inventory and detached validated observations. Mutation, CLI,
+path/config and secret fields are rejected. Shared expiry validators keep
+inventory/dialog shapes consistent with the current worker. Source errors and
+cancellation reject; requests do not overlap even while cancellation waits for
+an uncooperative source.
+
+Trusted peer metadata is injected out of band for the fixture. This proves scope
+checks and denial before parsing/source access, **not** Linux local peer
+authentication. No socket, stream framing, connection limits, apply protocol,
+broker ledger or PBX access is implemented. Real peer-credential/permission
+proof remains required before the first acceptance step is complete.
+
+The durable fake runtime readback test compares unchanged database bytes and
+effect count, alongside malformed/foreign/oversized requests, exact bounds,
+extra-field rejection, missing/unknown observations, timeout and cancellation.
+No privileged control probe is authorised by this increment. See the
+[readback fixture contract](./README.md#unprivileged-broker-readback-protocol-fixture).

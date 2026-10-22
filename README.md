@@ -2403,6 +2403,54 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Unprivileged broker readback protocol fixture
+
+`createAgentBrokerReadback(binding, source)` implements only fixed read-only
+inventory/generation queries. `binding` contains deployment-pinned
+`customer`, `epoch` and `principal`; `source` supplies observation callbacks.
+The explicit `read(jsonText, peer, signal?)` entry point checks trusted peer
+metadata before decoding or accessing the source, then rejects any body scope
+mismatch. There is no listener, apply action, command forwarding or PBX access.
+
+Accepted JSON requests have exactly these fields:
+
+```typescript
+{ version: 1, customer, epoch, action: "inventory" }
+{ version: 1, customer, epoch, action: "generation", generationId }
+```
+
+Responses repeat version/scope/action. Inventory returns `generations` with
+generation ID, deadline and durable drain flag; generation readback returns
+`state: "missing"` only for exact `undefined`, or `state: "observed"` with
+`observation: { newCallsBlocked, dialogs, removed }`. Unknown dialog counts stay
+`"unknown"`. These are source observations, not operation receipts, verified PBX
+readiness or authorisation to mutate. Adapter errors do not become missing state.
+
+Request JSON is limited to 8 KiB UTF-8, inventories to 100 unique generations,
+and responses to 32 KiB UTF-8. Exact fields, generation IDs, safe deadlines,
+booleans and dialog counts are validated through the same detached validators
+used by the expiry sweep. Extra secret/config fields are rejected, not echoed.
+One request per instance may be in flight; a cooperative five-second budget and
+optional caller cancellation are checked around source awaits. A stuck source
+retains the overlap guard until it actually settles. Errors reject explicitly;
+the future connection owner must log/notify through its protected error path.
+
+**This fixture does not authenticate operating-system peers.** `peer` is trusted
+out-of-band metadata supplied by a future authenticated connection owner, never
+a caller-provided JSON field. Tests inject it to prove binding/denial order only.
+No Unix socket, peer-credential check, framing/stream reader, connection admission
+limit or deployed broker exists yet. The JSON byte bound does not bound memory
+already consumed by a future transport reader; that reader must enforce its own
+bound before calling this entry point. Source callbacks must themselves be
+read-only and customer-pinned.
+
+Tests cover exact 8 KiB request and 100-generation boundaries, malformed/foreign
+requests, mutation/CLI/path/secret rejection, detached replies, invalid source
+output, cancellation, timeout and overlap. The durable fake runtime's database
+is byte-identical before/after readback, with no new effects or phase change.
+This is the first read-only subset of the unprivileged protocol acceptance gate,
+not completion of local peer authentication or permission for privileged probes.
+
 #### Planned Asterisk adapter privilege boundary
 
 Recovery remains read-only by user choice. The next adapter design uses a
