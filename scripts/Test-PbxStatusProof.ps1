@@ -1,7 +1,8 @@
 [CmdletBinding()]
-param([switch]$Interactive, [switch]$WithIdentity)
+param([switch]$Interactive, [switch]$WithIdentity, [switch]$WithTls)
 $ErrorActionPreference = 'Stop'
 if ($Interactive -and $WithIdentity) { throw 'Choose interactive mode or the combined identity proof, not both.' }
+if ($WithTls -and -not $WithIdentity) { throw 'WithTls requires WithIdentity; interactive TLS trust must be provisioned separately.' }
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'New-ProofTlsIdentity.ps1')
 $compose = Join-Path $root 'compose.status-proof.yaml'
@@ -144,14 +145,37 @@ contact = sip:synthetic@127.0.0.1:5099
             } finally { $env:NODE_EXTRA_CA_CERTS = $previousCa }
             & node .\tests\identity\pbx-registration-proof.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real SIP registration visibility proof failed.' }
-            & node .\tests\identity\pbx-status-recovery.ts
-            if ($LASTEXITCODE -ne 0) { throw 'Real AMI outage/recovery proof failed.' }
-            if ($WithIdentity) {
-                $previous = $env:ASTERISK_TEST_REAL_AMI
-                try {
-                    $env:ASTERISK_TEST_REAL_AMI = '1'
-                    & (Join-Path $PSScriptRoot 'Test-IdentityProof.ps1')
-                } finally { $env:ASTERISK_TEST_REAL_AMI = $previous }
+            $previousCa = $env:NODE_EXTRA_CA_CERTS
+            $previousTls = $env:ASTERISK_TEST_AMI_TLS
+            $originalMappings = @{}
+            try {
+                $env:ASTERISK_TEST_AMI_TLS = $null
+                if ($WithTls) {
+                    foreach ($name in @('connections.json', 'endpoint-connections.json')) {
+                        $path = Join-Path $directory $name
+                        $originalMappings[$path] = [IO.File]::ReadAllText($path)
+                        $mapping = $originalMappings[$path] | ConvertFrom-Json
+                        foreach ($connection in $mapping) { $connection.port += 10; $connection.tls = $true }
+                        [IO.File]::WriteAllText($path, (ConvertTo-Json -InputObject @($mapping)), [Text.UTF8Encoding]::new($false))
+                    }
+                    $env:NODE_EXTRA_CA_CERTS = $ca
+                    $env:ASTERISK_TEST_AMI_TLS = '1'
+                }
+                & node .\tests\identity\pbx-status-recovery.ts
+                if ($LASTEXITCODE -ne 0) { throw 'Real AMI outage/recovery proof failed.' }
+                if ($WithIdentity) {
+                    $previous = $env:ASTERISK_TEST_REAL_AMI
+                    try {
+                        $env:ASTERISK_TEST_REAL_AMI = '1'
+                        & (Join-Path $PSScriptRoot 'Test-IdentityProof.ps1')
+                    } finally { $env:ASTERISK_TEST_REAL_AMI = $previous }
+                }
+            } finally {
+                $env:NODE_EXTRA_CA_CERTS = $previousCa
+                $env:ASTERISK_TEST_AMI_TLS = $previousTls
+                foreach ($path in $originalMappings.Keys) {
+                    [IO.File]::WriteAllText($path, $originalMappings[$path], [Text.UTF8Encoding]::new($false))
+                }
             }
             if ($Interactive) {
                 Write-Host 'Synthetic PBXs are ready. Start the engineering identity launcher in another terminal.'

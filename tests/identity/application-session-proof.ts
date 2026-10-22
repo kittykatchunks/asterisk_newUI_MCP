@@ -9,6 +9,7 @@ import { chromium } from "playwright";
 import { createDiagnosticApi } from "../../src/diagnostic-api.ts";
 import { openDiagnosticStore } from "../../src/diagnostic-store.ts";
 import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
+import type { AmiConnection } from "../../src/pbx-status.ts";
 
 const issuer = "http://127.0.0.1:18080/realms/local-proof";
 const origin = "http://127.0.0.1:18766";
@@ -20,6 +21,19 @@ const pbx = process.env.ASTERISK_TEST_REAL_AMI === "1" ? await loadLocalPbxStatu
 const endpoints = process.env.ASTERISK_TEST_REAL_AMI === "1" ? await loadLocalPbxStatus(localEngineeringRoot, true) : undefined;
 if (process.env.ASTERISK_TEST_REAL_AMI === "1") assert.ok(pbx, "Combined proof requires configured real AMI");
 if (process.env.ASTERISK_TEST_REAL_AMI === "1") assert.ok(endpoints, "Combined proof requires separate endpoint credentials");
+const amiTls = process.env.ASTERISK_TEST_AMI_TLS === "1";
+if (amiTls) {
+  assert.ok(pbx && endpoints, "TLS browser proof requires both real AMI sources");
+  assert.equal(process.env.NODE_EXTRA_CA_CERTS, join(localEngineeringRoot, ".local-proof", "pbx-status", "trusted.pem"));
+  assert.notEqual(process.env.NODE_TLS_REJECT_UNAUTHORIZED, "0");
+  for (const name of ["connections.json", "endpoint-connections.json"]) {
+    const mappings: AmiConnection[] = JSON.parse(await readFile(join(localEngineeringRoot, ".local-proof", "pbx-status", name), "utf8"));
+    assert.deepEqual(mappings.map(({ customer, host, port, tls }) => ({ customer, host, port, tls })), [
+      { customer: "customer-a", host: "127.0.0.1", port: 15048, tls: true },
+      { customer: "customer-b", host: "127.0.0.1", port: 15049, tls: true },
+    ], "Both sources loaded by the API must use the real TLS listeners");
+  }
+}
 const discoveryResponse = await fetch(`${issuer}/.well-known/openid-configuration`);
 assert.equal(discoveryResponse.status, 200);
 const discovery = await discoveryResponse.json();
@@ -159,7 +173,7 @@ try {
             .get(endpointRead.headers()["x-request-id"]);
           assert.deepEqual({ ...audit }, { customer: account.customer, subject: account.subject, operation: "pbx-endpoints" });
         } finally { endpointAudit.close(); }
-        console.log(`PASS ${account.username}: authenticated browser to real own-customer AMI, durable status audit and cross-customer denial`);
+        console.log(`PASS ${account.username}: authenticated browser to real own-customer AMI${amiTls ? " over verified TLS" : ""}, durable status audit and cross-customer denial`);
         if (account.username !== "alice") {
           await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
           await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();

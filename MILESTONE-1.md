@@ -282,10 +282,19 @@ listeners on loopback ports 15048/15049 with separate fresh one-day IP-SAN
 identities. Dedicated child-process fixture trust permits both fixed AMI reads;
 reporting-only enumeration and foreign secrets remain denied. Missing trust fails
 with the expected certificate error, no plain fallback, and repeat-safe adapter
-rejection. The local launcher/browser proof retains its plain-loopback mappings.
+rejection. Default local launcher/browser mappings remain plain loopback.
 The shared generator preserves simulator coverage; ignored runtime keys/trust
 regenerate per fixture run and must be protected. Remote networks, DNS/SNI and
 production PKI provisioning/rotation remain unproven.
+
+The opt-in `Test-PbxStatusProof.ps1 -WithIdentity -WithTls` run now joins
+authenticated browser sessions and audited core/endpoint reads to real verified
+AMI TLS. It checks both source mappings explicitly and retains customer/logout
+boundaries; same-source outage/recovery also uses TLS. The owner temporarily
+rewrites the ignored mappings, sets child-process trust, then restores exact mapping
+text and prior environment in `finally`. Default and interactive modes are
+unchanged; `WithTls` requires non-interactive `WithIdentity`. The encrypted hop is
+backend-to-PBX only, not browser/identity loopback HTTP or production ingress.
 
 The combined `Test-PbxStatusProof.ps1 -WithIdentity` proof now joins real Keycloak
 browser sessions, the audited API and both real isolated AMI runtimes. Alice and

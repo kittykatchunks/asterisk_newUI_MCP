@@ -295,10 +295,18 @@ generator. Loopback ports 15048/15049 and read-only key mounts are fixture-owned
 Dedicated child-process trust supports core and endpoint reads; reporting-only
 enumeration and foreign secrets stay denied. Without fixture trust, exact
 self-signed certificate rejection and sanitised repeat-safe adapter errors occur
-without plain fallback. Existing launcher/browser mappings remain plain loopback;
-their combined proof is a regression check, not browser-to-PBX TLS acceptance.
+without plain fallback. Default launcher/browser mappings remain plain loopback.
 Ignored fixture keys/trust regenerate each run and remain credential material.
 Remote networks, DNS/SNI, production PKI and rotation still require acceptance.
+
+An opt-in combined `WithIdentity -WithTls` run now verifies the authenticated
+browser -> audited API -> real AMI TLS path for both customers, including core and
+endpoint snapshots, foreign denial and logout replay denial. Both API source
+mappings are asserted TLS-only; real outage/recovery also uses TLS. The exclusive
+fixture owner temporarily rewrites mappings and supplies child-process trust,
+restoring original file text and environment in `finally`. Defaults stay unchanged
+and interactive TLS is not added. Browser/application and identity connections
+remain loopback HTTP, so only the backend-to-PBX hop is encrypted in this proof.
 
 Combined real-runtime/identity validation now exercises the complete browser
 session -> audited customer status API -> restricted AMI path for both customers,

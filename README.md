@@ -1053,8 +1053,9 @@ Against both real TLS listeners the adapter verifies:
   the expected TLS verification cause and sanitised adapter errors on repeated
   core/endpoint requests, without falling back to the plain listener.
 
-The test uses TLS connection copies; it does not replace the local launcher's
-plain-loopback mappings or claim the combined browser proof traverses TLS.
+The standalone TLS test uses connection copies; default launcher/browser mappings
+remain plain loopback. The opt-in combined TLS mode below temporarily changes both
+source mappings for its scoped acceptance run.
 Certificates, private keys and the trust bundle remain in ignored
 `.local-proof/pbx-status` beside the fixture's existing credentials and regenerate
 on each run; protect them and do not share them. Owned containers/networks/volumes
@@ -1098,6 +1099,29 @@ The combined runner restores its test-only environment flag and cleans up both
 owned fixtures on completion/failure. `-WithIdentity` and `-Interactive` are
 mutually exclusive. This local end-to-end proof does not validate remote TLS or
 production monitoring.
+
+To exercise the authenticated browser/API path with verified TLS on the
+**backend-to-PBX hop**, run:
+
+```powershell
+.\scripts\Test-PbxStatusProof.ps1 -WithIdentity -WithTls
+```
+
+`-WithTls` requires `-WithIdentity` and cannot be used interactively. After the
+ordinary protocol/registration checks, the exclusive owner temporarily rewrites
+both ignored source mappings to TLS ports 15048/15049 and installs fixture trust
+for child Node processes before they start. The existing application-session test
+asserts both loaded mappings use those TLS listeners and normal certificate
+verification, then exercises Alice and Bob's core/endpoint reads, durable audits,
+foreign-customer denial and logout replay denial. The same-source real outage and
+recovery proof also runs over TLS. Existing launcher tests run with those mappings.
+
+The runner restores the original mapping text, prior trust environment and test
+flags in `finally`, including on test failure, before fixture teardown. The default
+command and interactive workflow remain unchanged. No browser receives AMI
+credentials or test certificates, and no verification bypass or application Docker
+access is added. Browser-to-application and identity traffic is still loopback HTTP;
+this is not full-chain HTTPS, remote-network or production PKI acceptance.
 
 The status fixture also exercises real outage isolation before any optional
 identity run. One long-lived adapter instance first checks both cores, then the

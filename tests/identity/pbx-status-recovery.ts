@@ -56,4 +56,4 @@ const recovered = await source.status("customer-a");
 assert.equal(recovered.customer, "customer-a");
 assert.equal(recovered.activeCalls, 0);
 assert.equal((await source.status("customer-b")).activeCalls, 0);
-console.log("PASS customer A outage stays unavailable and bounded, customer B remains reachable, same AMI source recovers after restart");
+console.log(`PASS customer A outage stays unavailable and bounded, customer B remains reachable, same AMI source recovers after restart${process.env.ASTERISK_TEST_AMI_TLS === "1" ? " over verified TLS" : ""}`);
