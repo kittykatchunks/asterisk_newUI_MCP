@@ -22,6 +22,12 @@ The standalone report now supports dialog/message filtering, expandable provenan
 and complete print output, verified using Playwright. This is not an authenticated
 multi-incident engineering workspace or a raw-message viewer.
 
+A backend access-boundary integration proof now checks signed tokens against a
+local synthetic JWKS issuer, provisioned customer memberships, bounded support
+grants, and an awaited audit sink. It intentionally exposes no incident files or
+capture operations. Keycloak login, durable grants/audit, and production sessions
+remain outstanding.
+
 Parent document: [Project plan](./PROJECT-PLAN.md).
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based

@@ -60,6 +60,12 @@ capture, hard byte quotas, or general customer-data export. No HOMER runtime
 evaluation or AI analysis has been performed.
 
 No identity-provider, AI, or provider component has passed runtime testing.
+
+The application-side access boundary now has a JOSE/JWKS integration test using
+an ephemeral synthetic issuer. This tests token validation and provisioned
+customer/support permissions, not Keycloak deployment or federation. RS256 is
+the initial allowed algorithm and 15 minutes the maximum accepted token age;
+the selected identity-provider configuration must be aligned and tested.
 The exact digest is selected for this local experiment only, not approved for
 production. Official release support and advisory review remain production gates.
 

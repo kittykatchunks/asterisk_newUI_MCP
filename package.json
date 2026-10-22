@@ -2,14 +2,18 @@
   "name": "asterisk-local-proof",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test:webrtc": "node ./tests/webrtc/run.mjs"
+    "test:webrtc": "node ./tests/webrtc/run.mjs",
+    "test:access": "node --test ./tests/access.test.ts"
   },
   "dependencies": {
+    "jose": "6.2.13",
     "sip.js": "0.21.2"
   },
   "devDependencies": {
+    "@types/node": "24.19.2",
     "esbuild": "0.28.2",
     "playwright": "1.64.1",
     "typescript": "5.9.3"

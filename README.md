@@ -240,3 +240,53 @@ No trace data is sent to AI. Do not use this fixture with real caller data.
 The base Asterisk digest is fixed, but diagnostics packages currently come from
 Debian repositories at build time. Package locking, minimal production packaging,
 and dependency review remain deployment gates.
+
+## Customer-scoped access boundary
+
+The initial TypeScript backend foundation validates signed OIDC-style access
+tokens using JOSE and a configured JWKS endpoint, then checks provisioned
+issuer/subject/customer memberships. A signed `roles` or `customer` claim is not
+permission to access another customer.
+
+```powershell
+npm ci
+npm run typecheck
+npm run test:access
+```
+
+The integration tests run an ephemeral loopback JWKS issuer and HTTP API and close
+them afterward. They use generated RSA signing keys in memory, not production
+credentials or real user identities. No services remain running.
+
+The only API resource currently implemented is the permission proof
+`GET /api/customers/{customer}/diagnostics`. It does not read evidence files,
+list incidents, start captures, or expose the Docker socket. Its successful
+response explicitly reports capture and evidence serving as disabled.
+
+Access checks require RS256 signature, exact configured issuer/audience, subject,
+issued-at and expiry claims, and a maximum 15-minute token age. Production identity
+URLs require HTTPS; a deliberate test-only option permits loopback HTTP.
+Configure the API's own ingress TLS before exposing it; the server factory itself
+does not terminate TLS and has no production executable/listener yet.
+
+Support grants require a customer, bounded start/expiry interval, recorded reason,
+and contract reference. Active grants authorise diagnostic metadata only; playback,
+exports, raw packets, and configuration changes are not implicitly permitted.
+An application must separately authorise grant creation and persist/revoke grants;
+this initial configuration-backed verifier is not that workflow.
+
+Every evaluated access decision awaits an audit sink. If audit persistence fails,
+access returns an explicit 503 and invokes the operational error logger. Tokens
+are not written to audit records. The test sink is memory-only; production durable
+audit storage, access reviews, and retention remain unimplemented.
+
+Ten automated tests cover customer separation, misleading token role claims,
+invalid/missing/expired/future/wrong-signature/issuer/audience tokens, required
+expiry, bounded support elevation, audit failure, unavailable JWKS, configuration
+mutation, and absence of capture mutation routes.
+
+This is an access-control foundation, **not** completed Keycloak integration,
+interactive OIDC login, MFA, SAML/Entra federation, session handling, or production
+authorisation. JWTs already verified with cached keys can remain usable until
+expiry; immediate account/grant revocation and signing-key rotation require
+additional lifecycle design and tests.

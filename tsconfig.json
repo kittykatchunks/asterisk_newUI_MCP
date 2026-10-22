@@ -5,8 +5,9 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM"],
     "strict": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["tests/webrtc/client.ts"]
+  "include": ["tests/webrtc/client.ts", "src/**/*.ts", "tests/access.test.ts"]
 }
