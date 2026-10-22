@@ -14,6 +14,11 @@ Chromium test also verifies WSS registration and synthetic bidirectional encrypt
 media with decoded audio energy. Its test-key trust and mDNS/ICE constraints are
 documented in the README; the actual agent console remains unimplemented.
 
+The initial engineering proof also captures local UDP SIP per customer, correlates
+an accepted call to CEL through an explicit dialplan event, and exports a redacted
+HTML signalling report with hashes. The 15-second duration limit is tested; hard
+byte quotas, interactive incident controls, and general export safety are not.
+
 Parent document: [Project plan](./PROJECT-PLAN.md).
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based

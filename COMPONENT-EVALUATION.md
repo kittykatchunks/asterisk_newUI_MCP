@@ -50,7 +50,15 @@ explicit passive DTLS, and disabled mDNS candidate hiding in the test browser.
 These are local-fixture constraints, not default-browser or production validation.
 The README records reproduction, thresholds, and outstanding tests.
 
-No identity-provider, capture, AI, or provider component has passed runtime testing.
+A subsequent tcpdump/tshark proof captures synthetic UDP SIP on each customer's
+network namespace with bounded duration. It exports a whitelist-based HTML
+signalling table, explicit Call-ID/CEL correlations, packet-loss counters, and
+integrity manifests. Four report failure/redaction unit tests pass. This validates
+a narrow evidence path, not an interactive engineering application, encrypted SIP
+capture, hard byte quotas, or general customer-data export. No HOMER runtime
+evaluation or AI analysis has been performed.
+
+No identity-provider, AI, or provider component has passed runtime testing.
 The exact digest is selected for this local experiment only, not approved for
 production. Official release support and advisory review remain production gates.
 

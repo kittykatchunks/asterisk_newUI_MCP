@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 asterisk -rx 'core waitfullybooted' | grep -q 'fully booted'
-for module in chan_pjsip app_queue app_mixmonitor cel_custom res_srtp; do
+for module in chan_pjsip app_queue app_mixmonitor cel_custom res_srtp res_pjsip_header_funcs app_celgenuserevent; do
     asterisk -rx "module show like $module.so" | grep -q 'Running'
 done
 asterisk -rx 'cel show status' | grep -q 'CEL Custom CSV Logging'

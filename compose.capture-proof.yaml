@@ -1,0 +1,32 @@
+x-capture: &capture
+  build:
+    context: ./local/diagnostics
+  image: asterisk-local-diagnostics:proof
+  profiles: ["capture"]
+  user: "0:0"
+  cap_drop: ["ALL"]
+  cap_add: ["NET_RAW"]
+  security_opt: ["no-new-privileges:true"]
+  read_only: true
+  mem_limit: 256m
+  pids_limit: 32
+  tmpfs: ["/tmp"]
+  entrypoint: ["python3", "-B", "/diagnostics/capture.py"]
+  healthcheck:
+    disable: true
+
+services:
+  capture-a:
+    <<: *capture
+    network_mode: "service:customer-a"
+    command: ["--customer", "customer-a", "--incident", "${PROOF_INCIDENT:?Set by Test-CaptureProof.ps1}", "--seconds", "15", "--max-bytes", "1048576"]
+    volumes:
+      - ./local/diagnostics:/diagnostics:ro
+      - ./.local-proof/evidence/${PROOF_INCIDENT}/customer-a:/evidence
+  capture-b:
+    <<: *capture
+    network_mode: "service:customer-b"
+    command: ["--customer", "customer-b", "--incident", "${PROOF_INCIDENT:?Set by Test-CaptureProof.ps1}", "--seconds", "15", "--max-bytes", "1048576"]
+    volumes:
+      - ./local/diagnostics:/diagnostics:ro
+      - ./.local-proof/evidence/${PROOF_INCIDENT}/customer-b:/evidence

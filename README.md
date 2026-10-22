@@ -153,3 +153,72 @@ Validated on 22 October 2026: both customers passed WSS registration, two-way
 synthetic browser media, non-zero decoded energy, and DTLS-SRTP negotiation using
 Playwright Chromium. This is not a human listening test, complete audio quality
 assessment, tenant-isolation certification, or a capacity benchmark.
+
+## Engineering packet-evidence proof
+
+```powershell
+.\scripts\Test-CaptureProof.ps1
+```
+
+This runs the SIP proof, builds a local diagnostics image containing tcpdump and
+tshark, then activates a 15-second capture in each customer's own network namespace.
+It generates new synthetic test calls, snapshots CEL, and creates an incident
+directory under ignored `.local-proof\evidence`. The runner stops its PBXs and
+collectors and removes the collector containers during cleanup. Do not run proof
+modes concurrently.
+
+The collectors have only `NET_RAW` capability, a read-only root filesystem, one
+customer-specific writable evidence mount, and no Docker socket or host network.
+They run as container root with other capabilities dropped; this is a local
+operator fixture, not an authenticated production capture service.
+
+Capture is fixed to non-promiscuous `eth0`, full-snaplen UDP port 5060 signalling.
+It does not capture RTP audio, other interfaces, TCP reassembly, or decrypted
+TLS/WSS. Collection stops after 15 seconds or a sampled 1-MiB soft size threshold.
+The 20-ms polling and buffered writes can overshoot that threshold; hard disk
+quotas and the size-trigger path have not been validated. The duration path has.
+Unexpected collector failure is an error, not an empty successful report.
+
+Each customer evidence directory contains:
+
+- `signalling.pcap`: original raw packet evidence, including sensitive SIP digest
+  authentication material. Never send this to third parties automatically.
+- `capture.stderr`: collector diagnostics and loss counters.
+- `manifest.json`: incident/customer, capture scope, UTC times, limits, stop reason,
+  kernel-drop count, tool version, and original PCAP SHA-256.
+- `cel.csv`: a restricted local snapshot of that customer's call events.
+- `report.html`: a printable signalling table/ladder and explicit CEL correlations.
+- `export-manifest.json`: hashes of packet evidence, CEL, and generated report.
+
+The synthetic echo route emits `PROOF_SIP_DIALOG` containing the received Call-ID.
+Report correlation uses that exact value, not temporal proximity. Report output
+uses allowlisted fields and pseudonymised endpoint/dialog/channel identifiers,
+excluding raw SIP, SDP, authentication headers, names, and raw call identifiers.
+It includes no attachments or active scripts. Raw evidence remains separately
+restricted; hashes detect modification but do not make files immutable.
+
+Validated locally on 22 October 2026: three captured SIP dialogs per customer,
+one explicitly correlated accepted call per customer, duration-limit shutdown,
+zero reported kernel drops, original hash verification, and readable HTML output.
+Four unit tests cover whitelist redaction, missing correlation, incomplete
+synthetic call evidence, and unsupported input.
+
+Run those tests without network access:
+
+```powershell
+docker run --rm --network none --user 1000:999 --cap-drop ALL `
+  --entrypoint python3 `
+  --mount "type=bind,source=$((Get-Location).Path),target=/work,readonly" `
+  -w /work asterisk-local-diagnostics:proof `
+  -B -m unittest discover -s tests -p test_diagnostic_report.py
+```
+
+This is not the full engineering workspace: interactive search/raw-message
+inspection, manual/automatic incident controls, audit/authorisation, encrypted
+application signalling ingestion, AI diagnosis, PDF export, retention, immutable
+storage, and arbitrary-customer-data redaction remain to implement.
+No trace data is sent to AI. Do not use this fixture with real caller data.
+
+The base Asterisk digest is fixed, but diagnostics packages currently come from
+Debian repositories at build time. Package locking, minimal production packaging,
+and dependency review remain deployment gates.
