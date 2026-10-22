@@ -338,7 +338,17 @@ applying/uncertain work is observation-only, never blindly replayed; unstarted
 expired work does not reach the adapter. Unknown state blocks progression without
 unbounded receipt growth. Tests cover interrupted effects/commits, all fixed
 actions, cancellation/timeouts and fake verified reports reconciled over mTLS.
-No PBX adapter or automatic execution is wired. The guard covers only a shared
-journal object, not other handles/processes; exclusive runtime ownership, restore
-fencing, live lease validation and disconnected expiry remain gates. See the
+No PBX adapter or automatic execution is wired. A local cross-process ownership
+lock now also covers separate executor handles/processes as described below;
+runtime/restore fencing, live lease validation and disconnected expiry remain gates. See the
 [executor contract](./README.md#single-step-worker-executor-fake-adapter-proof-only).
+
+Each executor step now holds a separate SQLite ownership transaction across
+asynchronous adapter work and receipt completion. A canonical journal-derived
+sidecar makes competing local handles/processes fail before adapter entry while
+leaving the journal available for readback and acceptance. Actual process
+termination tests prove lock release and observation-only recovery; an unsettled
+adapter keeps ownership even after cancellation. The sidecar must not be removed
+or replaced while workers are live. This is cooperative single-host ownership,
+not distributed/runtime generation fencing or exactly-once execution. See the
+[ownership contract](./README.md#cross-process-worker-execution-ownership-local-sqlite-only).

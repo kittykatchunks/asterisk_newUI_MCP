@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -61,6 +62,7 @@ export interface AgentProvisioningStore {
 export class AgentProvisioningConflict extends Error {}
 
 export interface AgentProvisioningJournal {
+  exclusive<T>(action: () => Promise<T>): Promise<T>;
   accept(command: AgentProvisioningCommand, context: ProvisioningContext): ProvisioningIntent;
   operation(operationId: string): ReturnType<AgentProvisioningStore["operation"]>;
   report(operationId: string): ProvisioningReport | undefined;
@@ -180,6 +182,7 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
     return time;
   }
   const db = new DatabaseSync(path);
+  let ownershipPath: string | undefined;
   try {
     db.exec("PRAGMA busy_timeout = 250; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;");
     const version = db.prepare("PRAGMA user_version").get()?.user_version;
@@ -233,6 +236,7 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
         }
         db.exec("COMMIT");
       } catch (error) { db.exec("ROLLBACK"); throw error; }
+      ownershipPath = `${realpathSync(path)}.executor-lock.sqlite`;
     }
   } catch (error) { db.close(); throw error; }
   function transaction<T>(action: () => T): T {
@@ -416,6 +420,23 @@ function openProvisioningStorage(path: string, options: { now?: () => number },
     close() { db.close(); },
   };
   const journal: AgentProvisioningJournal = {
+    async exclusive(action) {
+      if (!ownershipPath) throw new Error("Worker journal binding required");
+      const lock = new DatabaseSync(ownershipPath);
+      let acquired = false;
+      try {
+        lock.exec("PRAGMA busy_timeout = 0; BEGIN IMMEDIATE");
+        acquired = true;
+        if (lock.prepare("PRAGMA user_version").get()?.user_version !== 0 ||
+            lock.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").get()) {
+          throw new Error("Invalid provisioning executor lock database");
+        }
+        return await action();
+      } finally {
+        try { if (acquired) lock.exec("ROLLBACK"); }
+        finally { lock.close(); }
+      }
+    },
     accept(command, auditContext) {
       if (!binding) throw new Error("Worker journal binding required");
       if (command.customer !== binding.customer || command.epoch !== binding.epoch) {

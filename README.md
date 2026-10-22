@@ -1785,8 +1785,9 @@ Reopen preserves the binding, command order, interrupted stage and receipts.
 Four competing worker processes with different applying receipts produce exactly
 one accepted start record. This is **not** an exactly-once execution claim:
 recording a receipt has no PBX side effect, identical delivery may be retried,
-and crashes still require runtime reconciliation. There is no exclusive runtime
-executor lock, local expiry enforcement, credential storage or PBX adapter in
+and crashes still require runtime reconciliation. The executor ownership lock
+below serialises participating local executors; it is not runtime fencing.
+There is no local expiry enforcement, credential storage or PBX adapter in
 the journal itself. The optional mTLS transport below does not execute work.
 A journal deadline check at
 start cannot cancel an external side effect occurring later.
@@ -1929,7 +1930,7 @@ The worker is bound by its local journal and controller pin. The backend must
 associate the worker certificate/origin with its configured customer/epoch; the
 dispatcher reconciles returned reports against that binding and stored intent.
 Protect configuration and local files. There is no certificate enrolment,
-rotation overlap, revocation distribution, deployment service, runtime lock,
+rotation overlap, revocation distribution, deployment service, runtime fencing,
 PBX adapter, disconnected expiry enforcement or restore fencing yet.
 Changing certificates requires explicit reconfiguration/restart; do not bypass
 verification to rotate them.
@@ -1976,11 +1977,10 @@ a deadline check cannot forcibly stop an external effect occurring later.
 Observation is a trusted adapter assertion, not independently established proof.
 
 A shared in-process guard rejects overlapping steps using the **same journal
-object**, including through another executor instance. It is not a file/process
-lock and cannot protect distinct handles to the same database. The owning process
-must supply exclusive journal/runtime ownership before real effects; multiprocess
-ownership, runtime fencing, autonomous expiry, live lease validation and restore
-recovery remain unimplemented. Never use journal receipt uniqueness as an
+object**, including through another executor instance. The local SQLite ownership
+lock below also excludes separate participating handles/processes. Runtime
+fencing, autonomous expiry, live lease validation and restore recovery remain
+unimplemented. Never use journal receipt uniqueness or execution ownership as an
 exactly-once execution guarantee.
 
 `node --test .\tests\agent-provisioning-executor.test.ts` checks all five fixed
@@ -1990,6 +1990,41 @@ blocking, bounded receipt growth, errors, invalid observations, cancellation,
 same-object overlap and the real five-second timeout. The mTLS integration test
 also runs a fake step and reconciles its verified report back to the backend.
 Stage B remains incomplete; no real phone capability is enabled.
+
+#### Cross-process worker execution ownership (local SQLite only)
+
+Every executor step now runs inside `journal.exclusive(callback)`. It opens a
+dedicated SQLite sidecar at the journal's canonical `realpath` plus
+`.executor-lock.sqlite` and holds `BEGIN IMMEDIATE` for the complete asynchronous
+step: head read, applying commit, adapter work, observation and result receipt.
+The intentionally empty/unversioned sidecar stores no receipt, owner PID,
+deadline or authority. Contention fails immediately rather than queuing a stale
+execution attempt. Foreign schemas, unsupported versions, corruption and
+filesystem errors fail before adapter entry; no repair or bypass is attempted.
+
+This is a separate database so journal readback, acceptance and receipt writes
+do not share the long-lived ownership transaction. Separate customer journal
+files have independent locks. Normal completion, callback errors and cancellation
+release ownership in `finally`; SQLite/OS process cleanup releases it after a
+crash without deleting or guessing stale PID files. The sidecar file remains.
+Cancellation/timeouts are still cooperative: ownership is held until the adapter
+promise actually settles, not released while an effect might still be running.
+Recovery then observes the durable interrupted stage; it does not replay apply.
+
+All executors must use the same protected local journal/sidecar and participate
+in this lock. Do not remove, replace, relocate or restore either file while
+workers are live. Canonical path resolution handles ordinary path aliases, not
+hard-linked journals or copies. Network filesystems, multiple hosts, privileged
+manual journal mutation, copied/restored journals and effects that outlive their
+process are outside this guarantee. This is not a distributed lease, a runtime
+generation fence, persistent adapter ownership or exactly-once execution.
+Deployment/recovery controls remain required before enabling real PBX effects.
+
+`node --test .\tests\agent-provisioning-ownership.test.ts` exercises competing
+handles, actual competing processes, forced owner-process termination followed
+by observation-only recovery, cancellation with a still-running adapter,
+independent customer execution, concurrent journal access, callback-error release
+and foreign/unsupported/corrupt/externally locked sidecar failures.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
