@@ -1,0 +1,60 @@
+name: asterisk-local-proof
+
+x-pbx: &pbx
+  image: andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d
+  user: "1000:999"
+  entrypoint: ["/bin/sh", "/etc/asterisk/start.sh"]
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  mem_limit: 384m
+  cpus: 1.0
+  pids_limit: 128
+  tmpfs:
+    - /var/run/asterisk:uid=1000,gid=999,mode=0750
+    - /tmp:uid=1000,gid=999,mode=1770
+  healthcheck:
+    test: ["CMD", "/bin/sh", "/etc/asterisk/health.sh"]
+    interval: 5s
+    timeout: 3s
+    retries: 12
+    start_period: 10s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  customer-a:
+    <<: *pbx
+    hostname: customer-a
+    networks: [customer-a]
+    volumes:
+      - ./local/asterisk:/etc/asterisk:ro
+      - customer-a-state:/var/lib/asterisk
+      - customer-a-spool:/var/spool/asterisk
+      - customer-a-logs:/var/log/asterisk
+
+  customer-b:
+    <<: *pbx
+    hostname: customer-b
+    networks: [customer-b]
+    volumes:
+      - ./local/asterisk:/etc/asterisk:ro
+      - customer-b-state:/var/lib/asterisk
+      - customer-b-spool:/var/spool/asterisk
+      - customer-b-logs:/var/log/asterisk
+
+networks:
+  customer-a:
+    internal: true
+  customer-b:
+    internal: true
+
+volumes:
+  customer-a-state:
+  customer-a-spool:
+  customer-a-logs:
+  customer-b-state:
+  customer-b-spool:
+  customer-b-logs:

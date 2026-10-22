@@ -2,9 +2,9 @@
 
 Date: 22 October 2026.
 
-Status: upstream-documentation review and proposed shortlist. No images have been
-pulled, dependencies installed, or components executed. These are not production
-approvals, security assessments, or verified compatibility results.
+Status: upstream-documentation review and proposed shortlist, with a subsequent
+limited Asterisk runtime proof recorded below. These are not production approvals,
+security assessments, or complete compatibility results.
 
 Related: [Project plan](./PROJECT-PLAN.md) and [Milestone 1](./MILESTONE-1.md).
 
@@ -21,6 +21,25 @@ Related: [Project plan](./PROJECT-PLAN.md) and [Milestone 1](./MILESTONE-1.md).
 
 No exact image digest or package version is approved yet. Select those from
 verified registry/package artifacts at implementation time and record them.
+
+### Subsequent local runtime results
+
+The local proof uses Asterisk 22.11.0, Debian, index digest
+`sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d`.
+Registry inspection included a Linux amd64 manifest. The upstream recipe was
+inspected at repository HEAD
+`c6e8a0e48cdde322b0c1ba5ad4a6f50185dd6b20`; the official Asterisk repository also
+contained tag `22.11.0`. This does not verify binary provenance against that recipe.
+
+The candidate passes the limited automated proof described in the
+[README](./README.md). Explicit module dependencies and the CEL output directory
+had to be configured in our fixture. Startup now creates the directory and tests
+required modules/CEL subscription rather than checking process liveness alone.
+The image's root entrypoint is bypassed in favour of a non-root local launcher.
+
+No browser, identity, capture, AI, or provider component has passed runtime testing.
+The exact digest is selected for this local experiment only, not approved for
+production. Official release support and advisory review remain production gates.
 
 ## 2. Asterisk container
 

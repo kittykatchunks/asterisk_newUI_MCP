@@ -2,14 +2,14 @@
 
 Date: 22 October 2026.
 
-Status: proposed implementation specification; acceptance thresholds below are
-planning proposals, not measured results. No implementation is authorised or
-claimed by this document.
+Status: proposed specification with the initial runtime foundation implemented.
+Acceptance thresholds below remain planning proposals; the milestone is not
+complete. See the README for the limited executed proof and exclusions.
 
 Parent document: [Project plan](./PROJECT-PLAN.md).
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
-shortlist and proof gates. No component has passed runtime evaluation yet.
+shortlist, proof gates, and limited Asterisk runtime results.
 
 ## 1. Objective
 
