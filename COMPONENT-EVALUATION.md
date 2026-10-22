@@ -441,6 +441,17 @@ browser bearer tokens or engineering data.
 The page states phone connection is disabled and does not expose SIP credentials,
 request media access or conflate assignment with registration/queue/call state.
 
+The next backend primitive is a separate SQLite device-lease store. It serialises
+acquisition across processes and binds each agent identity to one backend session
+and device UUID. Explicit release or exact expiry is required before a competing
+owner can acquire; renewals are bounded by 60 seconds and verified session expiry,
+and replacement lease IDs fence stale mutations. Tests exercise six simultaneous
+processes with exactly one winner, session/scope boundaries, persistence, locking
+and rollback. This is not an HTTP/authentication boundary and is not integrated
+with console activation, assignment checks, logout or SIP. Shared-extension safety,
+SIP revocation/fencing and the selected finish-current-call sign-out policy remain
+future integration work; a reservation is not evidence of a connected phone.
+
 ## 2. Asterisk container
 
 ### Candidates reviewed

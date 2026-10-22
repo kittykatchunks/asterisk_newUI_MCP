@@ -1187,6 +1187,47 @@ sign-out with durable logout audits and rejected session-cookie replay. Console
 landing requests only the scoped profile, without browser bearer tokens or
 engineering data. This is an authenticated assignment screen, not yet a phone console.
 
+#### Backend device-lease foundation (not connected to the console)
+
+The agreed device policy is one active device per issuer/subject/customer: a second
+device is rejected until explicit release or expiry, with no automatic takeover.
+The future in-call sign-out policy is to stop new offers immediately, finish the
+current call, then release the phone session. Call draining is **not implemented**
+by this increment.
+
+`openAgentDeviceLeaseStore` in `src/agent-device-lease.ts` is a trusted-backend
+primitive with `acquire`, `renew` and `release`. It uses a dedicated absolute-path
+SQLite database, separate from assignments, receipts and diagnostic evidence.
+`BEGIN IMMEDIATE` serialises competing writers, including separate processes.
+Each lease binds the exact agent identity, backend application-session ID and a
+device UUID. Only a SHA-256 hash of the session ID is stored; callers receive only
+the lease UUID and expiry. A different session on the same device also conflicts.
+Retries by the same owner return the existing lease without extending its life.
+Renewal is explicit and lasts at most 60 seconds, capped by the supplied verified
+application-session expiry. At the exact expiry boundary it is no longer owned.
+Reacquisition after expiry or release generates a new UUID; stale IDs cannot renew
+or release a replacement lease. Ownership/conflict/session-expiry errors have
+explicit codes; invalid input, corrupt rows and SQLite failures throw.
+
+The caller must supply server-verified session/identity data and independently
+enforce `agent:access` and a valid assignment. This module does not authenticate,
+read cookies, grant membership, check assignment existence, reserve an extension,
+or authorise a SIP operation. There is deliberately no HTTP route, console/device
+activation control, heartbeat, logout hook or credential issuance yet. Distinct
+agents sharing a provisioned extension are not made safe by identity exclusivity.
+Expired rows are replaced on the next acquisition for that identity. Database
+reopen preserves reservations, not application sessions or permission to reconnect.
+Lease data is deliberately excluded from assignment backups and must not be used
+as a recoverable phone session. Lease expiry alone does not disconnect a SIP
+endpoint; downstream fencing/revocation and call-aware draining remain prerequisites
+before enabling calling. Timings depend on a correct backend wall clock.
+
+Validate with
+`node --test .\tests\agent-device-lease.test.ts .\tests\agent-profile.test.ts .\tests\agent-store.test.ts .\tests\agent-backup.test.ts`.
+Tests cover exact expiry, session caps, all owner dimensions, stale lease fencing,
+explicit release, rollback/locking, corrupt state and six competing processes
+producing exactly one winner.
+
 ### Read-only PBX operational status (local AMI proof)
 
 `GET /api/customers/{customer}/pbx/status` requires provisioned

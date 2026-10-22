@@ -1,7 +1,10 @@
-export interface AgentAssignment {
+export interface AgentIdentity {
   issuer: string;
   subject: string;
   customer: string;
+}
+
+export interface AgentAssignment extends AgentIdentity {
   extension: string;
   displayName: string;
 }
@@ -15,6 +18,21 @@ export interface AgentDirectory {
   profile(issuer: string, subject: string, customer: string): AgentProfile | undefined;
 }
 
+export function assertAgentIdentity(value: unknown): asserts value is AgentIdentity {
+  if (typeof value !== "object" || value === null ||
+      !("issuer" in value) || typeof value.issuer !== "string" ||
+      !("subject" in value) || typeof value.subject !== "string" ||
+      !("customer" in value) || typeof value.customer !== "string") {
+    throw new Error("Invalid agent identity");
+  }
+  const url = new URL(value.issuer);
+  if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.hash ||
+      !value.subject.trim() || value.subject.length > 200 || /[\x00-\x1f\x7f]/.test(value.subject) ||
+      !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value.customer)) {
+    throw new Error("Invalid agent identity");
+  }
+}
+
 export function assertAgentAssignment(value: unknown): asserts value is AgentAssignment {
   if (typeof value !== "object" || value === null ||
       !("issuer" in value) || typeof value.issuer !== "string" ||
@@ -24,11 +42,8 @@ export function assertAgentAssignment(value: unknown): asserts value is AgentAss
       !("displayName" in value) || typeof value.displayName !== "string") {
     throw new Error("Invalid provisioned agent assignment");
   }
-  const url = new URL(value.issuer);
-  if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.hash ||
-      !value.subject.trim() || value.subject.length > 200 || /[\x00-\x1f\x7f]/.test(value.subject) ||
-      !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value.customer) ||
-      !/^[0-9]{1,16}$/.test(value.extension) ||
+  assertAgentIdentity(value);
+  if (!/^[0-9]{1,16}$/.test(value.extension) ||
       !value.displayName.trim() || value.displayName.length > 128 || /[\x00-\x1f\x7f]/.test(value.displayName)) {
     throw new Error("Invalid provisioned agent assignment");
   }

@@ -422,6 +422,17 @@ session replay without browser bearer tokens or engineering-data requests.
 Phone capability remains explicitly disabled: no SIP credentials, microphone,
 registration, queue state or call controls are introduced.
 
+A backend-only device-lease store now implements the selected reject-second-device
+policy, scoped by issuer/subject/customer and bound to a backend session plus device
+UUID. Separate SQLite transactions enforce exclusivity across processes; explicit
+renewals are capped at 60 seconds and verified session expiry. Release/expiry permit
+a fresh lease, and old IDs cannot mutate its replacement. This is not wired to
+HTTP, console controls, logout, assignments or SIP. It neither reserves an extension
+nor disconnects an endpoint on expiry, and live leases are not assignment-backup
+data. The selected future sign-out policy stops new offers, finishes the current
+call and then releases the phone session; call-aware draining and credential
+revocation remain unimplemented.
+
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.
 
