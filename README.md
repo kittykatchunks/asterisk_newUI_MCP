@@ -2153,6 +2153,44 @@ hand-written generation model. This supplies repeatable stage B fake-runtime
 evidence only; production allocation, replacement fencing and Asterisk enforcement
 remain unimplemented.
 
+#### Serial worker lifetime (injected adapters, off by default)
+
+`src/agent-provisioning-worker.ts` exposes `runAgentProvisioningWorker(journal,
+adapters, signal, onCycle, options)`. It composes the existing expiry monitor and
+executor using the same journal and clock. Each pass awaits:
+
+1. An expiry sweep, including fence/dialog/removal verification.
+2. At most one ordered execution or observation step.
+3. The mandatory async callback with `{ expiry, execution }`.
+4. The existing 250 ms pause before the next sweep.
+
+This avoids self-contention from running separate monitor/executor loops for the
+same worker. It does not nest ownership locks: sweep and execution each acquire
+and release the journal's sidecar lock. Another participating process may run
+between those phases; this is not lifetime-exclusive service ownership. Do not
+also start a standalone expiry monitor or executor on that journal. Contention
+still rejects rather than silently retrying.
+
+Expiry failure prevents that pass's execution. Cancellation is checked between
+phases; exceptions from expiry, execution, storage or reporting reject the entire
+awaited lifetime. The caller must supervise and alert on failure: a rejected loop
+is no longer enforcing expiry. Nonthrowing `expired`, `blocked` or `uncertain`
+execution results do not stop subsequent sweeps. Draining/uncertain expiry
+observations are reported, not treated as permission to replace a generation;
+the runtime adapter must enforce its own irreversible drain/replacement barrier.
+
+An execution step may delay the next sweep by its cooperative five-second budget,
+and an uncooperative adapter or reporting callback can delay it further. This
+composition is not a production expiry-lag guarantee, runtime fence, restore
+detector or live session/lease authorisation layer. No network listener, backend
+dispatcher, supervision process or adapter is started implicitly. Only fake
+adapters have been exercised; Asterisk privileges remain absent.
+
+`node --test .\tests\agent-provisioning-worker.test.ts` verifies queued prepare/
+activate, expiry preserving the current call, old-generation removal before
+queued replacement, continued sweeps with an expired head, failure ordering,
+interrupted-effect observation without replay, cancellation and lock release.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

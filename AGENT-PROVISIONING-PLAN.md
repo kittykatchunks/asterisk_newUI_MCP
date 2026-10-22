@@ -409,3 +409,14 @@ customer-wide generation slot is a fixture simplification, **not** the productio
 multi-agent allocation policy. No production replacement gate, live ownership
 validation or PBX adapter is introduced. See the
 [fake-runtime contract](./README.md#durable-fake-generation-lifecycle-test-only).
+
+An explicit serial worker lifetime now composes expiry, one execution step and
+reporting on the same journal/clock before each 250 ms pause. This avoids
+self-contention between independent monitor/executor loops. Fake-runtime tests
+prove removal before queued replacement, ongoing sweeps despite an expired head,
+phase cancellation and error propagation. Each phase holds its own ownership
+lock, not a lifetime-exclusive service lock; runtime replacement checks remain
+mandatory. Execution/reporting latency can delay expiry and failures stop the
+awaited lifetime. Production supervision, expiry latency acceptance, live
+authorisation and restore/runtime fencing remain gates. Nothing auto-starts.
+See the [worker contract](./README.md#serial-worker-lifetime-injected-adapters-off-by-default).
