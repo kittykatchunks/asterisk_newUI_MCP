@@ -47,6 +47,7 @@ also a possible future deployment option.
 | Support access | Diagnostics by default, with contract-authorised, time-limited, reasoned and audited elevation. |
 | Engineering diagnostics | Fault-triggered diagnostic mode, network SIP traces, sngrep-style call flows, AI-assisted fault analysis, and shareable evidence reports. |
 | Technology preference | Maintainable, self-hostable components and simple deployment; no fixed framework preference. |
+| Capacity target | Per customer: 50 concurrent calls, including up to 10 AI calls. Capacity remains unverified. |
 
 ### Provisional recommendations, not final decisions
 
@@ -64,9 +65,8 @@ also a possible future deployment option.
 
 ### Important unresolved matters
 
-- Capacity was stated as "AI up to 10, system up to 50." Working assumption:
-  50 simultaneous calls across the deployment, including 10 AI calls.
-  Confirm platform-wide versus per-customer scope, and whether AI is included.
+- Total customer count, aggregate platform concurrency, capacity headroom, and
+  provider quotas remain to be defined. The per-customer target is confirmed.
 - Exact IONOS product, sizing, public IP allocation, firewall and media topology.
 - Existing Asterisk image versus a project-maintained reproducible image.
 - Retention durations, recording defaults, licensing obligations, and transcript policy.
@@ -431,8 +431,9 @@ eliminate latency.
 
 ## 14. Capacity and verification
 
-Provisional benchmark: 50 simultaneous total calls, including 10 AI calls.
-Confirm scope before using this as a requirement.
+Confirmed target: per customer, 50 simultaneous calls including up to 10 AI calls.
+This is not a verified capacity claim. Separate aggregate multi-customer tests and
+resource-isolation tests are required before production sizing.
 
 Measure codecs/transcoding, recording, WebRTC/TURN, media mixing, event ingestion,
 report queries, provider limits, and speech/model latency. No host sizing has been
@@ -484,7 +485,7 @@ before declaring these tests passed.
 Next detailed planning work:
 
 - Customer setup and agent-console screen specifications.
-- Capacity-scope confirmation and local machine capabilities.
+- Aggregate capacity, production sizing, and provider quotas.
 - IONOS networking/topology comparison.
 - Asterisk image and identity-provider evaluation.
 - Autocab YAML review, including call-pop semantics and test-account access.
@@ -609,3 +610,6 @@ retention/hold policy from call recordings and may contain sensitive call conten
 
 This document records the discussion to date. Unresolved recommendations must not
 be treated as approved requirements or verified implementation behaviour.
+
+See [Milestone 1 specification](./MILESTONE-1.md) for the proposed local functional
+scope, acceptance criteria, implementation sequence, and inspected environment.
