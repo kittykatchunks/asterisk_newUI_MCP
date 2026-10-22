@@ -227,6 +227,21 @@ UTF-8 byte cap. The counter explains two-unit symbols; browser tests cover emoji
 at/over the character limit, multibyte exact byte boundaries, and unchanged
 durable storage of a maximum-length multilingual rejection reason.
 
+Durable review history is now available through audited, customer-scoped,
+GET-only routes and a read-only workspace section under `diagnostics:review`.
+The latest 50 decisions are bounded with explicit truncation; exact candidate
+lookup can reconcile older outcomes after reload or lost acknowledgements.
+Snapshot/receipt integrity is checked and report contents are excluded. Empty
+lookups do not prove submission failure or permit automatic retries.
+
+History loading protects local drafts, renders reasons/identities as literal text
+and never sends a decision POST. Store/API/browser tests cover persistence,
+ordering/limits, exact lookup, customer/permission boundaries, corruption/audit
+failures, hostile text and a committed approval after timeout. The real application
+session proof verifies history after reload and denies access after logout.
+This is a local durable history view, not external tamper-proof auditing,
+revocation/correction, pagination or production identity persistence.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

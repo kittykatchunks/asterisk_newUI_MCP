@@ -556,16 +556,18 @@ and retention remain outstanding.
 ### Authenticated review API proof
 
 The API factory's optional fifth argument is a review store exposing `pending`,
-`candidate`, and `review` from the opened diagnostic store. It is deliberately
+`candidate`, `review`, and `history` from the opened diagnostic store. It is deliberately
 separate from the public incident catalog; no staging/upload endpoint exists.
-All three routes require the explicit provisioned **`diagnostics:review`**
+All review routes require the explicit provisioned **`diagnostics:review`**
 permission for the customer in the path:
 
 | Resource | Result |
 |---|---|
-| `GET /api/customers/{customer}/diagnostics/reviews` | Pending candidate IDs and snapshot hashes only |
+| `GET /api/customers/{customer}/diagnostics/reviews` | Pending candidate IDs, snapshot hashes and allowlisted summaries |
 | `GET /api/customers/{customer}/diagnostics/reviews/{candidate}` | Candidate metadata, snapshot hash, and unapproved report as JSON |
 | `POST /api/customers/{customer}/diagnostics/reviews/{candidate}` | Approve or reject the exact candidate |
+| `GET /api/customers/{customer}/diagnostics/reviews/history` | At most 50 recent recorded decisions, newest first |
+| `GET /api/customers/{customer}/diagnostics/reviews/history/{candidate}` | Exact recorded outcome for a candidate, including older decisions |
 
 Candidate IDs are generated UUIDs. A candidate belonging to another customer
 returns 404 within an authorised customer scope; trying an unauthorised customer
@@ -590,6 +592,23 @@ The deployment must wire the real store for review, not an adapter that ignores
 the transactional access-audit argument. The ordinary audit callback handles
 denials and invalid/conflicting requests; it is not called again after the store
 has already committed a successful decision audit.
+
+History reads also await the configured audit sink (`review-history` operation);
+storage/integrity/audit failures return an explicit 503 without history data.
+History routes accept GET only. Responses contain `{ requestId, reviews, truncated }`.
+Each review contains only candidate `id`, snapshot `sha256`, allowlisted incident
+`summary`, `decision`, `reviewer`, `reason`, and `decidedAt`; report HTML and raw
+evidence are never returned. Stored snapshot provenance/hash and receipt fields
+are validated before disclosure. No database migration is needed.
+
+Recent history uses descending decision time with candidate-ID tie-breaks and
+sets `truncated: true` when more than 50 decisions exist. Exact lookup is independent
+of that limit. It returns an empty array for pending, unknown or other-customer
+candidate IDs within an authorised scope, without distinguishing them. Empty
+results are not proof that a submission failed or that retrying is safe: an
+in-flight decision can commit after the read. History records decisions, not a
+new guarantee of current publication availability, and remains subject to the
+existing database-administrator tampering limitations.
 
 Tests verify customer separation, permission separation, reviewer spoof rejection,
 exact byte boundaries, body timeout, conflicting decisions, and rollback when
@@ -884,6 +903,32 @@ over it for both decisions, plus exact 8,192/8,193-byte bodies containing multib
 Unicode. A real rejection verifies a 2,000-code-unit reason containing accented
 text, CJK, emoji and combining marks reaches the API and SQLite unchanged, without
 Unicode normalization or truncation. The UTF-8 byte cap remains independent.
+
+### Durable review history and outcome reconciliation
+
+The workspace's **Recorded review history** section loads only on explicit action.
+It shows up to 50 recent decisions and offers an exact candidate-UUID lookup for
+older or uncertain outcomes. Inspection pre-fills that candidate ID, retaining it
+in the current connection after a failed acknowledgement; it is not saved in
+browser storage. After reload, paste the ID or load recent history. Both actions
+are read-only GETs and never replay approval/rejection. An open draft receives the
+existing discard confirmation before history loading closes the review.
+
+Recorded reasons, reviewer identities and metadata render as literal text only.
+History is a snapshot: use explicit reload/lookup to update it. Empty exact
+lookups carry an uncertainty warning, not an invitation to resubmit. History reads
+do not replace the separate **Last confirmed review** acknowledgement. History
+request references identify the read, not the original decision request. New
+connections, expiry and sign-out remove loaded history; no browser persistence
+or new report-disclosure permission is introduced.
+
+Tests cover reopening SQLite, more than 50 decisions, deterministic tie-breaking,
+exact older outcome lookup, corruption, audit failures, customer/permission and
+GET-only boundaries. Browser coverage reconciles a committed approval whose
+acknowledgement timed out after a fresh connection, verifies rejected outcomes,
+draft guards, literal hostile-looking text, invalid responses and no extra POST.
+The real confidential-session proof also reads history after reload and checks
+cross-customer denial and logout replay denial.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

@@ -17,7 +17,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "session-login" | "session-logout";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "session-login" | "session-logout";
   incident?: string;
 }
 
@@ -26,7 +26,7 @@ export function createDiagnosticApi(
   audit: (event: AccessAudit) => Promise<void>,
   logError: (error: unknown, requestId: string) => void,
   catalog?: IncidentCatalog,
-  reviews?: Pick<DiagnosticStore, "pending" | "candidate" | "review">,
+  reviews?: Pick<DiagnosticStore, "pending" | "candidate" | "review" | "history">,
   sessionConfig?: ApplicationSessionConfig,
 ) {
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
@@ -77,9 +77,11 @@ export function createDiagnosticApi(
         return;
       }
       const reviewMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics\/reviews(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/);
-      if (reviewMatch) {
-        await handleReviewRequest(request, response, requestId, reviewMatch[1], reviewMatch[2],
-          verify, audit, reviews);
+      const historyMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics\/reviews\/history(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/);
+      const reviewRoute = historyMatch ?? reviewMatch;
+      if (reviewRoute) {
+        await handleReviewRequest(request, response, requestId, reviewRoute[1], reviewRoute[2],
+          verify, audit, reviews, historyMatch !== null);
         return;
       }
       const match = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics(?:\/incidents(?:\/(incident-[0-9a-f]{32})\/report)?)?$/);

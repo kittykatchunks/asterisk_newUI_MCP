@@ -33,6 +33,14 @@ function summary(value) {
 /** @param {unknown} value @returns {value is { id: string, sha256: string, summary: { id: string, title: string, createdAt: string } }} */
 function pendingReference(value) { return reference(value) && summary(value.summary); }
 
+/** @param {unknown} value @returns {value is { id: string, sha256: string, summary: { id: string, title: string, createdAt: string }, decision: "approve" | "reject", reviewer: string, reason: string, decidedAt: string }} */
+function recordedReview(value) {
+  return record(value) && (value.decision === "approve" || value.decision === "reject") &&
+    typeof value.reviewer === "string" && !!value.reviewer.trim() && value.reviewer.length <= 200 &&
+    typeof value.reason === "string" && !!value.reason.trim() && value.reason.length <= 2000 &&
+    typeof value.decidedAt === "string" && Number.isFinite(Date.parse(value.decidedAt)) && pendingReference(value);
+}
+
 /** @type {(() => void) | undefined} */
 let disconnect;
 
@@ -142,6 +150,26 @@ export async function connectReviewWorkspace(connection) {
   detail.hidden = true;
   root.append(warning, status, decisionReceipt, error, refresh, filterControls, list, detail);
 
+  const history = document.createElement("section");
+  history.setAttribute("aria-label", "Recorded review history");
+  const recentHistory = document.createElement("button");
+  recentHistory.textContent = "Load recent review history";
+  const lookupLabel = element("label", "Candidate ID to check");
+  const lookup = document.createElement("input");
+  lookup.type = "search";
+  lookup.maxLength = 36;
+  lookupLabel.append(lookup);
+  const checkHistory = document.createElement("button");
+  checkHistory.textContent = "Check recorded outcome";
+  const historyStatus = element("p", "");
+  historyStatus.setAttribute("role", "status");
+  historyStatus.tabIndex = -1;
+  const historyResults = document.createElement("div");
+  history.append(element("h2", "Recorded review history"),
+    element("p", "Read-only recorded decisions for this customer. Recent history shows at most 50 decisions, newest first. Use an exact candidate ID to check an older or uncertain outcome. Results are a snapshot, not live updates. Checking history closes the open review after any draft-discard confirmation; it never submits a decision."),
+    recentHistory, lookupLabel, checkHistory, historyStatus, historyResults);
+  root.append(history);
+
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-label", "Confirm review decision");
   const confirmation = element("p", "");
@@ -246,6 +274,8 @@ export async function connectReviewWorkspace(connection) {
     if (disposed) return;
     error.textContent = cause instanceof Error ? cause.message : "Review operation failed";
     status.textContent = "";
+    historyStatus.textContent = "";
+    historyResults.replaceChildren();
     clearReview();
     focusAfterRequest = error;
   }
@@ -266,6 +296,55 @@ export async function connectReviewWorkspace(connection) {
       }
     }
   }
+  /** @param {string} [candidate] */
+  async function loadHistory(candidate) {
+    clearReview();
+    historyResults.replaceChildren();
+    historyStatus.textContent = "Loading recorded reviews...";
+    const { body, requestId } = await request(`${endpoint}/history${candidate ? `/${candidate}` : ""}`);
+    if (!record(body) || !Array.isArray(body.reviews) || body.reviews.length > (candidate ? 1 : 50) ||
+        !body.reviews.every(recordedReview) || typeof body.truncated !== "boolean" ||
+        (body.truncated && body.reviews.length !== 50) ||
+        (candidate && (body.truncated || body.reviews.some((review) => review.id !== candidate))) ||
+        new Set(body.reviews.map((review) => review.id)).size !== body.reviews.length) {
+      throw new Error(`Invalid review history response (request ${requestId}). Load history again before relying on it.`);
+    }
+    if (disposed) return;
+    for (const review of body.reviews) {
+      const item = document.createElement("article");
+      const reason = element("pre", review.reason);
+      item.append(element("h3", review.summary.title),
+        element("p", `Recorded decision: ${review.decision}`),
+        element("p", `Candidate: ${review.id}`),
+        element("p", `Incident: ${review.summary.id}`),
+        element("p", `Snapshot SHA-256: ${review.sha256}`),
+        element("p", `Reviewer: ${review.reviewer}`),
+        element("p", `Decided: ${review.decidedAt}`), element("h4", "Recorded reason"), reason);
+      historyResults.append(item);
+    }
+    historyStatus.textContent = body.reviews.length
+      ? `${body.reviews.length} recorded review(s) loaded.${body.truncated ? " Only the latest 50 are shown; use a candidate ID to check older outcomes." : ""} History request reference: ${requestId}.`
+      : `No recorded decision found${candidate ? ` for candidate ${candidate}` : " for this customer"}. This does not prove a submission failed: the candidate may be pending, unknown, or changing concurrently. Refresh pending reports and check again before any further action. History request reference: ${requestId}.`;
+    status.textContent = "History check complete. No decision sent.";
+    focusAfterRequest = historyStatus;
+  }
+  recentHistory.onclick = () => leaveReview(() => run(() => loadHistory()),
+    "Load recorded history and close the current review?", "Discard and load history");
+  const checkOutcome = () => {
+    if (busy || disposed) return;
+    const candidate = lookup.value.trim().toLowerCase();
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(candidate)) {
+      error.textContent = "Enter a complete candidate UUID to check its recorded outcome.";
+      error.focus();
+      return;
+    }
+    leaveReview(() => run(() => loadHistory(candidate)),
+      "Check the recorded outcome and close the current review?", "Discard and check outcome");
+  };
+  checkHistory.onclick = checkOutcome;
+  lookup.onkeydown = (event) => {
+    if (event.key === "Enter") { event.preventDefault(); checkOutcome(); }
+  };
   async function load() {
     if (disposed) return;
     clearReview();
@@ -323,6 +402,7 @@ export async function connectReviewWorkspace(connection) {
     }
     if (disposed) return;
     selected = { ...candidate, title: entry.summary.title, incident: entry.summary.id };
+    lookup.value = candidate.id;
     const heading = element("h2", entry.summary.title);
     heading.tabIndex = -1;
     detail.append(heading,

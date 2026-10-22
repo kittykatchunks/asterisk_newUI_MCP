@@ -153,6 +153,18 @@ try {
         finally { reader.close(); }
         await page.reload();
         await page.getByRole("status").filter({ hasText: "No pending reports." }).waitFor();
+        assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
+        await page.getByLabel("Candidate ID to check", { exact: true }).fill(candidate.id);
+        await page.getByRole("button", { name: "Check recorded outcome", exact: true }).click();
+        const history = page.getByRole("region", { name: "Recorded review history", exact: true });
+        await history.getByRole("status").filter({ hasText: "1 recorded review(s) loaded." }).waitFor();
+        assert.ok((await history.textContent())?.includes("Recorded decision: approve"));
+        assert.ok((await history.textContent())?.includes(account.subject));
+        assert.ok((await history.textContent())?.includes(candidate.sha256));
+        assert.equal(await history.locator("pre").textContent(), "Reviewed through a real server-managed session");
+        assert.equal((await fetch(`${reviewRoot}/history`, { headers: { Cookie: cookie } })).status, 200);
+        assert.equal((await fetch(`${reviewRoot.replace("customer-a", "customer-b")}/history`,
+          { headers: { Cookie: cookie } })).status, 403);
         const [unfinished] = store.stage([{
           customer: "customer-a",
           summary: { id: "incident-" + "b".repeat(32), title: "Unfinished local review", createdAt: "2026-10-22T12:00:00Z" },
@@ -379,7 +391,9 @@ try {
       assert.equal(await page.evaluate(() =>
         window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), true);
       assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+      assert.equal(await page.getByRole("region", { name: "Recorded review history", exact: true }).count(), 0);
       assert.equal((await fetch(reviewRoot, { headers: { Cookie: cookie } })).status, 401);
+      assert.equal((await fetch(`${reviewRoot}/history`, { headers: { Cookie: cookie } })).status, 401);
       assert.equal((await context.cookies(origin)).filter((cookie) => cookie.name === "asterisk-test-session").length, 0);
       assert.equal(logoutAttempts, account.username === "alice" ? 3 : 1);
       assert.deepEqual(browserErrors, []);

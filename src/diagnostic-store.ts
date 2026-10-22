@@ -10,6 +10,7 @@ export interface DiagnosticStore {
   stage(entries: readonly ApprovedIncident[]): { id: string; sha256: string }[];
   pending(customer: string): { id: string; sha256: string; summary: IncidentSummary }[];
   candidate(id: string): { entry: ApprovedIncident; sha256: string } | undefined;
+  history(customer: string, candidate?: string): { reviews: RecordedReview[]; truncated: boolean };
   review(id: string, review: IncidentReview, access?: AccessAudit): void;
   audit(event: AccessAudit): Promise<void>;
   close(): void;
@@ -20,6 +21,12 @@ export interface IncidentReview {
   reviewer: string;
   reason: string;
   sha256: string;
+}
+
+export interface RecordedReview extends IncidentReview {
+  id: string;
+  summary: IncidentSummary;
+  decidedAt: string;
 }
 
 export class ReviewConflict extends Error {
@@ -217,6 +224,29 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
         throw new Error("Staged incident integrity check failed");
       }
       return { entry, sha256: entryHash(row.entry) };
+    },
+    history(customer, candidate) {
+      const columns = `SELECT c.id, c.customer, c.incident, c.entry, c.sha256,
+        r.sha256 AS reviewed_hash, r.decision, r.reviewer, r.reason, r.decided_at
+        FROM report_candidates c JOIN incident_reviews r ON r.candidate = c.id`;
+      const rows = candidate === undefined
+        ? db.prepare(`${columns} WHERE c.customer = ? ORDER BY r.decided_at DESC, c.id LIMIT 51`).all(customer)
+        : db.prepare(`${columns} WHERE c.customer = ? AND c.id = ?`).all(customer, candidate);
+      const reviews = rows.slice(0, 50).map((row): RecordedReview => {
+        const entry = parseEntry(row.customer, row.incident, row.entry);
+        if (typeof row.id !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(row.id) ||
+            typeof row.entry !== "string" || row.sha256 !== entryHash(row.entry) || row.reviewed_hash !== row.sha256 ||
+            (row.decision !== "approve" && row.decision !== "reject") ||
+            typeof row.reviewer !== "string" || !row.reviewer.trim() || row.reviewer.length > 200 ||
+            typeof row.reason !== "string" || !row.reason.trim() || row.reason.length > 2000 ||
+            typeof row.decided_at !== "string" || !Number.isFinite(Date.parse(row.decided_at))) {
+          throw new Error("Review history integrity check failed");
+        }
+        return { id: row.id, sha256: entryHash(row.entry), decision: row.decision, reviewer: row.reviewer,
+          reason: row.reason, decidedAt: row.decided_at,
+          summary: { id: entry.summary.id, title: entry.summary.title, createdAt: entry.summary.createdAt } };
+      });
+      return { reviews, truncated: rows.length > 50 };
     },
     review(id, review, access) {
       if (!["approve", "reject"].includes(review.decision) || !review.reviewer.trim() ||

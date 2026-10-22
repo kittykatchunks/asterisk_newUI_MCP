@@ -243,6 +243,17 @@ multibyte UTF-8 exact request boundaries for both decisions. A real rejection
 checks exact API/SQLite preservation of accented, CJK, emoji and decomposed
 combining-mark text at 2,000 code units; no normalization or truncation is applied.
 
+Durable review history now exposes at most 50 recent decisions and exact
+candidate-ID reconciliation through audited read-only customer-scoped routes.
+It reuses `diagnostics:review`, returns allowlisted metadata/receipt fields without
+report HTML, and checks stored snapshot/receipt integrity. No schema change or
+new mutation is introduced. The browser uses literal text, draft-discard guards,
+explicit reads and uncertainty warnings for missing outcomes; it never retries a
+decision. Tests cover persistence, limits/order, older lookup, access/audit/storage
+failure, hostile text and recovery after timeout/reload, including real server
+sessions. Pagination, correction/revocation and external audit guarantees remain
+outside this increment.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

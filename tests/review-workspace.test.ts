@@ -833,7 +833,98 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         assert.deepEqual({ ...receipt }, { decision: "reject", reason: multilingualReason, sha256: multilingual.sha256 });
       } finally { multilingualReader.close(); }
 
+      const literalReason = '<img src="https://untrusted.invalid/history"> Literal recorded reason \u00e9\u4e2d\u{1f695}';
+      for (let index = 100; index < 151; index++) {
+        const candidate = stage(index.toString(16).padStart(32, "0"));
+        store.review(candidate.id, { decision: "reject", reason: literalReason,
+          reviewer: "<script>literal reviewer</script>", sha256: candidate.sha256 });
+      }
+      const historyWriter = new DatabaseSync(join(directory, "diagnostics.sqlite"));
+      try {
+        historyWriter.prepare("UPDATE incident_reviews SET decided_at = ? WHERE candidate = ?")
+          .run("2026-10-21T12:00:00Z", timedOut.id);
+      } finally { historyWriter.close(); }
+      await connect(reviewer);
+      assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
+      const historyRegion = page.getByRole("region", { name: "Recorded review history", exact: true });
+      assert.equal(await historyRegion.locator("article").count(), 0, "History must only load on explicit request");
+      const beforeHistory: number = posts.length;
+      await page.getByRole("button", { name: `Inspect ${changed.id}`, exact: true }).click();
+      await page.getByLabel("Review reason", { exact: true }).fill("Keep this draft until history is confirmed");
+      const beforeHistoryDiscard = reviewRequests;
+      await page.getByRole("button", { name: "Load recent review history", exact: true }).click();
+      await discard.waitFor();
+      await discard.getByRole("button", { name: "Cancel", exact: true }).click();
+      assert.equal(reviewRequests, beforeHistoryDiscard);
+      assert.equal(await page.getByLabel("Review reason", { exact: true }).inputValue(), "Keep this draft until history is confirmed");
+      await page.getByRole("button", { name: "Load recent review history", exact: true }).click();
+      await discard.getByRole("button", { name: "Discard and load history", exact: true }).click();
+      await historyRegion.getByRole("status").filter({ hasText: "50 recorded review(s) loaded." }).waitFor();
+      assert.ok((await historyRegion.textContent())?.includes("Only the latest 50 are shown"));
+      assert.equal(await historyRegion.locator("article").count(), 50);
+      assert.ok((await historyRegion.locator("article").first().textContent())?.includes(literalReason));
+      assert.equal(await historyRegion.locator("img, script, iframe").count(), 0);
+      assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+      assert.equal(await unloadIsBlocked(), false);
+      assert.ok(!(await historyRegion.locator("article").allTextContents()).some((text) => text.includes(timedOut.id)));
+      const outcomeInput = page.getByLabel("Candidate ID to check", { exact: true });
+      const beforeInvalidLookup = reviewRequests;
+      await outcomeInput.fill("not-a-candidate");
+      await page.getByRole("button", { name: "Check recorded outcome", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "Enter a complete candidate UUID" }).waitFor();
+      assert.equal(reviewRequests, beforeInvalidLookup);
+      await outcomeInput.fill(timedOut.id.toUpperCase());
+      await outcomeInput.press("Enter");
+      await historyRegion.getByRole("status").filter({ hasText: "1 recorded review(s) loaded." }).waitFor();
+      assert.equal(await historyRegion.locator("article").count(), 1);
+      assert.ok((await historyRegion.locator("article").textContent())?.includes(timedOut.id));
+      assert.ok((await historyRegion.locator("article").textContent())?.includes("Recorded decision: approve"));
+      assert.ok((await historyRegion.locator("article").textContent())?.includes(timedOut.sha256));
+      assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false,
+        "A history read is not a new decision acknowledgement");
+      for (const id of [multilingual.id, changed.id, "00000000-0000-0000-0000-000000000001"]) {
+        await outcomeInput.fill(id);
+        await page.getByRole("button", { name: "Check recorded outcome", exact: true }).click();
+        if (id === multilingual.id) {
+          await historyRegion.getByRole("status").filter({ hasText: "1 recorded review(s) loaded." }).waitFor();
+          assert.ok((await historyRegion.locator("article").textContent())?.includes("Recorded decision: reject"));
+          assert.equal(await historyRegion.locator("pre").textContent(), multilingualReason);
+        } else {
+          await historyRegion.getByRole("status").filter({ hasText: "No recorded decision found" }).waitFor();
+          assert.ok((await historyRegion.getByRole("status").textContent())?.includes("does not prove a submission failed"));
+          assert.equal(await historyRegion.locator("article").count(), 0);
+        }
+      }
+      const historyUrl = "**/api/customers/customer-a/diagnostics/reviews/history";
+      const validHistory = store.history("customer-a");
+      for (const probe of [
+        { status: 200, body: { reviews: [null], truncated: false }, expected: "Invalid review history response" },
+        { status: 200, body: { reviews: [], truncated: true }, expected: "Invalid review history response" },
+        { status: 200, body: { reviews: [validHistory.reviews[0], validHistory.reviews[0]], truncated: false }, expected: "Invalid review history response" },
+        { status: 200, body: { reviews: [{ ...validHistory.reviews[0], reason: "private-invalid-reason".repeat(200) }], truncated: false }, expected: "Invalid review history response" },
+        { status: 503, body: { code: "synthetic_history_unavailable" }, expected: "503: synthetic_history_unavailable" },
+      ]) {
+        await page.route(historyUrl, (route) => route.fulfill({
+          status: probe.status, headers: { "X-Request-Id": referenceId },
+          contentType: "application/json", body: JSON.stringify(probe.body),
+        }));
+        await page.getByRole("button", { name: "Load recent review history", exact: true }).click();
+        const alert = page.getByRole("alert").filter({ hasText: probe.expected });
+        await alert.waitFor();
+        assert.ok((await alert.textContent())?.includes(referenceId));
+        assert.ok(!(await alert.textContent())?.includes("private-"));
+        assert.equal(await historyRegion.locator("article").count(), 0);
+        assert.equal(await historyRegion.getByRole("status").textContent(), "");
+        assert.equal((await focused()).role, "alert");
+        await page.unroute(historyUrl);
+      }
+      await page.getByRole("button", { name: "Load recent review history", exact: true }).click();
+      await historyRegion.getByRole("status").filter({ hasText: "50 recorded review(s) loaded." }).waitFor();
+      assert.equal(posts.length, beforeHistory, "History and outcome lookup must never resubmit decisions");
+
       await connect(await jwt("reader"));
+      assert.equal(await historyRegion.locator("article").count(), 0, "A new connection must clear loaded history");
       assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);

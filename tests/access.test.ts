@@ -472,10 +472,79 @@ test("authenticated review endpoints isolate customers, bind reviewer identity a
   }
 });
 
+test("review history is read-only, audited, customer-scoped and fails closed on audit/storage errors", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "asterisk-review-history-"));
+  const path = join(directory, "diagnostics.sqlite");
+  const store = openDiagnosticStore(path);
+  const logged: unknown[] = [];
+  const server = createDiagnosticApi(config, store.audit, (error) => logged.push(error), store.catalog, store);
+  const writer = new DatabaseSync(path);
+  try {
+    const [own, other, pending] = store.stage([
+      ...["customer-a", "customer-b"].map((customer) => ({
+        customer, summary: { id: incidentA, title: "History report", createdAt: "2026-10-22T12:00:00Z" },
+        report: { html: reportHtml, sha256: createHash("sha256").update(reportHtml).digest("hex") },
+      })),
+      { customer: "customer-a", summary: { id: incidentB, title: "Pending", createdAt: "2026-10-22T12:00:00Z" } },
+    ]);
+    for (const candidate of [own, other]) store.review(candidate.id, {
+      decision: "reject", reviewer: "verified-reviewer", reason: "Not suitable", sha256: candidate.sha256,
+    });
+    const origin = await listen(server);
+    const root = `${origin}/api/customers/customer-a/diagnostics/reviews/history`;
+    const headers = { Authorization: `Bearer ${await token("reviewer")}` };
+    for (const url of [root, `${root}/${own.id}`]) {
+      assert.equal((await fetch(url)).status, 401);
+      for (const subject of ["alice", "report-reader", "engineer", "stranger"]) {
+        assert.equal((await fetch(url, { headers: { Authorization: `Bearer ${await token(subject)}` } })).status, 403);
+      }
+      assert.equal((await fetch(url.replace("customer-a", "customer-b"), { headers })).status, 403);
+      for (const method of ["POST", "PUT", "DELETE"]) {
+        const denied = await fetch(url, { method, headers });
+        assert.equal(denied.status, 405);
+        assert.equal(denied.headers.get("allow"), "GET");
+      }
+      const response = await fetch(url, { headers });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      const body = await response.json();
+      assert.deepEqual(body.reviews, store.history("customer-a", url === root ? undefined : own.id).reviews);
+      assert.equal(body.truncated, false);
+      assert.ok(!JSON.stringify(body).includes(reportHtml));
+      const audit = writer.prepare("SELECT operation, outcome, subject FROM access_audit WHERE request_id = ?").get(response.headers.get("x-request-id"));
+      assert.deepEqual({ ...audit }, { operation: "review-history", outcome: "review_history_viewed", subject: "reviewer" });
+    }
+    for (const id of [other.id, pending.id, "00000000-0000-0000-0000-000000000000"]) {
+      const response = await fetch(`${root}/${id}`, { headers });
+      assert.equal(response.status, 200);
+      assert.deepEqual((await response.json()).reviews, []);
+    }
+    writer.exec(`CREATE TRIGGER fail_history_audit BEFORE INSERT ON access_audit
+      WHEN NEW.operation = 'review-history' BEGIN SELECT RAISE(ABORT, 'Synthetic history audit failure'); END`);
+    const auditFailure = await fetch(root, { headers });
+    assert.equal(auditFailure.status, 503);
+    assert.ok(!(await auditFailure.text()).includes("Not suitable"));
+    writer.exec("DROP TRIGGER fail_history_audit");
+    writer.prepare("UPDATE incident_reviews SET sha256 = ? WHERE candidate = ?").run("0".repeat(64), own.id);
+    const corrupt = await fetch(root, { headers });
+    assert.equal(corrupt.status, 503);
+    assert.ok(!(await corrupt.text()).includes("Not suitable"));
+    assert.equal(logged.length, 2);
+  } finally {
+    await close(server); writer.close(); store.close();
+    await rm(directory, { recursive: true });
+  }
+});
+
 test("review routes fail explicitly without a configured reviewer store",async () => {
   const response=await fetch(`${base}/api/customers/customer-a/diagnostics/reviews`,{
     headers: { Authorization: `Bearer ${await token("reviewer")}` },
   });
   assert.equal(response.status,503);
   assert.equal((await response.json()).code,"incident_review_unavailable");
+  const history = await fetch(`${base}/api/customers/customer-a/diagnostics/reviews/history`, {
+    headers: { Authorization: `Bearer ${await token("reviewer")}` },
+  });
+  assert.equal(history.status, 503);
+  assert.equal((await history.json()).code, "incident_review_unavailable");
 });

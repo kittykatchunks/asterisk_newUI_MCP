@@ -77,6 +77,7 @@ const api = createDiagnosticApi({
   audit.push(event);
 }, (error) => { operationalErrors.push(error); }, store.catalog, {
   pending: store.pending,
+  history: store.history,
   candidate: store.candidate,
   review(id, review, access) {
     store.review(id, review, access);

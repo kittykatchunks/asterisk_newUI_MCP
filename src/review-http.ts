@@ -62,14 +62,15 @@ export async function handleReviewRequest(
   customer: string, candidate: string | undefined,
   verify: ReturnType<typeof createAccessVerifier>,
   audit: (event: AccessAudit) => Promise<void>,
-  reviews?: Pick<DiagnosticStore, "pending" | "candidate" | "review">,
+  reviews?: Pick<DiagnosticStore, "pending" | "candidate" | "review" | "history">,
+  history = false,
 ) {
   const send = (status: number, code: string, body?: unknown) => {
     if (status === 401) response.setHeader("WWW-Authenticate", 'Bearer realm="diagnostics"');
     response.writeHead(status).end(JSON.stringify(body ?? { code, requestId }));
   };
-  const decision = request.method === "POST" && candidate !== undefined;
-  const operation = decision ? "review-decision" : candidate ? "review-candidate" : "review-list";
+  const decision = !history && request.method === "POST" && candidate !== undefined;
+  const operation = history ? "review-history" : decision ? "review-decision" : candidate ? "review-candidate" : "review-list";
   const result = await verify(request.headers.authorization, customer, "diagnostics:review");
   const event: AccessAudit = {
     requestId, timestamp: new Date().toISOString(), customer, operation,
@@ -82,10 +83,17 @@ export async function handleReviewRequest(
   };
   if (!result.allowed) { await deny(result.status, result.code); request.resume(); return; }
   if (request.method !== "GET" && !decision) {
-    response.setHeader("Allow", candidate ? "GET, POST" : "GET");
+    response.setHeader("Allow", !history && candidate ? "GET, POST" : "GET");
     await deny(405, "method_not_allowed"); request.resume(); return;
   }
   if (!reviews) { await deny(503, "incident_review_unavailable"); request.resume(); return; }
+  if (history) {
+    const result = reviews.history(customer, candidate);
+    await audit({ ...event, outcome: "review_history_viewed",
+      ...(candidate && result.reviews[0] ? { incident: result.reviews[0].summary.id } : {}) });
+    send(200, "review_history_viewed", { requestId, ...result });
+    return;
+  }
   if (!candidate) {
     const pending = reviews.pending(customer);
     await audit({ ...event, outcome: "review_candidates_listed" });

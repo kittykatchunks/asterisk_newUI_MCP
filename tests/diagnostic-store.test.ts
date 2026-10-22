@@ -96,6 +96,74 @@ test("staging batches are atomic, validated, insert-only and customer-keyed", as
   });
 });
 
+test("review history survives reopening, is scoped and bounded, and supports exact older outcome lookup", async () => {
+  await fixture(async (path) => {
+    let store = openDiagnosticStore(path);
+    const writer = new DatabaseSync(path);
+    try {
+      const entries = Array.from({ length: 52 }, (_, index) => ({
+        ...entry(), summary: { ...entry().summary, id: "incident-" + index.toString(16).padStart(32, "0") },
+      }));
+      const staged = store.stage([...entries, entry("customer-b", "b"), entry("customer-a", "f")]);
+      for (const [index, candidate] of staged.slice(0, 53).entries()) {
+        store.review(candidate.id, { decision: index % 2 ? "reject" : "approve",
+          reviewer: "reviewer", reason: "<script>literal reason</script>", sha256: candidate.sha256 });
+        writer.prepare("UPDATE incident_reviews SET decided_at = ? WHERE candidate = ?").run(
+          index === 0 ? "2026-10-21T12:00:00Z" : "2026-10-22T12:00:00Z", candidate.id);
+      }
+      store.close();
+      store = openDiagnosticStore(path);
+      const history = store.history("customer-a");
+      assert.equal(history.reviews.length, 50);
+      assert.equal(history.truncated, true);
+      const expectedIds = staged.slice(1, 52).map((candidate) => candidate.id).sort().slice(0, 50);
+      assert.deepEqual(history.reviews.map((review) => review.id), expectedIds);
+      const exact = store.history("customer-a", staged[0].id);
+      assert.equal(exact.truncated, false);
+      assert.deepEqual(exact.reviews, [{
+        ...staged[0], decision: "approve", reviewer: "reviewer", reason: "<script>literal reason</script>",
+        decidedAt: "2026-10-21T12:00:00Z", summary: entries[0].summary,
+      }]);
+      exact.reviews[0].summary.title = "caller mutation";
+      assert.equal(store.history("customer-a", staged[0].id).reviews[0].summary.title, entries[0].summary.title);
+      assert.equal(store.history("customer-b").reviews.length, 1);
+      for (const id of [staged[52].id, staged[53].id, "00000000-0000-0000-0000-000000000000"]) {
+        assert.deepEqual(store.history("customer-a", id), { reviews: [], truncated: false });
+      }
+      assert.deepEqual(store.history("unknown-customer"), { reviews: [], truncated: false });
+      assert.ok(!JSON.stringify(history).includes(html));
+      assert.deepEqual(Object.keys(history.reviews[0]).sort(),
+        ["id", "sha256", "decision", "reviewer", "reason", "decidedAt", "summary"].sort());
+    } finally { writer.close(); store.close(); }
+  });
+});
+
+test("review history fails explicitly on stored snapshot or receipt corruption", async () => {
+  await fixture(async (path) => {
+    const store = openDiagnosticStore(path);
+    const writer = new DatabaseSync(path);
+    try {
+      const [candidate] = store.stage([entry()]);
+      store.review(candidate.id, { decision: "reject", reviewer: "reviewer", reason: "Reviewed", sha256: candidate.sha256 });
+      const original = writer.prepare("SELECT entry FROM report_candidates WHERE id = ?").get(candidate.id)?.entry;
+      assert.ok(typeof original === "string");
+      writer.prepare("UPDATE report_candidates SET entry = ? WHERE id = ?").run(
+        JSON.stringify({ ...entry(), summary: { ...entry().summary, title: "Unreviewed mutation" } }), candidate.id);
+      assert.throws(() => store.history("customer-a"), /integrity/);
+      assert.throws(() => store.history("customer-a", candidate.id), /integrity/);
+      writer.prepare("UPDATE report_candidates SET entry = ? WHERE id = ?").run(original, candidate.id);
+      for (const [column, value, restore] of [
+        ["sha256", "0".repeat(64), candidate.sha256], ["reason", " ", "Reviewed"],
+        ["reviewer", "", "reviewer"], ["decided_at", "invalid", new Date().toISOString()],
+      ]) {
+        writer.prepare(`UPDATE incident_reviews SET ${column} = ? WHERE candidate = ?`).run(value, candidate.id);
+        assert.throws(() => store.history("customer-a"), /integrity/);
+        writer.prepare(`UPDATE incident_reviews SET ${column} = ? WHERE candidate = ?`).run(restore, candidate.id);
+      }
+    } finally { writer.close(); store.close(); }
+  });
+});
+
 test("stored report tampering, malformed entries and customer mismatches fail closed", async () => {
   await fixture(async (path) => {
     const store = openDiagnosticStore(path);
