@@ -799,6 +799,18 @@ controls and warns that the decision may already have committed, without retryin
 Browser tests cover malformed list/candidate responses, invalid references/codes
 and an approval actually committed in storage before its response is damaged.
 
+Review transport failures now explicitly warn that a lost response may follow a
+committed decision, rather than displaying only a generic fetch exception.
+Failures before headers show `request unavailable`; interruptions while reading
+a received body retain its HTTP status and validated request reference. Request
+timeouts have an explicit timeout message. Selected evidence/decision controls
+are removed and no automatic retry is sent. Cancellation caused by session
+cleanup retains the session's own closed/expired message instead of overwriting
+it with a transport error. Browser tests disconnect approval requests both before
+server delivery and after an actual commit, verifying the differing stored
+outcomes and the same conservative browser recovery guidance. Refresh/re-sign-in
+and inspect the pending/published state before deciding whether to retry.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

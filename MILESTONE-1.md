@@ -175,6 +175,11 @@ request references while omitting raw upstream content. Browser tests cover
 list/candidate failures and a committed approval with a corrupted acknowledgement:
 the UI warns of possible commit, clears decision controls and never retries.
 
+Review transport failures/timeouts now carry explicit uncertain-outcome guidance.
+Browser tests disconnect approval before server delivery and after commit,
+verifying no automatic retry and differing durable outcomes. Session-driven
+cancellation preserves the session cleanup message.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

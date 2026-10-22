@@ -191,11 +191,18 @@ export async function connectReviewWorkspace(connection) {
   /** @param {string} path @param {RequestInit} [options] @returns {Promise<unknown>} */
   async function request(path, options = {}) {
     if (disposed) throw new DOMException("Review connection closed", "AbortError");
-    const response = await fetch(path, {
+    /** @type {Response} */
+    let response;
+    try { response = await fetch(path, {
       ...options, credentials: csrf ? "same-origin" : "omit", cache: "no-store", redirect: "error",
       headers: { ...(csrf ? { "X-CSRF-Token": csrf } : { Authorization: `Bearer ${accessToken}` }), ...(options.headers ?? {}) },
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
-    });
+    }); } catch (cause) {
+      if (disposed) throw cause;
+      if (!(cause instanceof TypeError) && !(cause instanceof DOMException)) throw cause;
+      const detail = cause instanceof DOMException && cause.name === "TimeoutError" ? "Request timed out" : "Failed to fetch";
+      throw new Error(`${detail} (request unavailable). Refresh before retrying; a lost response may follow a committed decision. No automatic retry was sent.`, { cause });
+    }
     if (response.status === 401 && onUnauthorized) {
       onUnauthorized();
       throw new Error("Application session is no longer valid. Sign in again. Check the report state before retrying any decision.");
@@ -204,6 +211,10 @@ export async function connectReviewWorkspace(connection) {
     let body;
     try { body = await response.json(); }
     catch (cause) {
+      if (disposed) throw cause;
+      if (cause instanceof TypeError || cause instanceof DOMException) {
+        throw new Error(`Response interrupted (${response.status}; request ${requestId}). Refresh before retrying; a lost response may follow a committed decision. No automatic retry was sent.`, { cause });
+      }
       if (!(cause instanceof SyntaxError)) throw cause;
       throw new Error(`Invalid JSON response (${response.status}; request ${requestId}). Refresh before retrying; a lost response may follow a committed decision.`);
     }

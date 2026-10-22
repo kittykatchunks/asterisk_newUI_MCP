@@ -429,6 +429,38 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
       await page.unroute(`**/api/customers/customer-a/diagnostics/reviews/${additional.id}`);
 
+      for (const commitBeforeDisconnect of [false, true]) {
+        const digit = commitBeforeDisconnect ? "2" : "1";
+        const interrupted = stage(digit);
+        await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+        await page.getByRole("button", { name: `Inspect ${interrupted.id}`, exact: true }).click();
+        await page.getByLabel("Review reason", { exact: true }).fill("Interrupted decision");
+        await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+        const decisionUrl = `**/api/customers/customer-a/diagnostics/reviews/${interrupted.id}`;
+        await page.route(decisionUrl, async (route) => {
+          if (commitBeforeDisconnect) {
+            const response = await route.fetch();
+            assert.equal(response.status(), 200);
+          }
+          await route.abort("failed");
+        });
+        const beforeInterruption: number = posts.length;
+        await page.getByRole("button", { name: "Approve report", exact: true }).click();
+        await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
+        const alert = page.getByRole("alert");
+        await alert.filter({ hasText: "Failed to fetch (request unavailable)." }).waitFor();
+        assert.ok((await alert.textContent())?.includes("committed decision"));
+        assert.ok((await alert.textContent())?.includes("No automatic retry was sent."));
+        assert.equal(posts.length, beforeInterruption + 1);
+        assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+        assert.equal((await focused()).role, "alert");
+        assert.equal(await store.catalog.report("customer-a", "incident-" + digit.repeat(32)),
+          commitBeforeDisconnect ? html : undefined);
+        assert.equal(store.pending("customer-a").some((candidate) => candidate.id === interrupted.id), !commitBeforeDisconnect);
+        await page.unroute(decisionUrl);
+      }
+
       await connect(await jwt("reader"));
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);

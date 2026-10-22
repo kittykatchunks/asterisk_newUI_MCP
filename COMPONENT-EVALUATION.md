@@ -195,6 +195,11 @@ Malformed JSON preserves status/correlation without rendering upstream bodies;
 error codes are bounded identifiers. A committed-approval/corrupted-response test
 verifies explicit ambiguity handling and no automatic decision retry.
 
+Transport failures now use the same conservative decision-outcome guidance, with
+explicit unavailable references before headers and retained status/reference for
+body interruption. Browser tests exercise disconnects before and after server
+commit, verifying no retry and preserved durable outcomes.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only
