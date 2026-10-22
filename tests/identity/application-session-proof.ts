@@ -524,10 +524,72 @@ try {
       console.log(`PASS ${account.username}: ordinary browser login, HttpOnly session, CSRF, permission boundary and logout replay denial`);
     } finally { await context.close(); }
   }
+  for (const account of accounts) {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      const browserErrors: string[] = [];
+      const apiRequests: string[] = [];
+      page.on("pageerror", (error) => browserErrors.push(error.message));
+      page.on("request", (request) => {
+        if (!request.url().startsWith(origin + "/api/")) return;
+        assert.equal(request.headers().authorization, undefined, "Agent console must not send browser bearer tokens");
+        apiRequests.push(request.url());
+      });
+      const consoleUrl = `${origin}/agent/${account.customer}`;
+      await page.goto(consoleUrl);
+      await page.getByText("Sign in to view your agent assignment.", { exact: true }).waitFor();
+      assert.equal(apiRequests.length, 0, "Signed-out console must not request assignment data");
+      const login = page.getByRole("link", { name: "Sign in", exact: true });
+      assert.equal(await login.getAttribute("href"), `/auth/login?customer=${account.customer}&workspace=agent`);
+      await login.click();
+      await page.locator("#username").fill(account.username);
+      await page.locator("#password").fill(account.password);
+      await page.locator("#kc-login").click();
+      await page.waitForURL(consoleUrl);
+      await page.getByRole("button", { name: "Sign out", exact: true }).waitFor();
+      const profileUrl = `${origin}/api/customers/${account.customer}/agent/profile`;
+      if (account.username === "alice") {
+        await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+        assert.deepEqual(await page.locator("#assignment dd").allTextContents(),
+          [account.customer, "Synthetic agent Alice", "1001"]);
+      } else {
+        await page.getByRole("alert").filter({ hasText: "Agent access is not permitted." }).waitFor();
+        assert.equal(await page.locator("#assignment dd").count(), 0);
+      }
+      assert.deepEqual(apiRequests, [profileUrl], "Agent landing must not fetch engineering or other-customer data");
+      const cookies = (await context.cookies(origin)).filter((cookie) => cookie.name === "asterisk-test-session");
+      assert.equal(cookies.length, 1);
+      assert.equal(cookies[0].httpOnly, true);
+      const replay = `${cookies[0].name}=${cookies[0].value}`;
+      const refreshResponse = page.waitForResponse(profileUrl);
+      await page.getByRole("button", { name: "Refresh assignment", exact: true }).click();
+      assert.equal((await refreshResponse).status(), account.username === "alice" ? 200 : 403);
+      const logoutResponse = page.waitForResponse(origin + "/auth/logout");
+      await page.getByRole("button", { name: "Sign out", exact: true }).click();
+      const logout = await logoutResponse;
+      assert.equal(logout.status(), 200);
+      const logoutHeaders = await logout.request().allHeaders();
+      assert.match(logoutHeaders["x-csrf-token"], /^[A-Za-z0-9_-]{43}$/);
+      await page.getByText("Sign in to view your agent assignment.", { exact: true }).waitFor();
+      assert.equal(await page.locator("#assignment dd").count(), 0);
+      assert.equal((await fetch(profileUrl, { headers: { Cookie: replay } })).status, 401);
+      assert.equal((await fetch(origin + "/auth/session", { headers: { Cookie: replay } })).status, 401);
+      assert.equal((await context.cookies(origin)).filter((cookie) => cookie.name === "asterisk-test-session").length, 0);
+      const audit = new DatabaseSync(databasePath, { readOnly: true });
+      try {
+        const record = audit.prepare("SELECT customer, subject, operation FROM access_audit WHERE request_id = ?")
+          .get(logout.headers()["x-request-id"]);
+        assert.deepEqual({ ...record }, { customer: account.customer, subject: account.subject, operation: "session-logout" });
+      } finally { audit.close(); }
+      assert.deepEqual(browserErrors, []);
+      console.log(`PASS ${account.username}: agent-console PKCE return, own-profile permission, explicit refresh, CSRF logout and replay denial`);
+    } finally { await context.close(); }
+  }
   const reader = new DatabaseSync(databasePath, { readOnly: true });
   try {
-    assert.equal(reader.prepare("SELECT count(*) AS total FROM access_audit WHERE operation = 'session-login'").get()?.total, 2);
-    assert.equal(reader.prepare("SELECT count(*) AS total FROM access_audit WHERE operation = 'session-logout'").get()?.total, 2);
+    assert.equal(reader.prepare("SELECT count(*) AS total FROM access_audit WHERE operation = 'session-login'").get()?.total, 4);
+    assert.equal(reader.prepare("SELECT count(*) AS total FROM access_audit WHERE operation = 'session-logout'").get()?.total, 4);
     const audit = JSON.stringify(reader.prepare("SELECT * FROM access_audit").all());
     assert.ok(!audit.includes(client.secret) && !audit.includes("Bearer") && !audit.includes("eyJ"));
   } finally { reader.close(); }

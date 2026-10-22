@@ -434,6 +434,10 @@ bootstrap, explicit refresh and CSRF logout. A fixed pending-flow workspace sele
 allows the agent destination without arbitrary redirects. Literal rendering and
 session lifecycle tests verify stale clearing, request-correlated errors, expiry,
 401 and logout uncertainty; real Alice/Bob sessions verify assignment/denial.
+Fresh contexts additionally prove console-initiated Keycloak PKCE login and fixed
+console return, manual refresh, CSRF logout, durable logout audit correlation and
+rejected cookie replay. Console landing fetches only the scoped profile without
+browser bearer tokens or engineering data.
 The page states phone connection is disabled and does not expose SIP credentials,
 request media access or conflate assignment with registration/queue/call state.
 

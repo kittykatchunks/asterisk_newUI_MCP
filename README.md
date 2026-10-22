@@ -1179,10 +1179,13 @@ Bob is denied.
 covers literal hostile-looking names, stale-data clearing, errors/manual recovery,
 mismatched sessions/results, expiry, 401 and logout confirmation, including a held
 profile response across sign-out: logout stays available and a late response cannot
-repopulate the cleared console. The real identity
-proof additionally opens the console with ordinary Alice/Bob sessions, checking
-Alice's assignment and Bob's explicit access denial before returning to the review
-workspace. This is an authenticated assignment screen, not yet a phone console.
+repopulate the cleared console. The real identity proof additionally opens the
+console with ordinary Alice/Bob sessions and, in fresh browser contexts, signs in
+directly from the console through Keycloak PKCE. It verifies the fixed console
+return, Alice's assignment, Bob's explicit access denial, manual refresh and CSRF
+sign-out with durable logout audits and rejected session-cookie replay. Console
+landing requests only the scoped profile, without browser bearer tokens or
+engineering data. This is an authenticated assignment screen, not yet a phone console.
 
 ### Read-only PBX operational status (local AMI proof)
 

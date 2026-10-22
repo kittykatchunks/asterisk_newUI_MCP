@@ -416,6 +416,9 @@ boundary. It supports literal assignment display, explicit refresh and CSRF
 sign-out, with stale-data clearing, bounded errors, expiry cleanup and no automatic
 retry. Browser tests cover hostile text, mismatched scope, errors, 401, expiry and
 unconfirmed logout; real sessions verify Alice's profile and Bob's denial.
+Fresh browser contexts also prove console-initiated Keycloak PKCE login, fixed
+console return, explicit refresh, CSRF sign-out, durable logout audits and rejected
+session replay without browser bearer tokens or engineering-data requests.
 Phone capability remains explicitly disabled: no SIP credentials, microphone,
 registration, queue state or call controls are introduced.
 
