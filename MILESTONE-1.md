@@ -185,6 +185,12 @@ approval and held acknowledgement. It verifies explicit timeout, no automatic
 retry or late UI restoration, then reconciles the pending list by refresh without
 replaying the decision.
 
+A separate last-confirmed-review status now survives failed follow-up list
+refreshes. It records the acknowledged decision/candidate/hash before requesting
+the list and advises against resubmission. Browser tests cover approved/rejected
+durable outcomes with refresh failure/recovery and no duplicate POST. It is
+connection-local acknowledgement, not a persisted review-history screen.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

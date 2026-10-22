@@ -407,6 +407,14 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("alert").filter({ hasText: `Invalid JSON response (502; request ${referenceId})` }).waitFor();
       assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
       await page.unroute(changedUrl);
+      const previouslyConfirmed = stage("6");
+      await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+      await page.getByRole("button", { name: `Inspect ${previouslyConfirmed.id}`, exact: true }).click();
+      await page.getByLabel("Review reason", { exact: true }).fill("Earlier confirmed rejection");
+      await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+      await page.getByRole("button", { name: "Reject report", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm rejection", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "Review recorded: reject." }).waitFor();
       await page.getByRole("button", { name: `Inspect ${additional.id}`, exact: true }).click();
       await page.getByLabel("Review reason", { exact: true }).fill("Committed decision with damaged response");
       await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
@@ -418,6 +426,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         await route.fulfill({ response, body: "{" });
       });
       const beforeDamagedDecision = posts.length;
+      const lastConfirmedBeforeDamage = await page.getByRole("status", { name: "Last confirmed review", exact: true, includeHidden: true }).textContent();
       await page.getByRole("button", { name: "Approve report", exact: true }).click();
       await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
       await page.getByRole("alert").filter({ hasText: "Invalid JSON response (200;" }).waitFor();
@@ -427,6 +436,8 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await store.catalog.report("customer-a", "incident-" + "e".repeat(32)), html);
       assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
       assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true, includeHidden: true }).textContent(),
+        lastConfirmedBeforeDamage, "An unconfirmed response must not replace the last confirmed outcome");
       await page.unroute(`**/api/customers/customer-a/diagnostics/reviews/${additional.id}`);
 
       for (const commitBeforeDisconnect of [false, true]) {
@@ -513,7 +524,43 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await store.catalog.report("customer-a", "incident-" + "3".repeat(32)), html);
       assert.equal(posts.length, beforeTimeout + 1);
 
+      for (const decision of ["approve", "reject"] as const) {
+        const digit = decision === "approve" ? "4" : "5";
+        const confirmed = stage(digit);
+        await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+        await page.getByRole("button", { name: `Inspect ${confirmed.id}`, exact: true }).click();
+        await page.getByLabel("Review reason", { exact: true }).fill("Confirmed decision followed by failed refresh");
+        await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+        const listUrl = "**/api/customers/customer-a/diagnostics/reviews";
+        await page.route(listUrl, (route) => route.fulfill({
+          status: 503, headers: { "X-Request-Id": referenceId }, contentType: "application/json",
+          body: JSON.stringify({ code: "synthetic_refresh_failure" }),
+        }));
+        const beforeConfirmed: number = posts.length;
+        await page.getByRole("button", { name: decision === "approve" ? "Approve report" : "Reject report", exact: true }).click();
+        await page.getByRole("button", { name: decision === "approve" ? "Confirm approval" : "Confirm rejection", exact: true }).click();
+        await page.getByRole("alert").filter({ hasText: "503: synthetic_refresh_failure" }).waitFor();
+        const receipt = page.getByRole("status", { name: "Last confirmed review", exact: true });
+        assert.ok((await receipt.textContent())?.includes(`Confirmed review: ${decision}.`));
+        assert.ok((await receipt.textContent())?.includes(confirmed.id));
+        assert.ok((await receipt.textContent())?.includes(confirmed.sha256));
+        assert.ok((await receipt.textContent())?.includes("does not undo it"));
+        assert.equal(posts.length, beforeConfirmed + 1);
+        assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
+        assert.equal(store.pending("customer-a").some((candidate) => candidate.id === confirmed.id), false);
+        assert.equal(await store.catalog.report("customer-a", "incident-" + digit.repeat(32)),
+          decision === "approve" ? html : undefined);
+        await page.unroute(listUrl);
+        await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+        await page.getByRole("status").filter({ hasText: "loaded pending report(s) shown." }).waitFor();
+        assert.equal(await receipt.isVisible(), true);
+        assert.equal(await page.getByRole("button", { name: `Inspect ${confirmed.id}`, exact: true }).count(), 0);
+        assert.equal(posts.length, beforeConfirmed + 1);
+      }
+
       await connect(await jwt("reader"));
+      assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);
       assert.equal(await pendingOrder.isVisible(), false);

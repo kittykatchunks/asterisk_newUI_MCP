@@ -204,6 +204,11 @@ A real-time timeout regression holds a committed approval's acknowledgement past
 the 15-second deadline, verifies the conservative timeout UI and releases the late
 success. Refresh then reconciles pending state without a second decision POST.
 
+Confirmed decision acknowledgement is now independent of list-refresh status.
+Approve/reject tests verify a following 503 does not erase the known outcome and
+manual refresh never replays the decision. The connection-local status is not a
+replacement for authoritative stored review records.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

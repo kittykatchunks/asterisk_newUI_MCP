@@ -819,6 +819,18 @@ decision controls. Releasing the late success cannot overwrite the timeout;
 refresh reconciles the pending list against the committed approval without a
 second decision POST. This deliberately adds about 15 seconds to the UI test.
 
+After a valid successful decision acknowledgement, the workspace displays a
+separate **Last confirmed review** status with the decision, candidate ID and
+snapshot hash. It is set before refreshing the list, so a failed follow-up GET
+cannot erase the confirmed outcome or imply rollback. It explicitly advises not
+to resubmit that decision. The status remains through manual refresh, is replaced
+only by another confirmed decision, and disappears when the connection closes or
+the page reloads. It is a local acknowledgement, not a new durable receipt API or
+history view; SQLite still holds the authoritative review record. Malformed/lost
+acknowledgements do not create a confirmation. Browser tests cover both approve
+and reject followed by a 503 list refresh, recovery without a second POST, and
+preservation of the previous confirmation when another response is damaged.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

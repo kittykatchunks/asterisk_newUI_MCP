@@ -63,6 +63,10 @@ export async function connectReviewWorkspace(connection) {
   const warning = element("p", "Unapproved evidence. Check customer scope, redaction and disclosure suitability. The rendered preview removes active content and report styling; inspect the original source as well.");
   const status = element("p", "");
   status.setAttribute("role", "status");
+  const decisionReceipt = element("p", "");
+  decisionReceipt.setAttribute("role", "status");
+  decisionReceipt.setAttribute("aria-label", "Last confirmed review");
+  decisionReceipt.hidden = true;
   const error = element("p", "");
   error.setAttribute("role", "alert");
   error.tabIndex = -1;
@@ -136,7 +140,7 @@ export async function connectReviewWorkspace(connection) {
   const detail = document.createElement("section");
   detail.setAttribute("aria-label", "Candidate review");
   detail.hidden = true;
-  root.append(warning, status, error, refresh, filterControls, list, detail);
+  root.append(warning, status, decisionReceipt, error, refresh, filterControls, list, detail);
 
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-label", "Confirm review decision");
@@ -382,6 +386,8 @@ export async function connectReviewWorkspace(connection) {
           });
           if (!record(result) || result.code !== "incident_review_recorded") throw new Error("Invalid review confirmation response");
           if (disposed) return;
+          decisionReceipt.textContent = `Confirmed review: ${decision}. Candidate: ${snapshot.id}. Snapshot SHA-256: ${snapshot.sha256}. This decision was recorded; any following list-refresh error does not undo it. Do not submit it again.`;
+          decisionReceipt.hidden = false;
           await load();
           status.textContent = `Review recorded: ${decision}. ${status.textContent}`;
         });
