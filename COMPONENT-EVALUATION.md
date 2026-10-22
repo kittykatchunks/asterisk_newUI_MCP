@@ -126,6 +126,26 @@ review permission/audit gate remains unchanged. Integrity checks precede metadat
 delivery, unknown fields are omitted, and browser selection rejects list/detail
 metadata mismatches. Pagination and reviewer assignment are not implemented.
 
+Application-local pending filters now narrow loaded titles and incident/candidate
+IDs with explicit visible/loaded counts. Filtering neither fetches evidence nor
+changes the selected review. It preserves the filter within a connection only;
+server-side search and pagination remain unimplemented.
+
+Pending-card ordering adds oldest/newest incident creation time while preserving
+candidate-ID ordering by default. Offset-aware instant comparison and ID
+tie-breaking are browser-tested. Ordering is connection-local, composes with
+filtering, and does not alter evidence, selected review or API request counts.
+
+Explicit close-without-decision clears selected evidence from the workspace and
+requires confirmation before discarding local reason/scope state. It preserves
+the queue/filter/order and makes no API call. Browser coverage verifies discard
+and cancel/Escape behavior. Explicit refresh and candidate switch/reopen actions
+now share this guard, with tests verifying no request before confirmation and no
+decision POST on discard. A native unload warning is now attached only while a
+review has reason/scope state, with real reload cancellation/acceptance tests.
+It is removed on clear/completion/disposal; expiry/logout cleanup is not delayed.
+Browser warnings are best-effort and do not replace saved drafts or recovery.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

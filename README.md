@@ -641,6 +641,61 @@ malformed or changed metadata produces an explicit error and no decision
 controls. Existing candidate-ID ordering is unchanged; paging and assignment
 remain future work.
 
+**Filter pending reports** applies a trimmed, case-insensitive literal substring
+to loaded report titles, incident IDs and candidate IDs. Its count explicitly
+shows visible versus loaded candidates; a no-match result is not an empty queue.
+**Clear pending filter** restores the full loaded list. Filtering makes no network
+request, loads no report content, and sends or persists no filter text. The
+200-character filter is retained across list refresh and decisions within the
+current connection, but cleared when that connection closes. Filtering does not
+close or change the open candidate, review reason, evidence search or approval
+hash. The controls are unavailable during requests and hidden until a valid list
+has loaded. This is a local convenience, not server-side search or pagination.
+
+**Sort pending reports** offers candidate-ID order (the unchanged default),
+oldest-created first and newest-created first. Creation-time ordering compares
+parsed instants, including timezone offsets, with ascending candidate ID as a
+deterministic tie-breaker. It orders loaded cards only, combines with the current
+filter and does not request evidence or change an open review. The chosen order
+survives refresh/decisions within the connection but resets on reconnection;
+neither it nor the filter is stored in browser storage. Sorting is by incident
+creation time, not staging time or urgency. The visible/loaded status announces
+the active order, and clearing the filter does not reset it.
+
+**Close review without deciding** removes the selected report's frame, original
+source, evidence-search controls, reason and scope check from the workspace.
+It sends no request or decision and leaves the candidate pending; list metadata,
+filter and ordering remain available. Focus returns to the pending filter.
+If any reason text or scope confirmation has been entered, a separate discard
+dialog requires **Discard and close**; Cancel or Escape preserves the local
+review. Reopening fetches the candidate again and starts with an empty reason
+and unchecked scope confirmation. This is screen cleanup, not secure memory
+erasure, logout, or a persisted draft workflow.
+
+Refreshing the pending list or opening any candidate (including reopening the
+same candidate) uses the same discard protection when a reason or scope check
+has been entered. The dialog identifies the requested action; **Discard and
+refresh** or **Discard and open** performs it only after confirmation. Cancel
+or Escape leaves the reason, scope check and evidence search untouched and sends
+no API request. Confirmed navigation sends only the ordinary list/candidate GET,
+never a decision POST; the previous candidate remains pending. Blank reviews
+navigate without prompting. Successful decisions refresh normally without a
+redundant discard prompt. Session expiry, logout and connection replacement are
+not guarded; session cleanup still clears evidence immediately. Drafts are not
+saved or recovered.
+
+While a reason or scope check is present, a native browser `beforeunload` warning
+also requests confirmation for reload or leaving the document. The listener is
+attached only while that local review is dirty and removed when fields are
+cleared, evidence is closed, a decision completes, or the connection is disposed.
+Cancel preserves the review; leaving discards it without submitting a decision.
+The browser controls the warning text and whether to show it (usually requiring
+prior user interaction). This is best-effort protection, not guaranteed on tab
+termination, mobile shutdown, crashes or every browser navigation. It does not
+save drafts or prevent logout/session expiry. Browser tests exercise cancelled
+and accepted reloads, cleared fields and connection cleanup; the real session
+fixture verifies dirty-review logout removes the warning and report evidence.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

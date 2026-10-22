@@ -91,6 +91,36 @@ Browser checks reject malformed list summaries and metadata mismatches; storage
 tests verify unknown fields are omitted and returned summaries cannot mutate
 stored evidence. No report content is fetched into the preview until selection.
 
+Pending-card filtering now matches loaded titles and incident/candidate IDs
+locally, with visible/loaded counts and explicit no-match guidance. It makes no
+API requests, preserves the open review and retains the filter on refresh while
+clearing it on disconnect. Browser tests cover multi-candidate selection,
+case/literal matching, no-match recovery and unchanged review reasons/hashes.
+
+Loaded pending reports can now be sorted by creation time (oldest/newest) or the
+existing default candidate-ID order. Timestamp comparisons account for offsets;
+equal instants use candidate ID as a deterministic tie-breaker. Ordering combines
+with filtering without changing the open review or fetching reports. Browser
+tests cover offsets, ties, refresh persistence and unchanged review state.
+
+Reviewers can explicitly close a candidate without deciding, removing report
+source/frame and local form state while retaining the pending list/filter/order.
+Entered reason or scope checks require discard confirmation. Browser tests cover
+cancel/Escape, confirmed cleanup, focus return, no API traffic/decision and clean
+state on reopening. This does not implement saved drafts.
+
+The same discard guard now covers explicit pending-list refresh and candidate
+switch/reopen actions. Cancel/Escape preserves local form and evidence-search
+state without API traffic; confirmed actions issue only the ordinary GET and
+never a review decision. Successful decisions bypass the guard for their normal
+refresh. Session termination is deliberately not blocked.
+
+A dirty local review now attaches the browser's native unload warning for
+reload/document navigation. Clearing fields or closing/completing/disposing the
+review removes it. Tests cover real cancelled/accepted reloads and dirty-session
+logout cleanup. This is best-effort browser protection, not saved drafts or a
+guarantee against tab/process loss.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

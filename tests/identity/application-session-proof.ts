@@ -100,6 +100,16 @@ try {
         finally { reader.close(); }
         await page.reload();
         await page.getByRole("status").filter({ hasText: "No pending reports." }).waitFor();
+        const [unfinished] = store.stage([{
+          customer: "customer-a",
+          summary: { id: "incident-" + "b".repeat(32), title: "Unfinished local review", createdAt: "2026-10-22T12:00:00Z" },
+          report: { html, sha256: createHash("sha256").update(html).digest("hex") },
+        }]);
+        await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+        await page.getByRole("button", { name: `Inspect ${unfinished.id}`, exact: true }).click();
+        await page.getByLabel("Review reason", { exact: true }).fill("Must not delay logout");
+        assert.equal(await page.evaluate(() =>
+          !window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), true);
       } else {
         await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
         assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
@@ -110,6 +120,9 @@ try {
       assert.equal((await fetch(origin + "/auth/logout", { method: "POST", headers: { Cookie: cookie, Origin: origin } })).status, 403);
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
       await page.getByText("Sign in to review reports.", { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() =>
+        window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), true);
+      assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
       assert.equal((await fetch(reviewRoot, { headers: { Cookie: cookie } })).status, 401);
       assert.equal((await context.cookies(origin)).filter((cookie) => cookie.name === "asterisk-test-session").length, 0);
       assert.deepEqual(browserErrors, []);

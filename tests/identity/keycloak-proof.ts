@@ -218,6 +218,9 @@ try {
           const module = await import(path);
           await module.connectReviewWorkspace(accessToken);
         }, tokens.access_token);
+        await page.getByLabel("Filter pending reports", { exact: true }).fill(pendingReview.id);
+        await page.getByLabel("Sort pending reports", { exact: true }).selectOption("oldest");
+        await page.getByRole("status").filter({ hasText: "1 of 1 loaded pending report(s) shown." }).waitFor();
         await page.getByRole("button", { name: `Inspect ${pendingReview.id}`, exact: true }).click();
         await page.getByRole("region", { name: "Candidate review", exact: true }).getByRole("heading", { name: "Synthetic SIP evidence", exact: true }).waitFor();
         assert.equal(await page.getByLabel("Inert report preview").textContent(),

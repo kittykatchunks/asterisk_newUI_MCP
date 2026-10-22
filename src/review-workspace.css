@@ -7,7 +7,8 @@ section, dialog { background: white; border: 1px solid #bccbd6; border-radius: .
 section { margin: 1rem 0; }
 article + article { border-top: 1px solid #bccbd6; margin-top: 1rem; padding-top: 1rem; }
 article p { overflow-wrap: anywhere; }
-button, textarea, input[type="search"] { font: inherit; }
+button, textarea, select, input[type="search"] { font: inherit; }
+select { padding: .5rem; margin-left: .5rem; max-width: 100%; }
 input[type="search"] { display: block; box-sizing: border-box; width: 100%; padding: .5rem; margin-top: .5rem; }
 button { padding: .6rem 1rem; margin: .3rem .6rem .3rem 0; cursor: pointer; }
 button:disabled { cursor: default; }

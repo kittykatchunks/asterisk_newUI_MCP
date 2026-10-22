@@ -61,10 +61,67 @@ export async function connectReviewWorkspace(connection) {
   refresh.textContent = "Refresh pending reports";
   const list = document.createElement("section");
   list.setAttribute("aria-label", "Pending reports");
+  const filterControls = document.createElement("div");
+  filterControls.hidden = true;
+  const filterLabel = element("label", "Filter pending reports");
+  const filter = document.createElement("input");
+  filter.type = "search";
+  filter.maxLength = 200;
+  filterLabel.append(filter);
+  const clearFilter = document.createElement("button");
+  clearFilter.textContent = "Clear pending filter";
+  const filterStatus = element("p", "");
+  filterStatus.setAttribute("role", "status");
+  const orderLabel = document.createElement("label");
+  orderLabel.textContent = "Sort pending reports";
+  orderLabel.htmlFor = "pending-report-order";
+  const order = document.createElement("select");
+  order.id = "pending-report-order";
+  for (const [value, text] of [
+    ["candidate", "Candidate ID (default)"], ["oldest", "Created: oldest first"], ["newest", "Created: newest first"],
+  ]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = text;
+    order.append(option);
+  }
+  filterControls.append(filterLabel, clearFilter, orderLabel, order, filterStatus,
+    element("p", "Filters loaded titles, incident IDs and candidate IDs only. It does not search report contents or change the open review."));
+  /** @type {{ item: HTMLElement, fields: string[], id: string, createdAt: number }[]} */
+  let cards = [];
+  function applyOrder() {
+    const sorted = [...cards].sort((a, b) => {
+      const dateOrder = order.value === "oldest" ? a.createdAt - b.createdAt
+        : order.value === "newest" ? b.createdAt - a.createdAt : 0;
+      return dateOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    });
+    for (const card of sorted) list.append(card.item);
+  }
+  function applyFilter() {
+    const query = filter.value.trim().toLowerCase();
+    if (filter.value.length > filter.maxLength) {
+      filterStatus.textContent = "Filter is limited to 200 characters. The displayed list has not changed.";
+      return;
+    }
+    let visible = 0;
+    for (const card of cards) {
+      card.item.hidden = !card.fields.some((field) => field.includes(query));
+      if (!card.item.hidden) visible++;
+    }
+    filterStatus.textContent = `${visible} of ${cards.length} loaded pending report(s) shown.` +
+      (query && !visible ? " No matches. Clear the filter to show all loaded pending reports." : "") +
+      ` Order: ${order.selectedOptions.item(0)?.textContent}.`;
+  }
+  order.onchange = () => { applyOrder(); applyFilter(); };
+  filter.oninput = applyFilter;
+  filter.onkeydown = (event) => {
+    if (event.key === "Enter") { event.preventDefault(); applyFilter(); }
+  };
+  clearFilter.onclick = () => { filter.value = ""; applyFilter(); };
   const detail = document.createElement("section");
   detail.setAttribute("aria-label", "Candidate review");
   detail.hidden = true;
-  root.append(warning, status, error, refresh, list, detail);
+  root.append(warning, status, error, refresh, filterControls, list, detail);
 
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-label", "Confirm review decision");
@@ -77,7 +134,43 @@ export async function connectReviewWorkspace(connection) {
   cancel.onclick = () => dialog.close();
   /** @type {(() => Promise<void>) | undefined} */
   let commit;
-  confirm.onclick = () => { dialog.close(); if (commit) void commit(); };
+  let hasDraft = () => false;
+  /** @param {BeforeUnloadEvent} event */
+  const warnBeforeUnload = (event) => {
+    if (disposed || !selected || !hasDraft()) return;
+    event.preventDefault();
+    event.returnValue = true;
+  };
+  function updateUnloadWarning() {
+    window.removeEventListener("beforeunload", warnBeforeUnload);
+    if (!disposed && selected && hasDraft()) window.addEventListener("beforeunload", warnBeforeUnload);
+  }
+  confirm.onclick = () => {
+    const action = commit;
+    dialog.close();
+    if (action) void action();
+  };
+  dialog.onclose = () => {
+    commit = undefined;
+    confirmation.textContent = "";
+  };
+  /** @param {() => Promise<void>} action @param {string} message @param {string} buttonText */
+  function leaveReview(action, message, buttonText) {
+    if (busy || disposed) return;
+    if (!selected || !hasDraft()) { void action(); return; }
+    dialog.setAttribute("aria-label", "Discard local review");
+    confirmation.textContent = `${message} Discard the entered reason and scope check? No approval or rejection will be sent.`;
+    confirm.textContent = buttonText;
+    commit = action;
+    dialog.showModal();
+  }
+  function clearReview() {
+    selected = undefined;
+    hasDraft = () => false;
+    updateUnloadWarning();
+    detail.replaceChildren();
+    detail.hidden = true;
+  }
 
   /** @param {string} path @param {RequestInit} [options] @returns {Promise<unknown>} */
   async function request(path, options = {}) {
@@ -97,6 +190,8 @@ export async function connectReviewWorkspace(connection) {
   }
   function controls() {
     refresh.disabled = busy;
+    filter.disabled = busy;
+    order.disabled = busy;
     root.querySelectorAll("button").forEach((button) => {
       if (button !== refresh) button.disabled = busy;
     });
@@ -106,9 +201,7 @@ export async function connectReviewWorkspace(connection) {
     if (disposed) return;
     error.textContent = cause instanceof Error ? cause.message : "Review operation failed";
     status.textContent = "";
-    selected = undefined;
-    detail.replaceChildren();
-    detail.hidden = true;
+    clearReview();
   }
   /** @param {() => Promise<void>} operation */
   async function run(operation) {
@@ -122,10 +215,11 @@ export async function connectReviewWorkspace(connection) {
   }
   async function load() {
     if (disposed) return;
-    selected = undefined;
-    detail.replaceChildren();
-    detail.hidden = true;
+    clearReview();
     list.replaceChildren();
+    cards = [];
+    filterControls.hidden = true;
+    filterStatus.textContent = "";
     status.textContent = "Loading pending reports...";
     const body = await request(endpoint);
     if (!record(body) || !Array.isArray(body.candidates) || !body.candidates.every(pendingReference)) {
@@ -141,17 +235,22 @@ export async function connectReviewWorkspace(connection) {
         element("p", `Snapshot SHA-256: ${candidate.sha256}`));
       const button = document.createElement("button");
       button.textContent = `Inspect ${candidate.id}`;
-      button.onclick = () => { void run(() => inspect(candidate)); };
+      button.onclick = () => leaveReview(() => run(() => inspect(candidate)),
+        `Open candidate ${candidate.id} instead of the current review?`, "Discard and open");
       item.append(button);
       list.append(item);
+      cards.push({ item, id: candidate.id, createdAt: Date.parse(candidate.summary.createdAt),
+        fields: [candidate.summary.title, candidate.summary.id, candidate.id]
+        .map((field) => field.toLowerCase()) });
     }
+    applyOrder();
+    filterControls.hidden = false;
+    applyFilter();
     status.textContent = body.candidates.length ? `${body.candidates.length} pending report(s).` : "No pending reports.";
   }
   /** @param {{ id: string, sha256: string, summary: { id: string, title: string, createdAt: string } }} candidate */
   async function inspect(candidate) {
-    selected = undefined;
-    detail.hidden = true;
-    detail.replaceChildren();
+    clearReview();
     const body = await request(`${endpoint}/${candidate.id}`);
     if (!record(body) || !reference(body.candidate) || body.candidate.id !== candidate.id ||
         body.candidate.sha256 !== candidate.sha256 || !record(body.candidate.entry)) {
@@ -195,6 +294,24 @@ export async function connectReviewWorkspace(connection) {
     checked.type = "checkbox";
     checkedLabel.prepend(checked);
     detail.append(reasonLabel, checkedLabel);
+    hasDraft = () => reason.value.length > 0 || checked.checked;
+    reason.oninput = updateUnloadWarning;
+    checked.onchange = updateUnloadWarning;
+    const close = document.createElement("button");
+    close.textContent = "Close review without deciding";
+    const closeReview = async () => {
+      clearReview();
+      commit = undefined;
+      confirmation.textContent = "";
+      error.textContent = "";
+      status.textContent = "Review closed. No decision sent. The report remains pending.";
+      filter.focus();
+    };
+    close.onclick = () => {
+      if (!selected) return;
+      leaveReview(closeReview, "Close this review? The report will remain pending.", "Discard and close");
+    };
+    detail.append(close);
     for (const decision of ["approve", "reject"]) {
       const button = document.createElement("button");
       button.textContent = decision === "approve" ? "Approve report" : "Reject report";
@@ -206,6 +323,7 @@ export async function connectReviewWorkspace(connection) {
         }
         const snapshot = selected;
         const reviewReason = reason.value;
+        dialog.setAttribute("aria-label", "Confirm review decision");
         confirmation.textContent = `${decision === "approve" ? "Approve disclosure of" : "Reject"} "${snapshot.title}" for ${customer}, incident ${snapshot.incident}? Snapshot ${snapshot.sha256}. Reason: ${reviewReason}`;
         confirm.textContent = decision === "approve" ? "Confirm approval" : "Confirm rejection";
         commit = () => run(async () => {
@@ -225,7 +343,7 @@ export async function connectReviewWorkspace(connection) {
     detail.hidden = false;
     status.textContent = "Review the exact snapshot below. No decision has been sent.";
   }
-  refresh.onclick = () => { void run(load); };
+  refresh.onclick = () => leaveReview(() => run(load), "Refresh the pending list and close the current review?", "Discard and refresh");
   const dispose = () => {
     if (disposed) return;
     disposed = true;
@@ -233,7 +351,11 @@ export async function connectReviewWorkspace(connection) {
     accessToken = "";
     csrf = "";
     selected = undefined;
+    hasDraft = () => false;
+    updateUnloadWarning();
     commit = undefined;
+    cards = [];
+    filter.value = "";
     root.replaceChildren(element("p", "Review connection closed."));
   };
   disconnect = dispose;
