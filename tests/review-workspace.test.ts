@@ -435,6 +435,16 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await page.getByLabel("Find evidence text", { exact: true }).count(), 0);
       assert.equal(await page.getByLabel("Filter pending reports", { exact: true }).count(), 0);
       assert.equal(await pendingOrder.count(), 0);
+      const beforeAbortedConnect = reviewRequests;
+      await page.evaluate(async () => {
+        const path = "/engineering/review.js";
+        const module = await import(path);
+        const controller = new AbortController();
+        controller.abort();
+        await module.connectReviewWorkspace({ csrf: "aborted-test-session", signal: controller.signal });
+      });
+      assert.equal(reviewRequests, beforeAbortedConnect, "An already-aborted session must not start a review request");
+      assert.equal(await page.getByText("Review connection closed.", { exact: true }).count(), 1);
       assert.deepEqual(unexpected, []);
       assert.deepEqual(errors, []);
       const limits = await page.evaluate(async () => {

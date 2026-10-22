@@ -696,6 +696,67 @@ save drafts or prevent logout/session expiry. Browser tests exercise cancelled
 and accepted reloads, cleared fields and connection cleanup; the real session
 fixture verifies dirty-review logout removes the warning and report evidence.
 
+The session header also warns when the advertised session deadline is two minutes
+away (or immediately if less time remains). It explains that unsaved work will
+be cleared and no decision is submitted automatically. The warning does not
+extend the session, save a draft or trigger sign-in. Successful logout or expiry
+removes it; expiry still clears evidence and dirty-review unload protection.
+Browser timers can be delayed in suspended/background tabs, so this is advance
+guidance, not an exact countdown or a substitute for server-side expiry checks.
+The real-login fixture uses a controlled browser clock and shortened advertised
+deadline to verify the warning threshold and dirty-review UI cleanup without a
+decision POST; server token/session-expiration checks are tested separately.
+
+The session UI rechecks the absolute advertised deadline on `visibilitychange`
+and `pageshow`, as well as timer callbacks. Returning from a suspended/background
+page therefore catches up the warning or clears expired evidence immediately
+when those events run, rather than relying solely on delayed timers. These checks
+make no request or decision and do not extend the server session. Expiry/logout
+remove the listeners and pending timer; repeated restoration events cannot revive
+an ended workspace. Controlled-clock tests advance wall time without firing
+timers, then exercise both events before and after expiry. This is not a
+cross-tab revocation check: earlier server-side invalidation is still enforced
+when the next authenticated request is made.
+
+Bootstrap also rejects an advertised deadline at or before the browser's current
+time **before** connecting the review workspace. It displays an explicit expiry
+error and keeps sign-in available, without fetching pending metadata or candidate
+evidence. Controlled-clock tests cover both the exact deadline and one millisecond
+past it, asserting zero review API requests and no decision POST. This browser
+check complements, rather than replaces, server-side session enforcement.
+
+Deadline handling is installed while the initial pending-list request is still
+loading, rather than after it completes. A session-owned abort signal disposes
+the workspace and cancels outstanding review fetches on expiry/logout, including
+initial load. An already-aborted connection starts no review request. The
+real-login fixture holds a list response across a shortened advertised deadline
+and verifies cancellation, evidence cleanup and no late list restoration or
+decision POST. Cancellation does not undo a server-side decision that may already
+have committed; a lost decision response still requires refreshing after sign-in.
+
+A review API **401** in application-session mode now immediately closes the
+workspace, clears loaded list/evidence/local form state and unload protection,
+removes expiry timers/listeners and shows an explicit sign-in-again message.
+This applies to list, candidate and decision requests, even if the 401 body is
+not valid JSON. Decisions are never automatically retried; the message asks the
+reviewer to check report state after signing in before retrying. A **403** remains
+a permission denial, not a logout: sign-out remains available for that valid
+session. The original in-memory bearer-token test adapter retains its existing
+error handling. Real-login browser tests inject 401 responses on each review
+surface and verify cleanup and no retry; this is reactive to requests, not
+cross-tab revocation polling or an identity-provider logout.
+
+Failed sign-out explicitly says **sign-out was not confirmed** and that the
+session may still be active, retaining a retry button rather than showing
+sign-in as though logout succeeded. Server errors and transport failures both
+use this wording; no automatic retry is attempted. A real-login test injects a
+logout-audit failure and verifies the cookie/server session, dirty review and
+unload warning remain active, with no successful logout receipt. It then aborts
+a browser logout request and verifies the same retry behaviour before a manual
+retry succeeds, clears evidence and denies session replay. A lost response may
+still follow a completed server logout; the message deliberately does not claim
+that the session is definitely active.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

@@ -146,6 +146,36 @@ review has reason/scope state, with real reload cancellation/acceptance tests.
 It is removed on clear/completion/disposal; expiry/logout cleanup is not delayed.
 Browser warnings are best-effort and do not replace saved drafts or recovery.
 
+The session header provides a two-minute advance expiry warning. A controlled-clock
+browser test through real sign-in verifies threshold timing and dirty-review
+cleanup without automatic decisions. It neither refreshes sessions nor persists
+drafts; background timer delivery is not guaranteed.
+
+Absolute-deadline checks on visibility/page-show events now catch up warning and
+expiry after suspended timers. Tests advance wall time without running timers
+and verify evidence/unload cleanup on both event types. Lifecycle cleanup removes
+listeners/timers after expiry/logout; no server polling or session extension is
+introduced.
+
+An already-expired bootstrap deadline is checked before review connection, avoiding
+unnecessary metadata/evidence requests. Boundary tests cover equality and one
+millisecond past expiry while retaining the sign-in path.
+
+Deadline timers/listeners are installed before initial review loading completes.
+Session-owned cancellation disposes pending workspace requests, tested with a
+held initial list response and an already-aborted connection. Late responses
+cannot restore the disposed workspace; cancellation cannot undo committed reviews.
+
+Application-session review 401s now trigger explicit local session cleanup and a
+sign-in path across list/candidate/decision requests, including non-JSON bodies.
+Browser tests verify cleanup/no automatic retry and retain 403 as permission
+denial rather than session termination. This is not revocation polling.
+
+Logout errors explicitly report an unconfirmed outcome with a manual retry path.
+Real-login browser coverage injects durable-audit and transport failures, checks
+the session/draft remain available without false success or automatic retry, then
+verifies successful retry and replay denial.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

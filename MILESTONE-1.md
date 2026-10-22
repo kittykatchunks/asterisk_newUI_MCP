@@ -121,6 +121,39 @@ review removes it. Tests cover real cancelled/accepted reloads and dirty-session
 logout cleanup. This is best-effort browser protection, not saved drafts or a
 guarantee against tab/process loss.
 
+A session-header warning now appears two minutes before the advertised deadline,
+without extending the session or saving drafts. The real-login fixture checks the
+threshold with a controlled browser clock and verifies dirty-review expiry removes
+evidence/unload protection without submitting a decision. This UI test shortens
+only the advertised deadline; server expiration enforcement remains separately
+tested. Background browser timers are best-effort.
+
+Session warning/expiry now rechecks its absolute deadline on page visibility and
+page-show events, catching up after delayed timers. Controlled-clock tests skip
+timer execution and verify both events show the warning or clear dirty evidence
+without requests/decisions. Ended sessions remove timers/listeners and remain
+closed on repeated events. This does not add cross-tab revocation polling.
+
+Expired session-bootstrap deadlines are now refused before the workspace connects.
+Exact-deadline and already-expired browser tests verify an explicit sign-in error
+with no metadata/evidence requests or decision POST.
+
+Session deadlines now run during initial workspace loading. A session abort
+signal closes the workspace and cancels pending review fetches on expiry/logout.
+Tests hold the initial list response across expiry and verify cancellation and no
+late restoration; already-aborted connection tests verify no request is started.
+This does not roll back a decision already committed by the server.
+
+Application-session review 401s now terminate the local workspace immediately,
+remove evidence/unload protection and offer sign-in again. Browser tests cover
+list, candidate and decision rejection, including malformed bodies and no
+automatic decision retry. Permission 403s retain the signed-in session.
+
+Sign-out failures now explicitly distinguish unconfirmed logout from success.
+Real-login tests inject an audit failure and a transport failure, verify no
+automatic retry or false signed-out state, preserve dirty-review/session state
+and confirm a subsequent manual retry clears evidence and denies session replay.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

@@ -33,12 +33,14 @@ let disconnect;
 /**
  * Called by a trusted session adapter. Tokens stay in this connection closure,
  * never in DOM attributes, URLs or browser storage.
- * @param {string | { csrf: string }} connection
+ * @param {string | { csrf: string, signal?: AbortSignal, onUnauthorized?: () => void }} connection
  * @returns {Promise<() => void>}
  */
 export async function connectReviewWorkspace(connection) {
   let accessToken = typeof connection === "string" ? connection : "";
   let csrf = typeof connection === "string" ? "" : connection.csrf;
+  const sessionSignal = typeof connection === "string" ? undefined : connection.signal;
+  const onUnauthorized = typeof connection === "string" ? undefined : connection.onUnauthorized;
   const match = location.pathname.match(/^\/engineering\/reviews\/([a-z0-9][a-z0-9-]{0,63})$/);
   const container = document.getElementById("review-workspace");
   if (!container || !match || (!accessToken.trim() && !csrf.trim())) throw new Error("Invalid review workspace connection");
@@ -180,6 +182,10 @@ export async function connectReviewWorkspace(connection) {
       headers: { ...(csrf ? { "X-CSRF-Token": csrf } : { Authorization: `Bearer ${accessToken}` }), ...(options.headers ?? {}) },
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
     });
+    if (response.status === 401 && onUnauthorized) {
+      onUnauthorized();
+      throw new Error("Application session is no longer valid. Sign in again. Check the report state before retrying any decision.");
+    }
     const body = await response.json();
     if (!response.ok) {
       const code = record(body) && typeof body.code === "string" ? body.code : "invalid_error_response";
@@ -347,6 +353,7 @@ export async function connectReviewWorkspace(connection) {
   const dispose = () => {
     if (disposed) return;
     disposed = true;
+    sessionSignal?.removeEventListener("abort", dispose);
     controller.abort();
     accessToken = "";
     csrf = "";
@@ -359,6 +366,8 @@ export async function connectReviewWorkspace(connection) {
     root.replaceChildren(element("p", "Review connection closed."));
   };
   disconnect = dispose;
+  sessionSignal?.addEventListener("abort", dispose, { once: true });
+  if (sessionSignal?.aborted) dispose();
   await run(load);
   return dispose;
 }
