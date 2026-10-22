@@ -820,8 +820,11 @@ refresh reconciles the pending list against the committed approval without a
 second decision POST. This deliberately adds about 15 seconds to the UI test.
 
 After a valid successful decision acknowledgement, the workspace displays a
-separate **Last confirmed review** status with the decision, candidate ID and
-snapshot hash. It is set before refreshing the list, so a failed follow-up GET
+separate **Last confirmed review** status with the decision, candidate ID,
+snapshot hash and validated server request reference for audit/log correlation.
+Only a UUID-shaped `X-Request-Id` response header supplies that reference; missing
+or invalid headers display `unavailable`, never an ID from the response body.
+It is set before refreshing the list, so a failed follow-up GET
 cannot erase the confirmed outcome or imply rollback. It explicitly advises not
 to resubmit that decision. The status remains through manual refresh, is replaced
 only by another confirmed decision, and disappears when the connection closes or
@@ -830,6 +833,8 @@ history view; SQLite still holds the authoritative review record. Malformed/lost
 acknowledgements do not create a confirmation. Browser tests cover both approve
 and reject followed by a 503 list refresh, recovery without a second POST, and
 preservation of the previous confirmation when another response is damaged.
+They also match successful decision references to persisted access audits and
+verify that refresh references cannot replace them.
 
 HTTP success alone does not confirm a review: the response must be a JSON object
 with the recognised `incident_review_recorded` code. Null, arrays and unexpected

@@ -213,6 +213,11 @@ including no truncation or POST on local rejection. A real boundary-sized browse
 approval verifies the outgoing JSON and exact durable review reason/hash alongside
 publication.
 
+Confirmed review statuses now include the validated decision request reference
+for correlation with the persisted access audit. Missing/invalid header references
+remain explicitly unavailable without undoing a valid acknowledgement; later
+refreshes retain the original decision reference.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

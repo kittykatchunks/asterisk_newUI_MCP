@@ -340,9 +340,20 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("button", { name: `Inspect ${rejected.id}`, exact: true }).click();
       await page.getByLabel("Review reason", { exact: true }).fill("Not suitable for disclosure");
       await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+      const missingReferenceUrl = `**/api/customers/customer-a/diagnostics/reviews/${rejected.id}`;
+      await page.route(missingReferenceUrl, async (route) => {
+        const response = await route.fetch();
+        assert.equal(response.status(), 200);
+        const headers = { ...response.headers() };
+        delete headers["x-request-id"];
+        await route.fulfill({ response, headers });
+      });
       await page.getByRole("button", { name: "Reject report", exact: true }).click();
       await page.getByRole("button", { name: "Confirm rejection", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Review recorded: reject. No pending reports." }).waitFor();
+      assert.ok((await page.getByRole("status", { name: "Last confirmed review", exact: true }).textContent())
+        ?.includes("Request reference: unavailable."));
+      await page.unroute(missingReferenceUrl);
       assert.equal(await store.catalog.report("customer-a", "incident-" + "b".repeat(32)), undefined);
 
       const conflict = stage("c");
@@ -615,14 +626,29 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
           body: JSON.stringify({ code: "synthetic_refresh_failure" }),
         }));
         const beforeConfirmed: number = posts.length;
+        const acknowledgement = page.waitForResponse((response) =>
+          response.request().method() === "POST" &&
+          response.url() === `${origin}/api/customers/customer-a/diagnostics/reviews/${confirmed.id}`);
         await page.getByRole("button", { name: decision === "approve" ? "Approve report" : "Reject report", exact: true }).click();
         await page.getByRole("button", { name: decision === "approve" ? "Confirm approval" : "Confirm rejection", exact: true }).click();
+        const decisionReference = (await acknowledgement).headers()["x-request-id"];
+        assert.match(decisionReference, /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/);
+        assert.notEqual(decisionReference, referenceId);
         await page.getByRole("alert").filter({ hasText: "503: synthetic_refresh_failure" }).waitFor();
         const receipt = page.getByRole("status", { name: "Last confirmed review", exact: true });
         assert.ok((await receipt.textContent())?.includes(`Confirmed review: ${decision}.`));
         assert.ok((await receipt.textContent())?.includes(confirmed.id));
         assert.ok((await receipt.textContent())?.includes(confirmed.sha256));
+        assert.ok((await receipt.textContent())?.includes(`Request reference: ${decisionReference}.`));
         assert.ok((await receipt.textContent())?.includes("does not undo it"));
+        const auditReader = new DatabaseSync(join(directory, "diagnostics.sqlite"), { readOnly: true });
+        try {
+          const audit = auditReader.prepare("SELECT operation, outcome, incident FROM access_audit WHERE request_id = ?").get(decisionReference);
+          assert.deepEqual({ ...audit }, {
+            operation: "review-decision", outcome: `incident_review_${decision}`, incident: "incident-" + digit.repeat(32),
+          });
+        } finally { auditReader.close(); }
+        const confirmedReceipt = await receipt.textContent();
         assert.equal(posts.length, beforeConfirmed + 1);
         assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
         assert.equal(await page.getByRole("button", { name: "Approve report", exact: true }).count(), 0);
@@ -633,6 +659,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
         await page.getByRole("status").filter({ hasText: "loaded pending report(s) shown." }).waitFor();
         assert.equal(await receipt.isVisible(), true);
+        assert.equal(await receipt.textContent(), confirmedReceipt);
         assert.equal(await page.getByRole("button", { name: `Inspect ${confirmed.id}`, exact: true }).count(), 0);
         assert.equal(posts.length, beforeConfirmed + 1);
       }
@@ -690,9 +717,23 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       }, exactReason);
       await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
       const beforeBoundary: number = posts.length;
+      const invalidReferenceUrl = `**/api/customers/customer-a/diagnostics/reviews/${exactBoundary.id}`;
+      await page.route(invalidReferenceUrl, async (route) => {
+        const response = await route.fetch();
+        assert.equal(response.status(), 200);
+        await route.fulfill({
+          response, headers: { ...response.headers(), "x-request-id": "private-invalid-reference" },
+          json: { code: "incident_review_recorded", requestId: referenceId },
+        });
+      });
       await page.getByRole("button", { name: "Approve report", exact: true }).click();
       await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Review recorded: approve." }).waitFor();
+      const boundaryReceipt = await page.getByRole("status", { name: "Last confirmed review", exact: true }).textContent();
+      assert.ok(boundaryReceipt?.includes("Request reference: unavailable."));
+      assert.ok(!boundaryReceipt?.includes("private-invalid-reference"));
+      assert.ok(!boundaryReceipt?.includes(referenceId), "A body-supplied ID must not replace an invalid header");
+      await page.unroute(invalidReferenceUrl);
       assert.equal(posts.length, beforeBoundary + 1);
       assert.equal(Buffer.byteLength(posts[beforeBoundary]), 8192);
       assert.deepEqual(JSON.parse(posts[beforeBoundary]), {

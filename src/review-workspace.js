@@ -192,7 +192,7 @@ export async function connectReviewWorkspace(connection) {
     detail.hidden = true;
   }
 
-  /** @param {string} path @param {RequestInit} [options] @param {string} [expectedCode] @returns {Promise<unknown>} */
+  /** @param {string} path @param {RequestInit} [options] @param {string} [expectedCode] @returns {Promise<{ body: unknown, requestId: string }>} */
   async function request(path, options = {}, expectedCode) {
     if (disposed) throw new DOMException("Review connection closed", "AbortError");
     /** @type {Response} */
@@ -230,7 +230,7 @@ export async function connectReviewWorkspace(connection) {
     if (expectedCode && (!record(body) || body.code !== expectedCode)) {
       throw new Error(`Invalid review confirmation response (${response.status}; request ${requestId}). Refresh before retrying; the decision may already have committed. No automatic retry was sent.`);
     }
-    return body;
+    return { body, requestId };
   }
   function controls() {
     root.setAttribute("aria-busy", String(busy));
@@ -274,7 +274,7 @@ export async function connectReviewWorkspace(connection) {
     filterControls.hidden = true;
     filterStatus.textContent = "";
     status.textContent = "Loading pending reports...";
-    const body = await request(endpoint);
+    const { body } = await request(endpoint);
     if (!record(body) || !Array.isArray(body.candidates) || !body.candidates.every(pendingReference)) {
       throw new Error("Invalid pending report response");
     }
@@ -305,7 +305,7 @@ export async function connectReviewWorkspace(connection) {
   /** @param {{ id: string, sha256: string, summary: { id: string, title: string, createdAt: string } }} candidate */
   async function inspect(candidate) {
     clearReview();
-    const body = await request(`${endpoint}/${candidate.id}`);
+    const { body } = await request(`${endpoint}/${candidate.id}`);
     if (!record(body) || !reference(body.candidate) || body.candidate.id !== candidate.id ||
         body.candidate.sha256 !== candidate.sha256 || !record(body.candidate.entry)) {
       throw new Error("Candidate snapshot changed or response is invalid. Refresh pending reports.");
@@ -406,12 +406,12 @@ export async function connectReviewWorkspace(connection) {
         confirm.textContent = decision === "approve" ? "Confirm approval" : "Confirm rejection";
         commit = () => run(async () => {
           status.textContent = `Submitting ${decision}. Awaiting confirmation; do not submit another decision.`;
-          await request(`${endpoint}/${snapshot.id}`, {
+          const { requestId } = await request(`${endpoint}/${snapshot.id}`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: decisionBody,
           }, "incident_review_recorded");
           if (disposed) return;
-          decisionReceipt.textContent = `Confirmed review: ${decision}. Candidate: ${snapshot.id}. Snapshot SHA-256: ${snapshot.sha256}. This decision was recorded; any following list-refresh error does not undo it. Do not submit it again.`;
+          decisionReceipt.textContent = `Confirmed review: ${decision}. Candidate: ${snapshot.id}. Snapshot SHA-256: ${snapshot.sha256}. Request reference: ${requestId}. This decision was recorded; any following list-refresh error does not undo it. Do not submit it again.`;
           decisionReceipt.hidden = false;
           await load();
           status.textContent = `Review recorded: ${decision}. ${status.textContent}`;

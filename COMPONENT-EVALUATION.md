@@ -228,6 +228,11 @@ Browser/API boundary coverage now verifies 8,192-byte acceptance versus 8,193-by
 rejection for both decision shapes, plus a real exact-limit approval with unchanged
 transmitted/persisted reason and hash.
 
+Confirmed decision statuses also retain the validated response-header request ID.
+Browser tests match approval/rejection references to durable access audits, retain
+them through failed/successful list refreshes, and reject missing/invalid header
+references without trusting body-supplied IDs.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only
