@@ -877,6 +877,14 @@ the transmitted JSON, successful publication and exact persisted review reason
 and snapshot hash. This checks the browser and API limits together, rather than
 assuming that a locally accepted body will be accepted unchanged by the server.
 
+The reason counter explains that the existing 2,000-character limit measures
+UTF-16 code units: some symbols, including emoji, count as two. Browser tests
+exercise 1,000 supplementary-plane symbols at the limit and one extra code unit
+over it for both decisions, plus exact 8,192/8,193-byte bodies containing multibyte
+Unicode. A real rejection verifies a 2,000-code-unit reason containing accented
+text, CJK, emoji and combining marks reaches the API and SQLite unchanged, without
+Unicode normalization or truncation. The UTF-8 byte cap remains independent.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

@@ -222,6 +222,11 @@ Pending-list and candidate validation failures now retain validated header reque
 references too, including snapshot/scope/metadata mismatches. Browser probes cover
 safe error text, unavailable references, cleared evidence and no decision POST.
 
+Unicode reason coverage now distinguishes the UTF-16 code-unit limit from the
+UTF-8 byte cap. The counter explains two-unit symbols; browser tests cover emoji
+at/over the character limit, multibyte exact byte boundaries, and unchanged
+durable storage of a maximum-length multilingual rejection reason.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

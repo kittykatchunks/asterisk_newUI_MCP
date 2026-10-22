@@ -349,7 +349,7 @@ export async function connectReviewWorkspace(connection) {
     reasonCount.setAttribute("role", "status");
     reason.setAttribute("aria-describedby", reasonCount.id);
     function updateReasonCount() {
-      reasonCount.textContent = `${reason.value.length} of 2000 characters used. A non-blank reason is required.`;
+      reasonCount.textContent = `${reason.value.length} of 2000 characters used. The limit counts UTF-16 code units; some symbols count as two. A non-blank reason is required.`;
       reason.setAttribute("aria-invalid", String(reason.value.length > reason.maxLength));
     }
     updateReasonCount();

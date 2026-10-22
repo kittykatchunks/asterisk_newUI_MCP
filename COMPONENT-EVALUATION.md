@@ -238,6 +238,11 @@ reference in explicit validation errors, without echoing upstream content. Brows
 tests cover malformed list shapes and snapshot/scope/metadata mismatches, including
 missing/invalid references and no remaining evidence or decision controls.
 
+Unicode review reason tests cover supplementary-plane code-unit boundaries and
+multibyte UTF-8 exact request boundaries for both decisions. A real rejection
+checks exact API/SQLite preservation of accented, CJK, emoji and decomposed
+combining-mark text at 2,000 code units; no normalization or truncation is applied.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

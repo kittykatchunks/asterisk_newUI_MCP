@@ -69,16 +69,16 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       <math><mtext><img src="https://untrusted.invalid/math"></mtext></math>
       <form action="https://untrusted.invalid"><input autofocus>Form text</form>`;
     const title = '<img src="https://untrusted.invalid/title"> Synthetic report';
-    const stage = (digit: string, createdAt = "2026-10-22T12:00:00Z") => store.stage([{
+    const stage = (seed: string, createdAt = "2026-10-22T12:00:00Z") => store.stage([{
       customer: "customer-a",
-      summary: { id: "incident-" + digit.repeat(32), title, createdAt },
+      summary: { id: "incident-" + seed.repeat(32).slice(0, 32), title, createdAt },
       report: { html, sha256: createHash("sha256").update(html).digest("hex") },
     }])[0];
     const approved = stage("a");
-    const boundaryReason = (decision: "approve" | "reject", sha256: string, bytes: number) => {
-      const overhead = Buffer.byteLength(JSON.stringify({ decision, reason: "", sha256 }));
+    const boundaryReason = (decision: "approve" | "reject", sha256: string, bytes: number, prefix = "") => {
+      const overhead = Buffer.byteLength(JSON.stringify({ decision, reason: prefix, sha256 }));
       const contentBytes = bytes - overhead;
-      const reason = "\u0001".repeat(Math.floor(contentBytes / 6)) + "x".repeat(contentBytes % 6);
+      const reason = prefix + "\u0001".repeat(Math.floor(contentBytes / 6)) + "x".repeat(contentBytes % 6);
       assert.ok(reason.length <= 2000);
       assert.equal(Buffer.byteLength(JSON.stringify({ decision, reason, sha256 })), bytes);
       return reason;
@@ -220,6 +220,30 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await reasonInput.getAttribute("aria-invalid"), "true");
       assert.equal(await page.getByRole("dialog", { name: "Confirm review decision" }).isVisible(), false);
       assert.equal(posts.length, 0);
+      for (const decision of ["approve", "reject"] as const) {
+        for (const extra of ["", "x"]) {
+          const value = "\u{1f695}".repeat(1000) + extra;
+          assert.equal(value.length, 2000 + extra.length);
+          assert.equal(Array.from(value).length, 1000 + extra.length);
+          await reasonInput.evaluate((input, reason) => {
+            if (!(input instanceof HTMLTextAreaElement)) throw new Error("Missing review reason");
+            input.value = reason;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          }, value);
+          await page.getByRole("button", { name: decision === "approve" ? "Approve report" : "Reject report", exact: true }).click();
+          if (!extra) {
+            await page.getByRole("dialog", { name: "Confirm review decision" }).waitFor();
+            assert.equal(await reasonInput.getAttribute("aria-invalid"), "false");
+            await page.getByRole("button", { name: "Cancel", exact: true }).click();
+          } else {
+            await page.getByRole("alert").filter({ hasText: "Review reason exceeds 2000 characters." }).waitFor();
+            assert.equal(await reasonInput.getAttribute("aria-invalid"), "true");
+            assert.equal(await page.getByRole("dialog", { name: "Confirm review decision" }).isVisible(), false);
+          }
+          assert.equal(await reasonInput.inputValue(), value);
+          assert.equal(posts.length, 0);
+        }
+      }
       await reasonInput.evaluate((input) => {
         if (!(input instanceof HTMLTextAreaElement)) throw new Error("Missing review reason");
         input.value = "\u0001".repeat(2000);
@@ -230,15 +254,18 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await page.getByRole("dialog", { name: "Confirm review decision" }).isVisible(), false);
       assert.equal(posts.length, 0);
       for (const decision of ["approve", "reject"] as const) {
-        for (const bytes of [8192, 8193]) {
-          const value = boundaryReason(decision, approved.sha256, bytes);
+        for (const probe of [
+          { bytes: 8192, prefix: "" }, { bytes: 8193, prefix: "" },
+          { bytes: 8192, prefix: "\u00e9\u4e2d\u{1f695}" }, { bytes: 8193, prefix: "\u00e9\u4e2d\u{1f695}" },
+        ]) {
+          const value = boundaryReason(decision, approved.sha256, probe.bytes, probe.prefix);
           await reasonInput.evaluate((input, reason) => {
             if (!(input instanceof HTMLTextAreaElement)) throw new Error("Missing review reason");
             input.value = reason;
             input.dispatchEvent(new Event("input", { bubbles: true }));
           }, value);
           await page.getByRole("button", { name: decision === "approve" ? "Approve report" : "Reject report", exact: true }).click();
-          if (bytes === 8192) {
+          if (probe.bytes === 8192) {
             await page.getByRole("dialog", { name: "Confirm review decision" }).waitFor();
             await page.getByRole("button", { name: "Cancel", exact: true }).click();
           } else {
@@ -781,6 +808,30 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         const receipt = boundaryReader.prepare("SELECT decision, reason, sha256 FROM incident_reviews WHERE candidate = ?").get(exactBoundary.id);
         assert.deepEqual({ ...receipt }, { decision: "approve", reason: exactReason, sha256: exactBoundary.sha256 });
       } finally { boundaryReader.close(); }
+
+      const multilingual = stage("01");
+      const multilingualReason = "\u00e9\u4e2d\u{1f695}e\u0301".repeat(333) + "ab";
+      assert.equal(multilingualReason.length, 2000);
+      await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+      await page.getByRole("button", { name: `Inspect ${multilingual.id}`, exact: true }).click();
+      await page.getByLabel("Review reason", { exact: true }).fill(multilingualReason);
+      await page.getByRole("status").filter({ hasText: "2000 of 2000 characters used." }).waitFor();
+      await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+      const beforeMultilingual: number = posts.length;
+      await page.getByRole("button", { name: "Reject report", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm rejection", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "Review recorded: reject." }).waitFor();
+      assert.equal(posts.length, beforeMultilingual + 1);
+      assert.deepEqual(JSON.parse(posts[beforeMultilingual]), {
+        decision: "reject", reason: multilingualReason, sha256: multilingual.sha256,
+      });
+      assert.equal(await store.catalog.report("customer-a", "incident-" + "01".repeat(16)), undefined);
+      assert.equal(store.pending("customer-a").some((candidate) => candidate.id === multilingual.id), false);
+      const multilingualReader = new DatabaseSync(join(directory, "diagnostics.sqlite"), { readOnly: true });
+      try {
+        const receipt = multilingualReader.prepare("SELECT decision, reason, sha256 FROM incident_reviews WHERE candidate = ?").get(multilingual.id);
+        assert.deepEqual({ ...receipt }, { decision: "reject", reason: multilingualReason, sha256: multilingual.sha256 });
+      } finally { multilingualReader.close(); }
 
       await connect(await jwt("reader"));
       assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
