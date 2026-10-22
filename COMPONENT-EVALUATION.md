@@ -224,6 +224,10 @@ enforce the existing 2,000-character and 8,192-byte encoded-body limits before
 confirmation, with explicit errors and no silent truncation. Browser tests cover
 character boundaries and control-character JSON expansion.
 
+Browser/API boundary coverage now verifies 8,192-byte acceptance versus 8,193-byte
+rejection for both decision shapes, plus a real exact-limit approval with unchanged
+transmitted/persisted reason and hash.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

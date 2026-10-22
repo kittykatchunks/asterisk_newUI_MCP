@@ -208,6 +208,11 @@ the existing 8 KiB API cap as well as the 2,000-character reason limit, without
 truncation. Browser tests cover character boundaries, whitespace and oversized
 escaped JSON while server validation remains unchanged.
 
+Exact encoded-body tests now cover approve/reject at 8,192 versus 8,193 bytes,
+including no truncation or POST on local rejection. A real boundary-sized browser
+approval verifies the outgoing JSON and exact durable review reason/hash alongside
+publication.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

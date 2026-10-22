@@ -859,6 +859,13 @@ the reason silently; oversized input shows an explicit error without a dialog
 or POST. Browser tests exercise 2,000/2,001 characters, blank reasons and JSON
 escaping beyond the byte cap. Server validation remains authoritative.
 
+Boundary regression coverage verifies both approve and reject at exactly 8,192
+and 8,193 encoded bytes: the first opens confirmation, the second blocks it with
+no POST or reason truncation. A real 8,192-byte browser approval then verifies
+the transmitted JSON, successful publication and exact persisted review reason
+and snapshot hash. This checks the browser and API limits together, rather than
+assuming that a locally accepted body will be accepted unchanged by the server.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

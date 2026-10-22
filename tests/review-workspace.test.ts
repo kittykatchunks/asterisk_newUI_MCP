@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { chromium } from "playwright";
@@ -74,6 +75,14 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       report: { html, sha256: createHash("sha256").update(html).digest("hex") },
     }])[0];
     const approved = stage("a");
+    const boundaryReason = (decision: "approve" | "reject", sha256: string, bytes: number) => {
+      const overhead = Buffer.byteLength(JSON.stringify({ decision, reason: "", sha256 }));
+      const contentBytes = bytes - overhead;
+      const reason = "\u0001".repeat(Math.floor(contentBytes / 6)) + "x".repeat(contentBytes % 6);
+      assert.ok(reason.length <= 2000);
+      assert.equal(Buffer.byteLength(JSON.stringify({ decision, reason, sha256 })), bytes);
+      return reason;
+    };
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     try {
@@ -220,6 +229,26 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("alert").filter({ hasText: "Encoded review exceeds the 8192-byte request limit." }).waitFor();
       assert.equal(await page.getByRole("dialog", { name: "Confirm review decision" }).isVisible(), false);
       assert.equal(posts.length, 0);
+      for (const decision of ["approve", "reject"] as const) {
+        for (const bytes of [8192, 8193]) {
+          const value = boundaryReason(decision, approved.sha256, bytes);
+          await reasonInput.evaluate((input, reason) => {
+            if (!(input instanceof HTMLTextAreaElement)) throw new Error("Missing review reason");
+            input.value = reason;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          }, value);
+          await page.getByRole("button", { name: decision === "approve" ? "Approve report" : "Reject report", exact: true }).click();
+          if (bytes === 8192) {
+            await page.getByRole("dialog", { name: "Confirm review decision" }).waitFor();
+            await page.getByRole("button", { name: "Cancel", exact: true }).click();
+          } else {
+            await page.getByRole("alert").filter({ hasText: "Encoded review exceeds the 8192-byte request limit." }).waitFor();
+            assert.equal(await page.getByRole("dialog", { name: "Confirm review decision" }).isVisible(), false);
+          }
+          assert.equal(await reasonInput.inputValue(), value, "Validation must not truncate the reason");
+          assert.equal(posts.length, 0);
+        }
+      }
       await reasonInput.fill("   ");
       await page.getByRole("button", { name: "Reject report", exact: true }).click();
       await page.getByRole("alert").filter({ hasText: "Enter a review reason" }).waitFor();
@@ -649,6 +678,32 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
         assert.equal(store.pending("customer-a").some((entry) => entry.id === candidate.id), !probe.committed);
         await page.unroute(decisionUrl);
       }
+
+      const exactBoundary = stage("0");
+      await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+      await page.getByRole("button", { name: `Inspect ${exactBoundary.id}`, exact: true }).click();
+      const exactReason = boundaryReason("approve", exactBoundary.sha256, 8192);
+      await page.getByLabel("Review reason", { exact: true }).evaluate((input, value) => {
+        if (!(input instanceof HTMLTextAreaElement)) throw new Error("Missing review reason");
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }, exactReason);
+      await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+      const beforeBoundary: number = posts.length;
+      await page.getByRole("button", { name: "Approve report", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "Review recorded: approve." }).waitFor();
+      assert.equal(posts.length, beforeBoundary + 1);
+      assert.equal(Buffer.byteLength(posts[beforeBoundary]), 8192);
+      assert.deepEqual(JSON.parse(posts[beforeBoundary]), {
+        decision: "approve", reason: exactReason, sha256: exactBoundary.sha256,
+      });
+      assert.equal(await store.catalog.report("customer-a", "incident-" + "0".repeat(32)), html);
+      const boundaryReader = new DatabaseSync(join(directory, "diagnostics.sqlite"), { readOnly: true });
+      try {
+        const receipt = boundaryReader.prepare("SELECT decision, reason, sha256 FROM incident_reviews WHERE candidate = ?").get(exactBoundary.id);
+        assert.deepEqual({ ...receipt }, { decision: "approve", reason: exactReason, sha256: exactBoundary.sha256 });
+      } finally { boundaryReader.close(); }
 
       await connect(await jwt("reader"));
       assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
