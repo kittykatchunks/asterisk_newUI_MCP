@@ -5,7 +5,7 @@ import type { AgentDeviceLeaseStore, AgentDeviceOwner } from "./agent-device-lea
 import type { ApplicationSessionIdentity, createApplicationSessions } from "./application-session.ts";
 import type { AgentProvisioningTransport } from "./agent-provisioning-dispatcher.ts";
 import { AgentProvisioningConflict, parseProvisioningAcceptance } from "./agent-provisioning-store.ts";
-import type { AgentProvisioningStore, ProvisioningIntent, ProvisioningJournalBinding } from "./agent-provisioning-store.ts";
+import type { AgentProvisioningCommand, AgentProvisioningStore, ProvisioningContext, ProvisioningIntent, ProvisioningJournalBinding } from "./agent-provisioning-store.ts";
 
 export interface ProvisioningOwnerContext {
   owner: AgentDeviceOwner;
@@ -20,6 +20,80 @@ export interface ProvisioningAuthorisation {
   agentAccess(owner: AgentDeviceOwner, signal: AbortSignal): Promise<AccessResult>;
   agents: AgentDirectory;
   leases: AgentDeviceLeaseStore;
+}
+
+async function withLiveOwner<T>(
+  command: AgentProvisioningCommand, owner: AgentDeviceOwner, extension: string,
+  authorisation: Omit<ProvisioningAuthorisation, "resolve">, signal: AbortSignal,
+  commit: (sessionExpiresAt: number) => T,
+) {
+  const checkSession = () => {
+    const session = authorisation.session({ ...owner });
+    if (!session || session.sessionId !== owner.sessionId || session.subject !== owner.subject ||
+        session.customer !== owner.customer || !Number.isSafeInteger(session.expiresAt) ||
+        session.expiresAt <= 0) throw new AgentProvisioningConflict("Live provisioning session required");
+    return session;
+  };
+  checkSession();
+  const access = await authorisation.agentAccess({ ...owner }, signal);
+  signal.throwIfAborted();
+  if (!access.allowed || access.basis !== "membership" || access.subject !== owner.subject) {
+    throw new AgentProvisioningConflict("Direct provisioning agent membership required");
+  }
+  const session = checkSession();
+  const profile = authorisation.agents.profile(owner.issuer, owner.subject, owner.customer);
+  if (!profile) throw new AgentProvisioningConflict("Live provisioning assignment required");
+  assertAgentProfile(profile);
+  if (profile.extension !== extension) throw new AgentProvisioningConflict("Provisioning assignment changed");
+  const sessionExpiresAt = Math.min(owner.sessionExpiresAt, session.expiresAt);
+  const lease = authorisation.leases.current({ ...owner, sessionExpiresAt }, command.leaseId);
+  if (command.notAfter > lease.expiresAt) throw new AgentProvisioningConflict("Provisioning deadline exceeds live lease");
+  signal.throwIfAborted();
+  // Do not yield between the final live checks and the enqueue/delivery call.
+  return commit(sessionExpiresAt);
+}
+
+export function createSessionProvisioningProducer(input: {
+  store: AgentProvisioningStore;
+  sessions: Pick<ReturnType<typeof createApplicationSessions>, "lookupIdentity" | "verifyAgentAccess" | "authorisationReference">;
+  verify: ReturnType<typeof createAccessVerifier>;
+  agents: AgentDirectory;
+  leases: AgentDeviceLeaseStore;
+}) {
+  const { store, sessions, verify, agents, leases } = input;
+  return {
+    async enqueue(commandInput: AgentProvisioningCommand, contextInput: ProvisioningContext,
+      ownerInput: AgentDeviceOwner, signal: AbortSignal): Promise<ProvisioningIntent> {
+      signal.throwIfAborted();
+      const { command, context } = parseProvisioningAcceptance({ command: commandInput, context: contextInput });
+      const owner = structuredClone(ownerInput);
+      assertAgentIdentity(owner);
+      if (command.action === "drain" || command.action === "revoke") {
+        throw new AgentProvisioningConflict("Session producer cannot authorise trusted cleanup");
+      }
+      if (owner.customer !== command.customer) throw new AgentProvisioningConflict("Provisioning owner context mismatch");
+      const profile = agents.profile(owner.issuer, owner.subject, owner.customer);
+      if (!profile) throw new AgentProvisioningConflict("Live provisioning assignment required");
+      assertAgentProfile(profile);
+      const extension = profile.extension;
+      if (command.action === "prepare" && command.payload.extension !== extension) {
+        throw new AgentProvisioningConflict("Provisioning assignment changed");
+      }
+      return withLiveOwner(command, owner, extension, {
+        session: sessions.lookupIdentity,
+        agentAccess: (owner, signal) => sessions.verifyAgentAccess(owner, verify, signal),
+        agents, leases,
+      }, signal, (sessionExpiresAt) => {
+        const authorisationId = sessions.authorisationReference(owner);
+        if (!authorisationId) throw new AgentProvisioningConflict("Live provisioning session required");
+        signal.throwIfAborted();
+        return store.enqueueOwned(command, context, {
+          issuer: owner.issuer, subject: owner.subject, customer: owner.customer, authorisationId,
+          sessionExpiresAt, deviceId: owner.deviceId, generationId: command.payload.generationId, extension,
+        });
+      });
+    },
+  };
 }
 
 export function createSessionProvisioningAuthorisation(input: {
@@ -86,33 +160,8 @@ export function createAuthorisedProvisioningTransport(
           (command.action === "prepare" && extension !== command.payload.extension)) {
         throw new AgentProvisioningConflict("Provisioning owner context mismatch");
       }
-      const checkSession = () => {
-        const session = authorisation.session({ ...owner });
-        if (!session || session.sessionId !== owner.sessionId || session.subject !== owner.subject ||
-            session.customer !== owner.customer || !Number.isSafeInteger(session.expiresAt) ||
-            session.expiresAt <= 0) throw new AgentProvisioningConflict("Live provisioning session required");
-        return session;
-      };
-      checkSession();
-      const access = await authorisation.agentAccess({ ...owner }, signal);
-      signal.throwIfAborted();
-      if (!access.allowed || access.basis !== "membership" || access.subject !== owner.subject) {
-        throw new AgentProvisioningConflict("Direct provisioning agent membership required");
-      }
-      // Logout, assignment removal and lease release can happen while access verification yields.
-      const session = checkSession();
-      const profile = authorisation.agents.profile(owner.issuer, owner.subject, owner.customer);
-      if (!profile) throw new AgentProvisioningConflict("Live provisioning assignment required");
-      assertAgentProfile(profile);
-      if (profile.extension !== extension) throw new AgentProvisioningConflict("Provisioning assignment changed");
-      const lease = authorisation.leases.current({
-        ...owner, sessionExpiresAt: Math.min(owner.sessionExpiresAt, session.expiresAt),
-      }, command.leaseId);
-      if (command.notAfter > lease.expiresAt) {
-        throw new AgentProvisioningConflict("Provisioning deadline exceeds live lease");
-      }
-      signal.throwIfAborted();
-      return transport.accept(submission, signal);
+      return withLiveOwner(command, owner, extension, authorisation, signal,
+        () => transport.accept(submission, signal));
     },
   };
 }

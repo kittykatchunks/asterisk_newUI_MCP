@@ -13,7 +13,7 @@ import type { AccessAudit } from "../src/diagnostic-api.ts";
 import { createApplicationSessions } from "../src/application-session.ts";
 import { createAccessVerifier } from "../src/access.ts";
 import { openAgentDeviceLeaseStore } from "../src/agent-device-lease.ts";
-import { createAuthorisedProvisioningTransport, createSessionProvisioningAuthorisation } from "../src/agent-provisioning-authorisation.ts";
+import { createAuthorisedProvisioningTransport, createSessionProvisioningAuthorisation, createSessionProvisioningProducer } from "../src/agent-provisioning-authorisation.ts";
 import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
 import { openAgentProvisioningStore, openAgentProvisioningJournal } from "../src/agent-provisioning-store.ts";
 
@@ -236,12 +236,14 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
         const lease = leases.acquire(owner);
         const generationId = randomUUID();
         provisioning.enrol(binding.customer, binding.epoch);
-        const intent = provisioning.enqueueOwned({ version: 1, ...binding, operationId: randomUUID(), revision: 1,
+        const producer = createSessionProvisioningProducer({
+          store: provisioning, sessions: backendSessions, verify: verifyAgent,
+          agents: { profile() { return { extension: "1001", displayName: "Alice" }; } }, leases,
+        });
+        const intent = await producer.enqueue({ version: 1, ...binding, operationId: randomUUID(), revision: 1,
           leaseId: lease.id, notAfter: lease.expiresAt, action: "prepare",
           payload: { generationId, extension: "1001" } },
-        { requestId: randomUUID(), actor: "fixture", reason: "Session-backed dispatch" },
-        { issuer: owner.issuer, subject: owner.subject, customer: owner.customer, authorisationId,
-          sessionExpiresAt: owner.sessionExpiresAt, deviceId: owner.deviceId, generationId, extension: "1001" });
+        { requestId: randomUUID(), actor: "fixture", reason: "Session-backed dispatch" }, owner, signal);
         provisioning.close();
         provisioning = openAgentProvisioningStore(join(directory, "backend.sqlite"));
         const gate = createSessionProvisioningAuthorisation({

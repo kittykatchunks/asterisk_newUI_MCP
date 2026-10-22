@@ -533,3 +533,26 @@ failure-recovery action. A dead process/blocked event loop requires an independe
 monitor; a failed lifetime no longer enforces expiry. Deployment supervision,
 measured expiry guarantees and a safe runtime failure response remain gates.
 See the [worker health contract](./README.md#worker-health-and-fail-stop-supervision-opt-in).
+
+### Session-authorised producer primitive
+
+An opt-in backend producer now checks the exact live session, verified direct
+agent membership, current assignment and non-renewing owned lease before
+prepare/activate/extend enqueue. It captures the opaque reference and extension
+from protected backend state, then atomically persists the owned intent. Inputs
+are detached before verification; final live checks and enqueue do not introduce
+another asynchronous gap. The existing delivery gate shares those live checks
+and still revalidates before worker acceptance.
+
+The producer does not authenticate browser-supplied owner metadata, allocate
+revisions/generations, enrol authorities, authorise cleanup or dispatch effects.
+The caller must supply authenticated device/session context, trusted command
+scope and audit context. Cross-process lease/assignment changes are not atomic
+with the intent database; delivery and eventual runtime fences remain necessary.
+
+Focused regressions cover each action, live-check races, no failed-intent writes,
+input mutation and synchronous commit ordering. Both signed-token and real
+Keycloak proofs now use the producer before persisted-owner guarded dispatch.
+Production API/launcher capture, recovery and post-acceptance fencing remain
+unfinished. See the
+[producer contract](./README.md#session-authorised-provisioning-producer-backend-only).

@@ -2403,6 +2403,49 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Session-authorised provisioning producer (backend only)
+
+`createSessionProvisioningProducer({ store, sessions, verify, agents, leases })`
+provides `enqueue(command, context, owner, signal)` for a trusted backend caller.
+It accepts prepare/activate/extend only, detaches inputs before asynchronous work,
+and uses the existing session/JWT verifier, assignment directory and non-renewing
+lease lookup. Direct membership for the exact subject is required. Session,
+assignment and lease/deadline are checked after verification; the helper derives
+the opaque authorisation reference and assigned extension itself, then invokes
+`enqueueOwned` without yielding after the final checks. It creates no worker
+delivery and no receipts.
+
+The producer and guarded transport share the same live-owner checks so enqueue
+and later delivery enforce consistent membership, assignment and deadline rules.
+Checks at enqueue do not replace the delivery checks: queued work can become
+unauthorised afterward. Logout, rotation, assignment/lease loss, denied or
+unavailable verification, cancellation and storage failures reject explicitly;
+no fallback unowned command is created.
+
+This is not an HTTP authentication endpoint. The caller must derive `owner`
+(issuer, subject, customer, session ID, original expiry and device ID) from its
+authenticated request/session and verified device context, never arbitrary
+browser metadata. It must also supply the trusted command generation/operation,
+authority/revision and audit request/actor/reason. The helper does not invent
+these, enrol authorities, allocate runtime generations, enforce a new generation
+policy, grant cleanup privileges, renew leases or select retry/recovery policy.
+Trusted drain/revoke remains a separately authorised backend path. Its persisted
+context is atomic intent audit evidence, not proof of dispatch or completion.
+
+Exact live retries reuse the original ownership; a lost session does not gain an
+exception for retries. Historical status remains available separately through
+the store/report paths. Final checks and enqueue are synchronous in one process,
+not a distributed transaction with the lease/assignment database or the worker;
+cross-process changes still require the delivery/runtime fences.
+
+The producer tests exercise all three actions, failed live checks with no stored
+operation, input mutation during verification, no lease renewal and the absence
+of an extra asynchronous gap before commit. The local signed-token and real
+Keycloak browser proofs now enqueue through this helper before using persisted
+ownership for guarded dispatch; a logged-out Keycloak session cannot enqueue
+another intent. No production API route, launcher wiring or automatic dispatcher
+has been enabled.
+
 #### Durable opaque provisioning ownership
 
 The selected policy is to persist a non-login authorisation reference, not the

@@ -11,7 +11,7 @@ import type { AccessConfig } from "../../src/access.ts";
 import { createApplicationSessions } from "../../src/application-session.ts";
 import type { ApplicationSessionConfig } from "../../src/application-session.ts";
 import { openAgentDeviceLeaseStore } from "../../src/agent-device-lease.ts";
-import { createAuthorisedProvisioningTransport, createSessionProvisioningAuthorisation } from "../../src/agent-provisioning-authorisation.ts";
+import { createAuthorisedProvisioningTransport, createSessionProvisioningAuthorisation, createSessionProvisioningProducer } from "../../src/agent-provisioning-authorisation.ts";
 import { createAgentProvisioningDispatcher } from "../../src/agent-provisioning-dispatcher.ts";
 import { openAgentProvisioningStore, openAgentProvisioningJournal } from "../../src/agent-provisioning-store.ts";
 import type { AccessAudit } from "../../src/diagnostic-api.ts";
@@ -108,13 +108,15 @@ export async function proveBackendSessions(browser: Browser, config: Application
                   backend.enrol(binding.customer, binding.epoch);
                   const authorisationId = sessions.authorisationReference(owner);
                   assert.ok(authorisationId);
-                  const intent = backend.enqueueOwned({
+                  const producer = createSessionProvisioningProducer({
+                    store: backend, sessions, verify,
+                    agents: { profile() { return { extension: "1001", displayName: "Synthetic Alice" }; } }, leases,
+                  });
+                  const intent = await producer.enqueue({
                     version: 1, ...binding, operationId: randomUUID(), revision: 1,
                     leaseId: lease.id, notAfter: lease.expiresAt, action: "prepare",
                     payload: { generationId, extension: "1001" },
-                  }, { requestId: randomUUID(), actor: "identity-proof", reason: "Real Keycloak session dispatch" },
-                  { issuer: owner.issuer, subject: owner.subject, customer: owner.customer, authorisationId,
-                    sessionExpiresAt: identity.expiresAt, deviceId: deviceOwner.deviceId, generationId, extension: "1001" });
+                  }, { requestId: randomUUID(), actor: "identity-proof", reason: "Real Keycloak session dispatch" }, deviceOwner, signal);
                   let accepts = 0;
                   const gate = deferred();
                   let pause = false;
@@ -145,6 +147,9 @@ export async function proveBackendSessions(browser: Browser, config: Application
                   assert.equal(accepts, 1, "Logout during real JWT verification must prevent worker delivery");
                   assert.equal(authorisation.resolve(intent), undefined, "Persisted original ownership cannot authorise after logout");
                   await assert.rejects(guarded.accept(intent, signal), /owner context missing/);
+                  const blocked = { ...intent.command, operationId: randomUUID(), revision: 2 };
+                  await assert.rejects(producer.enqueue(blocked, intent.context, deviceOwner, signal), /Live provisioning session required/);
+                  assert.equal(backend.operation(owner.customer, blocked.operationId), undefined);
                   assert.equal((await guarded.report(intent.command.operationId, signal))?.operationId, intent.command.operationId);
                 } finally { worker.close(); }
               } finally { backend.close(); }
