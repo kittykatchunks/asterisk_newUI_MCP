@@ -463,3 +463,14 @@ properties, not a new production Keycloak integration. Durable owner mapping,
 shared session operations, fresh membership verification and actual background
 dispatcher wiring remain unfinished. See the
 [session lookup contract](./README.md#backend-only-live-session-lookup).
+
+The session manager now also verifies agent access through the existing trusted
+JWT/membership verifier using its stored token internally. A post-await liveness
+check rejects concurrent rotation/logout/expiry; only the same subject with
+direct membership can be allowed. Cancellation, denial and infrastructure failure
+remain explicit, with no token returned. The local signed-token regression wires
+both actual session callbacks into guarded dispatch with real lease/journal
+storage. This closes the callback primitive, not production wiring: original-owner
+persistence, audit integration, dynamic membership operations and post-acceptance
+fencing remain unfinished. See the
+[session access contract](./README.md#session-backed-agent-access-verification).

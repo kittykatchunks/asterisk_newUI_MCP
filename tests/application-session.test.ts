@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { test } from "node:test";
@@ -8,6 +11,11 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createDiagnosticApi } from "../src/diagnostic-api.ts";
 import type { AccessAudit } from "../src/diagnostic-api.ts";
 import { createApplicationSessions } from "../src/application-session.ts";
+import { createAccessVerifier } from "../src/access.ts";
+import { openAgentDeviceLeaseStore } from "../src/agent-device-lease.ts";
+import { createAuthorisedProvisioningTransport } from "../src/agent-provisioning-authorisation.ts";
+import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
+import { openAgentProvisioningStore, openAgentProvisioningJournal } from "../src/agent-provisioning-store.ts";
 
 async function listen(server: Server) {
   server.listen(0, "127.0.0.1");
@@ -195,13 +203,90 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       assert.deepEqual(Object.keys(identity).sort(), ["customer", "expiresAt", "sessionId", "subject"]);
       identity.subject = "mutated";
       assert.equal(backendSessions.lookupIdentity(original.owner)?.subject, "alice");
+      const verifyAgent = createAccessVerifier({
+        issuer: issuerUrl, jwksUrl: issuerUrl + "/jwks", audience: "diagnostic-api",
+        allowLoopbackHttpForTests: true,
+        memberships: [{ issuer: issuerUrl, subject: "alice", customer: "customer-a", permissions: ["agent:access"] }],
+        supportGrants: [],
+      });
+      const signal = AbortSignal.timeout(10000);
+      assert.deepEqual(await backendSessions.verifyAgentAccess(original.owner, verifyAgent, signal),
+        { allowed: true, subject: "alice", basis: "membership" });
+      const directory = await mkdtemp(join(tmpdir(), "asterisk-session-dispatch-"));
+      const leases = openAgentDeviceLeaseStore(join(directory, "leases.sqlite"));
+      const provisioning = openAgentProvisioningStore(join(directory, "backend.sqlite"));
+      const binding = { customer: "customer-a", epoch: randomUUID() };
+      const worker = openAgentProvisioningJournal(join(directory, "worker.sqlite"), binding);
+      try {
+        const owner = { ...original.owner, deviceId: randomUUID(), sessionExpiresAt: identity.expiresAt };
+        const lease = leases.acquire(owner);
+        const generationId = randomUUID();
+        provisioning.enrol(binding.customer, binding.epoch);
+        provisioning.enqueue({ version: 1, ...binding, operationId: randomUUID(), revision: 1,
+          leaseId: lease.id, notAfter: lease.expiresAt, action: "prepare",
+          payload: { generationId, extension: "1001" } },
+        { requestId: randomUUID(), actor: "fixture", reason: "Session-backed dispatch" });
+        const guarded = createAuthorisedProvisioningTransport({
+          async report(id) { return worker.report(id); },
+          async accept(intent) {
+            worker.accept(intent.command, intent.context);
+            return worker.report(intent.command.operationId)!;
+          },
+        }, binding, {
+          resolve() { return { owner, generationId, extension: "1001" }; },
+          session: backendSessions.lookupIdentity,
+          agentAccess: (owner, signal) => backendSessions.verifyAgentAccess(owner, verifyAgent, signal),
+          agents: { profile() { return { extension: "1001", displayName: "Alice" }; } }, leases,
+        });
+        assert.equal((await createAgentProvisioningDispatcher(provisioning, binding, guarded).dispatch()).state, "accepted");
+        assert.deepEqual(leases.current(owner, lease.id), lease);
+      } finally {
+        worker.close(); provisioning.close(); leases.close();
+        await rm(directory, { recursive: true });
+      }
+      const noAgent = createAccessVerifier({
+        issuer: issuerUrl, jwksUrl: issuerUrl + "/jwks", audience: "diagnostic-api",
+        allowLoopbackHttpForTests: true, memberships: [], supportGrants: [],
+      });
+      assert.deepEqual(await backendSessions.verifyAgentAccess(original.owner, noAgent, signal),
+        { allowed: false, status: 403, code: "customer_access_denied" });
+      for (const access of [
+        { allowed: true as const, subject: "bob", basis: "membership" as const },
+        { allowed: true as const, subject: "alice", basis: "support-grant" as const },
+      ]) {
+        assert.equal((await backendSessions.verifyAgentAccess(original.owner, async () => access, signal)).allowed, false);
+      }
+      await assert.rejects(backendSessions.verifyAgentAccess(original.owner, async () => {
+        throw new Error("fixture verifier failure");
+      }, signal), /fixture verifier failure/);
+      await assert.rejects(backendSessions.verifyAgentAccess(original.owner, verifyAgent,
+        AbortSignal.abort(new Error("fixture cancelled"))), /fixture cancelled/);
+      const cancelled = new AbortController();
+      await assert.rejects(backendSessions.verifyAgentAccess(original.owner, async () => {
+        cancelled.abort(new Error("fixture cancelled during verification"));
+        return { allowed: true, subject: "alice", basis: "membership" };
+      }, cancelled.signal), /cancelled during verification/);
+      assert.deepEqual(await backendSessions.verifyAgentAccess(original.owner, async () => ({
+        allowed: false, status: 503, code: "identity_verification_unavailable",
+      }), signal), { allowed: false, status: 503, code: "identity_verification_unavailable" });
       for (const owner of [
         { ...original.owner, issuer: "https://foreign.invalid" }, { ...original.owner, subject: "bob" },
         { ...original.owner, customer: "customer-b" },
         { ...original.owner, sessionId: randomBytes(32).toString("base64url") },
-      ]) assert.equal(backendSessions.lookupIdentity(owner), undefined);
+      ]) {
+        assert.equal(backendSessions.lookupIdentity(owner), undefined);
+        assert.deepEqual(await backendSessions.verifyAgentAccess(owner, async () => assert.fail("Foreign owner cannot verify"), signal),
+          { allowed: false, status: 401, code: "application_session_required" });
+      }
       assert.throws(() => backendSessions.lookupIdentity({ ...original.owner, sessionId: "invalid" }), /Invalid application session ID/);
+      let completeRotation!: () => void;
+      const rotationGate = new Promise<void>((resolve) => { completeRotation = resolve; });
+      const duringRotation = backendSessions.verifyAgentAccess(original.owner, async (...args) => {
+        const access = await verifyAgent(...args); await rotationGate; return access;
+      }, signal);
       const rotated = await loginBackend(original.cookie);
+      completeRotation();
+      assert.equal((await duringRotation).allowed, false, "Rotation during verification must fence success");
       assert.equal(backendSessions.lookupIdentity(original.owner), undefined);
       assert.ok(backendSessions.lookupIdentity(rotated.owner));
       const restarted = createApplicationSessions({ ...sessionConfig, origin: backendOrigin });
@@ -210,15 +295,29 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       const boot = await fetch(backendOrigin + "/auth/session", { headers: { Cookie: rotated.cookie } });
       const bootInfo = await boot.json();
       assert.equal(bootInfo.sessionId, undefined, "Backend lookup must not change browser bootstrap output");
+      let completeLogout!: () => void;
+      const logoutGate = new Promise<void>((resolve) => { completeLogout = resolve; });
+      const duringLogout = backendSessions.verifyAgentAccess(rotated.owner, async (...args) => {
+        const access = await verifyAgent(...args); await logoutGate; return access;
+      }, signal);
       const logout = await fetch(backendOrigin + "/auth/logout", { method: "POST", headers: {
         Cookie: rotated.cookie, Origin: backendOrigin, "X-CSRF-Token": bootInfo.csrf,
       } });
       assert.equal(logout.status, 200);
+      completeLogout();
+      assert.equal((await duringLogout).allowed, false, "Logout during verification must fence success");
       assert.equal(backendSessions.lookupIdentity(rotated.owner), undefined);
       expired = true;
       const shortBackend = await loginBackend();
       assert.ok(backendSessions.lookupIdentity(shortBackend.owner));
+      let completeExpiry!: () => void;
+      const expiryGate = new Promise<void>((resolve) => { completeExpiry = resolve; });
+      const duringExpiry = backendSessions.verifyAgentAccess(shortBackend.owner, async (...args) => {
+        const access = await verifyAgent(...args); await expiryGate; return access;
+      }, signal);
       await new Promise((resolve) => setTimeout(resolve, 2200));
+      completeExpiry();
+      assert.equal((await duringExpiry).allowed, false, "Expiry during verification must fence success");
       assert.equal(backendSessions.lookupIdentity(shortBackend.owner), undefined);
     } finally { await close(backendHolder); }
     const secure = createApplicationSessions({ ...sessionConfig, origin: origin.replace("http:", "https:") });

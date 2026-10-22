@@ -4,6 +4,7 @@ import { createRemoteJWKSet,jwtVerify } from "jose";
 import type { AccessAudit } from "./diagnostic-api.ts";
 import { assertAgentIdentity } from "./agent-directory.ts";
 import type { AgentIdentity } from "./agent-directory.ts";
+import type { AccessResult, createAccessVerifier } from "./access.ts";
 
 export interface ApplicationSessionConfig {
   origin: string;
@@ -83,16 +84,33 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
     (!request.headers["sec-fetch-site"]||request.headers["sec-fetch-site"]==="same-origin");
   const csrfValid=(request: IncomingMessage,session: Session) =>
     sameOrigin(request)&&request.headers["x-csrf-token"]===session.csrf;
+  const lookupIdentity=(owner: AgentIdentity & { sessionId: string }): ApplicationSessionIdentity | undefined => {
+    assertAgentIdentity(owner);
+    if(typeof owner.sessionId!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(owner.sessionId)) throw new Error("Invalid application session ID");
+    cleanup();
+    if(owner.issuer!==config.issuer) return undefined;
+    const session=sessions.get(owner.sessionId);
+    if(!session||session.subject!==owner.subject||session.customer!==owner.customer) return undefined;
+    return { sessionId: owner.sessionId,subject: session.subject,customer: session.customer,expiresAt: session.expiresAt };
+  };
 
   return {
-    lookupIdentity(owner: AgentIdentity & { sessionId: string }): ApplicationSessionIdentity | undefined {
-      assertAgentIdentity(owner);
-      if(typeof owner.sessionId!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(owner.sessionId)) throw new Error("Invalid application session ID");
-      cleanup();
-      if(owner.issuer!==config.issuer) return undefined;
+    lookupIdentity,
+    async verifyAgentAccess(input: AgentIdentity & { sessionId: string },
+      verify: ReturnType<typeof createAccessVerifier>, signal: AbortSignal): Promise<AccessResult> {
+      const owner={ ...input };
+      signal.throwIfAborted();
+      const denied: AccessResult={ allowed: false,status: 401,code: "application_session_required" };
+      if(!lookupIdentity(owner)) return denied;
       const session=sessions.get(owner.sessionId);
-      if(!session||session.subject!==owner.subject||session.customer!==owner.customer) return undefined;
-      return { sessionId: owner.sessionId,subject: session.subject,customer: session.customer,expiresAt: session.expiresAt };
+      if(!session) return denied;
+      const access=await verify(`Bearer ${session.token}`,owner.customer,"agent:access");
+      signal.throwIfAborted();
+      if(!lookupIdentity(owner)||sessions.get(owner.sessionId)!==session) return denied;
+      if(access.allowed&&(access.subject!==owner.subject||access.basis!=="membership")) {
+        return { allowed: false,status: 403,code: "customer_access_denied" };
+      }
+      return access;
     },
     identity(request: IncomingMessage): ApplicationSessionIdentity | undefined {
       const session=current(request);

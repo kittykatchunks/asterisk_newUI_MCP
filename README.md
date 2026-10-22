@@ -2290,8 +2290,40 @@ logout and real expiry, as well as an independent manager rejecting a still-live
 session from another instance. This is not a new real-Keycloak deployment proof.
 Sessions remain process-local: restarted or separate managers have no session
 history and must deny lookup. Durable original-owner resolution, shared session
-storage/worker application wiring and fresh access-token verification still need
-implementation before production background dispatch is enabled.
+storage/worker application wiring remain needed before production background
+dispatch is enabled. The companion access check is described below.
+
+#### Session-backed agent access verification
+
+`sessions.verifyAgentAccess(owner, verify, signal)` now supplies the companion
+backend-only access check. It resolves the exact live owner, passes that session's
+stored bearer token internally to the existing access verifier for `agent:access`,
+then rechecks session liveness and identity after the await. Only the same subject
+with direct membership may return allowed. Support grants and mismatched subjects
+are denied; verifier denials/unavailability remain explicit and exceptions or
+cancellation propagate. No token is returned to the consumer.
+
+For an application sharing the session manager and its configured verifier, the
+gate callbacks can be wired as:
+
+```typescript
+session: sessions.lookupIdentity,
+agentAccess: (owner, signal) => sessions.verifyAgentAccess(owner, verify, signal),
+```
+
+`verify` must be the trusted verifier configured for this application's issuer,
+audience and provisioned memberships, not caller-supplied code. Existing verifier
+membership configuration remains immutable for its lifetime; this method does
+not introduce dynamic membership reload, token refresh or issuer-side revocation
+introspection. Cancellation is checked before and after verification, not forced
+into the verifier's in-flight JWKS request.
+
+The local signed-token session regression now connects these actual callbacks to
+guarded dispatch and real lease/journal storage. It verifies direct membership,
+denial, unavailable verification, cancellation, foreign owner rejection, and
+logout/rotation/expiry races during verification. This is still a fixture, not
+new production service wiring or a real-Keycloak deployment proof. Durable owner
+resolution, audit integration and post-acceptance worker fencing remain gates.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
