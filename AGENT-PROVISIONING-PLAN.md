@@ -460,7 +460,7 @@ session ID are required, and rotation/logout/expiry invalidate lookup. It return
 no access token or CSRF material, changes no browser route and does not persist
 sessions across restart. The local signed-token OIDC regression verifies these
 properties, not a new production Keycloak integration. Durable owner mapping,
-shared session operations, fresh membership verification and actual background
+shared session operations, dynamic membership operations and actual background
 dispatcher wiring remain unfinished. See the
 [session lookup contract](./README.md#backend-only-live-session-lookup).
 
@@ -474,3 +474,14 @@ storage. This closes the callback primitive, not production wiring: original-own
 persistence, audit integration, dynamic membership operations and post-acceptance
 fencing remain unfinished. See the
 [session access contract](./README.md#session-backed-agent-access-verification).
+
+The real Keycloak browser launcher now additionally exercises the actual backend
+session callbacks using its approved confidential client. It verifies scoped
+lookup, Alice's direct membership/Bob's denial, rotation invalidation, and guarded
+dispatch with real SQLite leases/backend/worker journals. A deliberately held
+real-verifier result is rejected after concurrent logout without another worker
+delivery; historical readback remains available. The identity, application-session
+and launcher proofs passed together and their owned fixture was removed. This is
+local integration evidence only: no PBX execution, production owner resolver,
+issuer-side revocation subscription or post-acceptance worker cancellation was
+added. The signed-token regression remains the expiry/cancellation proof.

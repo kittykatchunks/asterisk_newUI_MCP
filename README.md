@@ -2287,7 +2287,7 @@ authorisation.
 `node --test .\tests\application-session.test.ts` uses the existing local
 signed-token OIDC fixture to check exact scope, detached results, rotation,
 logout and real expiry, as well as an independent manager rejecting a still-live
-session from another instance. This is not a new real-Keycloak deployment proof.
+session from another instance. The real-Keycloak fixture coverage is described below.
 Sessions remain process-local: restarted or separate managers have no session
 history and must deny lookup. Durable original-owner resolution, shared session
 storage/worker application wiring remain needed before production background
@@ -2321,9 +2321,26 @@ into the verifier's in-flight JWKS request.
 The local signed-token session regression now connects these actual callbacks to
 guarded dispatch and real lease/journal storage. It verifies direct membership,
 denial, unavailable verification, cancellation, foreign owner rejection, and
-logout/rotation/expiry races during verification. This is still a fixture, not
-new production service wiring or a real-Keycloak deployment proof. Durable owner
-resolution, audit integration and post-acceptance worker fencing remain gates.
+logout/rotation/expiry races during verification.
+
+`.\scripts\Test-IdentityProof.ps1` also runs a real Keycloak/browser proof of these
+backend callbacks before the existing application-session browser tests. A
+separate test-only listener reuses the approved confidential-client origin and
+callback, closes before the application listener starts, and adds no production
+route. The proof checks Alice's direct agent membership, Bob's denial, foreign
+owner scope rejection and session rotation. Alice's renewed session then drives
+guarded dispatch against real SQLite lease/backend/worker journals. Logout while
+the real JWT verifier's result is deliberately held prevents another worker
+delivery, while historical report lookup remains available. This proves the
+post-await check, not an issuer-side revocation subscription or an atomic
+controller/worker authorisation claim.
+
+The real Keycloak fixture, identity browser proof, application-session proof and
+launcher proof have passed together; the launcher tears down its owned identity
+container afterward. This remains local fixture evidence, not production service
+wiring. Durable owner resolution, audit integration and post-acceptance worker
+fencing remain gates. Real token/session expiry races remain covered by the local
+signed-token regression, not this Keycloak run.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

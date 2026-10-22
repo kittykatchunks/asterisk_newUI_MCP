@@ -12,6 +12,7 @@ import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engine
 import type { AmiConnection } from "../../src/pbx-status.ts";
 import { openAgentStore } from "../../src/agent-store.ts";
 import { openAgentDeviceLeaseStore } from "../../src/agent-device-lease.ts";
+import { proveBackendSessions } from "./backend-session-proof.ts";
 
 const issuer = "http://127.0.0.1:18080/realms/local-proof";
 const origin = "http://127.0.0.1:18766";
@@ -85,9 +86,22 @@ const api = createDiagnosticApi({
 }, pbx, endpoints, agents, deviceLeases);
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
+  browser = await chromium.launch({ headless: true });
+  await proveBackendSessions(browser, {
+    origin, issuer, authorizationEndpoint: discovery.authorization_endpoint,
+    tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
+    clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
+    allowLoopbackHttpForTests: true,
+  }, {
+    issuer, audience: "diagnostic-api", jwksUrl: discovery.jwks_uri,
+    allowLoopbackHttpForTests: true,
+    memberships: accounts.map((account) => ({
+      issuer, subject: account.subject, customer: account.customer,
+      permissions: account.username === "alice" ? ["agent:access"] : ["diagnostics:read"],
+    })), supportGrants: [],
+  }, accounts);
   api.listen(18766, "127.0.0.1");
   await once(api, "listening");
-  browser = await chromium.launch({ headless: true });
   for (const account of accounts) {
     const context = await browser.newContext();
     try {
