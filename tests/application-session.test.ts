@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { test } from "node:test";
@@ -165,6 +166,61 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
     assert.equal((await fetch(origin + "/auth/session", { headers: { Cookie: shortCookie } })).status, 401);
     assert.ok(errors.length === 2);
     assert.ok(!JSON.stringify(audit).includes("synthetic-client-secret"));
+    const backendHolder = createServer();
+    const backendOrigin = await listen(backendHolder);
+    const backendSessions = createApplicationSessions({ ...sessionConfig, origin: backendOrigin });
+    backendHolder.on("request", (request, response) => {
+      void backendSessions.handle(request, response, randomBytes(16).toString("hex"), async () => {})
+        .catch((error) => { errors.push(error); response.writeHead(500).end(); });
+    });
+    try {
+      const loginBackend = async (oldCookie = "") => {
+        const login = await fetch(backendOrigin + "/auth/login?customer=customer-a&workspace=agent", { redirect: "manual" });
+        assert.equal(login.status, 302);
+        const authorization = new URL(login.headers.get("location")!);
+        nonce = authorization.searchParams.get("nonce")!;
+        const loginCookie = login.headers.get("set-cookie")!.split(";")[0];
+        const callback = await fetch(backendOrigin + "/auth/callback?code=fixture&state=" + authorization.searchParams.get("state"), {
+          redirect: "manual", headers: { Cookie: [loginCookie, oldCookie].filter(Boolean).join("; ") },
+        });
+        assert.equal(callback.status, 302);
+        const cookie = sessionCookie(callback);
+        return { cookie, owner: { issuer: issuerUrl, subject: "alice", customer: "customer-a",
+          sessionId: cookie.slice(cookie.indexOf("=") + 1) } };
+      };
+      expired = false;
+      const original = await loginBackend();
+      const identity = backendSessions.lookupIdentity(original.owner);
+      assert.ok(identity);
+      assert.deepEqual(Object.keys(identity).sort(), ["customer", "expiresAt", "sessionId", "subject"]);
+      identity.subject = "mutated";
+      assert.equal(backendSessions.lookupIdentity(original.owner)?.subject, "alice");
+      for (const owner of [
+        { ...original.owner, issuer: "https://foreign.invalid" }, { ...original.owner, subject: "bob" },
+        { ...original.owner, customer: "customer-b" },
+        { ...original.owner, sessionId: randomBytes(32).toString("base64url") },
+      ]) assert.equal(backendSessions.lookupIdentity(owner), undefined);
+      assert.throws(() => backendSessions.lookupIdentity({ ...original.owner, sessionId: "invalid" }), /Invalid application session ID/);
+      const rotated = await loginBackend(original.cookie);
+      assert.equal(backendSessions.lookupIdentity(original.owner), undefined);
+      assert.ok(backendSessions.lookupIdentity(rotated.owner));
+      const restarted = createApplicationSessions({ ...sessionConfig, origin: backendOrigin });
+      assert.equal(restarted.lookupIdentity(rotated.owner), undefined,
+        "A fresh process-local session store cannot recover old browser sessions");
+      const boot = await fetch(backendOrigin + "/auth/session", { headers: { Cookie: rotated.cookie } });
+      const bootInfo = await boot.json();
+      assert.equal(bootInfo.sessionId, undefined, "Backend lookup must not change browser bootstrap output");
+      const logout = await fetch(backendOrigin + "/auth/logout", { method: "POST", headers: {
+        Cookie: rotated.cookie, Origin: backendOrigin, "X-CSRF-Token": bootInfo.csrf,
+      } });
+      assert.equal(logout.status, 200);
+      assert.equal(backendSessions.lookupIdentity(rotated.owner), undefined);
+      expired = true;
+      const shortBackend = await loginBackend();
+      assert.ok(backendSessions.lookupIdentity(shortBackend.owner));
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+      assert.equal(backendSessions.lookupIdentity(shortBackend.owner), undefined);
+    } finally { await close(backendHolder); }
     const secure = createApplicationSessions({ ...sessionConfig, origin: origin.replace("http:", "https:") });
     const secureHolder = createServer((request, response) => {
       request.headers.host = new URL(origin).host;

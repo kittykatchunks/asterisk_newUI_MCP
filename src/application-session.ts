@@ -2,6 +2,8 @@ import { randomBytes,createHash } from "node:crypto";
 import type { IncomingMessage,ServerResponse } from "node:http";
 import { createRemoteJWKSet,jwtVerify } from "jose";
 import type { AccessAudit } from "./diagnostic-api.ts";
+import { assertAgentIdentity } from "./agent-directory.ts";
+import type { AgentIdentity } from "./agent-directory.ts";
 
 export interface ApplicationSessionConfig {
   origin: string;
@@ -83,6 +85,15 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
     sameOrigin(request)&&request.headers["x-csrf-token"]===session.csrf;
 
   return {
+    lookupIdentity(owner: AgentIdentity & { sessionId: string }): ApplicationSessionIdentity | undefined {
+      assertAgentIdentity(owner);
+      if(typeof owner.sessionId!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(owner.sessionId)) throw new Error("Invalid application session ID");
+      cleanup();
+      if(owner.issuer!==config.issuer) return undefined;
+      const session=sessions.get(owner.sessionId);
+      if(!session||session.subject!==owner.subject||session.customer!==owner.customer) return undefined;
+      return { sessionId: owner.sessionId,subject: session.subject,customer: session.customer,expiresAt: session.expiresAt };
+    },
     identity(request: IncomingMessage): ApplicationSessionIdentity | undefined {
       const session=current(request);
       const id=cookie(request,sessionName);

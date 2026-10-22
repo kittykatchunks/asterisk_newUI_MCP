@@ -453,3 +453,13 @@ and historical receipt reconciliation survives logout without exposing raw
 session/device context. Owner/session/membership resolution is still injected
 fixture state; durable application integration and cancellation/fencing after
 remote acceptance remain open gates.
+
+The existing application-session manager now supplies a backend-only scoped
+identity lookup for the gate's session callback. Exact issuer/subject/customer/
+session ID are required, and rotation/logout/expiry invalidate lookup. It returns
+no access token or CSRF material, changes no browser route and does not persist
+sessions across restart. The local signed-token OIDC regression verifies these
+properties, not a new production Keycloak integration. Durable owner mapping,
+shared session operations, fresh membership verification and actual background
+dispatcher wiring remain unfinished. See the
+[session lookup contract](./README.md#backend-only-live-session-lookup).

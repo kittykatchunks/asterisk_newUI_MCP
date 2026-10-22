@@ -2268,6 +2268,31 @@ resolution remain fixture callbacks, not production OIDC or durable owner lookup
 This proves the gate's transport placement, not cancellation of work accepted
 before ownership was lost.
 
+#### Backend-only live session lookup
+
+The application session manager now exposes `lookupIdentity(owner)` for trusted
+backend consumers holding the original `{ issuer, subject, customer, sessionId }`.
+It checks the configured issuer and exact stored identity, removes expired
+sessions and returns only a detached `{ sessionId, subject, customer, expiresAt }`.
+Unknown or foreign owners return `undefined`; malformed identity/session IDs
+throw. No access token, CSRF value or confidential-client secret is returned.
+
+The live gate's session callback can use `sessions.lookupIdentity(owner)` when
+the owning application shares that session manager. This is not a new HTTP
+endpoint and does not replace request Host, cookie or CSRF checks. Browser
+bootstrap output remains unchanged and does not expose session IDs. Lookup is
+only a session-liveness check, not fresh membership, assignment or lease
+authorisation.
+
+`node --test .\tests\application-session.test.ts` uses the existing local
+signed-token OIDC fixture to check exact scope, detached results, rotation,
+logout and real expiry, as well as an independent manager rejecting a still-live
+session from another instance. This is not a new real-Keycloak deployment proof.
+Sessions remain process-local: restarted or separate managers have no session
+history and must deny lookup. Durable original-owner resolution, shared session
+storage/worker application wiring and fresh access-token verification still need
+implementation before production background dispatch is enabled.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
