@@ -249,6 +249,11 @@ history and every exact lookup (including older outcomes), preserves multiline
 Unicode reasons/identities/hashes/timestamps, and rechecks pending/publication
 state and restored-database reopening. Offsite disaster recovery remains unproven.
 
+Backup inspection now aligns candidate UUID and receipt length validation with
+history reads. Backup/restore tests reject oversized approved/rejected receipts
+and malformed pending IDs even with matching artifact checksums, preserve valid
+exact-limit Unicode records, and verify failed output cleanup.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

@@ -376,6 +376,62 @@ test("backup and restore never create missing sources or accept relative paths",
   });
 });
 
+test("backup and restore enforce history receipt limits and candidate UUIDs beyond checksum validation", async () => {
+  await fixture(async (path) => {
+    const store = openDiagnosticStore(path);
+    const [approved, rejected, pending] = store.stage([entry(), entry("customer-a", "b"), entry("customer-a", "c")]);
+    const reviewer = "r".repeat(200);
+    const reason = "\u{1f695}".repeat(1000);
+    for (const [index, candidate] of [approved, rejected].entries()) {
+      store.review(candidate.id, { decision: index === 0 ? "approve" : "reject", reviewer, reason, sha256: candidate.sha256 });
+    }
+    const expected = store.history("customer-a");
+    store.close();
+    const directory = await backupDiagnosticStore(path, dirname(path));
+    const backupPath = join(directory, "diagnostics.sqlite");
+    const manifestPath = join(directory, "manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    const validRestore = await restoreDiagnosticStore(directory, dirname(path));
+    const restored = openDiagnosticStore(validRestore);
+    try { assert.deepEqual(restored.history("customer-a"), expected); }
+    finally { restored.close(); }
+    const initialDirectories = (await readdir(dirname(path))).sort();
+    const source = new DatabaseSync(path);
+    const artifact = new DatabaseSync(backupPath);
+    try {
+      const probes = [
+        ...[approved, rejected].flatMap((candidate) => [
+          { table: "incident_reviews", key: "candidate", id: candidate.id, column: "reviewer", value: reviewer + "x", original: reviewer },
+          { table: "incident_reviews", key: "candidate", id: candidate.id, column: "reason", value: reason + "x", original: reason },
+        ]),
+        { table: "report_candidates", key: "id", id: pending.id, column: "id", value: "invalid-candidate", original: pending.id },
+      ];
+      for (const probe of probes) {
+        for (const db of [source, artifact]) {
+          db.prepare(`UPDATE ${probe.table} SET ${probe.column} = ? WHERE ${probe.key} = ?`).run(probe.value, probe.id);
+        }
+        await assert.rejects(backupDiagnosticStore(path, dirname(path)), /integrity/i);
+        const sha256 = createHash("sha256").update(await readFile(backupPath)).digest("hex");
+        await writeFile(manifestPath, JSON.stringify({ ...manifest, sha256 }));
+        await assert.rejects(restoreDiagnosticStore(directory, dirname(path)), /integrity/i);
+        assert.deepEqual((await readdir(dirname(path))).sort(), initialDirectories,
+          "Rejected backup/restore must clean up only its newly allocated output");
+        for (const db of [source, artifact]) {
+          db.prepare(`UPDATE ${probe.table} SET ${probe.column} = ? WHERE ${probe.key} = ?`)
+            .run(probe.original, probe.column === probe.key ? probe.value : probe.id);
+        }
+      }
+    } finally { artifact.close(); source.close(); }
+    const sha256 = createHash("sha256").update(await readFile(backupPath)).digest("hex");
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, sha256 }));
+    const recovered = openDiagnosticStore(await restoreDiagnosticStore(directory, dirname(path)));
+    try {
+      assert.deepEqual(recovered.history("customer-a"), expected);
+      assert.equal(recovered.pending("customer-a")[0].id, pending.id);
+    } finally { recovered.close(); }
+  });
+});
+
 test("staged and rejected reports stay hidden; approvals bind the exact reviewed snapshot", async () => {
     await fixture(async (path) => {
       let store = openDiagnosticStore(path);

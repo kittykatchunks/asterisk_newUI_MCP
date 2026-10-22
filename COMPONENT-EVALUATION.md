@@ -260,6 +260,11 @@ older candidate lookups, receipt fields and publication/pending state through
 backup, fresh-path restore and reopening. This validates local SQLite recovery,
 not offsite storage durability or production disaster recovery.
 
+Backup/restore inspection now rejects malformed candidate UUIDs and receipt
+lengths beyond the history-reader limits. Tests exercise both directions with
+valid-checksum corrupted artifacts, approved/rejected receipts, exact-limit
+Unicode preservation and cleanup without disturbing existing restores.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

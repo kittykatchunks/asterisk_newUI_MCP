@@ -940,6 +940,15 @@ checks tenant separation, pending/approved/rejected publication state and histor
 after reopening the restored database. This is a local SQLite recovery proof,
 not an offsite-backup or IONOS disaster-recovery acceptance test.
 
+Backup/restore inspection also enforces candidate UUID syntax and the same
+200-code-unit reviewer / 2,000-code-unit reason bounds used by recorded-history
+reads. This prevents a structurally valid SQLite backup from being accepted when
+its restored receipts would be unreadable. Regression probes reject over-limit
+approved and rejected receipts and malformed pending IDs during both backup and
+restore, including artifacts with a recalculated valid checksum. Exact-limit
+Unicode reasons remain accepted; failed operations remove their newly allocated
+output without modifying the source or existing restored databases.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

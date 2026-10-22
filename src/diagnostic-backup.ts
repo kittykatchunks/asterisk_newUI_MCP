@@ -60,15 +60,16 @@ function inspect(db: DatabaseSync) {
     if (typeof row.entry !== "string") throw new Error("Invalid stored candidate");
     const entry: unknown = JSON.parse(row.entry);
     assertApprovedIncident(entry);
-    if (entry.customer !== row.customer || entry.summary.id !== row.incident ||
+    if (typeof row.id !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(row.id) ||
+        entry.customer !== row.customer || entry.summary.id !== row.incident ||
         row.sha256 !== createHash("sha256").update(row.entry).digest("hex") ||
         typeof row.staged_at !== "string" || !Number.isFinite(Date.parse(row.staged_at))) {
       throw new Error("Candidate integrity check failed");
     }
     if (row.decision !== null) {
       if (!["approve", "reject"].includes(String(row.decision)) || row.reviewed_hash !== row.sha256 ||
-          typeof row.reviewer !== "string" || !row.reviewer.trim() ||
-          typeof row.reason !== "string" || !row.reason.trim() ||
+          typeof row.reviewer !== "string" || !row.reviewer.trim() || row.reviewer.length > 200 ||
+          typeof row.reason !== "string" || !row.reason.trim() || row.reason.length > 2000 ||
           typeof row.decided_at !== "string" || !Number.isFinite(Date.parse(row.decided_at))) {
         throw new Error("Review integrity check failed");
       }
