@@ -294,3 +294,14 @@ later revisions. Exact historical retries remain reconcilable. This establishes
 a local journal contract only, not worker authentication, exactly-once execution,
 exclusive executor ownership, PBX verification or automatic deadline enforcement.
 See the [worker-journal contract](./README.md#customer-pinned-worker-journal-no-execution).
+
+The journal can now export an allowlisted versioned report containing the operation
+scope, command hash and receipt history. Backend reconciliation validates a
+separately supplied expected worker binding, matches the stored intent, checks the
+complete shared history and appends new receipt stages atomically. Exact and
+delayed-prefix reports do not duplicate or rewind history. Separate-database tests
+cover lost responses across restart and mid-import rollback. This is an in-process
+reconciliation contract, not authenticated ingestion or verified PBX execution.
+Reports are limited to 100 receipts and longer histories fail explicitly; transport
+bounds, pagination and authority-restore detection remain unimplemented. See the
+[report contract](./README.md#worker-report-reconciliation-in-process-contract).

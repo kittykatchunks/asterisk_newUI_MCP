@@ -1796,6 +1796,46 @@ clock/lock/receipt failures, revision gaps and cross-process contention.
 Stage A remains incomplete until authenticated transport/receipt integration,
 application ownership validation and recovery acceptance are implemented.
 
+#### Worker report reconciliation (in-process contract)
+
+The journal's `report(operationId)` exports only
+`{ version, customer, epoch, operationId, revision, sha256, receipts }`. It contains
+no command payload, actor/reason, lease/device/session identifiers or credentials.
+An unknown operation returns `undefined`, not a fabricated empty report. Reports
+are detached snapshots validated through the same stored-data checks as exact
+lookup. Version 1 permits at most 100 receipts per report; a longer journal history
+fails explicitly instead of truncating it. Pagination is not implemented.
+
+The backend's `reconcile(workerBinding, report)` requires a separately supplied
+expected customer/epoch, then matches the existing intent's operation UUID,
+customer, epoch, revision and canonical command SHA-256. The caller must derive
+that binding from trusted configuration/authenticated worker identity, **not**
+copy it from the received report. This parameter is not itself authentication.
+There is no HTTP receipt-ingestion route or network transport.
+
+The complete report must have valid contiguous stages and distinct receipt IDs.
+Its shared history must exactly match the backend's existing prefix. New receipts
+are appended together in one transaction; malformed or conflicting history, a
+duplicate ID in another operation, a locked database or a late insert failure
+cannot leave a partial batch. The result is `{ inserted, unchanged }`, counting
+new entries and the matching overlap. Exact repeat delivery is harmless.
+A delayed report containing an older exact prefix is also harmless: it inserts
+nothing and never deletes newer local receipts. Divergent history fails.
+
+Reconciliation is allowed after the command deadline because it records an
+observation of earlier work, not renewed authorisation to dispatch. A terminal
+worker report can resolve the backend pending entry after a lost response or
+process restart without issuing a new operation. Neither hashes nor receipt
+stages establish worker authenticity or actual PBX verification. Missing worker
+history after an unintended restore cannot be diagnosed from a shorter prefix
+alone; authority/recovery fencing remains a later gate.
+
+`node --test .\tests\agent-provisioning-reconciliation.test.ts` checks separate-file
+restart/lost-response recovery, exact and delayed reports, detached/allowlisted
+output, scope/hash/revision conflicts, malformed histories, lock contention and
+mid-batch rollback/retry. No dispatch, runtime side effect, secret handling or
+phone activation is introduced.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
