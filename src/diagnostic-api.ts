@@ -10,6 +10,9 @@ import { createApplicationSessions } from "./application-session.ts";
 import type { ApplicationSessionConfig } from "./application-session.ts";
 import type { PbxStatusSource, PbxEndpointSource } from "./pbx-status.ts";
 import type { AgentDirectory } from "./agent-directory.ts";
+import { assertAgentProfile } from "./agent-directory.ts";
+import { handleAgentDeviceRequest } from "./agent-device-http.ts";
+import type { AgentDeviceLeaseStore } from "./agent-device-lease.ts";
 
 export interface AccessAudit {
   requestId: string;
@@ -19,7 +22,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout" | "agent-device-acquire" | "agent-device-renew" | "agent-device-release";
   incident?: string;
 }
 
@@ -33,6 +36,7 @@ export function createDiagnosticApi(
   pbx?: PbxStatusSource,
   pbxEndpoints?: PbxEndpointSource,
   agents?: AgentDirectory,
+  deviceLeases?: AgentDeviceLeaseStore,
 ) {
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
       sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
@@ -98,6 +102,14 @@ export function createDiagnosticApi(
       const pbxMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/status$/);
       const endpointMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/endpoints$/);
       const agentMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/profile$/);
+      const deviceMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/device-lease(?:\/(renew|release))?$/);
+      if (deviceMatch) {
+        customer = deviceMatch[1];
+        const action = deviceMatch[2] === "renew" ? "renew" : deviceMatch[2] === "release" ? "release" : "acquire";
+        await handleAgentDeviceRequest(request, response, requestId, customer, action, identityIssuer,
+          () => sessions?.identity(request), verify, audit, agents, deviceLeases);
+        return;
+      }
       if (agentMatch) {
         customer = agentMatch[1];
         const access = await verify(request.headers.authorization, customer, "agent:access");
@@ -113,9 +125,7 @@ export function createDiagnosticApi(
             try {
               profile = agents.profile(identityIssuer, access.subject, customer);
               if (!profile) { status = 404; outcome = "agent_not_assigned"; }
-              else if (typeof profile.extension !== "string" || !/^[0-9]{1,16}$/.test(profile.extension) || typeof profile.displayName !== "string" ||
-                  !profile.displayName.trim() || profile.displayName.length > 128 ||
-                  /[\x00-\x1f\x7f]/.test(profile.displayName)) throw new Error("Invalid provisioned agent profile");
+              else assertAgentProfile(profile);
             } catch (error) {
               logError(error, requestId);
               status = 503; outcome = "agent_directory_unavailable";

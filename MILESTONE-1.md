@@ -427,11 +427,21 @@ policy, scoped by issuer/subject/customer and bound to a backend session plus de
 UUID. Separate SQLite transactions enforce exclusivity across processes; explicit
 renewals are capped at 60 seconds and verified session expiry. Release/expiry permit
 a fresh lease, and old IDs cannot mutate its replacement. This is not wired to
-HTTP, console controls, logout, assignments or SIP. It neither reserves an extension
+console controls, logout release or SIP. It neither reserves an extension
 nor disconnects an endpoint on expiry, and live leases are not assignment-backup
 data. The selected future sign-out policy stops new offers, finishes the current
 call and then releases the phone session; call-aware draining and credential
 revocation remain unimplemented.
+
+Optional backend acquire/renew/release POST routes now bind leases to a live,
+customer-scoped application session, same-origin CSRF, `agent:access` membership
+and a valid own assignment. Bearer-only callers are denied. Strict bounded JSON
+cannot choose identity or session. A durable intent audit precedes mutation, and
+the session is rechecked afterward to fence concurrent logout; the audit is not a
+success receipt. Real Keycloak browser sessions prove Alice's lifecycle, Bob's
+denial, persisted intent and rejected post-logout renewal. Logout leaves a
+reservation to expire within its remaining 60 seconds; explicit release avoids
+the wait. The normal launcher does not configure this optional store.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +11,7 @@ import { openDiagnosticStore } from "../../src/diagnostic-store.ts";
 import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
 import type { AmiConnection } from "../../src/pbx-status.ts";
 import { openAgentStore } from "../../src/agent-store.ts";
+import { openAgentDeviceLeaseStore } from "../../src/agent-device-lease.ts";
 
 const issuer = "http://127.0.0.1:18080/realms/local-proof";
 const origin = "http://127.0.0.1:18766";
@@ -56,6 +57,7 @@ try {
   assert.notEqual(inserted.id, repeated.id);
 } finally { provisioning.close(); }
 const agents = openAgentStore(agentPath);
+const deviceLeases = openAgentDeviceLeaseStore(join(directory, "device-leases.sqlite"));
 const html = "<!doctype html><h1>Synthetic session report</h1>";
 const incident = "incident-" + "a".repeat(32);
 const [candidate] = store.stage([{
@@ -80,7 +82,7 @@ const api = createDiagnosticApi({
   tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
   clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
   allowLoopbackHttpForTests: true,
-}, pbx, endpoints, agents);
+}, pbx, endpoints, agents, deviceLeases);
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   api.listen(18766, "127.0.0.1");
@@ -565,6 +567,34 @@ try {
       const refreshResponse = page.waitForResponse(profileUrl);
       await page.getByRole("button", { name: "Refresh assignment", exact: true }).click();
       assert.equal((await refreshResponse).status(), account.username === "alice" ? 200 : 403);
+      const deviceUrl = `${origin}/api/customers/${account.customer}/agent/device-lease`;
+      const deviceId = randomUUID();
+      const deviceCall = (action = "", leaseId?: string) => page.evaluate(async ({ url, deviceId, leaseId }) => {
+        const session = await (await fetch("/auth/session")).json();
+        const response = await fetch(url, { method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": session.csrf },
+          body: JSON.stringify({ deviceId, ...(leaseId ? { leaseId } : {}) }) });
+        return { status: response.status, body: await response.json(), requestId: response.headers.get("x-request-id") };
+      }, { url: deviceUrl + (action ? "/" + action : ""), deviceId, leaseId });
+      let retainedLeaseId: string | undefined;
+      const activation = await deviceCall();
+      assert.equal(activation.status, account.username === "alice" ? 200 : 403);
+      if (account.username === "alice") {
+        const lease = activation.body.lease;
+        assert.deepEqual(Object.keys(lease).sort(), ["expiresAt", "id"]);
+        assert.equal((await deviceCall("renew", lease.id)).body.lease.id, lease.id);
+        assert.equal((await deviceCall("release", lease.id)).status, 200);
+        assert.equal((await deviceCall("renew", lease.id)).status, 409);
+        retainedLeaseId = (await deviceCall()).body.lease.id;
+        assert.notEqual(retainedLeaseId, lease.id);
+        const auditReader = new DatabaseSync(databasePath, { readOnly: true });
+        try {
+          const record = auditReader.prepare("SELECT customer, subject, operation, outcome FROM access_audit WHERE request_id = ?")
+            .get(activation.requestId);
+          assert.deepEqual({ ...record }, { customer: account.customer, subject: account.subject,
+            operation: "agent-device-acquire", outcome: "agent_device_acquire_requested" });
+        } finally { auditReader.close(); }
+      }
       const logoutResponse = page.waitForResponse(origin + "/auth/logout");
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
       const logout = await logoutResponse;
@@ -575,6 +605,10 @@ try {
       assert.equal(await page.locator("#assignment dd").count(), 0);
       assert.equal((await fetch(profileUrl, { headers: { Cookie: replay } })).status, 401);
       assert.equal((await fetch(origin + "/auth/session", { headers: { Cookie: replay } })).status, 401);
+      assert.equal((await fetch(deviceUrl + "/renew", { method: "POST",
+        headers: { Cookie: replay, Origin: origin, "Content-Type": "application/json", "X-CSRF-Token": logoutHeaders["x-csrf-token"] },
+        body: JSON.stringify({ deviceId, leaseId: retainedLeaseId ?? randomUUID() }),
+      })).status, 401, "Logged-out session must not renew a retained device lease");
       assert.equal((await context.cookies(origin)).filter((cookie) => cookie.name === "asterisk-test-session").length, 0);
       const audit = new DatabaseSync(databasePath, { readOnly: true });
       try {
@@ -583,7 +617,7 @@ try {
         assert.deepEqual({ ...record }, { customer: account.customer, subject: account.subject, operation: "session-logout" });
       } finally { audit.close(); }
       assert.deepEqual(browserErrors, []);
-      console.log(`PASS ${account.username}: agent-console PKCE return, own-profile permission, explicit refresh, CSRF logout and replay denial`);
+      console.log(`PASS ${account.username}: agent-console PKCE return, profile/device permission, explicit refresh, CSRF logout and replay denial`);
     } finally { await context.close(); }
   }
   const reader = new DatabaseSync(databasePath, { readOnly: true });
@@ -603,5 +637,6 @@ try {
   }
   store.close();
   agents.close();
+  deviceLeases.close();
   await rm(directory, { recursive: true });
 }

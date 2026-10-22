@@ -447,10 +447,20 @@ and device UUID. Explicit release or exact expiry is required before a competing
 owner can acquire; renewals are bounded by 60 seconds and verified session expiry,
 and replacement lease IDs fence stale mutations. Tests exercise six simultaneous
 processes with exactly one winner, session/scope boundaries, persistence, locking
-and rollback. This is not an HTTP/authentication boundary and is not integrated
-with console activation, assignment checks, logout or SIP. Shared-extension safety,
+and rollback. The store itself is not an HTTP/authentication boundary and is not
+integrated with console activation, logout release or SIP. Shared-extension safety,
 SIP revocation/fencing and the selected finish-current-call sign-out policy remain
 future integration work; a reservation is not evidence of a connected phone.
+
+Optional POST acquire/renew/release routes now add the application-session,
+customer, CSRF, direct membership and assignment boundary. Bearer-only access is
+rejected. Bounded JSON input cannot supply identity/session data; a committed
+intent audit gates mutation and live-session revalidation fences logout races.
+The audit records intent rather than final success, retaining one record per
+request. Real Keycloak sessions prove lifecycle/denial and post-logout replay
+rejection with persisted SQLite audit. Logout leaves the short reservation to
+expire; no console activation, automatic heartbeat, call draining or SIP
+revocation is implied, and the normal launcher leaves the routes unconfigured.
 
 ## 2. Asterisk container
 

@@ -23,6 +23,13 @@ interface Session {
   expiresAt: number;
 }
 
+export interface ApplicationSessionIdentity {
+  sessionId: string;
+  subject: string;
+  customer: string;
+  expiresAt: number;
+}
+
 const random=() => randomBytes(32).toString("base64url");
 function cookie(request: IncomingMessage,name: string): string|undefined {
   const values=(request.headers.cookie??"").split(";").map((value) => value.trim())
@@ -76,6 +83,12 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
     sameOrigin(request)&&request.headers["x-csrf-token"]===session.csrf;
 
   return {
+    identity(request: IncomingMessage): ApplicationSessionIdentity | undefined {
+      const session=current(request);
+      const id=cookie(request,sessionName);
+      if(!session||!id||request.headers.host!==origin.host) return undefined;
+      return { sessionId: id,subject: session.subject,customer: session.customer,expiresAt: session.expiresAt };
+    },
     authorization(request: IncomingMessage): { authorization?: string; subject?: string; csrfDenied: boolean } {
       const session=current(request);
       if(!session) return { csrfDenied: false };

@@ -3,56 +3,16 @@ import type { createAccessVerifier } from "./access.ts";
 import type { AccessAudit } from "./diagnostic-api.ts";
 import { ReviewConflict } from "./diagnostic-store.ts";
 import type { DiagnosticStore, IncidentReview } from "./diagnostic-store.ts";
-
-class ReviewInputError extends Error {
-  status: number;
-  code: string;
-  constructor(status: number, code: string) {
-    super(code);
-    this.status = status;
-    this.code = code;
-  }
-}
+import { HttpInputError, readJsonBody } from "./http-json.ts";
 
 async function readDecision(request: IncomingMessage): Promise<Pick<IncidentReview, "decision" | "reason" | "sha256">> {
-  if (request.headers["content-type"]?.split(";")[0].trim().toLowerCase() !== "application/json") {
-    throw new ReviewInputError(415, "review_json_required");
-  }
-  if (request.headers["content-encoding"] && request.headers["content-encoding"] !== "identity") {
-    throw new ReviewInputError(415, "review_encoding_unsupported");
-  }
-  const text = await new Promise<string>((resolve, reject) => {
-    let size = 0;
-    const chunks: Buffer[] = [];
-    const finish = (error?: Error) => {
-      clearTimeout(timer);
-      request.off("data", data);
-      request.off("end", end);
-      request.off("error", fail);
-      request.off("aborted", aborted);
-      if (error) { request.resume(); reject(error); }
-      else resolve(Buffer.concat(chunks).toString("utf8"));
-    };
-    const data = (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > 8192) finish(new ReviewInputError(413, "review_body_too_large"));
-      else chunks.push(chunk);
-    };
-    const end = () => finish();
-    const fail = (error: Error) => finish(error);
-    const aborted = () => finish(new ReviewInputError(400, "review_request_aborted"));
-    const timer = setTimeout(() => finish(new ReviewInputError(408, "review_body_timeout")), 5000);
-    request.on("data", data).once("end", end).once("error", fail).once("aborted", aborted);
-  });
-  let value: unknown;
-  try { value = JSON.parse(text); }
-  catch { throw new ReviewInputError(400, "invalid_review_json"); }
+  const value = await readJsonBody(request, "review", 8192);
   if (typeof value !== "object" || value === null || Array.isArray(value) ||
       Object.keys(value).some((key) => !["decision", "reason", "sha256"].includes(key)) ||
       !("decision" in value) || (value.decision !== "approve" && value.decision !== "reject") ||
       !("reason" in value) || typeof value.reason !== "string" || !value.reason.trim() || value.reason.length > 2000 ||
       !("sha256" in value) || typeof value.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(value.sha256)) {
-    throw new ReviewInputError(400, "invalid_review_decision");
+    throw new HttpInputError(400, "invalid_review_decision");
   }
   return { decision: value.decision, reason: value.reason, sha256: value.sha256 };
 }
@@ -119,7 +79,7 @@ export async function handleReviewRequest(
     });
     send(200, "incident_review_recorded");
   } catch (error) {
-    if (error instanceof ReviewInputError || error instanceof ReviewConflict) {
+    if (error instanceof HttpInputError || error instanceof ReviewConflict) {
       request.resume();
       if (error.status === 408 || error.status === 413) response.setHeader("Connection", "close");
       await deny(error.status, error.code);

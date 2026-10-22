@@ -1212,8 +1212,8 @@ explicit codes; invalid input, corrupt rows and SQLite failures throw.
 The caller must supply server-verified session/identity data and independently
 enforce `agent:access` and a valid assignment. This module does not authenticate,
 read cookies, grant membership, check assignment existence, reserve an extension,
-or authorise a SIP operation. There is deliberately no HTTP route, console/device
-activation control, heartbeat, logout hook or credential issuance yet. Distinct
+or authorise a SIP operation. There is no console/device activation control,
+heartbeat, logout release hook or credential issuance yet. Distinct
 agents sharing a provisioned extension are not made safe by identity exclusivity.
 Expired rows are replaced on the next acquisition for that identity. Database
 reopen preserves reservations, not application sessions or permission to reconnect.
@@ -1227,6 +1227,62 @@ Validate with
 Tests cover exact expiry, session caps, all owner dimensions, stale lease fencing,
 explicit release, rollback/locking, corrupt state and six competing processes
 producing exactly one winner.
+
+#### Authenticated backend device-lease routes
+
+An optional tenth `createDiagnosticApi` argument injects the lease store. It is
+not enabled by the ordinary engineering launcher. When explicitly configured with
+application sessions and the assignment directory, these routes are available:
+
+| Method and route | JSON body | Result |
+| --- | --- | --- |
+| `POST /api/customers/{customer}/agent/device-lease` | `{ "deviceId": "<uuid>" }` | Acquires or reconciles the same owner's unexpired lease |
+| `POST /api/customers/{customer}/agent/device-lease/renew` | `{ "deviceId": "<uuid>", "leaseId": "<uuid>" }` | Renews only the current owned lease |
+| `POST /api/customers/{customer}/agent/device-lease/release` | `{ "deviceId": "<uuid>", "leaseId": "<uuid>" }` | Releases only the current owned lease |
+
+The routes require a live HttpOnly application session bound to the path's
+customer, same-origin CSRF validation, direct `agent:access` membership and a
+valid own assignment. Bearer-only access is rejected, even with agent permission;
+identity/session/expiry/extension fields cannot be supplied in the body. Even a
+member of both customers must sign in for the specific customer. A device UUID
+selects the device within the verified session; it is not hardware attestation.
+All methods other than POST are rejected. Bodies are JSON-only, uncompressed,
+limited to 1,024 bytes and five seconds, and reject extra fields or malformed IDs.
+The shared bounded JSON reader preserves the existing review-route contracts.
+
+Successful acquire/renew responses contain only
+`{ requestId, customer, lease: { id, expiresAt } }`, where expiry is Unix milliseconds;
+release returns `{ requestId, customer, code: "agent_device_released" }`.
+Responses are `no-store` and request-correlated. Ownership/active-device conflicts
+return 409; expired or missing sessions return 401; membership/scope/CSRF denial
+returns 403; missing assignment returns 404; unavailable configuration, storage,
+directory or audit returns 503. No SIP credentials or calling controls are returned.
+
+Each request has one audit record, preserving the existing unique request-ID
+constraint. Early denials record their reason. Valid mutations require a committed
+`agent-device-acquire`, `agent-device-renew` or `agent-device-release` event with
+outcome `agent_device_<action>_requested` **before** calling the store. This is an
+authorised intent, not a durable success receipt: a subsequent conflict, storage
+error, concurrent logout or lost response may prevent confirmation. Audit failure
+before mutation prevents the change. Raw session/device/lease IDs and request
+bodies are not added to these audits. An uncertain acquisition can be retried by
+the same session/device; release or expiry permits the next owner.
+
+The live session is rechecked after body reading and intent auditing, before the
+synchronous lease mutation. Concurrent logout/rotation therefore cannot activate,
+renew or release from a stale request. Logout invalidates future lease calls but
+does not currently delete the reservation: it blocks other sessions until at most
+its remaining 60 seconds elapse. Explicit release while signed in avoids that
+wait. This is deliberately not the future call-aware sign-out implementation.
+
+`node --test .\tests\agent-device-http.test.ts` covers authentication, CSRF,
+cross-customer sessions, membership/support denial, missing assignments, strict
+input, conflicts, renewal/release, stale holders, expiry, failure handling and
+logout during an awaited audit. `.\scripts\Test-IdentityProof.ps1` also exercises
+these routes through real Alice/Bob Keycloak browser sessions: Alice acquires,
+renews and releases, Bob is denied, intent audit persists in SQLite, and a
+logged-out cookie cannot renew a retained lease. The console still has no device
+activation UI or automatic heartbeat.
 
 ### Read-only PBX operational status (local AMI proof)
 

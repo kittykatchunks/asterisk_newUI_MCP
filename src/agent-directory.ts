@@ -18,6 +18,15 @@ export interface AgentDirectory {
   profile(issuer: string, subject: string, customer: string): AgentProfile | undefined;
 }
 
+export function assertAgentProfile(value: unknown): asserts value is AgentProfile {
+  if (typeof value !== "object" || value === null ||
+      !("extension" in value) || typeof value.extension !== "string" || !/^[0-9]{1,16}$/.test(value.extension) ||
+      !("displayName" in value) || typeof value.displayName !== "string" ||
+      !value.displayName.trim() || value.displayName.length > 128 || /[\x00-\x1f\x7f]/.test(value.displayName)) {
+    throw new Error("Invalid provisioned agent profile");
+  }
+}
+
 export function assertAgentIdentity(value: unknown): asserts value is AgentIdentity {
   if (typeof value !== "object" || value === null ||
       !("issuer" in value) || typeof value.issuer !== "string" ||
