@@ -80,8 +80,8 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       audit.push(event);
     }, (error) => errors.push(error), undefined, undefined, sessionConfig);
     holder.on("request", (request, response) => api!.emit("request", request, response));
-    const begin = async (headers: Record<string, string> = {}) => {
-      const response = await fetch(origin + "/auth/login?customer=customer-a", { headers, redirect: "manual" });
+    const begin = async (headers: Record<string, string> = {}, workspace = "reviews") => {
+      const response = await fetch(origin + `/auth/login?customer=customer-a&workspace=${encodeURIComponent(workspace)}`, { headers, redirect: "manual" });
       assert.equal(response.status, 302);
       const authorization = new URL(response.headers.get("location")!);
       assert.equal(authorization.searchParams.get("code_challenge_method"), "S256");
@@ -102,6 +102,7 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
       return value.split(";")[0];
     };
     assert.equal((await fetch(origin + "/auth/login?customer=../other")).status, 400);
+    assert.equal((await fetch(origin + "/auth/login?customer=customer-a&workspace=https://foreign.example")).status, 400);
     assert.equal((await fetch(origin + "/auth/login?customer=customer-a", { headers: { "Sec-Fetch-Site": "cross-site" } })).status, 403);
     assert.equal((await fetch(origin + "/auth/logout")).status, 405);
     assert.equal((await fetch(origin + "/auth/session")).status, 401);
@@ -127,7 +128,8 @@ test("server sessions bind state/cookie/nonce, rotate identifiers, expire, and g
     assert.equal(first.headers.get("location"), "/engineering/reviews/customer-a");
     const firstCookie = sessionCookie(first);
     assert.equal((await complete(firstLogin)).status, 400);
-    const second = await complete(await begin(), firstCookie);
+    const second = await complete(await begin({}, "agent"), firstCookie);
+    assert.equal(second.headers.get("location"), "/agent/customer-a");
     const secondCookie = sessionCookie(second);
     assert.notEqual(firstCookie, secondCookie);
     assert.equal((await fetch(origin + "/auth/session", { headers: { Cookie: firstCookie } })).status, 401);

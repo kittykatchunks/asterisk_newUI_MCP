@@ -65,6 +65,18 @@ export function createDiagnosticApi(
         if (session.authorization) request.headers.authorization = session.authorization;
       }
       const workspace = /^\/engineering\/reviews\/[a-z0-9][a-z0-9-]{0,63}$/.test(path);
+      const agentWorkspace = /^\/agent\/[a-z0-9][a-z0-9-]{0,63}$/.test(path);
+      const agentAsset = path === "/agent/console.js";
+      if (agentWorkspace || agentAsset) {
+        if (request.method !== "GET") { response.setHeader("Allow", "GET"); send(405, "method_not_allowed"); return; }
+        if (!sessions) { send(503, "application_session_unavailable"); return; }
+        const content = await readFile(new URL(agentAsset ? "./agent-console.js" : "./agent-console.html", import.meta.url), "utf8");
+        response.setHeader("Content-Type", agentAsset ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
+        response.setHeader("Content-Security-Policy",
+          "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+        response.setHeader("X-Frame-Options", "DENY");
+        response.writeHead(200).end(content); return;
+      }
       const boot = path === "/engineering/session.js" && sessions !== undefined;
       const preview = path === "/engineering/review-preview.js";
       const asset = ["/engineering/review.js", "/engineering/review-workspace.js"].includes(path) ? "js" :

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent console</title>
+<main>
+  <h1>Agent console</h1>
+  <p id="session-status" role="status">Checking application session...</p>
+  <p id="session-warning" role="status" hidden></p>
+  <a id="sign-in" hidden>Sign in</a>
+  <button id="sign-out" hidden>Sign out</button>
+  <button id="retry-session" hidden>Retry session connection</button>
+  <section aria-label="Agent assignment">
+    <h2>Your assignment</h2>
+    <p id="assignment-status" role="status">No assignment loaded.</p>
+    <dl id="assignment" hidden></dl>
+    <button id="refresh" hidden>Refresh assignment</button>
+  </section>
+  <section aria-label="Phone availability">
+    <h2>Phone availability</h2>
+    <p>Phone connection is not enabled. An assigned extension does not mean registered, reachable, available to a queue or on a call.</p>
+    <p>No microphone access, SIP credentials or call controls are enabled in this increment.</p>
+  </section>
+</main>
+<script type="module" src="/agent/console.js"></script>
+</html>

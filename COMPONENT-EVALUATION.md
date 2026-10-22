@@ -429,6 +429,14 @@ metadata, is not encrypted/signed and is not part of the diagnostic backup.
 No automatic live cutover, membership recovery, PBX credential recovery or
 full-platform/offsite acceptance is claimed.
 
+The first agent screen is now an authenticated assignment view with scoped session
+bootstrap, explicit refresh and CSRF logout. A fixed pending-flow workspace selector
+allows the agent destination without arbitrary redirects. Literal rendering and
+session lifecycle tests verify stale clearing, request-correlated errors, expiry,
+401 and logout uncertainty; real Alice/Bob sessions verify assignment/denial.
+The page states phone connection is disabled and does not expose SIP credentials,
+request media access or conflate assignment with registration/queue/call state.
+
 ## 2. Asterisk container
 
 ### Candidates reviewed

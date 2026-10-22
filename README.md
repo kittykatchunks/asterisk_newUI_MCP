@@ -1149,6 +1149,39 @@ cleanup. A restore is a candidate database for explicit operator inspection and
 later cutover, not automatic replacement, membership granting or phone enablement.
 Offsite recovery, full-system restore and production recovery timing remain open.
 
+#### Authenticated assignment console
+
+With application sessions configured, `/agent/{customer}` now serves a
+metadata-only console: sign in, view your own assignment, explicitly refresh it
+and sign out. The fixed login selector `workspace=agent` is bound to the pending
+OIDC flow and returns only to that customer's console. Arbitrary return URLs are
+not accepted; existing review login remains the default.
+
+The page bootstraps the HttpOnly application session, checks its customer scope,
+then calls the own-profile route without browser bearer tokens. It renders
+assignment values as literal text, clears old data before refresh/failure, offers
+manual retry rather than polling, warns near expiry and clears data at expiry,
+401, successful logout or page disposal. Expiry is also rechecked on visibility
+and page restoration. Sign-out uses the session CSRF token; an unconfirmed logout
+remains an explicit error with retry and does not claim the session ended.
+Requests have bounded timeouts and errors carry validated header request IDs.
+No profile is loaded before a valid matching session bootstrap.
+
+The phone section explicitly states that connection is disabled: assignment,
+registration/reachability, queue availability and call state are separate.
+No microphone prompt, WSS connection, SIP credential, call button or browser
+storage is introduced. Without configured application sessions, console routes
+return 503. The normal launcher still grants no agent access; synthetic Alice's
+assignment is provisioned only in the real identity proof, and diagnostics-only
+Bob is denied.
+
+`node --test .\tests\agent-console.test.ts .\tests\application-session.test.ts`
+covers literal hostile-looking names, stale-data clearing, errors/manual recovery,
+mismatched sessions/results, expiry, 401 and logout confirmation. The real identity
+proof additionally opens the console with ordinary Alice/Bob sessions, checking
+Alice's assignment and Bob's explicit access denial before returning to the review
+workspace. This is an authenticated assignment screen, not yet a phone console.
+
 ### Read-only PBX operational status (local AMI proof)
 
 `GET /api/customers/{customer}/pbx/status` requires provisioned

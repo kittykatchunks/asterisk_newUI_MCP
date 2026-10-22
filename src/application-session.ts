@@ -57,7 +57,7 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
   const callback=`${config.origin}/auth/callback`;
   const sessions=new Map<string,Session>();
   let exchanging=0;
-  const pending=new Map<string,{ verifier: string; nonce: string; binding: string; customer: string; expiresAt: number }>();
+  const pending=new Map<string,{ verifier: string; nonce: string; binding: string; customer: string; workspace: "reviews" | "agent"; expiresAt: number }>();
   const jwks=createRemoteJWKSet(new URL(config.jwksUrl),{ timeoutDuration: 2000 });
   const cleanup=() => {
     const now=Date.now();
@@ -102,13 +102,15 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
       if(url.pathname==="/auth/login") {
         const customer=url.searchParams.get("customer")??"";
         if(!/^[a-z0-9][a-z0-9-]{0,63}$/.test(customer)) { send(400,"invalid_login_customer"); return true; }
+        const workspace=url.searchParams.get("workspace")??"reviews";
+        if(workspace!=="reviews" && workspace!=="agent") { send(400,"invalid_login_workspace"); return true; }
         if(request.headers["sec-fetch-site"]==="cross-site") { send(403,"cross_site_login_denied"); return true; }
         if(pending.size>=1000) { send(503,"login_capacity_unavailable"); return true; }
         const state=random();
         const verifier=random();
         const nonce=random();
         const binding=random();
-        pending.set(state,{ verifier,nonce,binding,customer,expiresAt: Date.now()+300000 });
+        pending.set(state,{ verifier,nonce,binding,customer,workspace,expiresAt: Date.now()+300000 });
         const authorize=new URL(config.authorizationEndpoint);
         authorize.search=new URLSearchParams({
           client_id: config.clientId,redirect_uri: callback,response_type: "code",
@@ -176,7 +178,7 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
             `${loginName}=; Max-Age=0${options}`,
             `${sessionName}=${sessionId}; Max-Age=${Math.ceil((expiresAt-Date.now())/1000)}${options}`,
           ]);
-          response.writeHead(302,{ Location: `/engineering/reviews/${login.customer}` }).end();
+          response.writeHead(302,{ Location: login.workspace==="agent" ? `/agent/${login.customer}` : `/engineering/reviews/${login.customer}` }).end();
           return true;
         } finally { exchanging--; }
       }

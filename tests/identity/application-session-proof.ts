@@ -163,6 +163,18 @@ try {
       }
       const foreignAgent = account.customer === "customer-a" ? "customer-b" : "customer-a";
       assert.equal((await fetch(agentUrl.replace(account.customer, foreignAgent), { headers: { Cookie: cookie } })).status, 403);
+      await page.goto(`${origin}/agent/${account.customer}`);
+      if (account.username === "alice") {
+        await page.getByRole("status").filter({ hasText: "Assignment loaded (request " }).waitFor();
+        assert.deepEqual(await page.locator("#assignment dd").allTextContents(),
+          [account.customer, "Synthetic agent Alice", "1001"]);
+      } else {
+        await page.getByRole("alert").filter({ hasText: "Agent access is not permitted." }).waitFor();
+        assert.equal(await page.locator("#assignment dd").count(), 0);
+      }
+      assert.equal(await page.getByRole("region", { name: "Phone availability" }).isVisible(), true);
+      await page.goto(`${origin}/engineering/reviews/${account.customer}`);
+      await page.getByRole("button", { name: "Sign out", exact: true }).waitFor();
       const reviewRoot = `${origin}/api/customers/${account.customer}/diagnostics/reviews`;
       if (pbx) {
         if (account.username === "alice") {

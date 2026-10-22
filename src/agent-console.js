@@ -1,0 +1,164 @@
+// @ts-check
+export {};
+const matchedCustomer = location.pathname.match(/^\/agent\/([a-z0-9][a-z0-9-]{0,63})$/)?.[1];
+if (!matchedCustomer) throw new Error("Invalid agent console path");
+const customer = matchedCustomer;
+/** @param {string} id */
+function element(id) {
+  const value = document.getElementById(id);
+  if (!value) throw new Error(`Missing agent console element ${id}`);
+  return value;
+}
+const status = element("session-status");
+const warning = element("session-warning");
+const login = element("sign-in");
+const logout = element("sign-out");
+const retry = element("retry-session");
+const refresh = element("refresh");
+const profileStatus = element("assignment-status");
+const profile = element("assignment");
+login.setAttribute("href", `/auth/login?customer=${encodeURIComponent(customer)}&workspace=agent`);
+/** @param {Response} response */
+function reference(response) {
+  const value = response.headers.get("x-request-id") ?? "";
+  return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(value) ? value : "unavailable";
+}
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let timer;
+let ended = false;
+let busy = false;
+const lifetime = new AbortController();
+function clearProfile() { profile.replaceChildren(); profile.hidden = true; }
+/** @param {string} message */
+function end(message) {
+  ended = true;
+  clearTimeout(timer);
+  document.removeEventListener("visibilitychange", checkDeadline);
+  window.removeEventListener("pageshow", checkDeadline);
+  lifetime.abort();
+  clearProfile();
+  profileStatus.textContent = "No assignment loaded.";
+  warning.hidden = true;
+  warning.textContent = "";
+  logout.hidden = true;
+  refresh.hidden = true;
+  login.hidden = false;
+  status.textContent = message;
+}
+let deadline = 0;
+function checkDeadline() {
+  if (ended) return;
+  clearTimeout(timer);
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) { end("Session expired. Sign in again."); return; }
+  warning.hidden = remaining > 120000;
+  warning.textContent = warning.hidden ? "" : "Session expires in two minutes or less. Your loaded assignment will be cleared.";
+  timer = setTimeout(checkDeadline, remaining > 120000 ? remaining - 120000 : remaining);
+}
+async function loadProfile() {
+  if (ended || busy) return;
+  checkDeadline();
+  if (ended) return;
+  busy = true;
+  refresh.setAttribute("disabled", "");
+  clearProfile();
+  profileStatus.setAttribute("role", "status");
+  profileStatus.textContent = "Checking your assignment...";
+  let requestId = "unavailable";
+  try {
+    const response = await fetch(`/api/customers/${customer}/agent/profile`, {
+      credentials: "same-origin", cache: "no-store", redirect: "error",
+      signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(15000)]),
+    });
+    requestId = reference(response);
+    if (ended) return;
+    if (response.status === 401) { end("Application session is no longer valid. Sign in again."); return; }
+    if (!response.ok) {
+      throw new Error(response.status === 403 ? "Agent access is not permitted." :
+        response.status === 404 ? "No agent assignment is provisioned." : `Assignment unavailable (${response.status}).`);
+    }
+    /** @type {unknown} */
+    const value = await response.json();
+    if (ended) return;
+    checkDeadline();
+    if (ended) return;
+    if (typeof value !== "object" || value === null || !("customer" in value) || value.customer !== customer ||
+        !("agent" in value) || typeof value.agent !== "object" || value.agent === null ||
+        !("extension" in value.agent) || typeof value.agent.extension !== "string" || !/^[0-9]{1,16}$/.test(value.agent.extension) ||
+        !("displayName" in value.agent) || typeof value.agent.displayName !== "string" ||
+        !value.agent.displayName.trim() || value.agent.displayName.length > 128 || /[\x00-\x1f\x7f]/.test(value.agent.displayName)) {
+      throw new Error("Invalid agent assignment response.");
+    }
+    for (const [label, text] of [["Customer", customer], ["Agent", value.agent.displayName], ["Extension", value.agent.extension]]) {
+      const term = document.createElement("dt");
+      const detail = document.createElement("dd");
+      term.textContent = label; detail.textContent = text;
+      profile.append(term, detail);
+    }
+    profile.hidden = false;
+    profileStatus.textContent = `Assignment loaded (request ${requestId}).`;
+  } catch (error) {
+    if (ended) return;
+    clearProfile();
+    profileStatus.setAttribute("role", "alert");
+    profileStatus.textContent = `${error instanceof Error ? error.message : "Assignment check failed."} (request ${requestId}).`;
+  } finally { busy = false; refresh.removeAttribute("disabled"); }
+}
+refresh.onclick = loadProfile;
+retry.onclick = () => location.reload();
+window.addEventListener("pagehide", () => end("Console closed. Sign in again."), { once: true });
+try {
+  let requestId = "unavailable";
+  try {
+    const response = await fetch("/auth/session", {
+      credentials: "same-origin", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000),
+    });
+    requestId = reference(response);
+    if (ended) throw new Error("Console closed.");
+    if (response.status === 401) { end("Sign in to view your agent assignment."); }
+    else {
+      if (!response.ok) throw new Error(`Session unavailable (${response.status}).`);
+      /** @type {unknown} */
+      const session = await response.json();
+      if (ended) throw new Error("Console closed.");
+      if (typeof session !== "object" || session === null || !("customer" in session) || session.customer !== customer ||
+          !("csrf" in session) || typeof session.csrf !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(session.csrf) ||
+          !("expiresAt" in session) || typeof session.expiresAt !== "string" || !Number.isFinite(Date.parse(session.expiresAt))) {
+        throw new Error("Invalid or mismatched application session.");
+      }
+      const csrf = session.csrf;
+      deadline = Date.parse(session.expiresAt);
+      document.addEventListener("visibilitychange", checkDeadline);
+      window.addEventListener("pageshow", checkDeadline);
+      checkDeadline();
+      if (!ended) {
+        login.hidden = true; logout.hidden = false; refresh.hidden = false;
+        status.textContent = `Signed in. Session expires ${session.expiresAt}`;
+        logout.onclick = async () => {
+          logout.setAttribute("disabled", "");
+          let logoutId = "unavailable";
+          try {
+            const response = await fetch("/auth/logout", { method: "POST", credentials: "same-origin", redirect: "error",
+              headers: { "X-CSRF-Token": csrf }, signal: AbortSignal.timeout(15000) });
+            logoutId = reference(response);
+            if (ended) return;
+            if (!response.ok && response.status !== 401) throw new Error(`Server returned ${response.status}`);
+            end("Sign in to view your agent assignment.");
+          } catch (error) {
+            if (ended) return;
+            status.setAttribute("role", "alert");
+            status.textContent = `Sign out was not confirmed. Your session may still be active. Retry sign out. ${error instanceof Error ? error.message : "Request failed."} (request ${logoutId}).`;
+            logout.removeAttribute("disabled");
+          }
+        };
+        await loadProfile();
+      }
+    }
+  } catch (error) {
+    if (!ended) {
+      end(`${error instanceof Error ? error.message : "Session connection failed."} (session bootstrap request ${requestId}).`);
+      status.setAttribute("role", "alert");
+      retry.hidden = false;
+    }
+  }
+} catch (error) { end("Console could not start."); throw error; }

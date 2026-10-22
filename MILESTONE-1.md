@@ -410,6 +410,15 @@ content, old schemas and failed outputs are tested explicitly. No live replaceme
 or identity/PBX/session restoration is implied. Artifacts contain all customers'
 identity metadata and require protection; offsite/full-platform recovery remains open.
 
+An authenticated `/agent/{customer}` assignment screen now uses the existing
+confidential session, fixed OIDC workspace selection and own-profile permission
+boundary. It supports literal assignment display, explicit refresh and CSRF
+sign-out, with stale-data clearing, bounded errors, expiry cleanup and no automatic
+retry. Browser tests cover hostile text, mismatched scope, errors, 401, expiry and
+unconfirmed logout; real sessions verify Alice's profile and Bob's denial.
+Phone capability remains explicitly disabled: no SIP credentials, microphone,
+registration, queue state or call controls are introduced.
+
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.
 
