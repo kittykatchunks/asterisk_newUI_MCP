@@ -1930,7 +1930,7 @@ associate the worker certificate/origin with its configured customer/epoch; the
 dispatcher reconciles returned reports against that binding and stored intent.
 Protect configuration and local files. There is no certificate enrolment,
 rotation overlap, revocation distribution, deployment service, runtime lock,
-fake/PBX executor, disconnected expiry enforcement or restore fencing yet.
+PBX adapter, disconnected expiry enforcement or restore fencing yet.
 Changing certificates requires explicit reconfiguration/restart; do not bypass
 verification to rotate them.
 
@@ -1942,6 +1942,54 @@ foreign/untrusted/expired clients, and worker chain/expiry/hostname/pin rejectio
 before HTTP requests. Client tests also cover response bounds, redirects,
 truncation and cancellation. No trust-store modifications or persisted private
 keys are used; owned servers and temporary databases are closed/removed.
+
+#### Single-step worker executor (fake-adapter proof only)
+
+`src/agent-provisioning-executor.ts` provides a separately invoked `step()` over
+the pinned journal and an injected `apply(command, signal)` / `observe(command,
+signal)` adapter. No runtime adapter ships, no HTTP route starts execution, and
+no launcher, background loop, shell, Docker, file reload or SIP secret is added.
+The tests use only fake effects; this is not permission to attach a PBX adapter.
+
+- Unstarted unexpired work first commits a fresh `applying` receipt. Only a
+  successful commit permits the adapter call. Each command is passed as a detached
+  copy, without its actor/reason context.
+- After apply, observation must explicitly return `verified`, `failed` or
+  `unknown`. Apply returning successfully alone does not mean verified.
+  Unknown becomes `uncertain`; repeated unknown observations do not append
+  duplicate stages or exhaust the 100-receipt report limit.
+- Applying/uncertain work is **observation only**, including after process reopen,
+  cancellation, apply error or failed completion commit. There is no automatic
+  replay, even if the effect might never have started. Unknown state blocks later
+  revisions pending explicit future recovery policy.
+- Verified observations allow later work on the next explicit step. Failed
+  observations append a terminal failure and block later revisions. Expired
+  unstarted work never reaches the adapter; observation after expiry can reconcile
+  an earlier effect but cannot renew authorisation.
+
+Apply and observation share a cooperative five-second abort budget, optionally
+combined with caller cancellation. Exceptions, invalid observations, cancelled
+work and storage failures propagate to the caller; no catch converts them to
+success or a fabricated terminal receipt. Durable applying/uncertain evidence
+survives for subsequent observation. Adapter cancellation must be honoured;
+a deadline check cannot forcibly stop an external effect occurring later.
+Observation is a trusted adapter assertion, not independently established proof.
+
+A shared in-process guard rejects overlapping steps using the **same journal
+object**, including through another executor instance. It is not a file/process
+lock and cannot protect distinct handles to the same database. The owning process
+must supply exclusive journal/runtime ownership before real effects; multiprocess
+ownership, runtime fencing, autonomous expiry, live lease validation and restore
+recovery remain unimplemented. Never use journal receipt uniqueness as an
+exactly-once execution guarantee.
+
+`node --test .\tests\agent-provisioning-executor.test.ts` checks all five fixed
+actions, commit-before-apply, observation-only restart at both sides of an effect,
+failed initial/completion writes, detached commands, expiry, uncertain/failure
+blocking, bounded receipt growth, errors, invalid observations, cancellation,
+same-object overlap and the real five-second timeout. The mTLS integration test
+also runs a fake step and reconciles its verified report back to the backend.
+Stage B remains incomplete; no real phone capability is enabled.
 
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.

@@ -324,8 +324,21 @@ leaf certificate pins; the client also verifies hostname. The worker's local
 journal enforces customer/epoch scope. Real ephemeral-CA loopback tests reject
 missing/foreign/untrusted/expired clients and invalid worker identities, exercise
 strict bounded input/output and cancellation, and surface storage failures.
-No listener is enabled by default. There is no executor, certificate lifecycle
+No listener is enabled by default. There is no production executor, certificate lifecycle
 automation, disconnected expiry enforcement or authority-restore fencing.
 Stage A application/recovery acceptance and the rest of stage B remain incomplete;
 this transport proof does not authorise PBX effects. See the
 [mTLS contract](./README.md#customer-pinned-mutual-tls-journal-transport-no-executor).
+
+### Stage B executor proof: injected fake effects only
+
+A separately invoked single-step executor now commits applying before adapter
+work and requires explicit observation before verified/failed receipts. Restarted
+applying/uncertain work is observation-only, never blindly replayed; unstarted
+expired work does not reach the adapter. Unknown state blocks progression without
+unbounded receipt growth. Tests cover interrupted effects/commits, all fixed
+actions, cancellation/timeouts and fake verified reports reconciled over mTLS.
+No PBX adapter or automatic execution is wired. The guard covers only a shared
+journal object, not other handles/processes; exclusive runtime ownership, restore
+fencing, live lease validation and disconnected expiry remain gates. See the
+[executor contract](./README.md#single-step-worker-executor-fake-adapter-proof-only).

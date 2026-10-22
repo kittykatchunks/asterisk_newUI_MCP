@@ -11,6 +11,7 @@ import { promisify } from "node:util";
 import { test } from "node:test";
 import { createAgentProvisioningHttpsWorker, createAgentProvisioningHttpsTransport } from "../src/agent-provisioning-https.ts";
 import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
+import { createAgentProvisioningExecutor } from "../src/agent-provisioning-executor.ts";
 import { openAgentProvisioningJournal, openAgentProvisioningStore } from "../src/agent-provisioning-store.ts";
 import type { AgentProvisioningCommand } from "../src/agent-provisioning-store.ts";
 
@@ -88,6 +89,17 @@ test("mutual TLS pins both peers before durable customer-scoped acceptance; no e
     assert.equal((await raw("POST", "/v1/operations", "{")).status, 400);
     assert.equal((await raw("POST", `/v1/operations/${command.operationId}/receipts`, "{}")).status, 404);
     assert.equal((await raw("GET", `/v1/operations/${command.operationId}?customer=customer-b`)).status, 404);
+    let fakeEffects = 0;
+    const executor = createAgentProvisioningExecutor(journal, {
+      async apply() { fakeEffects++; },
+      async observe() { return "verified"; },
+    });
+    assert.equal((await executor.step()).state, "verified");
+    assert.equal((await dispatcher.dispatch()).state, "verified");
+    assert.equal((await dispatcher.dispatch()).state, "idle");
+    assert.equal(fakeEffects, 1);
+    assert.deepEqual(store.operation(binding.customer, command.operationId)?.receipts.map((entry) => entry.stage),
+      ["applying", "verified"]);
     assert.deepEqual(errors, []);
     journal.close();
     journalClosed = true;
