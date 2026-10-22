@@ -1046,7 +1046,7 @@ conflict or storage failure and never silently replaces an assignment. Provision
 does not create membership or grant `agent:access`: provision that independently.
 Protect both the JSON and database as identity metadata. There is no web mutation
 route, history API/UI, reassignment, deletion, extension exclusivity,
-active-device lease, assignment backup tooling or SIP secret in this store.
+active-device lease or SIP secret in this store.
 Multiple people sharing an extension is not yet a supported phone-session policy;
 metadata persistence must not be treated as permission to enable registration.
 
@@ -1075,7 +1075,7 @@ authenticated operator identities or tamper-proof logs: the CLI's operator/reaso
 are trusted caller assertions, command-line values can appear in process history,
 and file owners can modify SQLite. Keep sensitive material out of those arguments.
 There is no failed-attempt log or receipt-history browser endpoint yet. Receipts
-contain identity metadata and need the same protection and future recovery policy
+contain identity metadata and need the same protection and recovery policy
 as assignments; diagnostic backup tooling still does not include this database.
 
 An operator can retrieve one known receipt without opening a writer:
@@ -1107,6 +1107,47 @@ a previously recorded receipt reference after process restart; it cannot discove
 a UUID lost with the entire response. Receipt absence is not proof a batch failed
 or that a concurrent operation cannot commit. This adds no automatic retry,
 history listing, failed-attempt log or browser route.
+
+#### Agent assignment and receipt backup/recovery
+
+`backupAgentStore(sourcePath, parentDirectory)` uses SQLite's online backup API
+against an existing read-only source, so the writer may remain open. It returns a
+new `agent-backup-*` directory containing `agents.sqlite` and a manifest with
+format version 1, agent schema version 2, creation time, file SHA-256 and
+assignment/receipt counts. The copied database must pass SQLite integrity checks
+and the same profile/receipt validators used by normal reads.
+
+`restoreAgentStore(backupDirectory, parentDirectory)` copies into a newly allocated
+`agent-restore-*` directory, verifies file checksum, manifest counts and all stored
+assignments/receipts, then returns the restored database path. It never replaces
+the live database. Both functions require absolute local paths and existing,
+operator-controlled parent directories. Failure removes only the newly allocated
+output directory; missing sources are not created. Schema-1 sources are refused
+without migration: migrate explicitly with the trusted writer before backing up.
+
+The operator command prints a JSON object containing operation and output path:
+
+```powershell
+node .\scripts\Manage-AgentBackup.ts backup 'C:\operator-data\agents.sqlite' 'C:\operator-backups'
+node .\scripts\Manage-AgentBackup.ts restore 'C:\operator-backups\agent-backup-REPLACE' 'C:\operator-restores'
+```
+
+These artifacts contain **all customers' assignments and provisioning receipts**,
+including operator/reason and historical assignment snapshots. Restrict access and
+protect off-host copies; no encryption, signing, retention automation or upload is
+provided. Checksums and validation detect inconsistency, not a malicious file
+owner who rewrites valid data and matching hashes. Historical receipts are not
+required to match present assignments: legacy rows have no invented provenance.
+This database remains separate from diagnostic backups and from identity grants,
+PBX config, SIP credentials and sessions; it is not a complete platform backup.
+
+`node --test .\tests\agent-backup.test.ts` verifies live-writer snapshotting,
+post-snapshot exclusion, source-file removal before restore, exact two-customer
+profiles/receipts, CLI backup/restore, empty stores, checksum/count/content
+corruption (including recomputed hashes), old-schema refusal and failed-output
+cleanup. A restore is a candidate database for explicit operator inspection and
+later cutover, not automatic replacement, membership granting or phone enablement.
+Offsite recovery, full-system restore and production recovery timing remain open.
 
 ### Read-only PBX operational status (local AMI proof)
 

@@ -379,8 +379,8 @@ invalid entries and late-batch conflicts. Stored reads are validated and tested
 across reopen; contention, corruption and schema errors fail explicitly.
 The confidential browser-session proof now reads from a closed/reopened store.
 This does not provision memberships, SIP credentials, device leases or launcher
-access. Provisioning history UI, reassignment/conflict policy and assignment
-backup/restore remain open; diagnostic backups do not cover this separate store.
+access. Provisioning history UI and reassignment/conflict policy remain open;
+diagnostic backups do not cover this separate store.
 
 Schema version 2 now adds atomic successful provisioning receipts: generated
 UUID/time, bounded operator/reason, canonical allowlisted batch JSON and SHA-256,
@@ -400,6 +400,15 @@ bytes, corruption rejection (including recalculated hashes), invalid/unknown IDs
 and readonly write rejection. Retaining a receipt UUID permits exact reconciliation;
 unknown IDs do not prove failure and a completely lost UUID is not discoverable
 through this command. No browser route, history listing or phone capability is added.
+
+The separate agent database now has SQLite online backup and fresh-path restore
+with manifest checksum/counts, SQLite integrity and full assignment/receipt read
+validation. Operator CLI tests restore exact two-customer profiles and receipts
+after deleting the original test database and exclude later provisioning from
+the point-in-time artifact. Corrupt artifacts, recalculated hashes around invalid
+content, old schemas and failed outputs are tested explicitly. No live replacement
+or identity/PBX/session restoration is implied. Artifacts contain all customers'
+identity metadata and require protection; offsite/full-platform recovery remains open.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.

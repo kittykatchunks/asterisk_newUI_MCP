@@ -396,7 +396,7 @@ object isolation, batch rollback, conflicts, contention, corruption, schema/path
 refusal and CLI outcomes. The real session proof injects a reopened store.
 This does not publish PBX config, grant membership, create credentials or enforce
 extension/device exclusivity. The separate store is not included in diagnostic
-backups; assignment recovery, history API/UI and reassignment remain
+backups; history API/UI and reassignment remain
 unimplemented. The ordinary launcher stays unconfigured for agents.
 
 Schema version 2 adds successful provisioning receipts in the same transaction
@@ -417,6 +417,17 @@ not to change database bytes. This reconciles known references, not unknown UUID
 lost with an entire response; absence does not establish provisioning failure.
 It is an operator-wide metadata tool, not a customer web route or tamper-proof
 provenance, and it does not affect profile authority or introduce retries.
+
+Separate agent-store recovery now uses SQLite online backup, a checksum/count
+manifest and a newly allocated restore path. Full assignment/receipt read validators
+and SQLite integrity checks gate both artifacts and restores; legacy schema
+migration is not performed by backup. Tests restore exact scoped profiles and
+receipt snapshots after deleting the source, exclude later writes, and exercise
+operator CLI, empty stores, tampering with recomputed hashes, unsupported content
+and output cleanup. The artifact includes all customers' identity/provisioning
+metadata, is not encrypted/signed and is not part of the diagnostic backup.
+No automatic live cutover, membership recovery, PBX credential recovery or
+full-platform/offsite acceptance is claimed.
 
 ## 2. Asterisk container
 
