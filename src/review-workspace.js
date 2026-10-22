@@ -59,6 +59,13 @@ export async function connectReviewWorkspace(connection) {
   status.setAttribute("role", "status");
   const error = element("p", "");
   error.setAttribute("role", "alert");
+  error.tabIndex = -1;
+  /** @type {HTMLElement | undefined} */
+  let focusAfterRequest;
+  function restoreRequestFocus() {
+    focusAfterRequest?.focus();
+    focusAfterRequest = undefined;
+  }
   const refresh = document.createElement("button");
   refresh.textContent = "Refresh pending reports";
   const list = document.createElement("section");
@@ -131,6 +138,7 @@ export async function connectReviewWorkspace(connection) {
   const confirm = document.createElement("button");
   const cancel = document.createElement("button");
   cancel.textContent = "Cancel";
+  cancel.autofocus = true;
   dialog.append(confirmation, confirm, cancel);
   root.append(dialog);
   cancel.onclick = () => dialog.close();
@@ -208,16 +216,24 @@ export async function connectReviewWorkspace(connection) {
     error.textContent = cause instanceof Error ? cause.message : "Review operation failed";
     status.textContent = "";
     clearReview();
+    focusAfterRequest = error;
   }
   /** @param {() => Promise<void>} operation */
   async function run(operation) {
     if (busy || disposed) return;
     busy = true;
+    focusAfterRequest = undefined;
     error.textContent = "";
     controls();
     try { await operation(); }
     catch (cause) { failure(cause); }
-    finally { busy = false; if (!disposed) controls(); }
+    finally {
+      busy = false;
+      if (!disposed) {
+        controls();
+        restoreRequestFocus();
+      }
+    }
   }
   async function load() {
     if (disposed) return;
@@ -253,6 +269,7 @@ export async function connectReviewWorkspace(connection) {
     filterControls.hidden = false;
     applyFilter();
     status.textContent = body.candidates.length ? `${body.candidates.length} pending report(s).` : "No pending reports.";
+    focusAfterRequest = filter;
   }
   /** @param {{ id: string, sha256: string, summary: { id: string, title: string, createdAt: string } }} candidate */
   async function inspect(candidate) {
@@ -275,7 +292,9 @@ export async function connectReviewWorkspace(connection) {
     }
     if (disposed) return;
     selected = { ...candidate, title: entry.summary.title, incident: entry.summary.id };
-    detail.append(element("h2", entry.summary.title),
+    const heading = element("h2", entry.summary.title);
+    heading.tabIndex = -1;
+    detail.append(heading,
       element("p", `Incident: ${entry.summary.id}`), element("p", `Created: ${entry.summary.createdAt}`),
       element("p", `Snapshot SHA-256: ${candidate.sha256}`));
     const preview = element("pre", "No HTML report attached.");
@@ -325,6 +344,7 @@ export async function connectReviewWorkspace(connection) {
         if (busy || !selected) return;
         if (!reason.value.trim() || !checked.checked) {
           error.textContent = "Enter a review reason and confirm the scope/redaction checks before continuing.";
+          error.focus();
           return;
         }
         const snapshot = selected;
@@ -348,6 +368,7 @@ export async function connectReviewWorkspace(connection) {
     }
     detail.hidden = false;
     status.textContent = "Review the exact snapshot below. No decision has been sent.";
+    focusAfterRequest = heading;
   }
   refresh.onclick = () => leaveReview(() => run(load), "Refresh the pending list and close the current review?", "Discard and refresh");
   const dispose = () => {

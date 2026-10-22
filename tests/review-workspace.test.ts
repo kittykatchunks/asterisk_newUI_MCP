@@ -106,6 +106,11 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(store.pending("customer-a").length, 1);
       assert.equal(await page.getByRole("button").count(), 0, "Shell must not retrieve evidence without a session adapter");
       await connect(reviewer);
+      const focused = () => page.evaluate(() => ({
+        tag: document.activeElement?.tagName,
+        text: document.activeElement?.textContent,
+        role: document.activeElement?.getAttribute("role"),
+      }));
       const pendingList = page.getByRole("region", { name: "Pending reports", exact: true });
       await pendingList.getByRole("heading", { name: title, exact: true }).waitFor();
       assert.ok((await pendingList.textContent())?.includes("incident-" + "a".repeat(32)));
@@ -125,6 +130,9 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(reviewRequests, requestsBeforeFiltering, "Filtering must not request reports or send filter text");
       await page.getByRole("button", { name: `Inspect ${approved.id}`, exact: true }).click();
       await page.getByRole("region", { name: "Candidate review", exact: true }).getByRole("heading", { name: title, exact: true }).waitFor();
+      assert.deepEqual(await focused(), { tag: "H2", text: title, role: null });
+      await page.keyboard.press("Tab");
+      assert.equal(await page.getByLabel("Find evidence text", { exact: true }).evaluate((input) => input === document.activeElement), true);
       assert.equal(await page.getByLabel("Inert report preview").textContent(), html);
       assert.equal(await page.locator("iframe").count(), 1);
       assert.equal(await page.locator("img, script, form").count(), 0);
@@ -182,6 +190,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await unloadIsBlocked(), false);
       await page.getByRole("button", { name: "Approve report", exact: true }).click();
       await page.getByRole("alert").filter({ hasText: "Enter a review reason" }).waitFor();
+      assert.equal((await focused()).role, "alert");
       assert.equal(posts.length, 0);
       await page.getByLabel("Review reason", { exact: true }).fill("Reviewed scope and redaction");
       assert.equal(await unloadIsBlocked(), true);
@@ -196,6 +205,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("button", { name: "Close review without deciding", exact: true }).click();
       const discard = page.getByRole("dialog", { name: "Discard local review", exact: true });
       await discard.waitFor();
+      assert.equal((await focused()).text, "Cancel");
       await discard.getByRole("button", { name: "Cancel", exact: true }).click();
       assert.equal(await page.getByLabel("Review reason", { exact: true }).inputValue(), "Reviewed scope and redaction");
       assert.equal(await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").isChecked(), true);
@@ -242,12 +252,15 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("button", { name: "Approve report", exact: true }).click();
       const confirmation = page.getByRole("dialog", { name: "Confirm review decision" });
       assert.ok((await confirmation.textContent())?.includes(approved.sha256));
-      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      assert.equal((await focused()).text, "Cancel");
+      await page.keyboard.press("Enter");
+      await confirmation.waitFor({ state: "hidden" });
       assert.equal(posts.length, 0);
       assert.equal(await store.catalog.report("customer-a", "incident-" + "a".repeat(32)), undefined);
       await page.getByRole("button", { name: "Approve report", exact: true }).click();
       await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Review recorded: approve. No pending reports." }).waitFor();
+      assert.equal(await pendingFilter.evaluate((input) => input === document.activeElement), true);
       assert.equal(posts.length, 1);
       assert.deepEqual(JSON.parse(posts[0]), { decision: "approve", reason: "Reviewed scope and redaction", sha256: approved.sha256 });
       assert.equal(await store.catalog.report("customer-a", "incident-" + "a".repeat(32)), html);
@@ -278,6 +291,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       await page.getByRole("button", { name: "Approve report", exact: true }).click();
       await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
       await page.getByRole("alert").filter({ hasText: "409: review_already_decided" }).waitFor();
+      assert.equal((await focused()).role, "alert");
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);
       assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
       assert.equal(await page.getByLabel("Find evidence text", { exact: true }).count(), 0);
@@ -376,6 +390,7 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       }));
       await connect(reviewer);
       await page.getByRole("alert").filter({ hasText: "503: synthetic_storage_failure" }).waitFor();
+      assert.equal((await focused()).role, "alert");
       await page.unroute("**/api/customers/customer-a/diagnostics/reviews");
       for (const badSummary of [
         undefined,

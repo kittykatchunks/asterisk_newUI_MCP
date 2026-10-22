@@ -180,6 +180,11 @@ Bootstrap errors now expose an explicit retry-by-reload control. Browser tests
 verify manual recovery from server/malformed/network responses, no review fetches
 during failure and reuse of an existing valid session without a new login.
 
+Keyboard focus transitions now target list filter, candidate heading and errors
+after requests finish. Dialog autofocus defaults to Cancel, with browser tests
+for Tab progression and Enter cancellation without POST. This is focused UX
+coverage, not a complete accessibility certification.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

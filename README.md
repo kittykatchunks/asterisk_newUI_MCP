@@ -767,6 +767,16 @@ tests cover server errors, malformed JSON and network failure before login, plus
 successful recovery with the same application-session cookie after login. No
 review requests are made during failed bootstrap.
 
+Keyboard focus follows review actions: a loaded list focuses its filter, opening
+a candidate focuses the review heading, and request/validation errors focus the
+visible alert. Request-completion focus runs after controls are re-enabled;
+disposed workspaces never reclaim focus. Review headings and alerts are
+programmatically focusable without adding extra Tab stops, with a visible focus
+outline. Confirmation/discard dialogs initially focus **Cancel**, not the
+destructive or disclosure action. Browser tests verify Tab from the heading to
+evidence search, error/list focus and Enter cancelling a newly opened approval
+dialog without a POST. These checks are not a complete accessibility audit.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

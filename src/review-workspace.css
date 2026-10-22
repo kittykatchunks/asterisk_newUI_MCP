@@ -17,6 +17,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f6f8; paddi
 code { overflow-wrap: anywhere; }
 iframe { display: block; width: 100%; height: 32rem; border: 1px solid #bccbd6; background: white; }
 [role="alert"] { color: #8e1c24; font-weight: 600; }
+:focus-visible { outline: 3px solid #165ca0; outline-offset: 3px; }
 label { display: block; margin: 1rem 0; }
 dialog { max-width: 38rem; }
 dialog::backdrop { background: #172b3a99; }

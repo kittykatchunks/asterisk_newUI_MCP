@@ -159,6 +159,12 @@ Browser tests cover server/malformed/network failures without evidence requests,
 no automatic retry, unauthenticated recovery to sign-in and authenticated recovery
 with the existing session cookie. This does not persist drafts or replay decisions.
 
+Review keyboard focus now follows loaded list, selected heading and visible
+errors, with programmatic targets outside the normal Tab order and a visible
+outline. Confirmation/discard dialogs default to Cancel; browser tests verify
+heading-to-search Tab navigation, request/error focus and Enter cancelling without
+a decision. Full accessibility validation remains outstanding.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.
