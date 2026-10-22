@@ -1,8 +1,13 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { createAccessVerifier } from "./access.ts";
 import type { AccessConfig } from "./access.ts";
 import type { IncidentCatalog } from "./incidents.ts";
+import type { DiagnosticStore } from "./diagnostic-store.ts";
+import { handleReviewRequest } from "./review-http.ts";
+import { createApplicationSessions } from "./application-session.ts";
+import type { ApplicationSessionConfig } from "./application-session.ts";
 
 export interface AccessAudit {
   requestId: string;
@@ -12,7 +17,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "session-login" | "session-logout";
   incident?: string;
 }
 
@@ -21,7 +26,12 @@ export function createDiagnosticApi(
   audit: (event: AccessAudit) => Promise<void>,
   logError: (error: unknown, requestId: string) => void,
   catalog?: IncidentCatalog,
+  reviews?: Pick<DiagnosticStore, "pending" | "candidate" | "review">,
+  sessionConfig?: ApplicationSessionConfig,
 ) {
+  if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
+      sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
+  const sessions = sessionConfig ? createApplicationSessions(sessionConfig) : undefined;
   const verify = createAccessVerifier(config);
   return createServer(async (request, response) => {
     const requestId = randomUUID();
@@ -37,6 +47,41 @@ export function createDiagnosticApi(
     let customer: string | undefined;
     try {
       const path = new URL(request.url ?? "/", "http://localhost").pathname;
+      if (sessions && await sessions.handle(request, response, requestId, audit)) return;
+      if (path.startsWith("/api/") && sessions) {
+        const session = sessions.authorization(request);
+        if (session.csrfDenied) {
+          await audit({ requestId, timestamp: new Date().toISOString(), subject: session.subject,
+            customer: path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\//)?.[1],
+            operation: "access", status: 403, outcome: "invalid_session_csrf" });
+          send(403, "invalid_session_csrf"); request.resume(); return;
+        }
+        if (session.authorization) request.headers.authorization = session.authorization;
+      }
+      const workspace = /^\/engineering\/reviews\/[a-z0-9][a-z0-9-]{0,63}$/.test(path);
+      const boot = path === "/engineering/session.js" && sessions !== undefined;
+      const preview = path === "/engineering/review-preview.js";
+      const asset = ["/engineering/review.js", "/engineering/review-workspace.js"].includes(path) ? "js" :
+        path === "/engineering/review.css" ? "css" : undefined;
+      if (workspace || asset || boot || preview) {
+        if (request.method !== "GET") { response.setHeader("Allow", "GET"); send(405, "method_not_allowed"); return; }
+        const extension = boot || preview ? "js" : asset ?? "html";
+        let content = await readFile(new URL(preview ? "./review-preview.js" : boot ? "./review-session.js" : `./review-workspace.${extension}`, import.meta.url), "utf8");
+        if (workspace && sessions) content = content.replace("</main>", '</main><script type="module" src="/engineering/session.js"></script>');
+        response.setHeader("Content-Type", extension === "html" ? "text/html; charset=utf-8" :
+          extension === "js" ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8");
+        response.setHeader("Content-Security-Policy",
+          "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+        response.setHeader("X-Frame-Options", "DENY");
+        response.writeHead(200).end(content);
+        return;
+      }
+      const reviewMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics\/reviews(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/);
+      if (reviewMatch) {
+        await handleReviewRequest(request, response, requestId, reviewMatch[1], reviewMatch[2],
+          verify, audit, reviews);
+        return;
+      }
       const match = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics(?:\/incidents(?:\/(incident-[0-9a-f]{32})\/report)?)?$/);
       if (!match) { send(404, "not_found"); return; }
       customer = match[1];

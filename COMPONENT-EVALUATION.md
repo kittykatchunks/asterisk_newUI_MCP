@@ -94,7 +94,32 @@ publication commit atomically. Schema-1 reports move to pending review on
 migration, preserving audit history without inventing approval. Backup/restore
 also validates and preserves candidates and review decisions. Tests cover hidden
 pending/rejected reports and rollback/tampering. The operator methods are trusted
-in-process calls, not authenticated approval endpoints or a production review UI.
+in-process calls. Subsequent customer-scoped HTTP review endpoints require the
+separate `diagnostics:review` permission, derive reviewer identity from verified
+tokens, and atomically persist decision access audit with publication. The real
+Keycloak test exercises approval and permission denial. This still excludes a
+production review UI, live reviewer-grant management, and production sessions.
+
+A browser workspace proof now consumes those endpoints with pending selection,
+inert unapproved HTML source preview, reason/scope checks, and explicit decision
+confirmation. Playwright verifies no script execution/resource loading from
+candidate markup and checks denial/conflict/network/storage failure states.
+The real Keycloak fixture uses the workspace for synthetic evidence approval.
+The original fixture test-connects tokens in memory; a subsequent confidential-client
+server-session proof provides normal browser sign-in and local sign-out with
+HttpOnly cookies and CSRF-protected decisions. Identity tokens stay server-side.
+A subsequent restricted rendered preview reconstructs allowlisted text/table
+elements inside a sandboxed opaque-origin frame. Browser tests cover evidence
+readability, active-content/resource removal, parent/storage isolation and
+size/structure limits. Original source and hash-bound approval are preserved.
+Full-fidelity interactive review and production UX/session operations remain open.
+
+A foreground PowerShell/Node launcher now makes the loopback workspace usable
+outside test-controlled browsers. It reuses the pinned identity fixture and
+captured-report loader, keeps local diagnostic data, and stages captures only
+when explicitly requested. Regression checks cover real review, restart,
+port/fixture ownership and shutdown. This remains a synthetic local fixture with
+regenerated development identity, not production deployment or identity storage.
 
 ## 2. Asterisk container
 
@@ -195,9 +220,13 @@ Recommend Keycloak as the first self-hostable candidate, not a final selection.
 Its JavaScript adapter documents OIDC, public-client constraints, restricted
 redirect origins, in-memory token handling, and browser tracking-protection limits.
 
-Before implementation, decide between a backend-for-frontend cookie session and
-a browser public client with authorization-code/PKCE. Do not mix their credential
-assumptions. Either requires backend validation and customer membership checks.
+Selected with user confirmation: a backend-for-frontend/server-managed cookie
+session for the application, with confidential-client code/S256 PKCE exchange
+and identity tokens retained server-side. The initial implementation uses bounded,
+short-lived in-memory sessions, HttpOnly cookies and CSRF checks; the earlier
+public-client proof remains separate. Production session storage, refresh/revocation
+and multi-instance operations remain open. Backend validation and customer
+membership checks apply to both proofs; do not mix their credential assumptions.
 
 Tenant federation topology is open: compare realm-per-customer with shared-realm
 organisation/broker options against the selected version's supported behaviour.

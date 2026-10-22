@@ -10,7 +10,7 @@ export interface DiagnosticStore {
   stage(entries: readonly ApprovedIncident[]): { id: string; sha256: string }[];
   pending(customer: string): { id: string; sha256: string }[];
   candidate(id: string): { entry: ApprovedIncident; sha256: string } | undefined;
-  review(id: string, review: IncidentReview): void;
+  review(id: string, review: IncidentReview, access?: AccessAudit): void;
   audit(event: AccessAudit): Promise<void>;
   close(): void;
 }
@@ -20,6 +20,16 @@ export interface IncidentReview {
   reviewer: string;
   reason: string;
   sha256: string;
+}
+
+export class ReviewConflict extends Error {
+  status: 404 | 409;
+  code: string;
+  constructor(status: 404 | 409, code: string) {
+    super(code);
+    this.status = status;
+    this.code = code;
+  }
 }
 
 function parseEntry(customer: unknown, incident: unknown, json: unknown): ApprovedIncident {
@@ -143,6 +153,14 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
       return entry;
     });
   };
+  const persistAudit = (event: AccessAudit) => {
+    db.prepare(`INSERT INTO access_audit
+      (request_id, timestamp, customer, subject, outcome, status, basis, operation, incident)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      event.requestId, event.timestamp, event.customer ?? null, event.subject ?? null,
+      event.outcome, event.status, event.basis ?? null, event.operation ?? null, event.incident ?? null,
+    );
+  };
   return {
     catalog: {
       async list(customer) {
@@ -199,7 +217,7 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
       }
       return { entry, sha256: entryHash(row.entry) };
     },
-    review(id, review) {
+    review(id, review, access) {
       if (!["approve", "reject"].includes(review.decision) || !review.reviewer.trim() ||
           review.reviewer.length > 200 || !review.reason.trim() || review.reason.length > 2000 ||
           !/^[0-9a-f]{64}$/.test(review.sha256)) {
@@ -208,10 +226,18 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
       db.exec("BEGIN IMMEDIATE");
       try {
         const row = db.prepare("SELECT customer, incident, entry, sha256 FROM report_candidates WHERE id = ?").get(id);
-        if (!row) throw new Error("Unknown report candidate");
+        if (!row || (access && row.customer !== access.customer)) throw new ReviewConflict(404, "review_candidate_not_found");
         parseEntry(row.customer, row.incident, row.entry);
         if (typeof row.entry !== "string" || row.sha256 !== entryHash(row.entry) || row.sha256 !== review.sha256) {
-          throw new Error("Reviewed candidate hash mismatch");
+          throw new ReviewConflict(409, "review_candidate_hash_mismatch");
+        }
+        if (db.prepare("SELECT 1 FROM incident_reviews WHERE candidate = ?").get(id)) {
+          throw new ReviewConflict(409, "review_already_decided");
+        }
+        if (access && (access.subject !== review.reviewer || access.status !== 200 ||
+            access.operation !== "review-decision" || access.incident !== row.incident ||
+            access.outcome !== `incident_review_${review.decision}`)) {
+          throw new Error("Review access audit does not match decision");
         }
         db.prepare(`INSERT INTO incident_reviews
           (candidate, decision, reviewer, reason, sha256, decided_at) VALUES (?, ?, ?, ?, ?, ?)`).run(
@@ -222,6 +248,7 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
             row.customer, row.incident, row.entry,
           );
         }
+        if (access) persistAudit(access);
         db.exec("COMMIT");
       } catch (error) {
         db.exec("ROLLBACK");
@@ -229,12 +256,7 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
       }
     },
     async audit(event) {
-      db.prepare(`INSERT INTO access_audit
-        (request_id, timestamp, customer, subject, outcome, status, basis, operation, incident)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        event.requestId, event.timestamp, event.customer ?? null, event.subject ?? null,
-        event.outcome, event.status, event.basis ?? null, event.operation ?? null, event.incident ?? null,
-      );
+      persistAudit(event);
     },
     close() { if (db.isOpen) db.close(); },
   };

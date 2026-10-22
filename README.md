@@ -308,12 +308,15 @@ including plaintext test passwords, must stay private; it is not an export
 template for real users. Access/ID tokens and signing private keys are not exported.
 
 Keycloak binds only host loopback port 18080; an ephemeral API listener and callback
-on loopback 18765 exist only for the browser test. If ports are occupied, the proof
+on loopback 18765 exist for the original browser test. The server-session proof
+also uses loopback 18766. If ports are occupied, the proof
 must fail rather than repurpose another service. It does not require a bootstrap
 administrator account or expose a management console with default credentials.
 
-The public client permits authorization-code login with S256 PKCE and one exact
-callback URL. Password grants, service accounts, registration, and password reset
+The original public client permits authorization-code login with S256 PKCE and one exact
+callback URL. A separate confidential client is used for the server-session proof
+below, with its own exact callback and generated ignored client secret.
+Password grants, service accounts, registration, and password reset
 are disabled in this synthetic fixture. The API audience mapper applies to access
 tokens, not ID tokens.
 
@@ -335,7 +338,7 @@ No Asterisk services need to run for this proof.
 **Not production identity:** development mode, loopback HTTP, one test realm,
 local-only audit, and configuration-backed membership are deliberate limitations.
 Deployment TLS, production database/backup, administrator recovery, secure
-application sessions, MFA, federation, logout/revocation, key rotation, customer
+production application sessions, MFA, federation, global logout/revocation, key rotation, customer
 onboarding, and grant administration remain outstanding. Passing this proof does
 not make the management application available or enable capture controls.
 
@@ -382,15 +385,15 @@ or tampered reports fail explicitly. It does not publish the evidence directory.
 Alice receives report permission for customer A; Bob has metadata-only access to
 customer B. Both can list their own captured incident. Alice can view and filter
 her report in Chromium, with sandboxed origin storage denied; Bob cannot view
-his report, and neither can access the other customer. Thirteen API decisions
+his report, and neither can access the other customer. Twenty-two API decisions
 are audited in the successful identity test.
 
-Eighteen access tests cover the original authentication boundary plus incident
+Twenty access tests cover the original authentication boundary plus incident
 metadata, report permission, report/audit failure, unavailable catalogs, tampering,
 path-like raw-file requests, and response restrictions.
 
 Outstanding: production storage/backup and ingestion approval, audit operations,
-interactive application login/session handling, customer/engineer navigation,
+production application session operations, customer/engineer navigation,
 grant administration, and authenticated capture controls. Reports are exercised
 through test-controlled browser credentials, not a finished user-facing viewer.
 
@@ -434,7 +437,7 @@ invalid databases, staged approvals, migration, and the backup/restore failures 
 The access suite additionally proves that a real database
 write lock prevents report bytes being served. The Keycloak proof imports both
 synthetic reports, closes/reopens their database before login, and independently
-reads back all thirteen committed access decisions. It also backs up and restores
+reads back all twenty-two committed access decisions. It also backs up and restores
 both captured reports and compares every restored audit, candidate, and review
 column. Its temporary SQLite files
 are removed after the test; normal adapter databases persist until explicitly
@@ -486,7 +489,7 @@ overwriting the first. Negative tests cover incomplete files, malformed manifest
 count/checksum mismatch, invalid reports even with a recomputed database checksum,
 unsupported schemas, and missing sources. Run `npm run test:storage` for this proof.
 The real Keycloak proof additionally verifies backup/restore of generated packet
-reports and its thirteen access decisions.
+reports and its twenty-two access decisions.
 
 Backups are point-in-time copies, so later events require a later backup. The
 manifest is a consistency check, not a signature or independent approval record.
@@ -497,7 +500,7 @@ large-database/concurrent-write load, interrupted-process/power-loss recovery,
 and full PBX/recording/identity disaster recovery remain unverified. The backup
 directory and manifest are not claimed to be crash-atomically published.
 
-### Staged report review (trusted operator proof)
+### Staged report review
 
 The persistent adapter no longer has a direct `importApproved` operation.
 Merely placing evidence on disk, staging it, or knowing its hash does not publish
@@ -525,12 +528,12 @@ snapshot against its candidate and approval receipt. Receipt deletion or mismatc
 fails explicitly rather than bypassing approval. Read/report permissions do not
 expose the operator staging/review methods.
 
-**Trust boundary:** these are privileged in-process functions, not authenticated
-reviewer APIs. The calling application must authenticate the operator and enforce
-customer-scoped approval permission before calling them; a reviewer string is
-not verified identity. No end-user approval UI or approval permission endpoint
-exists yet. The Keycloak test explicitly approves only known synthetic fixtures;
-it does not prove authenticated engineering approval or certify real redaction.
+**Trust boundary:** these store methods remain privileged in-process functions.
+Direct callers must authenticate the operator and enforce customer-scoped approval
+permission; a directly supplied reviewer string is not verified identity. The
+authenticated API below provides that boundary for HTTP requests. The Keycloak
+test exercises authenticated browser approval of known synthetic fixtures; it does
+not certify real redaction or provide a production application/session flow.
 The separate in-memory catalog still accepts trusted, already-approved entries;
 it is not the persistent ingestion workflow.
 
@@ -547,5 +550,307 @@ Tests cover hidden pending/rejected reports, hash-bound review, missing reviewer
 or reason, duplicate decisions, transaction rollback, receipt tampering,
 version-1 migration, and review-state recovery. Approval receipts are local
 records, not signatures or a tamper-proof external audit trail. Production
-reviewer authorisation, rejection correction, approval revocation, review UI,
+reviewer provisioning/revocation, rejection correction, approval revocation, production review UI,
 and retention remain outstanding.
+
+### Authenticated review API proof
+
+The API factory's optional fifth argument is a review store exposing `pending`,
+`candidate`, and `review` from the opened diagnostic store. It is deliberately
+separate from the public incident catalog; no staging/upload endpoint exists.
+All three routes require the explicit provisioned **`diagnostics:review`**
+permission for the customer in the path:
+
+| Resource | Result |
+|---|---|
+| `GET /api/customers/{customer}/diagnostics/reviews` | Pending candidate IDs and snapshot hashes only |
+| `GET /api/customers/{customer}/diagnostics/reviews/{candidate}` | Candidate metadata, snapshot hash, and unapproved report as JSON |
+| `POST /api/customers/{customer}/diagnostics/reviews/{candidate}` | Approve or reject the exact candidate |
+
+Candidate IDs are generated UUIDs. A candidate belonging to another customer
+returns 404 within an authorised customer scope; trying an unauthorised customer
+path returns 403. Metadata/report permissions, token roles, and diagnostic-only
+support grants do not imply review authority. Conversely, review permission does
+not grant the published-report route.
+
+A decision body contains exactly `decision` (`approve` or `reject`), nonblank
+`reason` (at most 2,000 characters), and the candidate's `sha256`. Reviewer identity
+is taken from the verified access-token subject; a caller-supplied `reviewer` or
+other extra field is rejected. The endpoint requires JSON, accepts at most 8,192
+body bytes, rejects encoded bodies, and limits body receipt to five seconds.
+Invalid input returns 400/413/415/408 as appropriate; stale hashes or already
+decided candidates return 409. No silent overwrite or success-shaped retry exists.
+
+Candidate content is returned as `application/json` with no-store, nosniff and a
+restrictive CSP, not as rendered unapproved HTML. Clients must keep it inert or
+use a separately sandboxed preview. Successful list/candidate responses await the
+configured audit sink. Successful decisions instead commit their access audit,
+review receipt and publication together through the same SQLite transaction.
+The deployment must wire the real store for review, not an adapter that ignores
+the transactional access-audit argument. The ordinary audit callback handles
+denials and invalid/conflicting requests; it is not called again after the store
+has already committed a successful decision audit.
+
+Tests verify customer separation, permission separation, reviewer spoof rejection,
+exact byte boundaries, body timeout, conflicting decisions, and rollback when
+either decision audit or publication fails. The real Keycloak proof leaves Alice's
+captured report pending across database reopen, then uses her access token to
+inspect and approve it; the receipt records her actual subject. Bob's metadata-only
+token cannot review. All twenty-two decisions and review receipts survive backup/restore.
+
+This remains a loopback server-factory proof with configuration-backed grants.
+The optional server-session layer below adds browser cookie authentication and
+CSRF-protected mutation requests. Production ingress/rate limits, approval
+revocation, and live grant administration remain absent. Use TLS and complete
+session operations before exposing it to real operators.
+
+### Browser engineering-review workspace proof
+
+The API now serves a static shell at `/engineering/reviews/{customer}`, with
+fixed JavaScript/CSS resources and a restrictive same-origin CSP. The shell is
+public but contains no evidence or token and makes no API requests by itself.
+An unrecognised customer name in this shell URL does not grant access: every
+evidence request still passes the existing customer/review-permission checks.
+
+The browser module [src/review-workspace.js](./src/review-workspace.js) exposes
+`connectReviewWorkspace(accessToken)` for the original bearer-based test and
+`connectReviewWorkspace({ csrf })` for the server-session adapter below.
+The original Keycloak test supplies its freshly verified access token in memory.
+There is deliberately no token entry box, URL token, browser-storage token,
+embedded credential, or implicit cookie authentication. The returned disconnect
+function aborts pending requests, clears the connection token and removes
+evidence from the workspace; reconnecting first disconnects the old connection.
+This adapter hook is **not** an end-user login/logout implementation.
+
+The workspace lists pending candidate IDs, loads a selected snapshot, and shows
+customer, incident, title, creation time and snapshot hash. It provides the
+restricted rendered preview described below plus the exact original HTML through
+`textContent` in a collapsible source view. Raw source is never inserted into a
+live document or frame. Approved interactive reports remain a separate
+permission-controlled route.
+
+Approval/rejection requires a reason and an explicit scope/redaction check.
+A modal confirmation repeats the customer, incident, snapshot hash and reason.
+Cancel sends no decision; confirm submits that exact snapshot once, with controls
+disabled while requests are active. A successful decision refreshes pending
+reports. Stale/conflicting decisions, expired/unauthorised access, malformed API
+responses, network errors and storage outages display an error rather than
+success. Errors clear the selected report and require a fresh selection; no
+automatic decision retry occurs, since a lost response can follow a committed
+decision. Client requests have a 15-second timeout and never forward credentials
+through redirects or to external origins.
+
+```powershell
+npm run typecheck
+npm run test:review-ui
+.\scripts\Test-IdentityProof.ps1
+```
+
+The Playwright workspace regression covers malicious preview markup without
+execution or external requests, cancel/confirm, approval/rejection, conflict
+handling, denied/expired tokens, malformed responses, network/storage errors,
+disconnect cleanup, and absence of token DOM/storage/cookies. The real Keycloak
+test now approves Alice's actual captured synthetic report using the workspace
+and checks her verified reviewer subject plus all 22 audited API requests through
+backup/restore. Test browsers/listeners and temporary storage are cleaned up.
+
+Remaining: production session operations, full-fidelity interactive review
+preview, reviewer navigation/assignment, production localisation/accessibility
+validation, and safe deployment operations. No long-running management service
+is started by these tests.
+
+#### Restricted rendered report preview
+
+[src/review-preview.js](./src/review-preview.js) rebuilds a simplified preview from
+an explicit HTML element allowlist. Raw markup is parsed only in inert template
+content, never with a live document or a detached resource-loading document.
+Fresh nodes preserve ordinary headings, paragraphs, text, lists, tables and
+packet-provenance details. Details are opened so evidence is not hidden behind
+collapsed controls. Source attributes are discarded except bounded numeric table
+cell spans; report classes, IDs, CSS and event handlers are not retained.
+
+Scripts, styles, images, embedded frames/objects, SVG/MathML, metadata and resource
+elements are discarded. Links, forms and unsupported wrappers are unwrapped to
+ordinary text rather than preserving URLs, submission or navigation behaviour.
+The rebuilt HTML is placed in a sandboxed frame with **no sandbox allowances**,
+an opaque origin, no referrer and a restrictive `default-src 'none'` CSP. It
+cannot run report scripts or access the parent application/storage. The parent
+workspace CSP permits this local frame but does not grant it script privileges.
+
+The preview warns that content has been simplified and reports removed/unwrapped
+element counts. The original source remains available for inspection. Approval
+still binds the exact original snapshot, not the rebuilt display, and the
+published report bytes are unchanged. This renderer does **not** redact evidence,
+certify its suitability, reproduce source styling or provide the report's
+interactive filters. Reviewers must check original content and intended
+disclosure, not treat the simplified preview as proof that the export is safe.
+
+Input is limited to 2 MiB, 100,000 visited nodes and 128 levels of nesting.
+Exceeding limits fails explicitly, clears the selected review and offers no
+approval controls for that failed selection. Limits bound the reconstruction;
+they are not a browser parsing performance guarantee.
+
+Playwright verifies readable signalling rows, cell spans and expanded packet
+details; active markup and resource-loading probes cannot execute or issue
+external requests, and the frame cannot access parent DOM or localStorage.
+Size/depth/node-limit failures are tested. The real Keycloak proof checks the
+captured SIP report's two evidence tables and visible provenance before approving
+the original snapshot. Failure/disconnect paths remove both preview and source.
+
+### Server-managed application login/session proof
+
+**Selected architecture:** server-managed application sessions (confirmed during
+planning). Identity access/ID tokens and client credentials stay on the server;
+the engineering browser uses an opaque HttpOnly cookie and a per-session CSRF
+token, not browser-held Keycloak credentials. The original public-client PKCE
+fixture remains a separate API integration regression, not the application login
+implementation.
+
+The API factory's optional sixth argument configures the application origin,
+issuer, fixed authorization/token/JWKS endpoints, confidential client ID/secret
+and API audience. Identity configuration must match the API verifier. HTTPS is
+required except for explicitly opted-in loopback-only test HTTP. URLs cannot be
+selected by requests, and callback destinations are fixed rather than accepting
+arbitrary return URLs. Never expose the generated fixture secret or use it as a
+production credential.
+
+| Route | Behaviour |
+|---|---|
+| `GET /auth/login?customer={customer}` | Starts confidential-client authorization-code/S256 PKCE login for a validated customer slug |
+| `GET /auth/callback` | Checks one-use state and browser-binding cookie, exchanges code server-side, verifies signed ID/access tokens and nonce/subject, then rotates the application session |
+| `GET /auth/session` | Returns only workspace customer, CSRF token and expiry; no identity credentials |
+| `POST /auth/logout` | Requires the session cookie, exact configured Origin and CSRF header; audits and invalidates this local session |
+
+When this layer is configured, the workspace automatically shows **Sign in**,
+redirects through Keycloak, restores its connection after page reload, and offers
+**Sign out**. No browser test hook or manual token entry is needed for this flow.
+The bootstrap module [src/review-session.js](./src/review-session.js) connects
+through same-origin cookies. Session expiry disconnects the workspace and clears
+its displayed evidence.
+
+Cookies use HttpOnly, SameSite=Lax and Path=/; HTTPS uses Secure `__Host-` cookie
+names. The loopback HTTP fixture uses explicitly test-named cookies without
+Secure. Pending login state expires after five minutes. Active sessions end at
+the earliest ID/access-token expiry or fifteen minutes, without sliding renewal
+or refresh-token storage. Both login state and active sessions are in bounded,
+process-local maps (1,000 each); expired entries are removed on access. Restarting
+the server requires fresh login and does not restore identity tokens from the
+diagnostic database.
+
+Cookie-authenticated API mutations require both the exact configured Origin and
+the per-session `X-CSRF-Token`; cross-site Fetch Metadata and mixed session/bearer
+credentials are rejected. API membership/review/report checks still execute
+against the server-held access token on every request. Login to a workspace is
+not customer membership: Bob can authenticate but still cannot review reports.
+Existing explicit bearer API callers remain supported without cookie sessions;
+do not combine their credentials.
+
+Login completion waits for durable access audit before issuing a session.
+Logout waits for audit before invalidating it; if audit fails, the browser reports
+failure and must retry sign-out. Signing out invalidates the local cookie ID, so
+replaying it cannot restore access. This does **not** log out the Keycloak SSO
+session or other devices, and valid previously issued bearer tokens are not
+globally revoked. Invalid-login/CSRF operational coverage is narrower than a
+production identity-event audit; successful login/logout and API decisions are
+persisted without credentials.
+
+```powershell
+npm run typecheck
+npm run test:session
+.\scripts\Test-IdentityProof.ps1
+```
+
+The identity runner now executes both the original 22-decision browser/API proof
+and a separate application-session proof using the generated confidential client
+and exact `http://127.0.0.1:18766/auth/callback`. The latter uses normal sign-in
+links/forms without injecting access tokens into page code. It verifies Alice's
+review, Bob's denial, reload persistence, HttpOnly cookie properties, CSRF rejection,
+local logout and cookie replay denial, plus persisted login/logout audits.
+The session regression also covers callback binding/replay, nonce mismatch,
+exchange rejection, session rotation/expiry, audit failures, secure-cookie flags,
+and rejected identity configuration.
+
+Limitations: development-mode Keycloak, loopback HTTP (no real TLS proof), single
+process/in-memory sessions, fixed short lifetimes, no session persistence or
+cross-instance coordination, no refresh, no MFA/federation proof, no IdP logout or
+back-channel revocation, no production secret manager/rate limiting, and no
+production application deployment yet. Full managed-session deployment and
+recovery remain future work, not implied by passing browser tests.
+
+## Run the local engineering workspace interactively
+
+Requirements: Docker Desktop running, PowerShell 7, Node 24, and the existing npm
+dependencies. This is a **local synthetic-data proof**, not a production installer.
+Do not expose its HTTP ports or load real customer evidence into it.
+
+From a PowerShell terminal in the repository:
+
+```powershell
+.\scripts\Start-LocalEngineering.ps1
+```
+
+The launcher generates the ignored test identity fixture, starts its isolated
+Keycloak container, checks readiness, type-checks the application, and starts the
+engineering server in the foreground. Open:
+
+- Customer A: `http://127.0.0.1:18766/engineering/reviews/customer-a`
+- Customer B: `http://127.0.0.1:18766/engineering/reviews/customer-b`
+
+Click **Sign in**, then use the generated credentials in
+`.local-proof\identity\accounts.json`. Alice can inspect/approve/reject customer A
+reports; Bob has customer B metadata access but is deliberately denied review
+authority. Do not share the accounts, realm import, or confidential-client JSON:
+they contain plaintext synthetic credentials. No credentials are printed by the
+application launcher.
+
+The default start imports **no evidence**. To explicitly stage the latest complete
+synthetic captured incident for both customers:
+
+```powershell
+.\scripts\Test-CaptureProof.ps1 # Only needed if no completed synthetic capture exists
+.\scripts\Start-LocalEngineering.ps1 -StageCapturedReports
+```
+
+Staging uses the same captured-incident loader as the identity regression. Both
+customer manifests must match their incident/customer scope, and report SHA-256
+checks must pass. Incomplete incident directories are skipped; malformed complete
+manifests or missing/tampered selected reports fail startup explicitly. All
+imported reports start pending: nothing is automatically approved. Reusing the
+flag does not restage identical candidates or reset prior approval/rejection;
+changed content/metadata under an existing customer/incident key is refused.
+Generate a new capture with a new incident ID for another review exercise.
+
+Diagnostic candidates, review receipts, published reports, and access audits are
+persisted at `.local-proof\engineering\diagnostics.sqlite`. Restarting preserves
+them but invalidates application sessions. The development Keycloak database is
+ephemeral: each launcher run generates fresh test credentials and subject IDs.
+Historical reviewer IDs remain recorded as originally issued; this is not
+production identity continuity. New generated credentials are required after
+restart. Sessions currently last at most the fixture's two-minute token lifetime.
+
+**Stop:** type `stop` and press Enter in the launcher terminal (recommended), or
+press Ctrl+C. The server closes its listener and database; the PowerShell owner
+then removes only its identity Compose container/network. The diagnostic database,
+captures and generated credential files remain ignored on disk. A hard terminal
+kill, machine crash or forced process termination is not graceful cleanup; inspect
+and stop only this fixture's Compose project before restarting. Do not delete
+the database just to clear a review decision.
+
+The runner takes an exclusive identity-fixture lock before generating credentials,
+refuses existing fixture containers, and preflights loopback ports 18080, 18765 and
+18766. A competing launcher or occupied port fails rather than replacing another
+service. The Node listener binds only `127.0.0.1`; no container socket, raw capture
+control, or unauthorised filesystem API is exposed. The older identity tests now
+use the same lock, so do not run them while the interactive fixture is open.
+
+`Test-IdentityProof.ps1` additionally runs the launcher regression: real browser
+login/review, database persistence across restart, lost-session rejection, identical
+capture reuse, tampered/changed capture refusal, competing launcher/occupied-port
+denial, and graceful CLI stop. Temporary regression databases are removed; the
+actual local application database is deliberately preserved. The test's CLI
+smoke start does not import reports into that application database.
+
+The TypeScript entry point `scripts\Start-LocalEngineering.ts` is also available
+when the correct identity fixture is already running; it does **not** own Docker
+or generate identity configuration. Prefer the PowerShell launcher for normal use.
+No service is automatically left running after validation.

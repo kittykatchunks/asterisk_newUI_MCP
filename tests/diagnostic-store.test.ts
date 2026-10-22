@@ -244,7 +244,7 @@ test("staged and rejected reports stay hidden; approvals bind the exact reviewed
         assert.throws(() => store.review(pending.id, { ...review, sha256: "0".repeat(64) }), /hash/);
         assert.throws(() => store.review(pending.id, { ...review, reason: " " }), /requires/);
         assert.throws(() => store.review(pending.id, { ...review, reviewer: "" }), /requires/);
-        assert.throws(() => store.review("unknown", review), /Unknown/);
+        assert.throws(() => store.review("unknown", review), /not_found/);
         store.review(rejected.id, { ...review, sha256: rejected.sha256, decision: "reject", reason: "Out of scope" });
         assert.deepEqual(await store.catalog.list("customer-b"), []);
         assert.equal(await store.catalog.report("customer-b", entry("customer-b", "b").summary.id), undefined);

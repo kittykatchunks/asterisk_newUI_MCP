@@ -8,7 +8,11 @@
     "test:webrtc": "node ./tests/webrtc/run.mjs",
     "test:access": "node --test ./tests/access.test.ts",
     "test:storage": "node --test ./tests/diagnostic-store.test.ts",
-    "test:identity": "node ./tests/identity/keycloak-proof.ts"
+    "test:review-ui": "node --test ./tests/review-workspace.test.ts",
+    "test:session": "node --test ./tests/application-session.test.ts",
+    "test:identity": "node ./tests/identity/keycloak-proof.ts",
+    "test:app-session": "node ./tests/identity/application-session-proof.ts",
+    "test:launcher": "node ./tests/identity/launcher-proof.ts"
   },
   "dependencies": {
     "jose": "6.2.13",

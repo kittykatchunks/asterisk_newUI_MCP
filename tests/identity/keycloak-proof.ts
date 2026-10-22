@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { once } from "node:events";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -13,7 +13,7 @@ import { createDiagnosticApi } from "../../src/diagnostic-api.ts";
 import type { AccessAudit } from "../../src/diagnostic-api.ts";
 import { openDiagnosticStore } from "../../src/diagnostic-store.ts";
 import { backupDiagnosticStore, restoreDiagnosticStore } from "../../src/diagnostic-backup.ts";
-import type { ApprovedIncident } from "../../src/incidents.ts";
+import { loadCapturedIncidents, localEngineeringRoot } from "../../src/local-engineering.ts";
 
 interface TestAccount {
   subject: string;
@@ -39,35 +39,8 @@ for (const key of ["authorization_endpoint", "token_endpoint", "jwks_uri", "end_
 }
 const audit: AccessAudit[] = [];
 const operationalErrors: unknown[] = [];
-const evidenceRoot = new URL("../../.local-proof/evidence/", import.meta.url);
-const directories = (await readdir(evidenceRoot, { withFileTypes: true }))
-  .filter((entry) => entry.isDirectory() && /^incident-[0-9a-f]{32}$/.test(entry.name));
-const candidates = [];
-for (const entry of directories) {
-  try {
-    const manifests = await Promise.all(accounts.map((account) =>
-      readFile(new URL(`${entry.name}/${account.customer}/export-manifest.json`, evidenceRoot), "utf8")));
-    candidates.push({ id: entry.name, manifests: manifests.map((value) => JSON.parse(value)) });
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
-    throw error;
-  }
-}
-candidates.sort((a, b) => b.manifests[0].started_utc.localeCompare(a.manifests[0].started_utc));
-const evidence = candidates[0];
-assert.ok(evidence, "Run Test-CaptureProof.ps1 first to generate evidence for both customers");
-const entries: ApprovedIncident[] = [];
-for (const [index, account] of accounts.entries()) {
-  const manifest = evidence.manifests[index];
-  assert.equal(manifest.customer, account.customer);
-  assert.equal(manifest.incident, evidence.id);
-  const html = await readFile(new URL(`${evidence.id}/${account.customer}/report.html`, evidenceRoot), "utf8");
-  entries.push({
-    customer: account.customer,
-    summary: { id: evidence.id, title: "Synthetic SIP evidence", createdAt: manifest.started_utc },
-    report: { html, sha256: manifest.report_sha256 },
-  });
-}
+const entries = await loadCapturedIncidents(localEngineeringRoot);
+const evidence = { id: entries[0].summary.id };
 const storageDirectory = await mkdtemp(join(tmpdir(), "asterisk-identity-store-"));
 const databasePath = join(storageDirectory, "diagnostics.sqlite");
 let store = openDiagnosticStore(databasePath);
@@ -77,7 +50,8 @@ try {
     assert.deepEqual(await store.catalog.list(entry.customer), []);
     assert.equal(await store.catalog.report(entry.customer, entry.summary.id), undefined);
   }
-  for (const candidate of staged) {
+  for (const [index, candidate] of staged.entries()) {
+    if (accounts[index].username === "alice") continue;
     store.review(candidate.id, {
       sha256: candidate.sha256, decision: "approve", reviewer: "synthetic-fixture-reviewer",
       reason: "Known synthetic packet report; no customer data",
@@ -95,13 +69,20 @@ const api = createDiagnosticApi({
   allowLoopbackHttpForTests: true,
   memberships: accounts.map((account) => ({
     issuer, subject: account.subject, customer: account.customer,
-    permissions: account.username === "alice" ? ["diagnostics:read", "diagnostics:report"] : ["diagnostics:read"],
+    permissions: account.username === "alice" ? ["diagnostics:read", "diagnostics:report", "diagnostics:review"] : ["diagnostics:read"],
   })),
   supportGrants: [],
 }, async (event) => {
   await store.audit(event);
   audit.push(event);
-}, (error) => { operationalErrors.push(error); }, store.catalog);
+}, (error) => { operationalErrors.push(error); }, store.catalog, {
+  pending: store.pending,
+  candidate: store.candidate,
+  review(id, review, access) {
+    store.review(id, review, access);
+    if (access) audit.push(access);
+  },
+});
 
 let pending: { state: string; accept: (code: string) => void; reject: (error: Error) => void } | undefined;
 const callback = createServer((request, response) => {
@@ -225,6 +206,57 @@ try {
         headers: { Authorization: `Bearer ${tokens.id_token}` },
       })).status, 401, "ID token must not be accepted as API access token");
       const headers = { Authorization: `Bearer ${tokens.access_token}` };
+      const reviewRoot = `${apiBase}/api/customers/${account.customer}/diagnostics/reviews`;
+      const pendingReviews = await fetch(reviewRoot, { headers });
+      if (account.username === "alice") {
+        assert.equal(pendingReviews.status, 200);
+        const [pendingReview] = (await pendingReviews.json()).candidates;
+        assert.ok(pendingReview);
+        await page.goto(`${apiBase}/engineering/reviews/${account.customer}`);
+        await page.evaluate(async (accessToken: string) => {
+          const path = "/engineering/review.js";
+          const module = await import(path);
+          await module.connectReviewWorkspace(accessToken);
+        }, tokens.access_token);
+        await page.getByRole("button", { name: `Inspect ${pendingReview.id}`, exact: true }).click();
+        await page.getByRole("heading", { name: "Synthetic SIP evidence", exact: true }).waitFor();
+        assert.equal(await page.getByLabel("Inert report preview").textContent(),
+          entries.find((entry) => entry.customer === account.customer)?.report?.html);
+        const preview = page.frameLocator('iframe[title="Rendered report preview"]');
+        await preview.getByRole("heading", { name: "Observed signalling ladder", exact: true }).waitFor();
+        assert.equal(await preview.getByRole("table").count(), 2);
+        assert.ok(await preview.locator("table").first().locator("tbody tr").count() > 0);
+        assert.ok(await preview.locator("details[open]").count() > 0);
+        assert.equal(await preview.locator("script, style, a, img, form, input, iframe").count(), 0);
+        assert.ok(!(await page.content()).includes(tokens.access_token));
+        assert.equal((await fetch(`${reviewRoot.replace(account.customer, other.customer)}/${pendingReview.id}`, { headers })).status, 403);
+        const decide = () => fetch(`${reviewRoot}/${pendingReview.id}`, {
+          method: "POST", headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ decision: "approve", sha256: pendingReview.sha256, reason: "Synthetic evidence fixture review" }),
+        });
+        await page.getByLabel("Review reason", { exact: true }).fill("Synthetic evidence fixture review");
+        await page.getByLabel("I checked customer scope, redaction and disclosure suitability.").check();
+        await page.getByRole("button", { name: "Approve report", exact: true }).click();
+        assert.ok((await page.getByRole("dialog", { name: "Confirm review decision" }).textContent())?.includes(pendingReview.sha256));
+        await page.getByRole("button", { name: "Cancel", exact: true }).click();
+        assert.equal(await store.catalog.report(account.customer, evidence.id), undefined);
+        await page.getByRole("button", { name: "Approve report", exact: true }).click();
+        await page.getByRole("button", { name: "Confirm approval", exact: true }).click();
+        await page.getByRole("status").filter({ hasText: "Review recorded: approve. No pending reports." }).waitFor();
+        assert.equal((await decide()).status, 409);
+        const reader = new DatabaseSync(databasePath, { readOnly: true });
+        try {
+          assert.equal(reader.prepare("SELECT reviewer FROM incident_reviews WHERE candidate = ?").get(pendingReview.id)?.reviewer, account.subject);
+        } finally { reader.close(); }
+      } else {
+        assert.equal(pendingReviews.status, 403);
+        const candidate = store.pending(other.customer)[0];
+        // The exact identifier does not grant metadata-only users review authority.
+        const id = candidate?.id ?? "00000000-0000-0000-0000-000000000000";
+        assert.equal((await fetch(`${reviewRoot.replace(account.customer, other.customer)}/${id}`, {
+          method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: "{}",
+        })).status, 403);
+      }
       const listed = await fetch(`${apiBase}/api/customers/${account.customer}/diagnostics/incidents`, { headers });
       assert.equal(listed.status, 200);
       assert.deepEqual((await listed.json()).incidents.map((entry: { id: string }) => entry.id), [evidence.id]);
@@ -271,7 +303,7 @@ try {
     }),
   });
   assert.equal(directGrant.status, 400, "Password grant must be disabled");
-  assert.equal(audit.length, 13);
+  assert.equal(audit.length, 22);
   assert.deepEqual(operationalErrors, []);
   const persisted = new DatabaseSync(databasePath, { readOnly: true });
   try {
@@ -301,7 +333,7 @@ try {
         original.prepare("SELECT * FROM report_candidates ORDER BY id").all());
     } finally { original.close(); recovered.close(); }
   } finally { restored.close(); }
-  console.log("PASS staged reports hidden until synthetic review; backup/restore preserves reports, reviews and thirteen access decisions");
+  console.log("PASS browser workspace approval with real login; backup/restore preserves verified reviewer, reports and twenty-two access decisions");
 } finally {
   if (browser) await browser.close();
   await Promise.all([close(api), close(callback)]);

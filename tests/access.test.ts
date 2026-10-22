@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import type { Server } from "node:http";
 import { after, before, test } from "node:test";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
@@ -65,6 +65,7 @@ before(async () => {
       { issuer, subject: "alice", customer: "customer-a", permissions: ["diagnostics:read"] },
       { issuer, subject: "bob", customer: "customer-b", permissions: ["diagnostics:read"] },
       { issuer, subject: "report-reader", customer: "customer-a", permissions: ["diagnostics:read", "diagnostics:report"] },
+      { issuer, subject: "reviewer", customer: "customer-a", permissions: ["diagnostics:review"] },
     ],
     supportGrants: [
       { issuer, subject: "engineer", customer: "customer-a", permissions: ["diagnostics:read"],
@@ -336,10 +337,141 @@ test("unconfigured or failed catalog produces explicit unavailability, not an em
       const response = await fetch(`${origin}/api/customers/customer-a/diagnostics/incidents`, {
         headers: { Authorization: `Bearer ${await token()}` },
       });
+
       assert.equal(response.status, 503);
       assert.equal((await response.text()).includes('"incidents":[]'), false);
       if (catalogOption) assert.equal(logged.length, 1);
       assert.equal(events[0].outcome, "incident_catalog_unavailable");
     } finally { await close(server); }
   }
+});
+
+test("authenticated review endpoints isolate customers, bind reviewer identity and publish atomically with audit",async () => {
+  const directory=await mkdtemp(join(tmpdir(),"asterisk-review-api-"));
+  const path=join(directory,"diagnostics.sqlite");
+  const store=openDiagnosticStore(path);
+  const logged: unknown[]=[];
+  const server=createDiagnosticApi(config,store.audit,(error) => logged.push(error),store.catalog,store);
+  const reader=new DatabaseSync(path);
+  try {
+    const staged=(customer: string,id: string) => ({
+      customer,summary: { id,title: "Unapproved synthetic report",createdAt: "2026-10-22T12:00:00Z" },
+      report: { html: reportHtml,sha256: createHash("sha256").update(reportHtml).digest("hex") },
+    });
+    const [own,other,rejected,auditFail,publishFail]=store.stage([
+      staged("customer-a",incidentA),staged("customer-b",incidentB),
+      staged("customer-a","incident-"+"c".repeat(32)),
+      staged("customer-a","incident-"+"d".repeat(32)),
+      staged("customer-a","incident-"+"e".repeat(32)),
+    ]);
+    const origin=await listen(server);
+    const root=`${origin}/api/customers/customer-a/diagnostics/reviews`;
+    const reviewerHeaders={ Authorization: `Bearer ${await token("reviewer")}` };
+    const post=(id: string,body: unknown,headers=reviewerHeaders) => fetch(`${root}/${id}`,{
+      method: "POST",headers: { ...headers,"Content-Type": "application/json" },body: JSON.stringify(body),
+    });
+    const decision={ decision: "approve",reason: "Reviewed synthetic scope and redaction",sha256: own.sha256 };
+    assert.equal((await fetch(root)).status,401);
+    for(const subject of ["alice","report-reader","engineer","stranger"]) {
+      const headers={ Authorization: `Bearer ${await token(subject)}` };
+      assert.equal((await fetch(root,{ headers })).status,403);
+      assert.equal((await post(own.id,decision,headers)).status,403);
+    }
+    assert.equal((await fetch(root.replace("customer-a","customer-b"),{ headers: reviewerHeaders })).status,403);
+    const list=await fetch(root,{ headers: reviewerHeaders });
+    assert.equal(list.status,200);
+    const listing=await list.json();
+    assert.equal(listing.candidates.length,4);
+    assert.ok(!JSON.stringify(listing).includes(reportHtml));
+    const candidate=await fetch(`${root}/${own.id}`,{ headers: reviewerHeaders });
+    assert.equal(candidate.status,200);
+    assert.match(candidate.headers.get("content-type")??"",/^application\/json/);
+    assert.match(candidate.headers.get("content-security-policy")??"",/default-src 'none'/);
+    assert.equal((await candidate.json()).candidate.entry.report.html,reportHtml);
+    assert.equal((await fetch(`${root}/${other.id}`,{ headers: reviewerHeaders })).status,404);
+    assert.equal((await post(other.id,{ ...decision,sha256: other.sha256 })).status,404);
+    assert.equal((await post(own.id,{ ...decision,sha256: "0".repeat(64) })).status,409);
+    assert.deepEqual(await store.catalog.list("customer-a"),[]);
+    for(const body of [{ ...decision,reviewer: "spoofed-admin" },{ ...decision,reason: " " },
+    { ...decision,decision: "publish" },null,[]]) {
+      assert.equal((await post(own.id,body)).status,400);
+    }
+    assert.equal((await fetch(`${root}/${own.id}`,{ method: "POST",headers: reviewerHeaders,body: "{}" })).status,415);
+    assert.equal((await fetch(`${root}/${own.id}`,{
+      method: "POST",headers: { ...reviewerHeaders,"Content-Type": "application/json" },body: "{",
+    })).status,400);
+    assert.equal((await post(own.id,{ ...decision,reason: "x".repeat(9000) })).status,413);
+    assert.equal((await fetch(root,{ method: "POST",headers: reviewerHeaders })).status,405);
+    assert.equal((await post(own.id,decision)).status,200);
+    const receipt=reader.prepare("SELECT reviewer, reason FROM incident_reviews WHERE candidate = ?").get(own.id);
+    assert.equal(receipt?.reviewer,"reviewer");
+    assert.equal(receipt?.reason,decision.reason);
+    assert.equal(await store.catalog.report("customer-a",incidentA),reportHtml);
+    assert.equal(reader.prepare("SELECT subject FROM access_audit WHERE outcome = 'incident_review_approve'").get()?.subject,"reviewer");
+    assert.equal((await post(own.id,decision)).status,409);
+    const encoded=JSON.stringify(decision);
+    for(const [size,expected] of [[8192,409],[8193,413]]) {
+      const boundary=await fetch(`${root}/${own.id}`,{
+        method: "POST",headers: { ...reviewerHeaders,"Content-Type": "application/json" },
+        body: encoded.padEnd(size," "),
+      });
+      assert.equal(boundary.status,expected);
+    }
+    assert.equal((await fetch(`${root}/${own.id}`,{
+      method: "POST",headers: { ...reviewerHeaders,"Content-Type": "application/json","Content-Encoding": "gzip" },
+      body: encoded,
+    })).status,415);
+    const started=Date.now();
+    const timedOut=await new Promise<number>((resolve,reject) => {
+      const request=httpRequest(`${root}/${own.id}`,{
+        method: "POST",headers: { ...reviewerHeaders,"Content-Type": "application/json" },
+      },(response) => {
+        response.resume();
+        response.once("end",() => { request.end(); resolve(response.statusCode??0); });
+      });
+      request.on("error",reject);
+      request.setTimeout(8000,() => request.destroy(new Error("Review timeout test stalled")));
+      request.write("{");
+    });
+    assert.equal(timedOut,408);
+    assert.ok(Date.now()-started>=4500&&Date.now()-started<8000);
+    assert.equal((await post(rejected.id,{ ...decision,decision: "reject",sha256: rejected.sha256 })).status,200);
+    assert.equal(await store.catalog.report("customer-a","incident-"+"c".repeat(32)),undefined);
+    reader.exec(`CREATE TRIGGER fail_review_audit BEFORE INSERT ON access_audit
+            WHEN NEW.operation = 'review-decision' AND NEW.status = 200
+            BEGIN SELECT RAISE(ABORT, 'Synthetic review audit failure'); END`);
+    const failed=await post(auditFail.id,{ ...decision,sha256: auditFail.sha256 });
+    assert.equal(failed.status,503);
+    assert.equal(reader.prepare("SELECT 1 FROM incident_reviews WHERE candidate = ?").get(auditFail.id),undefined);
+    assert.equal(await store.catalog.report("customer-a","incident-"+"d".repeat(32)),undefined);
+    reader.exec(`DROP TRIGGER fail_review_audit;
+            CREATE TRIGGER fail_review_publish BEFORE INSERT ON incidents
+            BEGIN SELECT RAISE(ABORT, 'Synthetic review publication failure'); END`);
+    assert.equal((await post(publishFail.id,{ ...decision,sha256: publishFail.sha256 })).status,503);
+    assert.equal(reader.prepare("SELECT 1 FROM incident_reviews WHERE candidate = ?").get(publishFail.id),undefined);
+    assert.equal(reader.prepare("SELECT count(*) AS total FROM access_audit WHERE outcome = 'incident_review_approve'").get()?.total,1);
+    reader.exec(`CREATE TRIGGER fail_candidate_audit BEFORE INSERT ON access_audit
+            WHEN NEW.operation = 'review-candidate'
+            BEGIN SELECT RAISE(ABORT, 'Synthetic candidate audit failure'); END`);
+    const unreadable=await fetch(`${root}/${own.id}`,{ headers: reviewerHeaders });
+    assert.equal(unreadable.status,503);
+    assert.ok(!(await unreadable.text()).includes(reportHtml));
+    assert.equal(logged.length,3);
+    // Review authority does not implicitly confer report disclosure permission.
+    assert.equal((await fetch(`${origin}/api/customers/customer-a/diagnostics/incidents/${incidentA}/report`,
+      { headers: reviewerHeaders })).status,403);
+  } finally {
+    await close(server);
+    reader.close();
+    store.close();
+    await rm(directory,{ recursive: true });
+  }
+});
+
+test("review routes fail explicitly without a configured reviewer store",async () => {
+  const response=await fetch(`${base}/api/customers/customer-a/diagnostics/reviews`,{
+    headers: { Authorization: `Bearer ${await token("reviewer")}` },
+  });
+  assert.equal(response.status,503);
+  assert.equal((await response.json()).code,"incident_review_unavailable");
 });

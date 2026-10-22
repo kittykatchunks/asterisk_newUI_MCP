@@ -39,7 +39,7 @@ packet/CEL reports and verifies actual browser viewing/filtering, sandbox storag
 denial, metadata-only report denial, and cross-customer denial. The local SQLite
 adapter persists approved incidents and commits access audit records before
 delivery; close/reopen, atomic imports, tampering, and write-lock failure paths
-are tested. The Keycloak proof uses reopened storage and checks thirteen committed
+are tested. The Keycloak proof uses reopened storage and checks twenty-two committed
 audit decisions. A subsequent online SQLite backup and separate restore proof
 checks both captured reports and exact audit history. Unit recovery tests also
 remove the original database, restore independently, and reject incomplete or
@@ -51,8 +51,40 @@ a hash-bound approve/reject decision with reviewer/reason before publication.
 Approval and publication are transactional; pending/rejected evidence remains
 hidden. Schema-1 imports migrate to pending review rather than receiving invented
 approvals, while access audits are preserved. Review state and receipts survive
-backup/restore. This is a trusted operator-code proof, not authenticated approval
-endpoints or a review UI; production reviewer authorisation remains open.
+backup/restore. Customer-scoped review endpoints now require a separate provisioned
+review permission and derive reviewer identity from the verified access token.
+Successful decisions commit access audit, review receipt, and publication together.
+The Keycloak proof approves Alice's staged report through this boundary and denies
+metadata-only Bob. A production review UI, reviewer provisioning/revocation,
+production session operations, and ingress protection remain outstanding.
+
+A subsequent browser review workspace proof lists pending candidates, displays
+unapproved report source as inert text, and requires a review reason, scope check
+and explicit confirm/cancel decision. Browser regressions cover malicious markup,
+access/network/storage failures and stale decisions. The real Keycloak test
+approves captured synthetic evidence through this workspace. Its session adapter
+was initially test-connected in memory; a subsequent user-selected server-session
+proof now supports ordinary browser Keycloak sign-in, reload and local sign-out.
+The confidential-client exchange retains identity tokens server-side, uses
+HttpOnly cookies and requires Origin/CSRF checks for mutations. Tests cover
+callback binding, rotation/expiry, audit failure, cookie replay and real-browser
+permission denial. Sessions are short-lived and process-local; production session
+operations, global logout, full-fidelity interactive review and deployment remain open.
+
+A restricted rendered preview now rebuilds allowlisted text/table content in a
+sandboxed opaque-origin frame, without report scripts, source styling, resource
+URLs or interactive controls. Packet details are expanded; original source
+remains available. Browser tests verify readable evidence, blocked active content,
+parent/storage isolation and structure limits. Approval still applies to the exact
+original snapshot; preview simplification is not redaction or export approval.
+
+An interactive loopback launcher now starts the development identity fixture and
+application together, with explicit optional captured-report staging and no
+automatic approval. Its local diagnostic database persists across restarts.
+Regression tests verify real review, restart persistence, competing-launcher and
+occupied-port refusal, unchanged-capture reuse and graceful shutdown. Development
+identity subjects/passwords regenerate per run; this is not production identity
+continuity or a deployment/recovery acceptance pass.
 
 Parent document: [Project plan](./PROJECT-PLAN.md).
 

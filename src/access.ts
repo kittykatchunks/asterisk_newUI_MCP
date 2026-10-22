@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-export type DiagnosticPermission = "diagnostics:read" | "diagnostics:report";
+export type DiagnosticPermission = "diagnostics:read" | "diagnostics:report" | "diagnostics:review";
 
 export interface Membership {
   issuer: string;
@@ -48,7 +48,8 @@ export function createAccessVerifier(config: AccessConfig) {
     if (membership.issuer !== config.issuer || !membership.subject.trim() ||
         !/^[a-z0-9][a-z0-9-]{0,63}$/.test(membership.customer) ||
         membership.permissions.some((permission) =>
-          permission !== "diagnostics:read" && permission !== "diagnostics:report")) {
+          permission !== "diagnostics:read" && permission !== "diagnostics:report" &&
+          permission !== "diagnostics:review")) {
       throw new Error("Invalid provisioned customer membership");
     }
   }
