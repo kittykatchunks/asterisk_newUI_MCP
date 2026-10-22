@@ -280,6 +280,12 @@ Command and Originate probes are denied. Unit/API/browser regressions cover
 protocol errors, limits, isolation, audit gating and safe rendering. Remote TLS,
 SIP/RTP health, trunk monitoring and production capacity are not claimed.
 
+Combined real-runtime/identity validation now exercises the complete browser
+session -> audited customer status API -> restricted AMI path for both customers,
+including the metadata-only user. It verifies durable request/subject/customer
+correlation, foreign-customer denial and logout replay denial while retaining the
+existing identity/session/launcher proofs and scoped fixture cleanup.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

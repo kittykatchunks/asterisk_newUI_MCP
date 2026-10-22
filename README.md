@@ -1034,6 +1034,26 @@ credential injection guards and configuration immutability. API/browser tests
 cover permission/customer boundaries, GET-only behaviour, audit gating, safe
 allowlisted results and clearing a mismatched response.
 
+For the complete identity-to-runtime acceptance path, run:
+
+```powershell
+.\scripts\Test-PbxStatusProof.ps1 -WithIdentity
+```
+
+This keeps both isolated PBXs running while the existing Keycloak, application
+session and launcher proofs execute. The application-session proof explicitly
+enables the real AMI adapter for this run: Alice and metadata-only Bob each log in,
+click the status control for their own customer and receive a real Asterisk
+snapshot. Tests match its header request reference to the durable customer/subject
+audit record, deny foreign-customer requests and deny cookie replay after logout.
+Bob's status access does not grant review authority. Browser requests still carry
+no bearer token. Ordinary identity runs do not require running PBXs.
+
+The combined runner restores its test-only environment flag and cleans up both
+owned fixtures on completion/failure. `-WithIdentity` and `-Interactive` are
+mutually exclusive. This local end-to-end proof does not validate remote TLS or
+production monitoring.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

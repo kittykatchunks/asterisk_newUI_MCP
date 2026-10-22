@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { chromium } from "playwright";
 import { createDiagnosticApi } from "../../src/diagnostic-api.ts";
 import { openDiagnosticStore } from "../../src/diagnostic-store.ts";
+import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
 
 const issuer = "http://127.0.0.1:18080/realms/local-proof";
 const origin = "http://127.0.0.1:18766";
@@ -15,6 +16,8 @@ const accounts: { subject: string; username: string; password: string; customer:
   JSON.parse(await readFile(new URL("../../.local-proof/identity/accounts.json", import.meta.url), "utf8"));
 const client: { clientId: string; secret: string } =
   JSON.parse(await readFile(new URL("../../.local-proof/identity/application-client.json", import.meta.url), "utf8"));
+const pbx = process.env.ASTERISK_TEST_REAL_AMI === "1" ? await loadLocalPbxStatus(localEngineeringRoot) : undefined;
+if (process.env.ASTERISK_TEST_REAL_AMI === "1") assert.ok(pbx, "Combined proof requires configured real AMI");
 const discoveryResponse = await fetch(`${issuer}/.well-known/openid-configuration`);
 assert.equal(discoveryResponse.status, 200);
 const discovery = await discoveryResponse.json();
@@ -45,7 +48,7 @@ const api = createDiagnosticApi({
   tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
   clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
   allowLoopbackHttpForTests: true,
-});
+}, pbx);
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   api.listen(18766, "127.0.0.1");
@@ -110,6 +113,38 @@ try {
       assert.equal(sessionCookies[0].sameSite, "Lax");
       const cookie = `${sessionCookies[0].name}=${sessionCookies[0].value}`;
       const reviewRoot = `${origin}/api/customers/${account.customer}/diagnostics/reviews`;
+      if (pbx) {
+        if (account.username === "alice") {
+          await page.getByRole("button", { name: `Inspect ${candidate.id}`, exact: true }).waitFor();
+        } else {
+          await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
+        }
+        const statusUrl = `${origin}/api/customers/${account.customer}/pbx/status`;
+        const checked = page.waitForResponse(statusUrl);
+        await page.getByRole("button", { name: "Check PBX core status", exact: true }).click();
+        const response = await checked;
+        assert.equal(response.status(), 200);
+        const body = await response.json();
+        assert.equal(body.customer, account.customer);
+        assert.equal(body.activeCalls, 0);
+        const region = page.getByRole("region", { name: "PBX operational status", exact: true });
+        await region.getByRole("status").filter({ hasText: "AMI core reachable. Active calls: 0." }).waitFor();
+        assert.ok((await region.textContent())?.includes(response.headers()["x-request-id"]));
+        const statusReader = new DatabaseSync(databasePath, { readOnly: true });
+        try {
+          const audit = statusReader.prepare("SELECT customer, subject, operation, outcome FROM access_audit WHERE request_id = ?")
+            .get(response.headers()["x-request-id"]);
+          assert.deepEqual({ ...audit }, { customer: account.customer, subject: account.subject,
+            operation: "pbx-status", outcome: "pbx_status_checked" });
+        } finally { statusReader.close(); }
+        const foreign = account.customer === "customer-a" ? "customer-b" : "customer-a";
+        assert.equal((await fetch(statusUrl.replace(account.customer, foreign), { headers: { Cookie: cookie } })).status, 403);
+        console.log(`PASS ${account.username}: authenticated browser to real own-customer AMI, durable status audit and cross-customer denial`);
+        if (account.username !== "alice") {
+          await page.getByRole("button", { name: "Refresh pending reports", exact: true }).click();
+          await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
+        }
+      }
       if (account.username === "alice") {
         await page.getByRole("button", { name: `Inspect ${candidate.id}`, exact: true }).waitFor();
         const originalSessionId = sessionCookies[0].value;
@@ -394,6 +429,11 @@ try {
       assert.equal(await page.getByRole("region", { name: "Recorded review history", exact: true }).count(), 0);
       assert.equal((await fetch(reviewRoot, { headers: { Cookie: cookie } })).status, 401);
       assert.equal((await fetch(`${reviewRoot}/history`, { headers: { Cookie: cookie } })).status, 401);
+      if (pbx) {
+        assert.equal(await page.getByRole("region", { name: "PBX operational status", exact: true }).count(), 0);
+        assert.equal((await fetch(`${origin}/api/customers/${account.customer}/pbx/status`,
+          { headers: { Cookie: cookie } })).status, 401);
+      }
       assert.equal((await context.cookies(origin)).filter((cookie) => cookie.name === "asterisk-test-session").length, 0);
       assert.equal(logoutAttempts, account.username === "alice" ? 3 : 1);
       assert.deepEqual(browserErrors, []);

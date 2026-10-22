@@ -1,6 +1,7 @@
 [CmdletBinding()]
-param([switch]$Interactive)
+param([switch]$Interactive, [switch]$WithIdentity)
 $ErrorActionPreference = 'Stop'
+if ($Interactive -and $WithIdentity) { throw 'Choose interactive mode or the combined identity proof, not both.' }
 $root = Split-Path -Parent $PSScriptRoot
 $compose = Join-Path $root 'compose.status-proof.yaml'
 $directory = Join-Path $root '.local-proof\pbx-status'
@@ -62,6 +63,13 @@ write = reporting
         try {
             & node .\tests\identity\pbx-status-proof.ts
             if ($LASTEXITCODE -ne 0) { throw 'Real AMI status proof failed.' }
+            if ($WithIdentity) {
+                $previous = $env:ASTERISK_TEST_REAL_AMI
+                try {
+                    $env:ASTERISK_TEST_REAL_AMI = '1'
+                    & (Join-Path $PSScriptRoot 'Test-IdentityProof.ps1')
+                } finally { $env:ASTERISK_TEST_REAL_AMI = $previous }
+            }
             if ($Interactive) {
                 Write-Host 'Synthetic PBXs are ready. Start the engineering identity launcher in another terminal.'
                 Write-Host 'AMI credentials remain in ignored .local-proof\pbx-status; do not share them.'

@@ -271,6 +271,13 @@ isolation, audit gating and safe output. The local launcher supports optional
 ignored AMI configuration and interactive synthetic runtime demonstrations.
 Production AMI TLS certificates/networking and continuous monitoring remain open.
 
+The combined `Test-PbxStatusProof.ps1 -WithIdentity` proof now joins real Keycloak
+browser sessions, the audited API and both real isolated AMI runtimes. Alice and
+read-only Bob receive own-customer snapshots; request references match persisted
+customer/subject audits, foreign scopes are denied and logout prevents replay.
+Both fixture lifecycles are cleaned up and ordinary identity runs stay independent
+of PBX availability. Remote TLS/production acceptance is still outstanding.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.
