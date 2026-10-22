@@ -998,10 +998,62 @@ or `agent:access`; the route remains unavailable/denied there by default.
 
 This is a read-only identity/assignment foundation, **not a usable phone console**.
 It creates no SIP credentials, WSS connection, device lease, registration, queue
-availability or call controls. Production assignment persistence, provisioning
-workflow, shared-device conflicts and session-bound SIP credential lifecycle must
+availability or call controls. Production provisioning workflow, shared-device conflicts and session-bound SIP credential lifecycle must
 be designed before enabling phone registration. No existing AMI credential is
 repurposed or disclosed to an agent.
+
+#### Persistent operator-provisioned assignments
+
+`openAgentStore(absolutePath)` supplies the same `AgentDirectory` interface from a
+separate versioned SQLite database. Inject the returned store as the API's ninth
+argument and close it during server shutdown. It is separate from the diagnostic
+database: diagnostic backup/restore does **not** include agent assignments.
+Schema creation refuses nonempty unversioned, unsupported or malformed databases.
+Reads validate stored assignments again and return only extension/display name.
+
+The selected provisioning policy is insert-only. `store.provision(assignments)`
+validates the entire batch, commits it in one transaction and returns
+`{ inserted, unchanged }` only after commit. An identical existing assignment is
+accepted; changing its extension **or display name** rejects the whole batch,
+including earlier inserts. Duplicate identities, invalid input, database locks
+and corrupt stored assignments fail explicitly. Reads survive closing/reopening
+the database; changes to returned objects cannot mutate storage.
+
+For trusted operator use, prepare an absolute-path JSON file containing an array:
+
+```json
+[
+  {
+    "issuer": "https://identity.example/realms/customer",
+    "subject": "OIDC_SUBJECT_NOT_USERNAME",
+    "customer": "customer-a",
+    "extension": "1001",
+    "displayName": "Agent Alice"
+  }
+]
+```
+
+Run with existing parent directories and operator-controlled paths, for example:
+
+```powershell
+node .\scripts\Provision-AgentAssignments.ts 'C:\operator-data\agents.sqlite' 'C:\operator-data\assignments.json'
+```
+
+The command prints only inserted/unchanged counts, exits unsuccessfully on a
+conflict or storage failure and never silently replaces an assignment. Provisioning
+does not create membership or grant `agent:access`: provision that independently.
+Protect both the JSON and database as identity metadata. There is no web mutation
+route, provisioning audit/history, reassignment, deletion, extension exclusivity,
+active-device lease, assignment backup tooling or SIP secret in this store.
+Multiple people sharing an extension is not yet a supported phone-session policy;
+metadata persistence must not be treated as permission to enable registration.
+
+Validate persistence and the operator command with
+`node --test .\tests\agent-store.test.ts .\tests\agent-profile.test.ts`.
+The real confidential browser-session proof now provisions SQLite, closes it,
+reopens it as the API directory, and checks the existing profile/audit/customer/
+logout boundaries. The normal local launcher remains unconfigured for agents;
+the CLI does not automatically wire a database into it.
 
 ### Read-only PBX operational status (local AMI proof)
 

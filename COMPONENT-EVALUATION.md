@@ -388,6 +388,17 @@ metadata-only access denial and logout replay. The local launcher has no agent
 provisioning yet. Persistent assignments, conflict handling, session-bound SIP
 credential provisioning and actual phone controls remain later work.
 
+The directory now has a separate SQLite implementation with validated reads and
+atomic operator-only insertions. A JSON provisioning CLI reports inserted/unchanged
+counts, permits identical reruns and rejects changed assignments rather than
+implicitly moving a person. Tests cover exact reopen persistence, scope, returned
+object isolation, batch rollback, conflicts, contention, corruption, schema/path
+refusal and CLI outcomes. The real session proof injects a reopened store.
+This does not publish PBX config, grant membership, create credentials or enforce
+extension/device exclusivity. The separate store is not included in diagnostic
+backups; assignment recovery, provisioning audit/history and reassignment remain
+unimplemented. The ordinary launcher stays unconfigured for agents.
+
 ## 2. Asterisk container
 
 ### Candidates reviewed

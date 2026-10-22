@@ -10,7 +10,7 @@ import { createDiagnosticApi } from "../../src/diagnostic-api.ts";
 import { openDiagnosticStore } from "../../src/diagnostic-store.ts";
 import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
 import type { AmiConnection } from "../../src/pbx-status.ts";
-import { createAgentDirectory } from "../../src/agent-directory.ts";
+import { openAgentStore } from "../../src/agent-store.ts";
 
 const issuer = "http://127.0.0.1:18080/realms/local-proof";
 const origin = "http://127.0.0.1:18766";
@@ -41,6 +41,15 @@ const discovery = await discoveryResponse.json();
 const directory = await mkdtemp(join(tmpdir(), "asterisk-app-session-"));
 const databasePath = join(directory, "diagnostics.sqlite");
 const store = openDiagnosticStore(databasePath);
+const agentPath = join(directory, "agents.sqlite");
+const provisioning = openAgentStore(agentPath);
+const assignments = accounts.filter((account) => account.username === "alice")
+  .map((account) => ({ issuer, subject: account.subject, customer: account.customer, extension: "1001", displayName: "Synthetic agent Alice" }));
+try {
+  assert.deepEqual(provisioning.provision(assignments), { inserted: 1, unchanged: 0 });
+  assert.deepEqual(provisioning.provision(assignments), { inserted: 0, unchanged: 1 });
+} finally { provisioning.close(); }
+const agents = openAgentStore(agentPath);
 const html = "<!doctype html><h1>Synthetic session report</h1>";
 const incident = "incident-" + "a".repeat(32);
 const [candidate] = store.stage([{
@@ -65,8 +74,7 @@ const api = createDiagnosticApi({
   tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
   clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
   allowLoopbackHttpForTests: true,
-}, pbx, endpoints, createAgentDirectory(accounts.filter((account) => account.username === "alice")
-  .map((account) => ({ issuer, subject: account.subject, customer: account.customer, extension: "1001", displayName: "Synthetic agent Alice" }))));
+}, pbx, endpoints, agents);
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   api.listen(18766, "127.0.0.1");
@@ -514,5 +522,6 @@ try {
     await new Promise<void>((resolve, reject) => api.close((error) => error ? reject(error) : resolve()));
   }
   store.close();
+  agents.close();
   await rm(directory, { recursive: true });
 }

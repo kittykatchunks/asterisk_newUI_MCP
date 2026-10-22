@@ -369,8 +369,18 @@ directory errors and audit failures are explicit. No SIP or AMI secret is expose
 Focused tests cover scope, permission, mutation, allowlisting and failure boundaries.
 The real confidential browser-session proof checks Alice's assignment, durable
 audit, diagnostics-only Bob denial, foreign denial and logout replay denial.
-Production assignment storage, provisioning and session-bound SIP credential
-lifecycle remain open; the ordinary engineering launcher grants no agent access.
+Production provisioning workflow and session-bound SIP credential lifecycle
+remain open; the ordinary engineering launcher grants no agent access.
+
+Assignment metadata now also has a separate versioned SQLite store and a trusted
+operator JSON provisioning CLI. The selected insert-only policy permits identical
+reruns but atomically rejects changed extension/display-name values, duplicates,
+invalid entries and late-batch conflicts. Stored reads are validated and tested
+across reopen; contention, corruption and schema errors fail explicitly.
+The confidential browser-session proof now reads from a closed/reopened store.
+This does not provision memberships, SIP credentials, device leases or launcher
+access. Provisioning audit/history, reassignment/conflict policy and assignment
+backup/restore remain open; diagnostic backups do not cover this separate store.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.
