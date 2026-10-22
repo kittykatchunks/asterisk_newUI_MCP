@@ -375,6 +375,19 @@ when explicitly requested. Regression checks cover real review, restart,
 port/fixture ownership and shutdown. This remains a synthetic local fixture with
 regenerated development identity, not production deployment or identity storage.
 
+### Agent-console identity boundary
+
+The first authenticated agent-console increment adds a copied, operator-provisioned
+issuer/subject/customer assignment directory and an independently permissioned,
+audited own-profile API. Only direct membership with `agent:access` is accepted;
+diagnostics roles and temporary support grants cannot confer phone identity.
+Output is limited to extension/display name, with no SIP/AMI credential or device
+lease. API failures deny disclosure rather than inventing an assignment.
+Focused tests and real confidential browser sessions verify scope, audit gating,
+metadata-only access denial and logout replay. The local launcher has no agent
+provisioning yet. Persistent assignments, conflict handling, session-bound SIP
+credential provisioning and actual phone controls remain later work.
+
 ## 2. Asterisk container
 
 ### Candidates reviewed

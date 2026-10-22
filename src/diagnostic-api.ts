@@ -9,6 +9,7 @@ import { handleReviewRequest } from "./review-http.ts";
 import { createApplicationSessions } from "./application-session.ts";
 import type { ApplicationSessionConfig } from "./application-session.ts";
 import type { PbxStatusSource, PbxEndpointSource } from "./pbx-status.ts";
+import type { AgentDirectory } from "./agent-directory.ts";
 
 export interface AccessAudit {
   requestId: string;
@@ -18,7 +19,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "session-login" | "session-logout";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout";
   incident?: string;
 }
 
@@ -31,10 +32,12 @@ export function createDiagnosticApi(
   sessionConfig?: ApplicationSessionConfig,
   pbx?: PbxStatusSource,
   pbxEndpoints?: PbxEndpointSource,
+  agents?: AgentDirectory,
 ) {
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
       sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
   const sessions = sessionConfig ? createApplicationSessions(sessionConfig) : undefined;
+  const identityIssuer = config.issuer;
   const verify = createAccessVerifier(config);
   return createServer(async (request, response) => {
     const requestId = randomUUID();
@@ -82,6 +85,39 @@ export function createDiagnosticApi(
       const reviewMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics\/reviews(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/);
       const pbxMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/status$/);
       const endpointMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/endpoints$/);
+      const agentMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/profile$/);
+      if (agentMatch) {
+        customer = agentMatch[1];
+        const access = await verify(request.headers.authorization, customer, "agent:access");
+        let status = access.allowed ? 200 : access.status;
+        let outcome = access.allowed ? "agent_profile_viewed" : access.code;
+        let profile;
+        if (access.allowed) {
+          if (request.method !== "GET") {
+            status = 405; outcome = "method_not_allowed"; response.setHeader("Allow", "GET");
+          } else if (!agents) {
+            status = 503; outcome = "agent_directory_unavailable";
+          } else {
+            try {
+              profile = agents.profile(identityIssuer, access.subject, customer);
+              if (!profile) { status = 404; outcome = "agent_not_assigned"; }
+              else if (typeof profile.extension !== "string" || !/^[0-9]{1,16}$/.test(profile.extension) || typeof profile.displayName !== "string" ||
+                  !profile.displayName.trim() || profile.displayName.length > 128 ||
+                  /[\x00-\x1f\x7f]/.test(profile.displayName)) throw new Error("Invalid provisioned agent profile");
+            } catch (error) {
+              logError(error, requestId);
+              status = 503; outcome = "agent_directory_unavailable";
+            }
+          }
+        }
+        await audit({ requestId, timestamp: new Date().toISOString(), customer, status, outcome,
+          operation: "agent-profile", ...(access.allowed ? { subject: access.subject, basis: access.basis } : {}) });
+        request.resume();
+        if (status !== 200 || !profile) { send(status, outcome); return; }
+        response.writeHead(200).end(JSON.stringify({ requestId, customer,
+          agent: { extension: profile.extension, displayName: profile.displayName } }));
+        return;
+      }
       if (endpointMatch) {
         customer = endpointMatch[1];
         const access = await verify(request.headers.authorization, customer, "diagnostics:read");

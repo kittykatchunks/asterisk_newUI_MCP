@@ -956,6 +956,53 @@ status. Replacing the connection during that read clears history and aborts the
 old request; releasing its late response cannot populate the new connection or
 overwrite it with an abort error. Neither path sends a decision POST.
 
+### Authenticated agent-console foundation (assignment metadata only)
+
+`GET /api/customers/{customer}/agent/profile` introduces the first authenticated
+agent-console boundary. It requires explicit provisioned membership with
+`agent:access`, independently of all diagnostics permissions. Support grants cannot
+confer this permission, even if configured with that value. Token roles, query
+parameters, usernames and caller-supplied extension values do not choose an agent.
+
+Inject a `createAgentDirectory` result as the optional ninth `createDiagnosticApi`
+argument. Each operator-provisioned assignment contains `issuer`, `subject`,
+`customer`, numeric-string `extension` (1–16 digits) and `displayName` (1–128
+characters without control characters). Lookup binds all three identity/scope
+fields exactly; duplicate identity/customer entries fail at construction. The
+directory copies its configuration and returns fresh allowlisted profile objects.
+The API validates output again and discloses only:
+
+```json
+{
+  "requestId": "SERVER_GENERATED_UUID",
+  "customer": "customer-a",
+  "agent": { "extension": "1001", "displayName": "Synthetic agent Alice" }
+}
+```
+
+The route is GET-only, `no-store`, request-correlated and audited with operation
+`agent-profile`/outcome `agent_profile_viewed` before disclosure. An authorised but
+unassigned member receives 404 `agent_not_assigned`; an absent or invalid directory
+returns 503, not an invented extension. Permission failures are 401/403, non-GET
+requests from authorised members are 405, and audit failure blocks the profile.
+Existing confidential application sessions work without browser bearer tokens.
+
+Validate with `node --test .\tests\agent-profile.test.ts` and
+`.\scripts\Test-IdentityProof.ps1`. The real browser-session proof provisions Alice
+only, verifies her own profile and durable subject/customer/request audit, denies
+diagnostics-only Bob and foreign scopes, and rejects cookie replay after logout.
+Unit/API tests additionally cover support denial, mutation isolation, missing
+assignments, invalid output, directory failure, extra-field stripping and audit
+failure. The local engineering launcher does not yet provision agent assignments
+or `agent:access`; the route remains unavailable/denied there by default.
+
+This is a read-only identity/assignment foundation, **not a usable phone console**.
+It creates no SIP credentials, WSS connection, device lease, registration, queue
+availability or call controls. Production assignment persistence, provisioning
+workflow, shared-device conflicts and session-bound SIP credential lifecycle must
+be designed before enabling phone registration. No existing AMI credential is
+repurposed or disclosed to an agent.
+
 ### Read-only PBX operational status (local AMI proof)
 
 `GET /api/customers/{customer}/pbx/status` requires provisioned

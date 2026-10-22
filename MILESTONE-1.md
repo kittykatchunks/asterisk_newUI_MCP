@@ -358,6 +358,20 @@ continuity or a deployment/recovery acceptance pass.
 
 Parent document: [Project plan](./PROJECT-PLAN.md).
 
+### Authenticated agent-console foundation
+
+The selected next milestone starts with read-only own-assignment metadata, not
+phone registration. A provisioned issuer/subject/customer directory and independent
+membership-only `agent:access` permission gate `GET .../agent/profile`. Diagnostics
+permissions and temporary support grants cannot grant agent-phone identity.
+Only extension/display name are returned, after audit; missing assignments,
+directory errors and audit failures are explicit. No SIP or AMI secret is exposed.
+Focused tests cover scope, permission, mutation, allowlisting and failure boundaries.
+The real confidential browser-session proof checks Alice's assignment, durable
+audit, diagnostics-only Bob denial, foreign denial and logout replay denial.
+Production assignment storage, provisioning and session-bound SIP credential
+lifecycle remain open; the ordinary engineering launcher grants no agent access.
+
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based
 shortlist, proof gates, and limited Asterisk runtime results.
 

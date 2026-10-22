@@ -10,6 +10,7 @@ import { createDiagnosticApi } from "../../src/diagnostic-api.ts";
 import { openDiagnosticStore } from "../../src/diagnostic-store.ts";
 import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
 import type { AmiConnection } from "../../src/pbx-status.ts";
+import { createAgentDirectory } from "../../src/agent-directory.ts";
 
 const issuer = "http://127.0.0.1:18080/realms/local-proof";
 const origin = "http://127.0.0.1:18766";
@@ -54,7 +55,7 @@ const api = createDiagnosticApi({
   issuer, audience: "diagnostic-api", jwksUrl: discovery.jwks_uri, allowLoopbackHttpForTests: true,
   memberships: accounts.map((account) => ({
     issuer, subject: account.subject, customer: account.customer,
-    permissions: account.username === "alice" ? ["diagnostics:read", "diagnostics:report", "diagnostics:review"] : ["diagnostics:read"],
+    permissions: account.username === "alice" ? ["diagnostics:read", "diagnostics:report", "diagnostics:review", "agent:access"] : ["diagnostics:read"],
   })), supportGrants: [],
 }, async (event) => {
   if (failLogoutAudit && event.operation === "session-logout") throw logoutAuditFailure;
@@ -64,7 +65,8 @@ const api = createDiagnosticApi({
   tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
   clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
   allowLoopbackHttpForTests: true,
-}, pbx, endpoints);
+}, pbx, endpoints, createAgentDirectory(accounts.filter((account) => account.username === "alice")
+  .map((account) => ({ issuer, subject: account.subject, customer: account.customer, extension: "1001", displayName: "Synthetic agent Alice" }))));
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   api.listen(18766, "127.0.0.1");
@@ -128,6 +130,25 @@ try {
       assert.equal(sessionCookies[0].httpOnly, true);
       assert.equal(sessionCookies[0].sameSite, "Lax");
       const cookie = `${sessionCookies[0].name}=${sessionCookies[0].value}`;
+      const agentUrl = `${origin}/api/customers/${account.customer}/agent/profile`;
+      const agentRead = await page.evaluate(async (url) => {
+        const response = await fetch(url);
+        return { status: response.status, requestId: response.headers.get("x-request-id"), body: await response.json() };
+      }, agentUrl);
+      assert.equal(agentRead.status, account.username === "alice" ? 200 : 403);
+      if (account.username === "alice") {
+        assert.deepEqual(agentRead.body, { requestId: agentRead.requestId, customer: account.customer,
+          agent: { extension: "1001", displayName: "Synthetic agent Alice" } });
+        const agentAudit = new DatabaseSync(databasePath, { readOnly: true });
+        try {
+          const recorded = agentAudit.prepare("SELECT customer, subject, operation, outcome FROM access_audit WHERE request_id = ?")
+            .get(agentRead.requestId);
+          assert.deepEqual({ ...recorded }, { customer: account.customer, subject: account.subject,
+            operation: "agent-profile", outcome: "agent_profile_viewed" });
+        } finally { agentAudit.close(); }
+      }
+      const foreignAgent = account.customer === "customer-a" ? "customer-b" : "customer-a";
+      assert.equal((await fetch(agentUrl.replace(account.customer, foreignAgent), { headers: { Cookie: cookie } })).status, 403);
       const reviewRoot = `${origin}/api/customers/${account.customer}/diagnostics/reviews`;
       if (pbx) {
         if (account.username === "alice") {
@@ -462,6 +483,7 @@ try {
       assert.equal(await page.getByTitle("Rendered report preview").count(), 0);
       assert.equal(await page.getByRole("region", { name: "Recorded review history", exact: true }).count(), 0);
       assert.equal((await fetch(reviewRoot, { headers: { Cookie: cookie } })).status, 401);
+      assert.equal((await fetch(agentUrl, { headers: { Cookie: cookie } })).status, 401);
       assert.equal((await fetch(`${reviewRoot}/history`, { headers: { Cookie: cookie } })).status, 401);
       if (pbx) {
         assert.equal(await page.getByRole("region", { name: "PBX operational status", exact: true }).count(), 0);

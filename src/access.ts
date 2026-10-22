@@ -1,12 +1,13 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export type DiagnosticPermission = "diagnostics:read" | "diagnostics:report" | "diagnostics:review";
+export type CustomerPermission = DiagnosticPermission | "agent:access";
 
 export interface Membership {
   issuer: string;
   subject: string;
   customer: string;
-  permissions: readonly DiagnosticPermission[];
+  permissions: readonly CustomerPermission[];
 }
 
 export interface SupportGrant extends Membership {
@@ -49,7 +50,7 @@ export function createAccessVerifier(config: AccessConfig) {
         !/^[a-z0-9][a-z0-9-]{0,63}$/.test(membership.customer) ||
         membership.permissions.some((permission) =>
           permission !== "diagnostics:read" && permission !== "diagnostics:report" &&
-          permission !== "diagnostics:review")) {
+          permission !== "diagnostics:review" && permission !== "agent:access")) {
       throw new Error("Invalid provisioned customer membership");
     }
   }
@@ -69,7 +70,7 @@ export function createAccessVerifier(config: AccessConfig) {
   return async (
     authorization: string | undefined,
     customer: string,
-    permission: DiagnosticPermission = "diagnostics:read",
+    permission: CustomerPermission = "diagnostics:read",
   ): Promise<AccessResult> => {
     const match = authorization?.match(/^Bearer ([A-Za-z0-9_.-]+)$/);
     if (!match) return { allowed: false, status: 401, code: "invalid_bearer_token" };
@@ -98,6 +99,7 @@ export function createAccessVerifier(config: AccessConfig) {
     const permits = (entry: Membership) => entry.subject === subject &&
       entry.customer === customer && entry.permissions.includes(permission);
     if (memberships.some(permits)) return { allowed: true, subject, basis: "membership" };
+    if (permission === "agent:access") return { allowed: false, status: 403, code: "customer_access_denied" };
     const now = Date.now() / 1000;
     if (grants.some((grant) => permits(grant) && grant.startsAt <= now && now < grant.expiresAt)) {
       return { allowed: true, subject, basis: "support-grant" };
