@@ -1627,6 +1627,11 @@ dynamic contact does not make every contact a current or reachable registration.
 
 #### Isolated per-lease SIP credential/revocation proof
 
+Next architecture: the [customer-local provisioning worker plan](./AGENT-PROVISIONING-PLAN.md)
+defines a proposed narrow authenticated worker boundary, durable operations,
+reconciliation and call-drain gates. It is a plan, not an implemented provisioning
+service; the web application has no Docker/config-file provisioning access.
+
 `Test-PbxStatusProof.ps1` now also runs
 `tests\identity\pbx-device-credential-proof.ts`. For each customer it acquires a
 real backend SQLite device lease, generates a fresh `lease-<lease UUID>` SIP

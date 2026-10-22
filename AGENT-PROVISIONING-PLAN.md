@@ -1,0 +1,276 @@
+# Customer-local agent provisioning worker
+
+Planning baseline: 22 October 2026.
+
+Status: proposed implementation contract, not an implemented service or a production
+approval. The customer-local, narrowly authenticated worker boundary was selected.
+Storage engine, certificate operations and production deployment remain provisional.
+Browser phone activation stays disabled until the acceptance gates below pass.
+
+Related: [Project plan](./PROJECT-PLAN.md), [Milestone 1](./MILESTONE-1.md),
+[executed proofs](./README.md#isolated-per-lease-sip-credentialrevocation-proof).
+
+## 1. Agreements and current evidence
+
+- One Asterisk instance per customer.
+- Agent identity is issuer + verified subject + customer, independent of device.
+- Reject a second device while a lease is active; require release or expiry.
+- Stop new offers on sign-out, finish the current call, then release the phone
+  session. Do not silently replace this with unconditional hangup.
+- Assignment provisioning is insert-only; no implicit reassignment.
+- The web application must not receive Docker, shell, arbitrary Asterisk command
+  or PBX configuration-file access.
+
+Implemented today:
+
+- `src/agent-device-lease.ts` serialises exclusive SQLite reservations, with
+  explicit renewal capped at 60 seconds and the verified application-session expiry.
+  `current(owner, leaseId)` is a non-mutating, scoped ownership read.
+- `src/agent-device-http.ts` requires a customer-bound application session, CSRF,
+  direct `agent:access` membership and a valid assignment. Its audit is a pre-change
+  intent, not a provisioning result receipt.
+- The console holds page-device and lease IDs in memory. There is no automatic
+  heartbeat, SIP credential delivery or calling.
+- The fixture installs unique per-lease SIP credentials, rejects foreign/retired
+  credentials, and removes endpoints/contact state after release or real renewed
+  lease expiry. The scheduler observes committed renewal through another SQLite
+  connection. These are fixture-owner file writes and Docker CLI reloads only.
+
+Not proven: active-dialog draining, prevention of all new call paths after
+revocation, application-to-worker authentication, durable provisioning recovery,
+production WSS trust, or production capacity. A contact is not a phone-readiness
+verdict. The existing Compose files are proof deployments, not this architecture.
+
+## 2. Boundary and deployment
+
+```text
+Browser -- HTTPS/session+CSRF --> Application
+                                  |
+                     authorise + commit desired state/outbox
+                                  |
+                           authenticated dispatcher
+                                  |
+                         private mTLS connection
+                                  v
+                    Worker pinned to one customer
+                      |                 |
+              local durable state   fixed PBX adapter
+                                        |
+                              that customer's Asterisk
+```
+
+Recommendation: one worker process/container per customer, bound to a private
+management network and one configured customer ID. An authenticated caller cannot
+change that binding through a URL/body field. No host-published worker port is
+needed in the initial Compose proof.
+
+The worker receives only that customer's managed include directory and required
+local PBX control access. Base configuration, other customers' files, host root,
+Docker socket, recording storage and diagnostic captures are not mounted. Run as
+a dedicated non-root identity with bounded CPU/memory, no extra capabilities and
+bounded request/log storage.
+
+Candidate first adapter: generated PJSIP include files plus a fixed reload
+operation through customer-local Asterisk control access. The controller must
+generate a complete allowlisted model, never interpolate caller-provided config.
+A sidecar's access to Asterisk's control socket is powerful even if its remote
+API is narrow; compromise of that worker is a compromise of its customer PBX.
+Prove socket permissions and reload behaviour in a separate fixture before
+adopting this adapter. Do not expand the existing read-only/reporting AMI accounts.
+Realtime PJSIP remains an alternative if file/reload consistency cannot meet gates.
+
+Use one local writer lock across journal reconciliation, include generation and
+reload. Fence duplicate worker processes; an expired generation's cleanup must
+never overwrite a replacement generation's include. Atomic rename requires a
+directory mount, not the current fixture's individual bind-mounted config file.
+Neither a reload timeout nor the appearance of a new file proves runtime apply.
+
+## 3. Authentication and command envelope
+
+Recommendation: verified mTLS in both directions. A deployment-managed mapping
+binds the controller certificate identity to a permitted customer; the application
+pins the expected worker/customer identity. Reject untrusted, expired, wrong-name
+and foreign-customer certificates before accepting commands. Never forward a
+browser bearer token or raw application-session cookie to the worker.
+
+Each command has a strict versioned JSON envelope:
+
+| Field | Meaning |
+| --- | --- |
+| `version` | Exact supported protocol version; initially 1. |
+| `operationId` | UUID generated and committed by the backend before dispatch. |
+| `customer` | Must equal both the worker binding and the certificate's permission. |
+| `epoch` | Provisioned controller-authority epoch, not self-selected by a request. |
+| `revision` | Increasing desired-state revision within that epoch/customer. |
+| `leaseId` | Exact reservation generation; never substitute the newest lease implicitly. |
+| `notAfter` | Absolute authorisation deadline, no later than verified backend ownership. |
+| `action` | One of the fixed actions below. |
+| `payload` | Action-specific allowlisted data, with no file paths or command strings. |
+
+Proposed fixed actions:
+
+- `prepare`: generate a unique credential generation and install a disabled
+  endpoint/authentication model; no routing, queue membership or browser disclosure.
+- `activate`: enable only an already-prepared generation after backend ownership
+  and worker deadline checks. Readiness still requires separate registration/media checks.
+- `extend`: update the same lease/generation deadline, never past fresh backend
+  authorisation. It must not create or reactivate an absent/draining generation.
+- `drain`: irreversibly disable new offers and new sessions for this generation,
+  retaining only already-observed dialogs according to the drain policy.
+- `revoke`: remove credential/new-session access; report separately whether any
+  existing dialogs remain. Not an implicit emergency hangup.
+- `operation`: exact durable receipt lookup by operation UUID; no re-execution.
+
+The worker serialises revisions per customer. A stale epoch/revision or a reused
+operation UUID with a different canonical payload hash is a conflict, never a
+success-shaped fallback. An identical retry returns the recorded operation status.
+Sequence gaps return an explicit reconciliation requirement; they do not apply
+later commands out of order. A status lookup is authenticated and customer-scoped.
+Initial request limits should reuse the bounded JSON-reader pattern, with explicit
+body/deadline/capacity limits measured against the actual envelope before release.
+
+Certificate rotation may overlap trusted identities temporarily, but does not
+reset revision/epoch state. Authority replacement requires an operator-controlled
+epoch transition that fences the old controller. A restored backup must not rewind
+live fencing state or allow its old credentials to become active again.
+
+## 4. Durable state and reconciliation
+
+Use a dedicated provisioning store, not the diagnostic database or assignment
+backup. SQLite is sufficient for the first single-controller proof; PostgreSQL
+remains the project's provisional production choice. Storage selection does not
+change the desired-state/receipt contract.
+
+Backend transaction:
+
+1. Validate the current customer session, direct permission, assignment and lease.
+2. Reserve the extension/agent mapping needed for phone activation. Existing
+   assignments allow two people to share an extension: reject ambiguous activation
+   until exclusivity/routing is explicit; do not change insert-only assignments.
+3. Commit desired generation/revision, operation UUID, actor/request correlation
+   and an outbox item atomically. Do not claim PBX success in this transaction.
+4. A dispatcher sends the exact committed operation. Network timeout leaves it
+   pending/uncertain; reconcile the same UUID rather than inventing a new credential.
+
+Worker durable journal: operation UUID/hash, epoch/revision, lease/generation,
+authorisation deadline, desired model digest, stage, timestamps and sanitised
+error code. Keep secrets outside plaintext journals, receipts, traces and logs.
+Persist intent before changing the PBX; persist observed outcome before reporting
+completion. File replacement and Asterisk reload are not one transaction.
+
+Stages: `accepted`, `applying`, `verified`, `failed` or `uncertain`.
+Verification must inspect the intended runtime objects and generation, not merely
+the reload command's exit code. Partial apply, timeout or mismatched runtime state
+remains unavailable for credential delivery and call routing.
+
+On worker restart:
+
+1. Load deadlines, fencing state and incomplete operations from durable storage.
+2. Keep new offers disabled until customer identity, current authority and runtime
+   inventory reconcile. An unavailable controller does not extend a deadline.
+3. Resolve interrupted apply against the generated model and actual PBX inventory.
+   Retire unknown/expired managed generations; do not touch unrelated base objects.
+4. Reconcile receipts with the backend outbox. Missing operation lookup does not
+   prove the PBX change never happened.
+
+The worker must locally enforce its stored deadline even while disconnected from
+the backend. Use a monotonic countdown while running and a checked wall clock for
+persisted deadlines. Backward time jumps or uncertain clock health must not extend
+authorisation; define and test bounded fail-closed behaviour. Forward jumps drain
+early with an explicit operational event. Do not treat database corruption or
+read errors as harmless missing leases.
+
+## 5. Credentials and browser delivery
+
+Recommendation: worker-generated random per-generation SIP credentials, not a
+shared extension password. The worker needs recoverable secret material for
+idempotent prepare/recovery, so seal it under an operator-provided key mounted
+separately from the database. Do not invent custom cryptography. Select a
+maintained authenticated-encryption implementation/key source before coding this
+surface. A missing/wrong key is an explicit failure, never replacement issuance.
+
+Generated Asterisk auth configuration still contains usable credential material.
+Restrict its owner/mode and mount scope, exclude it from ordinary report/assignment
+backups, and define protected recovery and deletion separately. Sealing the journal
+does not encrypt Asterisk's live configuration or make a worker compromise harmless.
+
+Application delivery is a separate gated step: authenticate/authorise again,
+revalidate the exact lease and active verified generation, then return only its
+credential and approved SIP connection parameters over HTTPS with `no-store`.
+Secrets remain memory-only in the page; no query strings, localStorage, diagnostics
+or shared credentials. WSS certificate verification must work without fixture
+exemptions. Do not add this endpoint during the intent-store/worker milestones.
+
+Delivery timeout is uncertain, not proof that the page never received a secret.
+Re-disclosure to the same still-authorised generation must be explicitly audited
+and bounded; retries must not generate extra active identities. SIP digest alone
+does not make a password expire: worker enforcement and new-call fencing are
+required. Secret loss, authority restore and key rotation require reconciliation
+or re-issuance after revoking the old generation, not an untracked fallback.
+
+## 6. Drain, lease expiry and sign-out
+
+Maintain separate ownership, credential, routing and dialog state. In particular:
+
+| State/event | Required behaviour |
+| --- | --- |
+| Prepared | No browser secret disclosure, queue offers or new calls. |
+| Active | One verified generation; explicit lease extension only. |
+| Sign-out or release | Disable new offers immediately; enter irreversible drain. |
+| Lease/controller deadline | Stop new calls/offers locally, even if the backend is unreachable. |
+| Draining with observed dialogs | Finish current call; never route a new offer to this generation. |
+| No remaining dialogs | Revoke generation, verify removal, then complete phone-session release. |
+| Runtime/dialog state unknown | Block replacement activation; report uncertain state, not idle. |
+
+The current reservation-only release API immediately deletes the reservation.
+It must not be reused unchanged for a connected phone: keep an independent
+draining generation/activation lock until the dialog policy resolves. A new
+reservation must not bypass a draining old phone. Ordinary application sign-out
+can invalidate the browser session without giving its expired token control over
+the worker; completion of call draining is server-owned.
+
+Removing PJSIP authentication or a contact is not sufficient proof that every new
+INVITE, outbound call, queue offer or transfer path is blocked. Prove a
+generation-aware routing/dialplan fence, cover cached authentication and
+retransmissions, and correlate dialogs to the exact generation. Existing dialog
+signalling needed to finish the call must remain possible after sign-out.
+
+Open policy gates: what to do when a call never ends, the maximum drain duration,
+emergency disconnect permissions, transfer semantics, and whether device takeover
+may proceed after an operator override. Do not choose a forced-hangup timeout
+implicitly. Until decided, an unresolved drain blocks activation and alerts an
+operator; it does not grant unbounded new-call access.
+
+## 7. Audit and operational visibility
+
+Keep the existing unique-request access audit unchanged. Add provisioning operation
+events/receipts keyed by operation UUID plus stage/revision; one HTTP request may
+start a long-running operation with multiple durable transitions. Correlate them
+without inserting several access-audit rows with the same request ID.
+
+Expose only scoped state, operation UUID, generation, deadline, sanitised errors
+and reconciliation lag. Do not label `accepted` as activated, `verified` as
+registered, or registered as media-ready. Alert on expired-but-not-revoked state,
+unknown runtime generations, drain uncertainty, failed receipts and worker outage.
+Document retention and protect all-customer backend metadata separately from each
+customer worker's local state.
+
+## 8. Implementation order and acceptance gates
+
+Each stage remains off by default. No web Docker/config access is introduced.
+
+| Stage | Deliverable | Required acceptance before advancing |
+| --- | --- | --- |
+| A | Durable backend desired-state/outbox and worker journal contract, no secrets or PBX adapter. | Atomic intent/audit, exact retry/hash conflict, epoch/revision ordering, cross-customer denial, reopen/lock/corruption, timeout reconciliation. |
+| B | Customer-pinned mTLS worker with fake adapter. | Foreign/invalid certificates rejected, fixed actions only, no arbitrary commands/paths, bounded input, duplicate delivery, crash between each stage, disconnected expiry. |
+| C | Owned Asterisk adapter, no browser delivery. | Generated-file/runtime verification, interrupted apply/restart, renewal survives old deadline, expired/released/unknown generations fenced, unrelated customer/base objects unchanged. |
+| D | Call-aware routing fence and drain. | New inbound/outbound/queue/transfer paths denied while an existing synthetic call completes; unknown dialog state blocks replacement; chosen emergency/drain policies verified. |
+| E | HTTPS/WSS credential delivery and browser activation. | Live session/lease/generation checks, uncertain delivery recovery, no secret leakage/storage, real verified TLS, explicit readiness, two-way audio and logout-during-call acceptance. |
+
+Before stage C, choose and prove the fixed PBX adapter/control-socket privilege
+model. Before stage D, decide the outstanding call policies above. Before stage E,
+select secret sealing/key lifecycle and real ingress trust. These are approval
+gates, not assumptions authorised by this plan.
+
+Next recommended implementation: stage A only. It provides durable coordination
+without claiming a working phone or expanding PBX privileges.

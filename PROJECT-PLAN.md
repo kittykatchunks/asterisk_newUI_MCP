@@ -113,6 +113,17 @@ support for operating dispatch systems internationally.
 These are logical boundaries, not a requirement to create a microservice for each.
 Start the management backend as a modular application.
 
+### Proposed agent provisioning boundary
+
+The selected next boundary is a customer-local provisioning worker exposing fixed
+authenticated operations; the web application receives no Docker socket, shell or
+PBX configuration-file access. See the
+[agent provisioning worker plan](./AGENT-PROVISIONING-PLAN.md) for the proposed
+protocol, durable intent/receipt reconciliation, per-generation credentials,
+call-aware draining and staged acceptance gates. This service is not implemented.
+Its storage, mTLS operations, PBX adapter and secret-key lifecycle are provisional;
+browser phone activation remains disabled.
+
 MCP does not transport the live telephone audio. Live media uses a separate
 Asterisk integration, with ARI/external media as the candidate approach.
 
