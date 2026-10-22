@@ -777,6 +777,17 @@ destructive or disclosure action. Browser tests verify Tab from the heading to
 evidence search, error/list focus and Enter cancelling a newly opened approval
 dialog without a POST. These checks are not a complete accessibility audit.
 
+Session-bootstrap and unconfirmed-logout errors display the response's
+`X-Request-Id` for correlation with server logs. Only UUID-shaped references are
+shown; missing/invalid headers and network failures explicitly show `unavailable`,
+not a fabricated ID. Headers are used even for malformed JSON responses, and
+references are rendered as text without exposing session cookies or CSRF values.
+The real-login fixture verifies a failed logout's visible reference exactly
+matches the HTTP header and server error logger, alongside bootstrap malformed,
+missing/invalid-reference and transport-failure cases. An audit failure may leave
+no durable audit row; the ID then correlates with the operational error logger,
+not a claimed successful logout receipt.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

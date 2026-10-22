@@ -185,6 +185,11 @@ after requests finish. Dialog autofocus defaults to Cancel, with browser tests
 for Tab progression and Enter cancellation without POST. This is focused UX
 coverage, not a complete accessibility certification.
 
+Session bootstrap/logout failures expose validated UUID request references from
+response headers. Real-login tests correlate logout audit failure with the server
+error logger and verify explicit unavailable references for transport or invalid
+headers, without introducing successful-looking audit receipts.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

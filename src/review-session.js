@@ -15,10 +15,18 @@ login.href = `/auth/login?customer=${encodeURIComponent(match[1])}`;
 bar.append(status, expiryWarning, login);
 document.body.prepend(bar);
 
+/** @param {Response} response */
+function requestReference(response) {
+  const id = response.headers.get("X-Request-Id");
+  return id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) ? id : "unavailable";
+}
+
+let bootstrapRequestId = "unavailable";
 try {
   const response = await fetch("/auth/session", {
     credentials: "same-origin", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000),
   });
+  bootstrapRequestId = requestReference(response);
   if (response.status === 401) {
     status.textContent = "Sign in to review reports.";
   } else {
@@ -59,6 +67,7 @@ try {
       status.textContent = "Application session is no longer valid. Sign in again. Check the report state before retrying any decision.";
     }
     logout.onclick = async () => {
+      let logoutRequestId = "unavailable";
       logout.disabled = true;
       status.setAttribute("role", "status");
       status.textContent = "Signing out...";
@@ -68,6 +77,7 @@ try {
           headers: { "X-CSRF-Token": csrf },
           signal: AbortSignal.timeout(15000),
         });
+        logoutRequestId = requestReference(result);
         if (result.status === 401) {
           stopSessionUi();
           workspace.abort();
@@ -82,7 +92,7 @@ try {
         if (ended) return;
         status.setAttribute("role", "alert");
         const detail = error instanceof Error ? error.message : "Unknown sign-out error";
-        status.textContent = `Sign out was not confirmed. The session may still be active. Retry sign out. ${detail}`;
+        status.textContent = `Sign out was not confirmed. The session may still be active. Retry sign out. ${detail} (request ${logoutRequestId}).`;
         logout.disabled = false;
       }
     };
@@ -118,7 +128,8 @@ try {
   }
 } catch (error) {
   status.setAttribute("role", "alert");
-  status.textContent = error instanceof Error ? error.message : "Session connection failed";
+  const detail = error instanceof Error ? error.message : "Session connection failed";
+  status.textContent = `${detail} (session bootstrap request ${bootstrapRequestId}).`;
   const retry = document.createElement("button");
   retry.textContent = "Retry session connection";
   retry.onclick = () => {

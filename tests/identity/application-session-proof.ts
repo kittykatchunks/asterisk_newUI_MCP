@@ -28,6 +28,7 @@ const [candidate] = store.stage([{
   report: { html, sha256: createHash("sha256").update(html).digest("hex") },
 }]);
 const errors: unknown[] = [];
+const errorRequestIds: string[] = [];
 const logoutAuditFailure = new Error("Synthetic logout audit failure");
 let failLogoutAudit = false;
 const api = createDiagnosticApi({
@@ -39,7 +40,7 @@ const api = createDiagnosticApi({
 }, async (event) => {
   if (failLogoutAudit && event.operation === "session-logout") throw logoutAuditFailure;
   await store.audit(event);
-}, (error) => errors.push(error), store.catalog, store, {
+}, (error, requestId) => { errors.push(error); errorRequestIds.push(requestId); }, store.catalog, store, {
   origin, issuer, authorizationEndpoint: discovery.authorization_endpoint,
   tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
   clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
@@ -69,19 +70,24 @@ try {
       await page.getByText("Sign in to review reports.", { exact: true }).waitFor();
       assert.equal(apiRequests.length, 0);
       if (account.username === "alice") {
-        for (const failure of ["server", "malformed", "network"]) {
+        for (const failure of ["server", "malformed", "network", "invalid-id", "missing-id"]) {
+          const reference = "12345678-1234-1234-1234-123456789abc";
           let bootstraps = 0;
           await page.route("**/auth/session", (route) => {
             bootstraps++;
             if (failure === "network") return route.abort("failed");
             return route.fulfill({
-              status: failure === "server" ? 503 : 200,
+              status: failure === "malformed" ? 200 : 503,
+              headers: failure === "missing-id" ? {} : { "X-Request-Id": failure === "invalid-id" ? "<img src=x>private-reference" : reference },
               contentType: "application/json", body: failure === "server" ? "{}" : "{",
             });
           });
           await page.reload();
           await page.getByRole("button", { name: "Retry session connection", exact: true }).waitFor();
           assert.equal(await page.getByRole("alert").textContent() !== "", true);
+          const message = await page.getByRole("alert").textContent();
+          assert.ok(message?.includes(`session bootstrap request ${["network", "invalid-id", "missing-id"].includes(failure) ? "unavailable" : reference}`));
+          assert.ok(!message?.includes("private-reference"));
           assert.equal(await page.getByRole("link", { name: "Sign in", exact: true }).isVisible(), true);
           assert.equal(await page.getByRole("region", { name: "Pending reports", exact: true }).count(), 0);
           assert.equal(apiRequests.length, 0);
@@ -331,8 +337,14 @@ try {
       if (account.username === "alice") {
         failLogoutAudit = true;
         try {
+          const failedLogout = page.waitForResponse((response) => response.url() === origin + "/auth/logout");
           await page.getByRole("button", { name: "Sign out", exact: true }).click();
           await page.getByRole("alert").filter({ hasText: "Sign out was not confirmed." }).waitFor();
+          const failureResponse = await failedLogout;
+          const failureRequestId = failureResponse.headers()["x-request-id"];
+          assert.match(failureRequestId, /^[0-9a-f-]{36}$/);
+          assert.equal(errorRequestIds[0], failureRequestId);
+          assert.ok((await page.getByRole("alert").filter({ hasText: "Sign out was not confirmed." }).textContent())?.includes(`request ${failureRequestId}`));
           assert.equal(await page.getByRole("button", { name: "Sign out", exact: true }).isEnabled(), true);
           assert.equal(await page.getByRole("link", { name: "Sign in", exact: true }).isVisible(), false);
           assert.equal(await page.getByLabel("Review reason", { exact: true }).inputValue(), "Must not delay logout");
@@ -352,6 +364,7 @@ try {
         try {
           await page.getByRole("button", { name: "Sign out", exact: true }).click();
           await page.getByRole("alert").filter({ hasText: "Sign out was not confirmed." }).waitFor();
+          assert.ok((await page.getByRole("alert").filter({ hasText: "Sign out was not confirmed." }).textContent())?.includes("request unavailable"));
           assert.equal(logoutAttempts, 2, "Transport failures must not automatically retry logout");
           assert.equal(await page.getByRole("button", { name: "Sign out", exact: true }).isEnabled(), true);
           assert.equal(await page.getByLabel("Review reason", { exact: true }).inputValue(), "Must not delay logout");

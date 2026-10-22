@@ -165,6 +165,11 @@ outline. Confirmation/discard dialogs default to Cancel; browser tests verify
 heading-to-search Tab navigation, request/error focus and Enter cancelling without
 a decision. Full accessibility validation remains outstanding.
 
+Session startup/logout errors now display validated HTTP request references for
+operational correlation, including malformed responses. Browser tests match a
+failed logout's displayed ID to the server logger/header; missing/invalid headers
+and transport failures show an explicit unavailable reference.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.
