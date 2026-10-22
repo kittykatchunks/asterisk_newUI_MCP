@@ -2403,6 +2403,46 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Bounded broker stream framing (no listener)
+
+`encodeBrokerFrame(text, kind)` and `readBrokerFrame(stream, kind, signal?)`
+provide a one-message byte-stream format for the unprivileged fixture. Each
+frame has a four-byte unsigned big-endian UTF-8 payload length followed by exactly
+that many bytes. Request payloads are 1..8192 bytes; responses are 1..32768 bytes.
+The limits exclude the header and match readback's existing JSON bounds.
+
+The reader validates the declared length before allocating its bounded payload,
+handles split headers/payloads, and waits for EOF before returning text. Empty,
+truncated, oversized, trailing or concatenated frames fail. Invalid UTF-8 fails
+rather than being replaced; a BOM is preserved for the JSON layer to accept or
+reject, not silently stripped. The codec does not itself parse or validate JSON.
+Encoding and decoding are distinct from peer authentication.
+
+Each fresh byte-mode stream is single-use, including after failure. The reader
+rejects already-consumed, flowing, object-mode or text-decoded streams. It owns
+consumption and destroys the stream on malformed data, premature close,
+cancellation, source error or its five-second read deadline; original source
+errors and cancellation reasons propagate. Listeners/timers are removed when
+the read settles. No operation is invoked from a complete prefix while later
+bytes or EOF are still outstanding.
+
+This deliberately chooses **one request/response per connection**, not a
+persistent or multiplexed protocol. A future socket transport must support
+half-close: the client ends its request-writing direction, the server reads EOF,
+then writes/ends its response direction. The connection owner must configure
+that lifecycle explicitly, authenticate the peer before reading, bound connection
+admission and outgoing writes, and handle/log failures. These codecs start no
+listener and provide no socket authentication or write/backpressure supervision.
+Their bounded payload copy cannot prevent allocations already performed by an
+upstream stream producer or operating-system buffering.
+
+Tests use byte-mode streams to prove fragmented multibyte roundtrips, exact size
+limits, early oversized-header rejection, late trailing bytes, EOF/deadline,
+source errors, cancellation and listener cleanup. A framed request/response also
+exercises the fixed readback handler; malformed framing never invokes its source.
+Linux peer credentials, socket permissions and actual half-close transport still
+require a separate fixture before any privileged broker work.
+
 #### Unprivileged broker readback protocol fixture
 
 `createAgentBrokerReadback(binding, source)` implements only fixed read-only
@@ -2438,10 +2478,10 @@ the future connection owner must log/notify through its protected error path.
 **This fixture does not authenticate operating-system peers.** `peer` is trusted
 out-of-band metadata supplied by a future authenticated connection owner, never
 a caller-provided JSON field. Tests inject it to prove binding/denial order only.
-No Unix socket, peer-credential check, framing/stream reader, connection admission
-limit or deployed broker exists yet. The JSON byte bound does not bound memory
-already consumed by a future transport reader; that reader must enforce its own
-bound before calling this entry point. Source callbacks must themselves be
+No Unix socket, peer-credential check, connection admission limit or deployed
+broker exists yet. The bounded framing codec above supplies the stream-read
+primitive, but is not a connected transport. The JSON byte bound alone does not
+bound upstream memory. Source callbacks must themselves be
 read-only and customer-pinned.
 
 Tests cover exact 8 KiB request and 100-generation boundaries, malformed/foreign

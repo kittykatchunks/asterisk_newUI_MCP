@@ -732,8 +732,9 @@ an uncooperative source.
 
 Trusted peer metadata is injected out of band for the fixture. This proves scope
 checks and denial before parsing/source access, **not** Linux local peer
-authentication. No socket, stream framing, connection limits, apply protocol,
-broker ledger or PBX access is implemented. Real peer-credential/permission
+authentication. No socket, connection limits, apply protocol,
+broker ledger or PBX access is implemented. The subsequent codec subset below
+adds bounded stream framing only. Real peer-credential/permission
 proof remains required before the first acceptance step is complete.
 
 The durable fake runtime readback test compares unchanged database bytes and
@@ -741,3 +742,18 @@ effect count, alongside malformed/foreign/oversized requests, exact bounds,
 extra-field rejection, missing/unknown observations, timeout and cancellation.
 No privileged control probe is authorised by this increment. See the
 [readback fixture contract](./README.md#unprivileged-broker-readback-protocol-fixture).
+
+The next unprivileged subset now supplies bounded one-frame stream codecs:
+four-byte big-endian length, exact UTF-8 payload, mandatory EOF and separate
+8 KiB request/32 KiB response limits. Length is checked before payload allocation;
+truncation, extra frames/bytes, invalid encoding, timeout and cancellation reject
+without invoking readback. Streams are single-use and destroyed on failure.
+Tests cover fragmentation, exact limits, delayed trailing bytes and a framed
+fixed-readback roundtrip.
+
+This is a single request/response connection design; a future local transport
+must deliberately implement request half-close and response completion, trusted
+peer authentication, connection admission and bounded writes. No listener or OS
+peer-credential proof is included. The first acceptance gate remains incomplete;
+PBX/control probes remain unauthorised. See the
+[framing contract](./README.md#bounded-broker-stream-framing-no-listener).
