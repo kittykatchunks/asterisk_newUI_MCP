@@ -303,11 +303,15 @@ customer/subject audits, foreign scopes are denied and logout prevents replay.
 Both fixture lifecycles are cleaned up and ordinary identity runs stay independent
 of PBX availability. Remote TLS/production acceptance is still outstanding.
 
-The real AMI fixture now verifies outage isolation and recovery with one adapter
-instance: stop only customer A, reject its reads within a bounded interval while
-concurrent customer-B reads succeed, then restart A and recover with unchanged
-credentials. No stale healthy fallback is accepted. Docker control remains solely
-in the owned test fixture, not the application status adapter.
+The real AMI fixture now verifies outage isolation and recovery with long-lived
+separate core and endpoint sources: stop only customer A, reject both of its reads
+while concurrent customer-B core/endpoint reads succeed in two rounds, each bounded
+to five seconds. Restart A and recover both sources with unchanged credentials.
+No stale healthy or successful empty-list fallback is accepted. Exact endpoint
+inventory, customer scope, channel counts and contact-address redaction are checked
+before and after restart and for B during outage. Both plain-loopback and combined
+verified-TLS runs cover this behaviour. Docker control remains solely in the owned
+test fixture, not the application adapter.
 
 Browser outage coverage now verifies stale-success clearing during a held
 recheck, busy controls, request-correlated 503 feedback and explicit manual

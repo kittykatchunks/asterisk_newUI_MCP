@@ -1124,11 +1124,16 @@ access is added. Browser-to-application and identity traffic is still loopback H
 this is not full-chain HTTPS, remote-network or production PKI acceptance.
 
 The status fixture also exercises real outage isolation before any optional
-identity run. One long-lived adapter instance first checks both cores, then the
-test stops only its owned customer-A container. Two concurrent A/B check rounds
-must reject A's unavailable status within five seconds while B remains reachable;
-no cached healthy snapshot or zero-call fallback is accepted. After restarting A
-and waiting for core boot, the same adapter and credentials must read it again.
+identity run. Long-lived separate core and endpoint sources first check both PBXs,
+then the test stops only its owned customer-A container. Two rounds concurrently
+query all four core/endpoint customer-source combinations. A's core and endpoint
+reads must reject within a five-second round bound while both B reads succeed;
+no cached healthy snapshot, zero-call fallback or successful empty endpoint list
+is accepted. After restarting A and waiting for core boot, the same source
+instances and credentials must read both PBXs again. Endpoint snapshots before,
+during (B only) and after the outage must preserve the exact no-contact/static
+inventory, zero active channels, customer scope and contact-address redaction.
+The default run covers plain loopback; `-WithIdentity -WithTls` covers verified TLS.
 The application adapter itself has no Docker access: fixed container stop/start
 commands exist only in the exclusive test fixture. This proves local adapter
 recovery, not browser outage UX or production failover.

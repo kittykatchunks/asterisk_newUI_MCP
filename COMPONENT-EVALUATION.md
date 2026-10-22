@@ -315,8 +315,12 @@ correlation, foreign-customer denial and logout replay denial while retaining th
 existing identity/session/launcher proofs and scoped fixture cleanup.
 
 Real AMI outage/recovery checks additionally stop the owned customer-A fixture,
-verify bounded failures alongside successful concurrent customer-B checks, and
-recover through the same adapter after restart. This tests tenant-local failure
+verify bounded core and endpoint failures alongside successful concurrent
+customer-B core/endpoint checks, and recover through the same separate source
+instances after restart. Two four-query rounds each have a five-second bound;
+stale or empty-success endpoint fallbacks are rejected and exact scoped inventory
+plus contact-address redaction are checked throughout available snapshots.
+Both plain-loopback and verified-TLS fixture runs cover this. This tests tenant-local failure
 and in-flight cleanup without introducing Docker privileges into the application
 or claiming production failover.
 
