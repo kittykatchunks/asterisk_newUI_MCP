@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { randomUUID, X509Certificate } from "node:crypto";
+import { randomBytes, randomUUID, X509Certificate } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, request } from "node:https";
@@ -14,6 +14,9 @@ import { test } from "node:test";
 import { createAgentProvisioningHttpsWorker, createAgentProvisioningHttpsTransport } from "../src/agent-provisioning-https.ts";
 import { createAgentProvisioningDispatcher } from "../src/agent-provisioning-dispatcher.ts";
 import { createAgentProvisioningExecutor } from "../src/agent-provisioning-executor.ts";
+import { createAuthorisedProvisioningTransport } from "../src/agent-provisioning-authorisation.ts";
+import { openAgentDeviceLeaseStore } from "../src/agent-device-lease.ts";
+import type { ApplicationSessionIdentity } from "../src/application-session.ts";
 import { runAgentProvisioningWorker } from "../src/agent-provisioning-worker.ts";
 import { openFakeProvisioningRuntime } from "./identity/fake-provisioning-runtime.ts";
 import { openAgentProvisioningJournal, openAgentProvisioningStore } from "../src/agent-provisioning-store.ts";
@@ -29,6 +32,98 @@ const fixture = run("pwsh", ["-NoProfile", "-File",
   join(dirname(fileURLToPath(import.meta.url)), "identity", "New-ProvisioningTlsFixture.ps1")],
 { timeout: 30000 }).then(({ stdout }) => JSON.parse(stdout) as Certificates);
 const pin = (identity: Identity) => new X509Certificate(identity.cert).fingerprint256;
+
+test("live ownership gate prevents mTLS delivery after assignment/session/lease loss while allowing historical recovery", async () => {
+  const certificates = await fixture;
+  const directory = await mkdtemp(join(tmpdir(), "asterisk-authorised-mtls-"));
+  const binding = { customer: "customer-a", epoch: randomUUID() };
+  const options = { now: () => 100000 };
+  const store = openAgentProvisioningStore(join(directory, "backend.sqlite"), options);
+  const journal = openAgentProvisioningJournal(join(directory, "journal.sqlite"), binding, options);
+  const runtime = openFakeProvisioningRuntime(join(directory, "runtime.sqlite"), binding, options);
+  const leases = openAgentDeviceLeaseStore(join(directory, "leases.sqlite"), options);
+  const owner = { issuer: "https://identity.example/realms/fixture", subject: "alice", customer: binding.customer,
+    sessionId: randomBytes(32).toString("base64url"), sessionExpiresAt: 300000, deviceId: randomUUID() };
+  const lease = leases.acquire(owner);
+  const identity: ApplicationSessionIdentity = { sessionId: owner.sessionId, subject: owner.subject,
+    customer: owner.customer, expiresAt: owner.sessionExpiresAt };
+  let session: ApplicationSessionIdentity | undefined = identity;
+  let extension = "1001";
+  let releaseDuringVerification = false;
+  const generationId = randomUUID();
+  const errors: unknown[] = [];
+  const server = createAgentProvisioningHttpsWorker(journal, {
+    ...certificates.worker, ca: certificates.ca, peerFingerprint256: pin(certificates.controller),
+  }, (error) => errors.push(error));
+  let posts = 0;
+  server.on("request", (req) => { if (req.method === "POST") posts++; });
+  let revision = 0;
+  const enqueue = (action: "prepare" | "activate" | "extend", notAfter: number) => {
+    const base = { version: 1 as const, ...binding, operationId: randomUUID(), leaseId: lease.id,
+      revision: ++revision, notAfter };
+    const command: AgentProvisioningCommand = action === "prepare" ?
+      { ...base, action, payload: { generationId, extension: "1001" } } :
+      { ...base, action, payload: { generationId } };
+    store.enqueue(command, { requestId: randomUUID(), actor: "fixture", reason: "Guarded mTLS acceptance" });
+    return command;
+  };
+  try {
+    store.enrol(binding.customer, binding.epoch);
+    server.listen(0, "localhost"); await once(server, "listening");
+    const address = server.address(); assert.ok(address && typeof address !== "string");
+    const transport = createAuthorisedProvisioningTransport(
+      createAgentProvisioningHttpsTransport(`https://localhost:${address.port}`, {
+        ...certificates.controller, ca: certificates.ca, peerFingerprint256: pin(certificates.worker),
+      }), binding, {
+        resolve(intent) {
+          assert.equal(store.operation(binding.customer, intent.command.operationId)?.intent.sha256, intent.sha256);
+          return { owner, generationId, extension: "1001" };
+        },
+        session() { return session; },
+        async agentAccess() {
+          if (releaseDuringVerification) leases.release(owner, lease.id);
+          return { allowed: true, subject: owner.subject, basis: "membership" };
+        },
+        agents: { profile() { return { extension, displayName: "Alice" }; } }, leases,
+      });
+    const dispatcher = createAgentProvisioningDispatcher(store, binding, transport, options);
+    const executor = createAgentProvisioningExecutor(journal, runtime.execution, options);
+    for (const action of ["prepare", "activate"] as const) {
+      enqueue(action, 150000);
+      assert.equal((await dispatcher.dispatch()).state, "accepted");
+      assert.equal((await executor.step()).state, "verified");
+      assert.equal((await dispatcher.dispatch()).state, "verified");
+    }
+    const renewal = enqueue("extend", lease.expiresAt);
+    extension = "1002";
+    await assert.rejects(dispatcher.dispatch(), /assignment changed/);
+    assert.equal(posts, 2);
+    assert.equal(journal.operation(renewal.operationId), undefined);
+    assert.equal(runtime.generation(generationId).notAfter, 150000);
+    extension = "1001";
+    assert.equal((await dispatcher.dispatch()).state, "accepted");
+    assert.equal((await executor.step()).state, "verified");
+    session = undefined;
+    assert.equal((await dispatcher.dispatch()).state, "verified", "Logout must not block receipt recovery");
+    const denied = enqueue("extend", lease.expiresAt);
+    await assert.rejects(dispatcher.dispatch(), /Live provisioning session required/);
+    session = identity;
+    releaseDuringVerification = true;
+    await assert.rejects(dispatcher.dispatch(), /device_lease_not_owned/);
+    assert.equal(journal.operation(denied.operationId), undefined);
+    assert.equal(posts, 3, "Denied commands must not reach the TLS worker's POST handler");
+    assert.equal(runtime.effectCount(), 3);
+    const persisted = JSON.stringify(journal.operation(renewal.operationId));
+    assert.equal(persisted.includes(owner.sessionId), false);
+    assert.equal(persisted.includes(owner.deviceId), false);
+    assert.deepEqual(errors, []);
+  } finally {
+    if (server.listening) await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()));
+    leases.close(); runtime.close(); journal.close(); store.close();
+    await rm(directory, { recursive: true });
+  }
+});
 
 test("mTLS commands drive the serial fake worker and disconnected real expiry preserves then drains the call", async () => {
   const certificates = await fixture;

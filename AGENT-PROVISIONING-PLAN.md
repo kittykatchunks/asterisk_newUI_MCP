@@ -444,3 +444,12 @@ flow or production producer is wired. Durable original-owner mapping, applicatio
 audit/desired-state capture and remote execution fencing after acceptance remain
 unimplemented. This is a pre-dispatch check, not atomic distributed authorisation.
 See the [live gate contract](./README.md#live-provisioning-acceptance-gate-opt-in-backend-integration-primitive).
+
+The gate is now exercised around the actual mTLS client with real device-lease
+persistence and the durable fake lifecycle adapter. Worker POST counts prove
+assignment changes, logout and lease release during verification prevent delivery,
+not merely later execution. Valid prepare/activate/extend operations execute,
+and historical receipt reconciliation survives logout without exposing raw
+session/device context. Owner/session/membership resolution is still injected
+fixture state; durable application integration and cancellation/fencing after
+remote acceptance remain open gates.

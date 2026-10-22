@@ -2255,6 +2255,19 @@ access, missing/wrong owner mappings, deadline bounds, successful activate/exten
 cleanup after logout, errors/cancellation and absence of session/device data in
 worker storage. Lease checks never acquire or renew reservations.
 
+The mTLS integration suite now also wraps the real HTTPS transport with this
+gate, using separate backend/journal/fake-runtime databases and the real device
+lease store. Guarded prepare/activate/extend commands reach the worker and
+execute through the durable fake adapter. A changed extension, logout or lease
+release during verification prevents any POST to the worker and leaves the
+operation absent from its journal, with no extra fake effect. Restoring the
+assignment permits the unchanged pending renewal to proceed; historical receipt
+recovery still works after logout. Worker storage contains neither raw session
+nor device identifiers. Session/membership/directory state and protected owner
+resolution remain fixture callbacks, not production OIDC or durable owner lookup.
+This proves the gate's transport placement, not cancellation of work accepted
+before ownership was lost.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls
