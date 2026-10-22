@@ -170,6 +170,18 @@ export async function connectReviewWorkspace(connection) {
     recentHistory, lookupLabel, checkHistory, historyStatus, historyResults);
   root.append(history);
 
+  const pbx = document.createElement("section");
+  pbx.setAttribute("aria-label", "PBX operational status");
+  const checkPbx = document.createElement("button");
+  checkPbx.textContent = "Check PBX core status";
+  const pbxResult = element("p", "Not checked.");
+  pbxResult.setAttribute("role", "status");
+  pbxResult.tabIndex = -1;
+  pbx.append(element("h2", "PBX operational status"),
+    element("p", "Read-only, on-demand AMI core check. This does not prove SIP registration, trunk availability, audio quality or capacity. Startup time is in the PBX's local timezone. Requires diagnostics read permission. Checking closes an open review after any draft-discard confirmation."),
+    checkPbx, pbxResult);
+  root.append(pbx);
+
   const dialog = document.createElement("dialog");
   dialog.setAttribute("aria-label", "Confirm review decision");
   const confirmation = element("p", "");
@@ -276,6 +288,7 @@ export async function connectReviewWorkspace(connection) {
     status.textContent = "";
     historyStatus.textContent = "";
     historyResults.replaceChildren();
+    pbxResult.textContent = "No current PBX status confirmed. Check again explicitly.";
     clearReview();
     focusAfterRequest = error;
   }
@@ -345,6 +358,21 @@ export async function connectReviewWorkspace(connection) {
   lookup.onkeydown = (event) => {
     if (event.key === "Enter") { event.preventDefault(); checkOutcome(); }
   };
+  checkPbx.onclick = () => leaveReview(() => run(async () => {
+    clearReview();
+    pbxResult.textContent = "Checking PBX core...";
+    const { body, requestId } = await request(`/api/customers/${customer}/pbx/status`);
+    if (!record(body) || body.customer !== customer || typeof body.checkedAt !== "string" ||
+        !Number.isFinite(Date.parse(body.checkedAt)) || typeof body.coreStartedAtLocal !== "string" ||
+        !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.coreStartedAtLocal) ||
+        typeof body.activeCalls !== "number" || !Number.isSafeInteger(body.activeCalls) || body.activeCalls < 0) {
+      throw new Error(`Invalid PBX status response (request ${requestId}). No current status confirmed.`);
+    }
+    if (disposed) return;
+    pbxResult.textContent = `AMI core reachable. Active calls: ${body.activeCalls}. Core started (PBX local time): ${body.coreStartedAtLocal}. Checked: ${body.checkedAt}. Snapshot only; not live monitoring. Request reference: ${requestId}.`;
+    status.textContent = "PBX status check complete. No decision sent.";
+    focusAfterRequest = pbxResult;
+  }), "Check PBX core status and close the current review?", "Discard and check PBX");
   async function load() {
     if (disposed) return;
     clearReview();

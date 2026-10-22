@@ -270,6 +270,16 @@ results, completion focus and reconnect cancellation. Late data or abort errors
 from the disposed connection cannot overwrite the replacement workspace, and
 history requests never replay a decision.
 
+The customer operational-status slice now uses AMI `CoreStatus` with
+reporting-only accounts, not Docker-daemon privileges. An audited read-only
+diagnostics-permission route and explicit workspace check return only observation
+time, PBX-local startup time and active-call count. The adapter is time/size bounded,
+tenant-mapped server-side, disables events and exposes no arbitrary actions.
+Two isolated real Asterisk 22 instances pass core reads while unauthenticated,
+Command and Originate probes are denied. Unit/API/browser regressions cover
+protocol errors, limits, isolation, audit gating and safe rendering. Remote TLS,
+SIP/RTP health, trunk monitoring and production capacity are not claimed.
+
 A foreground PowerShell/Node launcher now makes the loopback workspace usable
 outside test-controlled browsers. It reuses the pinned identity fixture and
 captured-report loader, keeps local diagnostic data, and stages captures only

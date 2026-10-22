@@ -1,0 +1,42 @@
+name: asterisk-status-proof
+
+x-status-pbx: &status-pbx
+  image: andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d
+  user: "1000:999"
+  entrypoint: ["/bin/sh", "/etc/asterisk/start.sh"]
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  mem_limit: 384m
+  cpus: 1.0
+  pids_limit: 128
+  tmpfs:
+    - /var/run/asterisk:uid=1000,gid=999,mode=0750
+    - /var/spool/asterisk:uid=1000,gid=999,mode=0750
+    - /var/log/asterisk:uid=1000,gid=999,mode=0750
+    - /tmp:uid=1000,gid=999,mode=1770
+
+services:
+  customer-a:
+    <<: *status-pbx
+    ports: ["127.0.0.1:15038:5038"]
+    networks: [customer-a]
+    volumes:
+      - ./local/asterisk:/etc/asterisk:ro
+      - ./.local-proof/pbx-status/customer-a.conf:/etc/asterisk/manager.conf:ro
+      - customer-a-state:/var/lib/asterisk
+  customer-b:
+    <<: *status-pbx
+    ports: ["127.0.0.1:15039:5038"]
+    networks: [customer-b]
+    volumes:
+      - ./local/asterisk:/etc/asterisk:ro
+      - ./.local-proof/pbx-status/customer-b.conf:/etc/asterisk/manager.conf:ro
+      - customer-b-state:/var/lib/asterisk
+
+networks:
+  customer-a:
+  customer-b:
+
+volumes:
+  customer-a-state:
+  customer-b-state:

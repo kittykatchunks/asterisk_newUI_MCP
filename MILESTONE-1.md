@@ -258,6 +258,19 @@ History browser lifecycle tests now hold real API responses to verify old-result
 clearing, busy control locks, restored controls/status focus on completion, and
 late-response isolation after reconnect. No decision POST is sent by either path.
 
+The next selected vertical slice adds read-only customer PBX status via restricted
+AMI `CoreStatus`: authenticated/audited `diagnostics:read` access, server-managed
+customer connection mappings, bounded reads, explicit unavailable errors and a
+manual workspace check. Output is limited to observation time, PBX-local startup
+time and active-call count; it is not SIP/RTP/trunk or capacity acceptance.
+
+An isolated two-customer Asterisk 22 fixture verifies real AMI reads and denial
+of unauthenticated, CLI-command and origination actions with reporting-only
+credentials. Unit/API/browser tests cover framing, limits, concurrency, access
+isolation, audit gating and safe output. The local launcher supports optional
+ignored AMI configuration and interactive synthetic runtime demonstrations.
+Production AMI TLS certificates/networking and continuous monitoring remain open.
+
 An interactive loopback launcher now starts the development identity fixture and
 application together, with explicit optional captured-report staging and no
 automatic approval. Its local diagnostic database persists across restarts.

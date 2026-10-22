@@ -956,6 +956,84 @@ status. Replacing the connection during that read clears history and aborts the
 old request; releasing its late response cannot populate the new connection or
 overwrite it with an abort error. Neither path sends a decision POST.
 
+### Read-only PBX operational status (local AMI proof)
+
+`GET /api/customers/{customer}/pbx/status` requires provisioned
+`diagnostics:read` for that customer. It accepts GET only, is audited as
+`pbx-status`, and returns only `requestId`, `customer`, `checkedAt`,
+`coreStartedAtLocal` and `activeCalls`. Audit failure prevents status disclosure.
+Review permission alone does not confer status access; existing bounded
+diagnostics-read support grants can read it within their authorised scope.
+Unauthorised requests do not open an AMI connection.
+
+The **PBX operational status** workspace section checks only on explicit action.
+It uses the existing application session, draft-discard protection, request
+references, busy controls and disposal. Invalid or failed reads clear the previous
+status rather than presenting stale success. A successful snapshot confirms AMI
+core reachability and the reported active-call count at the check time. It does
+**not** prove SIP registration, trunk reachability, RTP/audio quality or the
+50-call capacity target. Asterisk's startup timestamp is PBX-local time, not UTC;
+no timezone or calculated uptime is invented.
+
+The AMI adapter uses operator-provisioned customer mappings, never browser-supplied
+hosts or credentials. It sends only `Login` with events disabled and `CoreStatus`,
+matches action IDs, limits each connection to three seconds / 64 KiB, and allows
+only one check per customer concurrently per application process. Connections
+are closed after each check; there is no polling, event subscription, command,
+origination or call-control API. Raw AMI data and credentials are never returned.
+Missing configuration, refusal, denied actions, malformed/oversized data and
+timeouts produce explicit unavailable responses, not a healthy/zero-call fallback.
+
+`createDiagnosticApi` accepts an optional seventh `PbxStatusSource` argument.
+The local launcher loads `.local-proof/pbx-status/connections.json` when present:
+
+```json
+[
+  {
+    "customer": "customer-a",
+    "host": "127.0.0.1",
+    "port": 15038,
+    "username": "status-reader",
+    "secret": "REPLACE_WITH_OPERATOR_PROVISIONED_SECRET",
+    "tls": false
+  }
+]
+```
+
+This file is server-side and ignored by Git. Store/protect it as a credential,
+not as a browser setting. Plaintext is accepted only for literal loopback
+addresses; all other connections require TLS with normal certificate/hostname
+verification. Production certificate deployment and remote AMI networking are
+not proven by the local fixture. AMI accounts should have `read = none` and
+`write = reporting`; Asterisk classifies the read-only `CoreStatus` request in
+the reporting action class. This is not unrestricted `write = all` access.
+
+Run the isolated real-runtime proof with:
+
+```powershell
+.\scripts\Test-PbxStatusProof.ps1
+```
+
+It starts two separate pinned Asterisk 22 containers, publishes AMI only on
+loopback ports 15038/15039, generates distinct ignored credentials, checks both
+cores, and verifies unauthenticated access plus `Command`/`Originate` are denied.
+The probe does not originate a call. Its fixture lock/port/ownership checks
+prevent taking over existing services; cleanup removes only this compose
+project's containers, networks and disposable state volumes.
+
+For a manual browser demonstration, run that script with `-Interactive`, then
+start `.\scripts\Test-IdentityProof.ps1 -Interactive` in another terminal and use
+the engineering workspace. Enter `stop` in each owning terminal when finished.
+Without interactive mode the PBXs are removed after testing; the retained
+mapping then correctly yields unavailable until matching runtimes are started.
+Existing PBX proof containers and their credentials are not modified.
+
+`npm run test:pbx-status` covers action framing, fragmented replies, unrelated
+events, denied/malformed/oversized/disconnected responses, timeout, concurrency,
+credential injection guards and configuration immutability. API/browser tests
+cover permission/customer boundaries, GET-only behaviour, audit gating, safe
+allowlisted results and clearing a mismatched response.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

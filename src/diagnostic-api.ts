@@ -8,6 +8,7 @@ import type { DiagnosticStore } from "./diagnostic-store.ts";
 import { handleReviewRequest } from "./review-http.ts";
 import { createApplicationSessions } from "./application-session.ts";
 import type { ApplicationSessionConfig } from "./application-session.ts";
+import type { PbxStatusSource } from "./pbx-status.ts";
 
 export interface AccessAudit {
   requestId: string;
@@ -17,7 +18,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "session-login" | "session-logout";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "session-login" | "session-logout";
   incident?: string;
 }
 
@@ -28,6 +29,7 @@ export function createDiagnosticApi(
   catalog?: IncidentCatalog,
   reviews?: Pick<DiagnosticStore, "pending" | "candidate" | "review" | "history">,
   sessionConfig?: ApplicationSessionConfig,
+  pbx?: PbxStatusSource,
 ) {
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
       sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
@@ -77,6 +79,41 @@ export function createDiagnosticApi(
         return;
       }
       const reviewMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics\/reviews(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/);
+      const pbxMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/status$/);
+      if (pbxMatch) {
+        customer = pbxMatch[1];
+        const access = await verify(request.headers.authorization, customer, "diagnostics:read");
+        if (!access.allowed) request.resume();
+        let status = access.allowed ? 200 : access.status;
+        let outcome = access.allowed ? "pbx_status_checked" : access.code;
+        let snapshot;
+        if (access.allowed) {
+          if (request.method !== "GET") {
+            response.setHeader("Allow", "GET");
+            status = 405; outcome = "method_not_allowed";
+            request.resume();
+          } else {
+            try {
+              if (!pbx) throw new Error("PBX status source is not configured");
+              snapshot = await pbx.status(customer);
+              if (snapshot.customer !== customer || !Number.isFinite(Date.parse(snapshot.checkedAt)) ||
+                  !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(snapshot.coreStartedAtLocal) ||
+                  !Number.isSafeInteger(snapshot.activeCalls) || snapshot.activeCalls < 0) {
+                throw new Error("Invalid PBX status snapshot");
+              }
+            } catch (error) {
+              logError(error, requestId);
+              status = 503; outcome = "pbx_status_unavailable";
+            }
+          }
+        }
+        await audit({ requestId, timestamp: new Date().toISOString(), customer, status, outcome,
+          operation: "pbx-status", ...(access.allowed ? { subject: access.subject, basis: access.basis } : {}) });
+        if (status !== 200 || !snapshot) { send(status, outcome); return; }
+        response.writeHead(200).end(JSON.stringify({ requestId, customer, checkedAt: snapshot.checkedAt,
+          coreStartedAtLocal: snapshot.coreStartedAtLocal, activeCalls: snapshot.activeCalls }));
+        return;
+      }
       const historyMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/diagnostics\/reviews\/history(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/);
       const reviewRoute = historyMatch ?? reviewMatch;
       if (reviewRoute) {

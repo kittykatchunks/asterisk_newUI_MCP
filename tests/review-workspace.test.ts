@@ -93,7 +93,8 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       page.on("request", (request) => {
         if (new URL(request.url()).pathname.startsWith("/api/customers/customer-a/diagnostics/reviews")) reviewRequests++;
         if (new URL(request.url()).origin !== origin) unexpected.push(request.url());
-        if (request.headers().authorization && !new URL(request.url()).pathname.startsWith("/api/customers/customer-a/diagnostics/reviews")) {
+        if (request.headers().authorization && !new URL(request.url()).pathname.startsWith("/api/customers/customer-a/diagnostics/reviews") &&
+            new URL(request.url()).pathname !== "/api/customers/customer-a/pbx/status") {
           unexpected.push("Authorization sent outside review API");
         }
         if (request.method() === "POST") posts.push(request.postData() ?? "");
@@ -981,6 +982,30 @@ test("browser workspace keeps previews inert, confirms exact decisions and surfa
       assert.equal(await historyRegion.locator("article").count(), 0, "A new connection must clear loaded history");
       assert.equal(await page.getByRole("status", { name: "Last confirmed review", exact: true }).isVisible(), false);
       await page.getByRole("alert").filter({ hasText: "403: customer_access_denied" }).waitFor();
+      const pbxRegion = page.getByRole("region", { name: "PBX operational status", exact: true });
+      const pbxUrl = "**/api/customers/customer-a/pbx/status";
+      const beforePbx: number = posts.length;
+      await page.route(pbxUrl, (route) => route.fulfill({
+        status: 200, headers: { "X-Request-Id": referenceId }, contentType: "application/json",
+        json: { customer: "customer-a", checkedAt: "2026-10-22T12:30:00Z",
+          coreStartedAtLocal: "2026-10-22 12:00:00", activeCalls: 2 },
+      }));
+      await page.getByRole("button", { name: "Check PBX core status", exact: true }).click();
+      await pbxRegion.getByRole("status").filter({ hasText: "AMI core reachable. Active calls: 2." }).waitFor();
+      assert.ok((await pbxRegion.textContent())?.includes(referenceId));
+      assert.ok((await pbxRegion.textContent())?.includes("not live monitoring"));
+      assert.equal(await pbxRegion.getByRole("status").evaluate((node) => node === document.activeElement), true);
+      await page.unroute(pbxUrl);
+      await page.route(pbxUrl, (route) => route.fulfill({
+        status: 200, contentType: "application/json",
+        json: { customer: "customer-b", checkedAt: "2026-10-22T12:30:00Z",
+          coreStartedAtLocal: "2026-10-22 12:00:00", activeCalls: 2 },
+      }));
+      await page.getByRole("button", { name: "Check PBX core status", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "Invalid PBX status response" }).waitFor();
+      assert.ok((await pbxRegion.getByRole("status").textContent())?.includes("No current PBX status confirmed"));
+      await page.unroute(pbxUrl);
+      assert.equal(posts.length, beforePbx);
       assert.equal(await page.getByLabel("Inert report preview").count(), 0);
       assert.equal(await pendingOrder.isVisible(), false);
       await connect(await jwt("reviewer", true));

@@ -536,6 +536,66 @@ test("review history is read-only, audited, customer-scoped and fails closed on 
   }
 });
 
+test("PBX status is read-only, tenant-scoped, allowlisted and gated by read permission and audit", async () => {
+  let checks = 0;
+  let failAudit = false;
+  let failure = false;
+  let wrongCustomer = false;
+  const events: AccessAudit[] = [];
+  const logged: unknown[] = [];
+  const server = createDiagnosticApi(config, async (event) => {
+    if (failAudit) throw new Error("Synthetic PBX audit failure");
+    events.push(event);
+  }, (error) => logged.push(error), undefined, undefined, undefined, {
+    async status(customer) {
+      checks++;
+      if (failure) throw new Error("private upstream failure");
+      return { customer: wrongCustomer ? "customer-b" : customer, checkedAt: new Date().toISOString(),
+        coreStartedAtLocal: "2026-10-22 12:00:00", activeCalls: 2, secret: "must-not-disclose" };
+    },
+  });
+  try {
+    const origin = await listen(server);
+    const url = `${origin}/api/customers/customer-a/pbx/status`;
+    const headers = { Authorization: `Bearer ${await token("alice")}` };
+    assert.equal((await fetch(url)).status, 401);
+    for (const subject of ["reviewer", "stranger", "bob"]) {
+      assert.equal((await fetch(url, { headers: { Authorization: `Bearer ${await token(subject)}` } })).status, 403);
+    }
+    assert.equal((await fetch(url.replace("customer-a", "customer-b"), { headers })).status, 403);
+    assert.equal(checks, 0);
+    const denied = await fetch(url, { method: "POST", headers });
+    assert.equal(denied.status, 405);
+    assert.equal(denied.headers.get("allow"), "GET");
+    assert.equal(checks, 0);
+    const response = await fetch(url, { headers });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const body = await response.json();
+    assert.equal(body.activeCalls, 2);
+    assert.equal(body.customer, "customer-a");
+    assert.ok(!JSON.stringify(body).includes("must-not-disclose"));
+    assert.equal(events.at(-1)?.operation, "pbx-status");
+    assert.equal(events.at(-1)?.requestId, response.headers.get("x-request-id"));
+    failure = true;
+    const unavailable = await fetch(url, { headers });
+    assert.equal(unavailable.status, 503);
+    assert.equal((await unavailable.json()).code, "pbx_status_unavailable");
+    failure = false;
+    wrongCustomer = true;
+    assert.equal((await fetch(url, { headers })).status, 503);
+    wrongCustomer = false;
+    failAudit = true;
+    const auditDenied = await fetch(url, { headers });
+    assert.equal(auditDenied.status, 503);
+    assert.ok(!(await auditDenied.text()).includes("activeCalls"));
+    assert.equal(logged.length, 3);
+    const unconfigured = await fetch(`${base}/api/customers/customer-a/pbx/status`, { headers });
+    assert.equal(unconfigured.status, 503);
+    assert.equal((await unconfigured.json()).code, "pbx_status_unavailable");
+  } finally { await close(server); }
+});
+
 test("review routes fail explicitly without a configured reviewer store",async () => {
   const response=await fetch(`${base}/api/customers/customer-a/diagnostics/reviews`,{
     headers: { Authorization: `Bearer ${await token("reviewer")}` },

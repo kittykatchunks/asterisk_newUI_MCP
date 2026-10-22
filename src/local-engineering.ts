@@ -6,6 +6,27 @@ import { createDiagnosticApi } from "./diagnostic-api.ts";
 import { openDiagnosticStore } from "./diagnostic-store.ts";
 import type { ApprovedIncident } from "./incidents.ts";
 import { assertApprovedIncident } from "./incidents.ts";
+import { createAmiStatusSource } from "./pbx-status.ts";
+import type { AmiConnection } from "./pbx-status.ts";
+
+export async function loadLocalPbxStatus(root: string) {
+  let text: string;
+  try { text = await readFile(join(root, ".local-proof", "pbx-status", "connections.json"), "utf8"); }
+  catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+    throw error;
+  }
+  const value: unknown = JSON.parse(text);
+  if (!Array.isArray(value) || !value.every((item: unknown): item is AmiConnection =>
+    typeof item === "object" && item !== null &&
+    "customer" in item && typeof item.customer === "string" &&
+    "host" in item && typeof item.host === "string" &&
+    "port" in item && typeof item.port === "number" &&
+    "username" in item && typeof item.username === "string" &&
+    "secret" in item && typeof item.secret === "string" &&
+    "tls" in item && typeof item.tls === "boolean")) throw new Error("Invalid local PBX status configuration");
+  return createAmiStatusSource(value);
+}
 
 interface LocalAccount {
   subject: string;
@@ -83,6 +104,7 @@ export async function loadCapturedIncidents(root: string): Promise<ApprovedIncid
 
 export async function startLocalEngineering(root: string, stageCapturedReports = false) {
   const { accounts, client } = await configuration(root);
+  const pbx = await loadLocalPbxStatus(root);
   const issuer = "http://127.0.0.1:18080/realms/local-proof";
   const origin = "http://127.0.0.1:18766";
   const discoveryResponse = await fetch(`${issuer}/.well-known/openid-configuration`, {
@@ -134,7 +156,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
       tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
       clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
       allowLoopbackHttpForTests: true,
-    });
+    }, pbx);
     const active = server;
     await new Promise<void>((resolve, reject) => {
       const failed = (error: Error) => reject(error);
