@@ -1196,7 +1196,8 @@ current call, then release the phone session. Call draining is **not implemented
 by this increment.
 
 `openAgentDeviceLeaseStore` in `src/agent-device-lease.ts` is a trusted-backend
-primitive with `acquire`, `renew` and `release`. It uses a dedicated absolute-path
+primitive with `acquire`, `renew`, `release` and a non-mutating `current(owner, leaseId)`
+ownership read. It uses a dedicated absolute-path
 SQLite database, separate from assignments, receipts and diagnostic evidence.
 `BEGIN IMMEDIATE` serialises competing writers, including separate processes.
 Each lease binds the exact agent identity, backend application-session ID and a
@@ -1205,6 +1206,12 @@ the lease UUID and expiry. A different session on the same device also conflicts
 Retries by the same owner return the existing lease without extending its life.
 Renewal is explicit and lasts at most 60 seconds, capped by the supplied verified
 application-session expiry. At the exact expiry boundary it is no longer owned.
+`current` validates every owner dimension, returns a detached ID/expiry snapshot
+capped by the supplied verified session expiry, and never extends or acquires a
+lease. Independent database connections see committed renewals. Released, replaced
+or expired leases throw the same explicit ownership errors as mutations; corrupt
+rows and database failures are not treated as normal expiry. This trusted-backend
+read adds no HTTP endpoint and is not an authorisation to act later on a stale snapshot.
 Reacquisition after expiry or release generates a new UUID; stale IDs cannot renew
 or release a replacement lease. Ownership/conflict/session-expiry errors have
 explicit codes; invalid input, corrupt rows and SQLite failures throw.
@@ -1636,12 +1643,19 @@ and customer isolation while unrelated static contacts remain present.
 
 Two cycles exercise explicit lease release and real wall-clock backend lease
 expiry. The expiry cycle uses the default backend clock and waits for an actual
-60-second lease, with a monotonic elapsed-time assertion. A fixture-owner timer
-is armed after provisioning and rechecks the deadline before revoking. Meanwhile
-the client refreshes only its five-second SIP registration, never its backend
-lease, up to shortly before the deadline. The timer verifies backend renewal is
+60-second lease, with a monotonic elapsed-time assertion. A fixture-owner scheduler
+is armed after provisioning and reads current ownership through a separate SQLite
+connection at intervals of at most 250 milliseconds. Thirty seconds into the
+lease, the test explicitly renews backend ownership once, extending its deadline
+by at least thirty seconds. SIP registration and the same backend lease ID must
+remain valid at least one second past the original deadline. The scheduler reads
+the persisted renewed expiry rather than revoking from its initial snapshot.
+Apart from that one explicit backend renewal, the client refreshes only its
+five-second SIP registration up to shortly before the renewed deadline.
+The scheduler verifies backend renewal is
 rejected, removes the temporary endpoint/auth/AOR and reloads PJSIP, completing
-no earlier than expiry and within ten seconds afterward. The test checks no
+no earlier than renewed expiry and within ten seconds afterward. At least
+89 real seconds must elapse from acquisition. The test checks no
 REGISTER/unregister is sent while waiting for the final timer completion.
 The endpoint must then disappear from the real AMI listing.
 Previously issued credentials must receive SIP authentication denial, rather than
@@ -1658,9 +1672,10 @@ sequence**, not native secret expiry at Asterisk. Removing a lease row alone doe
 not revoke SIP access. Pending timers are cancelled and settled before restoring
 the original configuration during cleanup, so they cannot overwrite restoration.
 There is no production credential issuer, reconciliation worker, protected secret
-delivery, atomic lease/PBX transaction, timer restart recovery, renewal-aware
-reconciliation or SIP call fencing. The proof timer handles a single unrenewed
-lease; it is not an application worker or persistent queue.
+delivery, atomic lease/PBX transaction, scheduler restart recovery, multi-lease
+reconciliation or SIP call fencing. The proof scheduler handles one known lease
+with one explicit renewal; it is not an application worker or persistent queue.
+Storage/corruption errors fail the proof instead of being mistaken for expiry.
 Contact expiry/endpoint disappearance does not prove active dialogs are drained
 or terminated. WSS/TLS browser delivery, extension-to-lease routing, shared-extension
 conflict safety and the agreed stop-new-offers/finish-current-call sign-out policy

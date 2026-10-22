@@ -26,6 +26,10 @@ test("exclusive leases persist, bind every owner dimension and reject stale hold
     assert.deepEqual(Object.keys(first).sort(), ["expiresAt", "id"]);
     assert.equal(first.expiresAt, 160000);
     assert.deepEqual(peer.acquire(alice), first);
+    const snapshot = peer.current(alice, first.id);
+    assert.deepEqual(snapshot, first);
+    snapshot.expiresAt++;
+    assert.deepEqual(store.current(alice, first.id), first, "Reads return detached data and must not renew");
     time += 10000;
     assert.deepEqual(store.acquire(alice), first, "Acquire retry must not silently renew");
     const contenders = [
@@ -40,18 +44,25 @@ test("exclusive leases persist, bind every owner dimension and reject stale hold
       { ...alice, customer: "customer-b" }]) {
       assert.throws(() => peer.renew(foreign, first.id), rejects("device_lease_not_owned"));
       assert.throws(() => peer.release(foreign, first.id), rejects("device_lease_not_owned"));
+      assert.throws(() => peer.current(foreign, first.id), rejects("device_lease_not_owned"));
     }
     const renewed = peer.renew(alice, first.id);
     assert.equal(renewed.id, first.id);
     assert.equal(renewed.expiresAt, 170000);
+    assert.deepEqual(store.current(alice, first.id), renewed, "Independent connections must see committed renewals");
+    time = first.expiresAt;
+    assert.deepEqual(store.current(alice, first.id), renewed, "The old deadline must not invalidate a renewed lease");
     time = renewed.expiresAt;
+    assert.throws(() => store.current(alice, first.id), rejects("device_lease_not_owned"));
     assert.throws(() => store.renew(alice, first.id), rejects("device_lease_not_owned"));
     assert.throws(() => store.release(alice, first.id), rejects("device_lease_not_owned"));
     const replacement = peer.acquire(contenders[0]);
     assert.notEqual(replacement.id, first.id);
+    assert.throws(() => store.current(alice, first.id), rejects("device_lease_not_owned"));
     assert.throws(() => store.release(alice, first.id), rejects("device_lease_not_owned"));
     assert.throws(() => store.renew(alice, first.id), rejects("device_lease_not_owned"));
     peer.release(contenders[0], replacement.id);
+    assert.throws(() => peer.current(contenders[0], replacement.id), rejects("device_lease_not_owned"));
     assert.throws(() => peer.release(contenders[0], replacement.id), rejects("device_lease_not_owned"));
     assert.notEqual(store.acquire(alice).id, first.id);
     for (const owner of [
@@ -88,11 +99,12 @@ test("leases are capped by verified session expiry and reject invalid owners and
     store.acquire(alice);
     const lease = store.acquire(owner);
     assert.equal(lease.expiresAt, 100050, "A shortened verified session must cap an existing lease too");
+    assert.equal(store.current({ ...owner, sessionExpiresAt: 100025 }, lease.id).expiresAt, 100025);
     time++;
     assert.equal(store.renew(owner, lease.id).expiresAt, 100050);
     time = 100050;
     for (const action of [() => store.acquire(owner), () => store.renew(owner, lease.id),
-      () => store.release(owner, lease.id)]) {
+      () => store.release(owner, lease.id), () => store.current(owner, lease.id)]) {
       assert.throws(action, rejects("device_session_expired"));
     }
     assert.notEqual(store.acquire(alice).id, lease.id);
@@ -103,6 +115,7 @@ test("leases are capped by verified session expiry and reject invalid owners and
     ]) assert.throws(() => store.acquire(invalid), /Invalid/);
     assert.throws(() => store.renew(alice, "invalid"), /Invalid device lease ID/);
     assert.throws(() => store.release(alice, "invalid"), /Invalid device lease ID/);
+    assert.throws(() => store.current(alice, "invalid"), /Invalid device lease ID/);
     time = NaN;
     assert.throws(() => store.acquire(alice), /Invalid device lease clock/);
     time = 100100;
@@ -110,6 +123,7 @@ test("leases are capped by verified session expiry and reject invalid owners and
     try { writer.exec("UPDATE agent_device_leases SET expires_at = -1"); }
     finally { writer.close(); }
     assert.throws(() => store.acquire(alice), /Invalid stored device lease/);
+    assert.throws(() => store.current(alice, lease.id), /Invalid stored device lease/);
   } finally { store.close(); await rm(directory, { recursive: true }); }
 });
 
@@ -144,6 +158,7 @@ test("closing every connection and reopening retains only an unexpired reservati
     const reopened = openAgentDeviceLeaseStore(path, { now: () => time });
     try {
       assert.deepEqual(reopened.acquire(alice), original);
+      assert.deepEqual(reopened.current(alice, original.id), original);
       assert.throws(() => reopened.acquire({ ...alice, deviceId: randomUUID() }), rejects("device_lease_conflict"));
       time = original.expiresAt;
       const next = reopened.acquire({ ...alice, deviceId: randomUUID() });

@@ -77,6 +77,7 @@ test("device lease API requires a scoped CSRF session, membership, assignment an
       return assignments.profile(...args);
     } };
     const source: AgentDeviceLeaseStore = {
+      current(owner, id) { return leases.current(owner, id); },
       acquire(owner) { mutations++; if (storeFailure) throw new Error("Synthetic private SQLite failure"); return leases.acquire(owner); },
       renew(owner, id) { mutations++; return leases.renew(owner, id); },
       release(owner, id) { mutations++; leases.release(owner, id); },

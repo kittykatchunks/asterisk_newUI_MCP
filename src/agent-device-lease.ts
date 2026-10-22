@@ -26,6 +26,7 @@ export class AgentDeviceLeaseError extends Error {
 }
 
 export interface AgentDeviceLeaseStore {
+  current(owner: AgentDeviceOwner, leaseId: string): AgentDeviceLease;
   acquire(owner: AgentDeviceOwner): AgentDeviceLease;
   renew(owner: AgentDeviceOwner, leaseId: string): AgentDeviceLease;
   release(owner: AgentDeviceOwner, leaseId: string): void;
@@ -102,6 +103,11 @@ export function openAgentDeviceLeaseStore(path: string, options: { now?: () => n
     return lease;
   }
   return {
+    current(owner, id) {
+      const { time, hash } = validate(owner);
+      const lease = owned(owner, id, hash, time);
+      return { id: lease.id, expiresAt: Math.min(lease.expiresAt, owner.sessionExpiresAt) };
+    },
     acquire(owner) {
       return transaction(() => {
         const { time, hash } = validate(owner);

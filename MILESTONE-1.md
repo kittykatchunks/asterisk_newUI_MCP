@@ -471,11 +471,13 @@ configuration. Challenged REGISTER verifies pre-provision, wrong-secret,
 foreign-PBX and retired-credential denial, plus valid contact appearance.
 Explicit release and real 60-second lease expiry trigger fixture-controller
 removal/reload; a scheduled expiry task runs without client unregister, rechecks
-the deadline and completes within ten seconds of expiry. Only SIP registration,
-not the backend lease, is refreshed while waiting.
+persisted ownership through a separate SQLite connection and completes within ten
+seconds of expiry. One explicit backend renewal extends the real deadline by at
+least thirty seconds; registration and ownership survive the old deadline before
+eventual revocation at the renewed deadline. SIP refresh alone cannot extend it.
 AMI endpoint disappearance and bounded contact cleanup are checked without client
 unregister. Reissued credentials differ and cannot revive the previous identity.
-This is not a production revocation worker, renewal-aware reconciliation, active-call
+This is not a production revocation worker, restart/multi-lease reconciliation, active-call
 draining or production provisioning interface. Browser activation remains disabled.
 
 See [component evaluation](./COMPONENT-EVALUATION.md) for the documentation-based

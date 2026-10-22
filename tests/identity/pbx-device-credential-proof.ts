@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
-import { openAgentDeviceLeaseStore } from "../../src/agent-device-lease.ts";
+import { AgentDeviceLeaseError, openAgentDeviceLeaseStore } from "../../src/agent-device-lease.ts";
 import { loadLocalPbxStatus, localEngineeringRoot } from "../../src/local-engineering.ts";
 import { createSipRegistrationClient } from "./sip-registration-client.ts";
 
@@ -17,6 +17,7 @@ const compose = join(localEngineeringRoot, "compose.status-proof.yaml");
 const root = join(localEngineeringRoot, ".local-proof", "pbx-status");
 const directory = await mkdtemp(join(tmpdir(), "asterisk-sip-lease-"));
 const leases = openAgentDeviceLeaseStore(join(directory, "leases.sqlite"));
+const observer = openAgentDeviceLeaseStore(join(directory, "leases.sqlite"));
 const source = await loadLocalPbxStatus(localEngineeringRoot, true);
 assert.ok(source);
 const customers = ["customer-a", "customer-b"] as const;
@@ -101,8 +102,15 @@ try {
         const controller = new AbortController();
         expiryControllers.push(controller);
         expiryTask = (async () => {
-          while (Date.now() < lease.expiresAt) {
-            await delay(lease.expiresAt - Date.now(), undefined, { signal: controller.signal });
+          for (;;) {
+            try {
+              const current = observer.current(owner, lease.id);
+              await delay(Math.max(1, Math.min(250, current.expiresAt - Date.now())), undefined, { signal: controller.signal });
+            } catch (error) {
+              if (!(error instanceof AgentDeviceLeaseError) ||
+                  !["device_lease_not_owned", "device_session_expired"].includes(error.code)) throw error;
+              break;
+            }
           }
           assert.throws(() => leases.renew(owner, lease.id), /device_lease_not_owned/);
           await writeFile(join(root, `${customer}-pjsip.conf`), originals.get(customer)!);
@@ -128,12 +136,28 @@ try {
         await writeFile(join(root, `${customer}-pjsip.conf`), originals.get(customer)!);
         await reload(customer);
       } else {
-        // Refresh only SIP, never the backend lease, so contact presence cannot stand in for ownership.
-        while (Date.now() < lease.expiresAt - 3000) {
+        const renewalAt = lease.expiresAt - 30000;
+        while (Date.now() < renewalAt) {
           assert.equal((await client.register(5)).code, 200);
-          await delay(Math.min(2000, Math.max(0, lease.expiresAt - 3000 - Date.now())));
+          await delay(Math.min(2000, Math.max(0, renewalAt - Date.now())));
         }
-        assert.ok(Date.now() < lease.expiresAt, "Pre-expiry registration must finish before the lease deadline");
+        const renewed = leases.renew(owner, lease.id);
+        assert.equal(renewed.id, lease.id);
+        assert.ok(renewed.expiresAt >= lease.expiresAt + 30000, "Renewal must extend the deadline by at least thirty real seconds");
+        assert.deepEqual(observer.current(owner, lease.id), renewed);
+        let checkedOldDeadline = false;
+        // Only this explicit backend renewal extends ownership; SIP refreshes do not.
+        while (Date.now() < renewed.expiresAt - 3000) {
+          assert.equal((await client.register(5)).code, 200);
+          if (!checkedOldDeadline && Date.now() >= lease.expiresAt + 1000) {
+            await observe(customer, credential.username, true);
+            assert.deepEqual(observer.current(owner, lease.id), renewed);
+            checkedOldDeadline = true;
+          }
+          await delay(Math.min(2000, Math.max(0, renewed.expiresAt - 3000 - Date.now())));
+        }
+        assert.ok(checkedOldDeadline, "Registration and ownership must survive the original expiry deadline");
+        assert.ok(Date.now() < renewed.expiresAt, "Pre-expiry registration must finish before the renewed deadline");
         assert.equal((await client.register(5)).code, 200);
         await observe(customer, credential.username, true);
         assert.ok(expiryTask);
@@ -141,9 +165,9 @@ try {
         const outcome = await expiryTask;
         if ("error" in outcome) throw outcome.error;
         assert.equal(client.sequence, lastSequence, "No client unregister or refresh may trigger expiry revocation");
-        assert.ok(performance.now() - acquiredAt >= 59000, "Expiry proof must wait for a real sixty-second lease, not advance a fake clock");
-        assert.ok(outcome.completedAt >= lease.expiresAt, "Expiry controller must not revoke early");
-        assert.ok(outcome.completedAt <= lease.expiresAt + 10000, "Expiry revocation must complete within ten seconds of the real deadline");
+        assert.ok(performance.now() - acquiredAt >= 89000, "Renewed expiry proof must wait at least eighty-nine real seconds");
+        assert.ok(outcome.completedAt >= renewed.expiresAt, "Expiry controller must not revoke at the stale deadline");
+        assert.ok(outcome.completedAt <= renewed.expiresAt + 10000, "Expiry revocation must complete within ten seconds of the renewed deadline");
       }
       await observe(customer, credential.username, false);
       assert.ok([401, 403].includes((await client.register(5)).code), "Removed per-lease credentials must receive an authentication denial");
@@ -156,7 +180,7 @@ try {
       assert.ok(!contacts.includes(credential.username), "Retired contact must disappear within the five-second lifetime plus cleanup bound");
       assert.ok(contacts.includes(`${customer}-static`), "Revocation must preserve the unrelated static contact");
       previous = credential;
-      console.log(`PASS ${customer}: per-lease SIP identity, foreign/wrong-secret denial, ${termination === "expiry" ? "real wall-clock expiry" : "release"}-driven fixture revocation, retired REGISTER denied and bounded contact cleanup`);
+      console.log(`PASS ${customer}: per-lease SIP identity, foreign/wrong-secret denial, ${termination === "expiry" ? "renewal-aware real wall-clock expiry" : "release"}-driven fixture revocation, retired REGISTER denied and bounded contact cleanup`);
     }
   }
 } finally {
@@ -170,6 +194,7 @@ try {
   } finally {
     for (const socket of sockets) socket.close();
     leases.close();
+    observer.close();
     await rm(directory, { recursive: true });
   }
 }

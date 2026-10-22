@@ -498,8 +498,13 @@ or active-call fencing is established by this fixture-only sequence. The fixture
 timer waits for the real deadline, rejects backend renewal at expiry and completes
 revocation within ten seconds without a client unregister. SIP-only refreshes
 during the wait do not extend backend ownership. Timers are cancelled/settled
-before configuration restoration; restart recovery and renewed leases remain
-outside this bounded single-lease scheduler proof.
+before configuration restoration. The scheduler now reads non-mutating
+`current(owner, leaseId)` snapshots from a separate SQLite connection, detects one
+explicit renewal, and proves the same credential/lease survives the old deadline.
+Revocation occurs within ten seconds of the renewed deadline after at least
+89 real seconds. Ownership reads neither renew nor resurrect leases and retain
+all owner validation; storage errors are not conflated with expiry. Restart
+recovery and multi-lease reconciliation remain outside this bounded proof.
 
 ## 2. Asterisk container
 
