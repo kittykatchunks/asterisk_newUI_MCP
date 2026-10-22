@@ -2059,6 +2059,39 @@ by observation-only recovery, cancellation with a still-running adapter,
 independent customer execution, concurrent journal access, callback-error release
 and foreign/unsupported/corrupt/externally locked sidecar failures.
 
+#### Disconnected-expiry drain sweep (fake-runtime proof)
+
+Selected policy: stop new calls/offers at expiry, let existing calls finish and
+block replacement while draining. There is no automatic forced-hangup timeout.
+Unknown dialog state must remain blocked, not be treated as zero dialogs.
+
+`src/agent-provisioning-expiry.ts` supplies an explicitly invoked `sweep()` with
+an injected customer-pinned inventory/fence/observe/revoke adapter. It uses the
+same local execution lock and a cooperative five-second budget. All inventory
+entries (maximum 100, unique generation UUIDs) are validated before effects.
+Only expired or already-draining generations are selected. For each it:
+
+1. Requires an idempotent, durably latched new-call fence.
+2. Reads back the fence and exact generation's dialog state.
+3. Returns `draining` for active dialogs or `uncertain` for unknown dialogs.
+4. Revokes only after a verified fence and zero dialogs, then verifies removal.
+
+Errors, unverified fences/removal, malformed observations and cancellation
+propagate. No forced hangup, silent repair or replacement activation occurs.
+The adapter must preserve the drain latch across restart and prevent extensions
+or clock rollback from reactivating it. Revocation must atomically enforce the
+zero-dialog precondition at the real side-effect boundary; an observation alone
+cannot prevent races with signalling. The sweep does not implement that adapter.
+
+`node --test .\tests\agent-provisioning-expiry.test.ts` uses a separate durable
+SQLite fake runtime to check expiry, active-call preservation, unknown dialogs,
+restart/clock rollback, eventual removal and untouched unexpired generations.
+It also covers inventory rejection, fence/removal failures, cancellation and
+ownership contention. No scheduler is started, so this does **not** yet enforce
+autonomous expiry. Real routing/dialog correlation, replacement blocking,
+inventory completeness, expiry lag limits and crash/race-safe PBX removal remain
+acceptance gates. No PBX privileges, credentials or browser calling are added.
+
 Approval/rejection requires a reason and an explicit scope/redaction check.
 A modal confirmation repeats the customer, incident, snapshot hash and reason.
 Cancel sends no decision; confirm submits that exact snapshot once, with controls

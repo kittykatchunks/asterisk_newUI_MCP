@@ -235,7 +235,13 @@ generation-aware routing/dialplan fence, cover cached authentication and
 retransmissions, and correlate dialogs to the exact generation. Existing dialog
 signalling needed to finish the call must remain possible after sign-out.
 
-Open policy gates: what to do when a call never ends, the maximum drain duration,
+Selected disconnected-expiry policy: stop new calls/offers immediately, preserve
+existing calls until they finish, and block replacement while draining. No
+automatic forced-disconnect deadline is selected. This applies even when the
+controller is unreachable; it does not permit continued new-call access.
+
+Open policy gates: operator handling when a call never ends, emergency intervention,
+any future maximum drain duration,
 emergency disconnect permissions, transfer semantics, and whether device takeover
 may proceed after an operator override. Do not choose a forced-hangup timeout
 implicitly. Until decided, an unresolved drain blocks activation and alerts an
@@ -372,3 +378,12 @@ missing effects remain uncertain, and neither path replays apply. Repeated
 recovery does not duplicate effects or receipts. This is process-exit recovery,
 not power-loss durability, restored-authority detection, PBX state verification
 or disconnected expiry enforcement; stage B remains incomplete.
+
+A single explicitly invoked expiry sweep now exercises the selected drain policy
+against an injected durable fake runtime. It shares executor ownership, validates
+the complete bounded inventory, fences new calls before dialog observation and
+requires verified zero dialogs before revocation, then verifies removal. Unknown
+dialogs stay uncertain; active dialogs stay draining without forced hangup.
+Persisted drain remains irreversible across restart/clock rollback. There is no
+automatic scheduler, real routing/dialog adapter or replacement activation gate;
+the production policy is not yet enforced. Stage B remains incomplete.
