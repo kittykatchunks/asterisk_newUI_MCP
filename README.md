@@ -3519,6 +3519,14 @@ subscription termination; because a suppressing recipient sends no NOTIFY,
 the issuer-side subscription may remain until expiry
 ([Asterisk response handler](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1281-L1307),
 [RFC 4488 grammar](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
+Neither SIP.js 0.21.2 nor Asterisk 22.11 adds `Refer-Sub: false` to its
+outgoing REFER by default. Asterisk's PJSIP transfer builder adds `Refer-To`,
+then its REFER sender copies caller-supplied REFER variables as headers; that
+header is not blocked. Its local UAC event subscription is created before the
+caller-supplied headers are copied, so explicitly sending `Refer-Sub: false`
+still depends on the peer's 2xx echo and Asterisk's response parser
+([Asterisk sender](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1441-L1481),
+[PJSIP builder](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L284-L342)).
 On an exact `false` echo, Asterisk clears its subscription data and locally
 terminates the event subscription; pjproject's termination function changes
 local state without sending a SIP request
