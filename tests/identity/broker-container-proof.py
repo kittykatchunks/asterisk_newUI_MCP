@@ -1,5 +1,6 @@
 """Separate-container read-only identity experiment, never a production broker."""
 
+import errno
 import importlib.util
 import json
 import os
@@ -7,6 +8,7 @@ import signal
 import socket
 import stat
 import struct
+import subprocess
 import sys
 import time
 
@@ -46,7 +48,11 @@ def server():
     denied = 0
     try:
         # Never remove an existing pathname to make bind succeed.
-        listener.bind(PATH)
+        try:
+            listener.bind(PATH)
+        except OSError as error:
+            emit({"startupRejected": True, "errno": error.errno})
+            raise
         bound = True
         published = os.stat(PATH, follow_symlinks=False)
         assert stat.S_ISSOCK(published.st_mode) and stat.S_IMODE(published.st_mode) == 0o660
@@ -81,6 +87,51 @@ def server():
             current = os.stat(PATH, follow_symlinks=False)
             assert (current.st_dev, current.st_ino) == (published.st_dev, published.st_ino)
             os.unlink(PATH)
+
+
+def conflict(mode):
+    assert (os.getuid(), os.getgid()) == (1101, 2100)
+    target = "/socket/broker/conflict-target"
+    content = b"fixture publication sentinel\n"
+    if mode == "conflict-file":
+        with open(PATH, "xb") as file:
+            file.write(content)
+    else:
+        assert mode == "conflict-symlink"
+        with open(target, "xb") as file:
+            file.write(content)
+        os.symlink(target, PATH)
+    original = os.lstat(PATH)
+    target_original = os.stat(target) if mode == "conflict-symlink" else original
+    try:
+        result = subprocess.run([sys.executable, "-I", "-B", __file__, "server"],
+                                capture_output=True, text=True, timeout=5)
+        events = [json.loads(line) for line in result.stdout.splitlines()]
+        assert result.returncode != 0, result.stdout
+        assert events[-1] == {"startupRejected": True, "errno": errno.EADDRINUSE}, (events, result.stderr)
+        assert not any(event.get("ready") or "peer" in event for event in events)
+        assert "Address already in use" in result.stderr, result.stderr
+        current = os.lstat(PATH)
+        assert (current.st_dev, current.st_ino, current.st_mode, current.st_uid, current.st_gid) == (
+            original.st_dev, original.st_ino, original.st_mode, original.st_uid, original.st_gid)
+        if mode == "conflict-symlink":
+            assert os.readlink(PATH) == target
+            target_current = os.stat(target)
+            assert (target_current.st_dev, target_current.st_ino, target_current.st_mode,
+                    target_current.st_uid, target_current.st_gid) == (
+                target_original.st_dev, target_original.st_ino, target_original.st_mode,
+                target_original.st_uid, target_original.st_gid)
+        with open(target if mode == "conflict-symlink" else PATH, "rb") as file:
+            assert file.read() == content
+        emit({"conflictPreserved": mode, "startupErrno": errno.EADDRINUSE})
+    finally:
+        current = os.lstat(PATH)
+        assert (current.st_dev, current.st_ino) == (original.st_dev, original.st_ino)
+        os.unlink(PATH)
+        if mode == "conflict-symlink":
+            current = os.lstat(target)
+            assert (current.st_dev, current.st_ino) == (target_original.st_dev, target_original.st_ino)
+            os.unlink(target)
 
 
 def client(mode):
@@ -146,5 +197,7 @@ signal.alarm(60 if sys.argv[1] == "server" else 15)
 identity()
 if sys.argv[1] == "server":
     server()
+elif sys.argv[1] in ("conflict-file", "conflict-symlink"):
+    conflict(sys.argv[1])
 else:
     client(sys.argv[1])

@@ -2641,8 +2641,16 @@ and does not run the entire shared vector corpus across containers.
 Every runtime has network disabled, read-only root, explicit limits and only
 three read-only fixture inputs. Cleanup removes only recorded containers matching
 the owner label, then their exact new labelled volume; no PBX or unrelated
-container is touched. Explicit restart/stale-socket handling, regular-file/symlink
-conflicts and broader namespace configurations remain future cases.
+container is touched. After normal broker completion, two additional broker-user
+containers test a regular file and a symlink at the exact socket pathname.
+The actual server must fail with EADDRINUSE and no readiness/peer events;
+path inode/mode/ownership and sentinel contents remain unchanged, including
+symlink text and target identity/contents. Child execution is bounded, and only
+the verified fixture-created entries are removed afterward.
+
+Explicit restart/stale-socket handling and broader namespace configurations
+remain future cases. Conflicting-path preservation is not proof of general
+managed-file symlink confinement or production socket rotation.
 
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
 separates tested read-only interoperability from unproved parity/deployment

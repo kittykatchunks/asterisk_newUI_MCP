@@ -1240,7 +1240,24 @@ observed rootful/default-map topology does not establish rootless/remapped user
 namespace support. Same-UID compromise remains outside this identity policy.
 
 Still open from section 9.11: explicit broker death/restart and stale-socket
-ownership, conflicting regular-file/symlink publication, broader namespace
+ownership, broader namespace
 configurations, and separate-container full conformance/lifecycle coverage.
 No automatic restart, production listener, control access or later acceptance
 gate is implemented or approved by these results.
+
+The conflicting-path follow-up now runs after the original broker has completed.
+Two new recorded, labelled containers run as broker UID/GID on the same isolated
+volume, creating either a regular sentinel file at the exact socket pathname or
+a symlink to a separate sentinel file inside the fixture directory. Each starts
+the actual fixture server in a bounded subprocess with inherited non-root,
+capability-free identity. Bind must fail with structured EADDRINUSE evidence and
+nonzero exit, without readiness or peer events; an arbitrary startup error does
+not satisfy the assertion.
+
+The parent verifies the original path's device/inode, mode and ownership.
+Regular-file contents must remain exact; symlink text plus target device/inode,
+mode, ownership and bytes must remain exact. Cleanup unlinks only the verified
+fixture-created entries after child settlement; containers and volume retain
+the launcher's existing ownership-checked cleanup. This proves preservation for
+these fixed conflicting-path cases, not general symlink confinement of managed
+configuration, stale-socket recovery or a production publication implementation.

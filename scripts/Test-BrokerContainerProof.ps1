@@ -98,6 +98,18 @@ try {
         throw 'Unexpected kernel peer evidence.'
     }
     $events | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
+    foreach ($mode in @('conflict-file', 'conflict-symlink')) {
+        $name = "$owner-$mode"
+        $names.Add($name)
+        $output = & docker run --name $name --label $label @common --user '1101:2100' `
+            --mount "type=volume,source=$volume,target=/socket" @mounts `
+            --entrypoint python3 $image -I -B /container-proof.py $mode
+        if ($LASTEXITCODE -ne 0) { throw "Publication conflict proof failed: $mode" }
+        $conflictEvents = @($output | ForEach-Object { $_ | ConvertFrom-Json })
+        if ($conflictEvents[-1].conflictPreserved -ne $mode) { throw "Missing conflict preservation evidence: $mode" }
+        Write-Output $output
+    }
+    Write-Output 'PASS conflicting publication: regular file and symlink block startup without readiness, path replacement or target changes.'
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
