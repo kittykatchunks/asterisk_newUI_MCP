@@ -3326,6 +3326,19 @@ not see other channel technologies. The transfer owner must account for that
 pending work before a fence can report zero, including transfer failure and
 cancellation paths.
 
+For the two-party path, `bridge_channel_internal_queue_blind_transfer()` only
+queues a bridge-channel action
+([queue implementation](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_channel.c#L3017)).
+`ast_bridge_transfer_blind()` returns success after that enqueue and immediately
+publishes the transfer result
+([result publication](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4747)).
+The built-in PJSIP REFER handler maps that return value to SIP `200`
+([response mapping](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L711)).
+Therefore that immediate `200`/success proves transfer acceptance/queueing at
+that API boundary, not that the target leg answered, the transfer completed, or
+the generation-owned obligations settled. Transfer progress and the final
+dialog lifecycle must remain separate, correlated observations.
+
 The SIP REFER supplement also does not cover every use of the same bridge
 transfer API. Asterisk's core DTMF blind-transfer feature calls
 `ast_bridge_transfer_blind()` directly
@@ -3366,7 +3379,7 @@ legs still need generation attribution and complete settlement.
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
-| REFER retransmission, no progress subscription, target unavailable, or controller/observer restart | Processing is idempotent; incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
+| REFER 200 followed by target failure/timeout, retransmission, no progress subscription, or controller/observer restart | Acceptance is not treated as completion; processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and
