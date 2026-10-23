@@ -3655,6 +3655,8 @@ replace or reject an earlier header depending on nonce/stale values instead of
 retaining both. Verify the deployed compile-time setting and emitted headers
 ([header handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1584-L1675),
 [default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1365-L1372)).
+Confirm the peer's challenge-selection result separately; generated headers
+alone do not prove which credential the server accepts.
 Asterisk then sends it through the stateful dialog helper: pjproject assigns
 the next local CSeq and creates a new UAC transaction. The `auth_retry` txdata
 marker is not read by the PJSIP transaction path, so it does not resume the

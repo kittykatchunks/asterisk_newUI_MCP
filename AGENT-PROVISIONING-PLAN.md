@@ -3824,6 +3824,10 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   deployed setting and actual header set
   ([duplicate-header handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1584-L1675),
   [compile-time default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1365-L1372)).
+  Also establish that the server's Digest challenge selection follows the
+  expected realm/scheme/algorithm policy when it receives multiple competing
+  Authorization fields; do not treat local header generation as evidence that
+  the peer selected or accepted any particular credential.
   This is not a continuation of the challenged transaction: Asterisk's
   in-dialog send helper calls `pjsip_dlg_send_request()`, which replaces the
   request CSeq with the dialog's next local CSeq and creates a new UAC
