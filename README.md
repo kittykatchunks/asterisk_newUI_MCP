@@ -2749,19 +2749,26 @@ The next held inventory source is cancelled by test-only parent `SIGUSR2`.
 From signal dispatch through client container exit, the launcher requires less
 than three seconds and successful zero-byte EOF completion. The fixture must
 record cancellation, not an additional timeout. A competitor remains rejected
-with the slot locked, seven source entries and one cancellation. Only then may
-parent `SIGUSR1` release this source; settlement and slot-release evidence must
+with the slot locked, seven source entries and one cancellation. The parent
+then waits for the original timer's callback, which must record a measured
+five-to-eight-second deadline with the same source/timeout/cancellation counts
+and the slot still locked. A further competitor must remain rejected after
+that deadline. Only then may parent `SIGUSR1` release this source; settlement and slot-release evidence must
 precede a fresh successful read. Both signal handlers are fixture-only, validate
 the expected phase and are restored on exit; neither is a wire operation.
 Final counters require eight source entries (two generation entries), two source
-failures, five capacity rejections, three timeouts (two request timeouts and one
+failures, six capacity rejections, three timeouts (two request timeouts and one
 held-source timeout) and one cancellation.
-All fifteen clients have separate PID/mount namespaces from the broker and the
+All sixteen clients have separate PID/mount namespaces from the broker and the
 same approved UID/GID maps; every connection records its kernel peer tuple.
-Default mode uses Python; `-NodeClients` uses Node for all fifteen clients with
+Default mode uses Python; `-NodeClients` uses Node for all sixteen clients with
 checked runtime completion and no fallback. Each finite waiting client runs
 alongside its competitor only for this phase and remains subject to
 ownership-checked cleanup.
+
+This covers cancellation winning before a later deadline callback while the
+source remains held. It does not establish simultaneous cancellation/deadline
+race safety or cancellation after a successful response.
 
 The shared concurrent fixture also rechecks terminal state/deadline after frame
 EOF and before source entry. This prevents deadline-triggered socket shutdown

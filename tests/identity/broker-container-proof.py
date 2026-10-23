@@ -174,8 +174,10 @@ def client(mode):
         index = mode.removeprefix("admission-")
         assert index in ("idle", "capacity", "no-eof", "capacity-no-eof", "failed-source", "reconnect",
                          "failed-generation", "generation-reconnect", "held-source", "capacity-held",
-                         "capacity-expired", "held-reconnect", "cancel-held", "capacity-cancelled", "cancel-reconnect")
-        if index in ("capacity-no-eof", "capacity-held", "capacity-expired", "capacity-cancelled"):
+                         "capacity-expired", "held-reconnect", "cancel-held", "capacity-cancelled",
+                         "capacity-cancel-deadline", "cancel-reconnect")
+        if index in ("capacity-no-eof", "capacity-held", "capacity-expired", "capacity-cancelled",
+                     "capacity-cancel-deadline"):
             index = "capacity"
         elif index in ("held-reconnect", "cancel-reconnect"):
             index = "reconnect"

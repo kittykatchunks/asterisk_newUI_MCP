@@ -339,6 +339,9 @@ try {
     Wait-AdmissionEvent $admission 'cancelled'
     Invoke-Client 'admission-capacity-cancelled' '1102:2100'
     Wait-AdmissionEvent $admission 'capacity' 5
+    Wait-AdmissionEvent $admission 'cancelled-deadline-observed'
+    Invoke-Client 'admission-capacity-cancel-deadline' '1102:2100'
+    Wait-AdmissionEvent $admission 'capacity' 6
     & docker kill --signal USR1 $admission
     if ($LASTEXITCODE -ne 0) { throw 'Could not release cancelled fixture source.' }
     Wait-AdmissionEvent $admission 'source-settled' 2
@@ -358,7 +361,7 @@ try {
         ForEach-Object { $_ | ConvertFrom-Json })
     if ($admissionEvents[-1].event -ne 'complete') { throw 'Missing admission completion.' }
     $admissionIdentity = $admissionEvents[0].identity
-    foreach ($identity in @($identities | Select-Object -Last 15)) {
+    foreach ($identity in @($identities | Select-Object -Last 16)) {
         if ($identity.uid_map -ne $admissionIdentity.uid_map -or $identity.gid_map -ne $admissionIdentity.gid_map -or
             $identity.userNamespace -ne $admissionIdentity.userNamespace -or
             $identity.pidNamespace -eq $admissionIdentity.pidNamespace -or
@@ -367,13 +370,13 @@ try {
         }
     }
     $admissionPeers = @($admissionEvents | Where-Object { $_.peer })
-    if ($admissionPeers.Count -ne 15 -or @($admissionPeers | Where-Object {
+    if ($admissionPeers.Count -ne 16 -or @($admissionPeers | Where-Object {
         $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
     }).Count -ne 0) { throw 'Missing exact authenticated admission peer evidence.' }
     $admissionCounts = @($admissionEvents | Where-Object { $_.admissionCounts })
     if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 8 -or
         $admissionCounts[0].admissionCounts.generationReads -ne 2 -or
-        $admissionCounts[0].admissionCounts.capacity -ne 5 -or $admissionCounts[0].admissionCounts.timeouts -ne 3 -or
+        $admissionCounts[0].admissionCounts.capacity -ne 6 -or $admissionCounts[0].admissionCounts.timeouts -ne 3 -or
         $admissionCounts[0].admissionCounts.requestTimeouts -ne 2 -or
         $admissionCounts[0].admissionCounts.sourceFailures -ne 2 -or
         $admissionCounts[0].admissionCounts.cancellations -ne 1) { throw 'Unexpected admission source/deadline counters.' }
@@ -401,13 +404,24 @@ try {
         }
     }
     $heldCapacity = @($admissionEvents | Where-Object { $_.heldCapacity })
-    if ($heldCapacity.Count -ne 3 -or $heldCapacity[0].heldCapacity.timeouts -ne 2 -or
+    if ($heldCapacity.Count -ne 4 -or $heldCapacity[0].heldCapacity.timeouts -ne 2 -or
         $heldCapacity[1].heldCapacity.timeouts -ne 3 -or @($heldCapacity | Select-Object -First 2 | Where-Object {
             $_.heldCapacity.sourceEntries -ne 5 -or $_.heldCapacity.slotLocked -ne $true
         }).Count -ne 0) { throw 'Held source did not retain the slot before and after connection timeout.' }
-    if ($heldCapacity[2].heldCapacity.sourceEntries -ne 7 -or $heldCapacity[2].heldCapacity.timeouts -ne 3 -or
-        $heldCapacity[2].heldCapacity.cancellations -ne 1 -or $heldCapacity[2].heldCapacity.slotLocked -ne $true) {
+    if (@($heldCapacity | Select-Object -Last 2 | Where-Object {
+        $_.heldCapacity.sourceEntries -ne 7 -or $_.heldCapacity.timeouts -ne 3 -or
+        $_.heldCapacity.cancellations -ne 1 -or $_.heldCapacity.slotLocked -ne $true
+    }).Count -ne 0) {
         throw 'Cancelled source did not retain the admission slot without an extra timeout/source entry.'
+    }
+    $cancelledDeadlines = @($admissionEvents | Where-Object { $_.cancelledDeadline })
+    if ($cancelledDeadlines.Count -ne 1 -or $cancelledDeadlines[0].cancelledDeadline.elapsedSeconds -lt 5 -or
+        $cancelledDeadlines[0].cancelledDeadline.elapsedSeconds -ge 8 -or
+        $cancelledDeadlines[0].cancelledDeadline.sourceEntries -ne 7 -or
+        $cancelledDeadlines[0].cancelledDeadline.timeouts -ne 3 -or
+        $cancelledDeadlines[0].cancelledDeadline.cancellations -ne 1 -or
+        $cancelledDeadlines[0].cancelledDeadline.slotLocked -ne $true) {
+        throw 'Original deadline after cancellation changed terminal state or released admission.'
     }
     $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
     Write-Output "PASS separate-container admission ($runtime clients): idle and complete-body/missing-EOF slots exclude competitors, five-second deadlines close without response/source entry, fresh authenticated read succeeds."
@@ -415,6 +429,7 @@ try {
     Write-Output "PASS separate-container generation failure ($runtime clients): exact diagnostic, zero response bytes rather than missing, slot released, fresh observed generation succeeds."
     Write-Output "PASS separate-container held source ($runtime clients): deadline EOF, competitors rejected before/after timeout, slot retained until parent release and source settlement, fresh read succeeds."
     Write-Output "PASS separate-container cancellation ($runtime clients): zero-byte EOF in $($cancelWatch.Elapsed.TotalSeconds.ToString('F3')) seconds, slot retained until source settlement, fresh read succeeds."
+    Write-Output "PASS cancelled deadline ($runtime clients): original five-second timer observes one cancellation without another timeout, competitor remains excluded until source settlement."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

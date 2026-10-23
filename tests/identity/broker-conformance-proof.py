@@ -321,7 +321,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
 
     def release_held_source(_signal, _frame):
         state = (counts["reads"], counts["timeouts"], counts["capacity"], counts["cancellations"])
-        if (state not in ((5, 3, 4, 0), (7, 3, 5, 1)) or
+        if (state not in ((5, 3, 4, 0), (7, 3, 6, 1)) or
                 not slot.locked() or release.is_set()):
             errors.append("Unexpected parent source-release signal")
         release.set()
@@ -390,7 +390,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                         errors.append("Held container source was not released by parent")
                         raise TimeoutError("Fixture source was not released")
                     assert expired.is_set() and slot.locked()
-                    assert counts["capacity"] == (4 if entry == 5 else 5) and counts["reads"] == entry
+                    assert counts["capacity"] == (4 if entry == 5 else 6) and counts["reads"] == entry
                     event("source-settled")
                 return default
             if counts["reads"] in (1, 5):
@@ -407,7 +407,17 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
 
         def terminate(reason):
             with lifetime_lock:
-                if active.get("cancel") is not terminate or expired.is_set():
+                if active.get("cancel") is not terminate:
+                    return
+                if expired.is_set():
+                    if admission_only and reason == "timeout" and counts["reads"] == 7:
+                        with output_lock:
+                            print(json.dumps({"cancelledDeadline": {
+                                "elapsedSeconds": time.monotonic() - (deadline - 5),
+                                "sourceEntries": counts["reads"], "timeouts": counts["timeouts"],
+                                "cancellations": counts["cancellations"], "slotLocked": slot.locked(),
+                            }}), flush=True)
+                        event("cancelled-deadline-observed")
                     return
                 expired.set()
                 counts["timeouts" if reason == "timeout" else "cancellations"] += 1
@@ -516,7 +526,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        expected = ({"reads": 8, "generationReads": 2, "capacity": 5, "timeouts": 3,
+        expected = ({"reads": 8, "generationReads": 2, "capacity": 6, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1} if admission_only else
                     {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1})

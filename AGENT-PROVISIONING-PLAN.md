@@ -1351,7 +1351,7 @@ scenario across runtimes, not a general retry or response-loss recovery policy.
 The bounded separate-container idle/missing-EOF admission follow-up reuses the concurrent
 fixture with its default positive-PID check retained for the original topology.
 Only the approved separate-container mode authorises mapped UID/primary GID
-without using PID, and records all fifteen kernel peer tuples. An idle authenticated
+without using PID, and records all sixteen kernel peer tuples. An idle authenticated
 client occupies the one slot while an overlapping approved competitor must close
 with EOF and zero bytes. The idle connection times out after a measured five
 seconds (at least five, below the eight-second client watchdog) with zero source
@@ -1415,12 +1415,21 @@ logging cannot deadlock if it interrupts logging in the same thread.
 
 After the cancellation event, another approved competitor must be rejected
 with the slot still locked, seven source entries, three timeouts and exactly
-one cancellation. Parent `SIGUSR1` then releases the source in this exact phase.
+one cancellation. The source remains held through the original connection
+deadline. The parent requires explicit evidence from the original timer callback
+at a measured five-to-eight seconds: seven source entries, three timeouts,
+one cancellation and a still-locked slot. The already-terminal callback must
+not close the connection again, increment timeout counters or release admission.
+After this evidence, another approved competitor must receive zero-byte EOF
+without source entry; the post-deadline capacity observation must retain the
+same terminal counters and lock state. No sleep-based proxy substitutes for
+the timer callback evidence.
+Parent `SIGUSR1` then releases the source in this exact six-denial phase.
 Source settlement and ninth slot release must precede a fresh authenticated
 inventory response. Both handlers exist only in separate-container admission
 mode and are restored on exit. This is explicit test-parent cancellation,
 not worker access to Docker signals or a production cancellation protocol.
-Final counters are exactly eight source entries, five capacity rejections, three
+Final counters are exactly eight source entries, six capacity rejections, three
 timeouts (two request and one held-source timeout), two generation reads, two
 source failures and one cancellation.
 
@@ -1439,3 +1448,5 @@ after frame reading and under the lifetime lock before source entry. This is a
 test-fixture correction, not a production implementation change.
 Passing these request-wait, held-source and explicit cancellation scenarios does
 not prove peer-disconnect handling or general terminal-race safety.
+In particular, cancellation-before-deadline with a later no-op deadline callback
+does not prove simultaneous cancellation/deadline or response-completion races.
