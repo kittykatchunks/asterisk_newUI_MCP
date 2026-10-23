@@ -916,10 +916,10 @@ not invoke the fake source, and an approved client reconnects afterward.
 The original filesystem/credential proof and the new conformance run pass with
 non-root capability-free server/client identities; owned containers are removed.
 
-This is deliberately not full runtime parity. Python uses static fake source
-data and a sequential test server; dynamic source validation, concurrent
-admission/rejection, uncooperative cancellation and broader response/error
-conformance remain unfinished. No TypeScript cross-process client, production
+This is deliberately not full runtime parity. Python uses fixture-supplied fake
+source data and a sequential vector server, with separate admission/lifetime
+evidence below. Broader source/error/cancellation conformance remains unfinished.
+No TypeScript cross-process client, production
 service, ledger, mutation or PBX authority was introduced. The next experiment
 must close those protocol/lifetime gaps before the first broker acceptance gate
 can be considered complete. See the
@@ -936,7 +936,17 @@ denials and two timeouts; accepted clients still use real kernel UID/primary GID
 The test uses source/deadline threads and a private parent control pipe solely
 to release the fake source deterministically. It selects no production
 threading/control architecture, creates no remote release action and adds no PBX
-authority. All owned children/socket entries/containers are removed. Dynamic
-source validation, broader error/cancellation parity, actual container identity
+authority. All owned children/socket entries/containers are removed. Broader
+source/error/cancellation parity, actual container identity
 mapping and deployment supervision remain incomplete. The first broker gate
 is still not approved as complete.
+
+Twenty-six additional shared source-output vectors now exercise exact inventory
+and observation validation in TypeScript readback and over authenticated Python
+Unix sockets. Valid output matches exactly; invalid output (including secret-like
+extra fields, duplicates, unsafe/fractional numbers, boolean/numeric confusion and
+missing fields) closes without a response frame. Python enforces JavaScript-safe
+integer bounds while accepting integral JSON numbers such as `1.0`. Selection of
+fake source values is trusted fixture sequencing, never a wire-level override.
+This proves the tested validation subset only, not dynamic PBX integration,
+complete source failure handling or a production runtime choice.

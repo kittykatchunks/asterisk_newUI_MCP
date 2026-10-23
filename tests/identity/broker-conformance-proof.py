@@ -62,7 +62,36 @@ def frame(text, maximum):
     return struct.pack("!I", len(payload)) + payload
 
 
-def readback(text):
+def safe_integer(value, minimum):
+    return (type(value) is int or type(value) is float and value.is_integer()) and minimum <= value <= 9007199254740991
+
+
+def inventory(value):
+    if not isinstance(value, list) or len(value) > 100:
+        raise ValueError("Invalid expiry inventory")
+    ids = set()
+    result = []
+    for item in value:
+        if (not isinstance(item, dict) or set(item) != {"generationId", "notAfter", "draining"}
+                or not isinstance(item["generationId"], str)
+                or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", item["generationId"])
+                or not safe_integer(item["notAfter"], 1) or type(item["draining"]) is not bool
+                or item["generationId"] in ids):
+            raise ValueError("Invalid expiry generation")
+        ids.add(item["generationId"])
+        result.append(dict(item))
+    return result
+
+
+def observation(value):
+    if (not isinstance(value, dict) or set(value) != {"newCallsBlocked", "dialogs", "removed"}
+            or type(value["newCallsBlocked"]) is not bool or type(value["removed"]) is not bool
+            or not (value["dialogs"] == "unknown" or safe_integer(value["dialogs"], 0))):
+        raise ValueError("Invalid expiry observation")
+    return dict(value)
+
+
+def readback(text, source=None):
     request = json.loads(text)
     binding = VECTORS["binding"]
     if not isinstance(request, dict) or type(request.get("version")) is not int or request["version"] != 1:
@@ -71,15 +100,17 @@ def readback(text):
         raise ValueError("Foreign scope")
     base = {"version": 1, "customer": binding["customer"], "epoch": binding["epoch"]}
     if request.get("action") == "inventory" and set(request) == {"version", "customer", "epoch", "action"}:
-        return {**base, "action": "inventory", "generations": [VECTORS["generation"]]}
+        value = source["value"] if source is not None else [VECTORS["generation"]]
+        return {**base, "action": "inventory", "generations": inventory(value)}
     if request.get("action") == "generation" and set(request) == {"version", "customer", "epoch", "action", "generationId"}:
         generation = request["generationId"]
         if not isinstance(generation, str) or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", generation):
             raise ValueError("Invalid generation")
         result = {**base, "action": "generation", "generationId": generation}
-        return {**result, "state": "observed", "observation": {
+        value = source["value"] if source is not None else {
             "newCallsBlocked": True, "dialogs": "unknown", "removed": False,
-        }} if generation == VECTORS["generation"]["generationId"] else {**result, "state": "missing"}
+        }
+        return {**result, "state": "observed", "observation": observation(value)} if generation == VECTORS["generation"]["generationId"] else {**result, "state": "missing"}
     raise ValueError("Unsupported fields/action")
 
 
@@ -96,7 +127,7 @@ def server(path):
         listener.listen(1)
         listener.settimeout(10)
         print(json.dumps({"ready": True}), flush=True)
-        for _ in range(len(VECTORS["cases"]) + 2):
+        for index in range(len(VECTORS["cases"]) + len(VECTORS["sourceCases"]) + 2):
             connection, _ = listener.accept()
             with connection:
                 deadline = time.monotonic() + 5
@@ -105,7 +136,9 @@ def server(path):
                     denied += 1
                     continue
                 try:
-                    response = readback(read_frame(connection, 8192, deadline))
+                    source_index = index - len(VECTORS["cases"]) - 1
+                    source = VECTORS["sourceCases"][source_index] if 0 <= source_index < len(VECTORS["sourceCases"]) else None
+                    response = readback(read_frame(connection, 8192, deadline), source)
                 except (ValueError, UnicodeError, TimeoutError):
                     rejected += 1
                     continue
@@ -135,7 +168,20 @@ def client(path, index):
             connection.settimeout(8)
             assert connection.recv(1) == b""
             return
-        vector = VECTORS["cases"][int(index)] if index != "reconnect" else VECTORS["cases"][0]
+        if index.startswith("source:"):
+            source = VECTORS["sourceCases"][int(index.split(":")[1])]
+            action = "inventory" if source["kind"] == "inventory" else "generation"
+            request = {"version": 1, "customer": VECTORS["binding"]["customer"],
+                       "epoch": VECTORS["binding"]["epoch"], "action": action}
+            expected = dict(request)
+            if action == "generation":
+                request["generationId"] = VECTORS["generation"]["generationId"]
+                expected.update({"generationId": request["generationId"], "state": "observed", "observation": source["value"]})
+            else:
+                expected["generations"] = source["value"]
+            vector = {"text": json.dumps(request), "expected": expected if source["valid"] else None}
+        else:
+            vector = VECTORS["cases"][int(index)] if index != "reconnect" else VECTORS["cases"][0]
         text = vector.get("text", "")
         if "padBytes" in vector:
             text += " " * (vector["padBytes"] - len(text.encode("utf8")))
@@ -166,17 +212,19 @@ def proof():
         try:
             assert select.select([process.stdout], [], [], 10)[0]
             assert json.loads(process.stdout.readline()) == {"ready": True}
-            for index in ["foreign", *map(str, range(len(VECTORS["cases"]))), "reconnect"]:
+            for index in ["foreign", *map(str, range(len(VECTORS["cases"]))),
+                          *(f"source:{i}" for i in range(len(VECTORS["sourceCases"]))), "reconnect"]:
                 result = subprocess.run([sys.executable, "-I", "-B", __file__, "client", path, index],
                                         user=1103 if index == "foreign" else UID, group=GID, extra_groups=[],
                                         capture_output=True, text=True, timeout=10)
                 assert result.returncode == 0, f"{index}: {result.stderr}"
             output, error = process.communicate(timeout=10)
             assert process.returncode == 0, error
-            rejected = sum(case["expected"] is None for case in VECTORS["cases"])
-            assert json.loads(output) == {"reads": len(VECTORS["cases"]) - rejected + 1, "rejected": rejected, "denied": 1}
+            rejected = sum(case["expected"] is None for case in VECTORS["cases"]) + sum(not case["valid"] for case in VECTORS["sourceCases"])
+            assert json.loads(output) == {"reads": len(VECTORS["cases"]) + len(VECTORS["sourceCases"]) - rejected + 1, "rejected": rejected, "denied": 1}
             assert not os.path.exists(path)
             print(f"PASS Python/Linux: {len(VECTORS['cases'])} shared framing/readback vectors, foreign peer denied before read, approved reconnect", flush=True)
+            print(f"PASS Python/Linux: {len(VECTORS['sourceCases'])} shared source-output vectors, invalid outputs close without a response frame", flush=True)
             concurrent_proof(directory)
         finally:
             if process.poll() is None:

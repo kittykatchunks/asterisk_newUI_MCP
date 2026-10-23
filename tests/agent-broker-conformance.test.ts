@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { test } from "node:test";
 import { createAgentBrokerReadback } from "../src/agent-broker-readback.ts";
 import { encodeBrokerFrame, readBrokerFrame } from "../src/agent-broker-frame.ts";
+import { parseExpiryInventory, parseExpiryObservation } from "../src/agent-provisioning-expiry.ts";
 
 test("shared language-neutral broker vectors conform through TypeScript framing and readback", async () => {
   const vectors = JSON.parse(await readFile(new URL("./identity/broker-conformance.json", import.meta.url), "utf8")) as {
@@ -19,6 +20,7 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
       return id === vectors.generation.generationId ? { newCallsBlocked: true, dialogs: "unknown", removed: false } : undefined;
     },
   });
+
   for (const vector of vectors.cases) {
     const before = reads;
     const text = vector.padBytes ? vector.text!.padEnd(vector.padBytes, " ") : vector.text!;
@@ -34,4 +36,30 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
     }
   }
   assert.equal(reads, 3);
+});
+
+test("shared source-output vectors enforce exact expiry shapes in TypeScript broker responses", async () => {
+  const vectors = JSON.parse(await readFile(new URL("./identity/broker-conformance.json", import.meta.url), "utf8")) as {
+    binding: { customer: string; epoch: string; principal: string };
+    generation: { generationId: string };
+    sourceCases: { name: string; kind: "inventory" | "observation"; value: unknown; valid: boolean }[];
+  };
+  for (const vector of vectors.sourceCases) {
+    const validate = () => vector.kind === "inventory" ? parseExpiryInventory(vector.value) : parseExpiryObservation(vector.value);
+    if (vector.valid) assert.deepEqual(validate(), vector.value, vector.name);
+    else assert.throws(validate, vector.name);
+    const broker = createAgentBrokerReadback(vectors.binding, {
+      async inventory() { return JSON.parse(JSON.stringify(vector.value)); },
+      async generation() { return JSON.parse(JSON.stringify(vector.value)); },
+    });
+    const request = { version: 1, customer: vectors.binding.customer, epoch: vectors.binding.epoch,
+      ...(vector.kind === "inventory" ? { action: "inventory" } :
+        { action: "generation", generationId: vectors.generation.generationId }) };
+    if (!vector.valid) await assert.rejects(broker.read(JSON.stringify(request), vectors.binding), vector.name);
+    else {
+      const result = await broker.read(JSON.stringify(request), vectors.binding);
+      assert.deepEqual(result.action === "inventory" ? result.generations :
+        result.state === "observed" ? result.observation : undefined, vector.value, vector.name);
+    }
+  }
 });

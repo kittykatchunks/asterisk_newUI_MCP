@@ -2416,7 +2416,7 @@ language-neutral expected objects.
 
 The Python server owns the actual accepted Unix socket, obtains kernel
 `SO_PEERCRED`, checks the approved UID/primary GID before frame reads, enforces
-length/UTF-8/EOF and returns only static fake inventory/observations. The client
+length/UTF-8/EOF and validates fixture-supplied fake inventory/observations. The client
 checks that valid requests receive no response before request EOF. Rejected
 requests produce no success frame; final source-read/rejection counters are
 checked by the parent. A foreign UID receives no source access, and the approved
@@ -2424,17 +2424,29 @@ identity reconnects after all cases. Server/clients run non-root without effecti
 capabilities in the same restricted owned-container setup as the original peer
 proof. Both original and conformance proofs have passed.
 
+An additional 26 shared source-output cases run through TypeScript readback
+and the authenticated Python socket server. They exercise valid empty inventory,
+safe integer boundaries and unknown/zero dialogs, and reject duplicate or invalid
+generation IDs, extra secret-like fields, missing fields, boolean/numeric type
+confusion, fractional/unsafe counts and invalid deadlines. Python validates exact
+field sets and the JavaScript safe-integer range before constructing a response.
+Integral JSON numbers such as `1.0` remain valid in both languages. Invalid source
+outputs close the connection without a response frame; valid replies match the
+shared value exactly. Source cases are selected by trusted fixture sequence, not
+by new client fields/actions. This does not add a dynamic PBX source adapter.
+
 This is the approved **experiment**, not a production Python runtime decision,
 full protocol equivalence or a privileged broker. There is no dynamic source
-adapter/validation, durable operation ledger, apply method, TypeScript-to-Python
-client integration or production service. The shared-vector Python server processes clients sequentially; the separate
+adapter, durable operation ledger, apply method, TypeScript-to-Python
+client integration or production service. The shared-vector Python server
+processes clients sequentially; the separate
 admission experiment below tests held source/deadline behaviour. Its socket
 deadline does not preempt blocked Python source code. Other TypeScript tests
 still supply broader source/response/timeout/cancellation coverage; the shared
 vector set is a tested subset, not proof of those features in Python.
 
-Next acceptance work must address dynamic fake-source validation and broader
-lifetime/error parity, then container/namespace identity mapping.
+Next acceptance work must address broader source/error/cancellation parity and
+cross-process client integration, then container/namespace identity mapping.
 No PBX probe or secret issuance is authorised by this experiment.
 
 The conformance command now also runs a second non-root Unix-socket server
