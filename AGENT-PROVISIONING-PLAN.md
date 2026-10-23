@@ -919,8 +919,8 @@ non-root capability-free server/client identities; owned containers are removed.
 This is deliberately not full runtime parity. Python uses fixture-supplied fake
 source data and a sequential vector server, with separate admission/lifetime
 evidence below. Broader source/error/cancellation conformance remains unfinished.
-No TypeScript cross-process client, production
-service, ledger, mutation or PBX authority was introduced. The next experiment
+The test-only cross-process client is described below; no production
+service, ledger, mutation or PBX authority was introduced. Further experiments
 must close those protocol/lifetime gaps before the first broker acceptance gate
 can be considered complete. See the
 [Python fixture contract](./README.md#python-read-only-conformance-experiment-approved-fixture-only).
@@ -965,3 +965,21 @@ integer bounds while accepting integral JSON numbers such as `1.0`. Selection of
 fake source values is trusted fixture sequencing, never a wire-level override.
 This proves the tested validation subset only, not dynamic PBX integration,
 complete source failure handling or a production runtime choice.
+
+The user additionally approved a separate test-only Node/Python Linux image.
+`Test-BrokerPeerProof.ps1 -CrossRuntime` now launches non-root Node clients
+against the Python server's actual Unix socket. The client imports the production
+TypeScript framing helper; all 16 request/framing vectors and 26 source-output
+vectors, foreign-UID denial and approved reconnect pass across the language
+boundary. Invalid raw frames intentionally bypass the writer; valid replies
+must decode and equal the expected object, and rejections must return zero bytes.
+
+The image pins its Node base digest, adds Python and copies no project code.
+Build-time registry/package access is distinct from the network-disabled proof
+runtime; Debian packages are not snapshot-pinned. The launcher requires the
+already-built image, resolves its local immutable ID, and mounts only four
+read-only inputs. Existing privilege/resource/cleanup restrictions remain.
+The earlier admission/failure/cancellation phase still uses Python clients.
+Production Node client lifecycle, separate-container namespace identity mapping,
+supervision and full broker acceptance remain open. See the
+[cross-runtime proof commands](./README.md#cross-runtime-unix-socket-conformance-approved-test-image-only).

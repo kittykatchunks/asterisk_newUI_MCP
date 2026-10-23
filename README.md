@@ -2437,8 +2437,7 @@ by new client fields/actions. This does not add a dynamic PBX source adapter.
 
 This is the approved **experiment**, not a production Python runtime decision,
 full protocol equivalence or a privileged broker. There is no dynamic source
-adapter, durable operation ledger, apply method, TypeScript-to-Python
-client integration or production service. The shared-vector Python server
+adapter, durable operation ledger, apply method or production service. The shared-vector Python server
 processes clients sequentially; the separate
 admission experiment below tests held source/deadline behaviour. Its socket
 deadline does not preempt blocked Python source code. Other TypeScript tests
@@ -2446,7 +2445,7 @@ still supply broader source/response/timeout/cancellation coverage; the shared
 vector set is a tested subset, not proof of those features in Python.
 
 Next acceptance work must address broader source/error/cancellation parity and
-cross-process client integration, then container/namespace identity mapping.
+production client lifecycle integration, then container/namespace identity mapping.
 No PBX probe or secret issuance is authorised by this experiment.
 
 The conformance command now also runs a second non-root Unix-socket server
@@ -2485,6 +2484,37 @@ connection-bound, synchronised terminal callback so only the first closes/counts
 the lifetime, and settled connections cannot be cancelled later. This proves
 the tested owner-cancellation path, not automatic detection of peer disconnect
 while source code is blocked, process supervision or production cancellation.
+
+#### Cross-runtime Unix-socket conformance (approved test image only)
+
+Build the separate test-only Node/Python image, then run the cross-runtime proof:
+
+```powershell
+docker build --tag asterisk-broker-cross-runtime:proof --file .\tests\identity\broker-cross-runtime.Dockerfile .\tests\identity
+.\scripts\Test-BrokerPeerProof.ps1 -CrossRuntime
+```
+
+The Dockerfile pins the Node 24.11.1 Debian base by digest and installs Python
+without copying project code. Building requires registry/package access; Debian
+package versions are not snapshot-pinned. Running the proof does not build or
+pull: the launcher resolves the existing local image to its immutable image ID.
+The original diagnostics image and default/conformance modes are unchanged.
+
+The new mode implies `-Conformance` and substitutes a separate Node process for
+each sequential vector client. It imports the actual TypeScript frame reader and
+writer, sends valid requests with request EOF, validates complete framed replies,
+and requires zero response bytes for rejected requests. Malformed raw frames
+deliberately bypass the writer. All 16 request/framing and 26 source-output cases,
+foreign-UID denial and approved reconnect pass over a real Unix socket against
+the Python server. The original Python admission/failure/cancellation experiment
+then runs too; it is not yet a Node-client lifecycle test.
+
+Only the fixture, vectors, Node client and frame helper are mounted read-only,
+not the repository or PBX. Runtime networking is disabled; existing resource,
+capability, tmpfs and owned-container cleanup restrictions apply. Node clients
+assert their exact UID/primary GID and zero effective capabilities. This is
+test interoperability, not a production client, runtime selection, deployment
+identity-map proof or completion of the broker acceptance gate.
 
 #### Broker OS identity integration: production option still unselected
 

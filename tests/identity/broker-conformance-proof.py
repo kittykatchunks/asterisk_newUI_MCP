@@ -209,7 +209,7 @@ def client(path, index):
         connection.close()
 
 
-def proof():
+def proof(cross_runtime=False):
     assert sys.platform == "linux" and os.getuid() == 0
     os.setgroups([GID])
     with tempfile.TemporaryDirectory(prefix="broker-conformance-", dir="/proof") as directory:
@@ -224,7 +224,9 @@ def proof():
             assert json.loads(process.stdout.readline()) == {"ready": True}
             for index in ["foreign", *map(str, range(len(VECTORS["cases"]))),
                           *(f"source:{i}" for i in range(len(VECTORS["sourceCases"]))), "reconnect"]:
-                result = subprocess.run([sys.executable, "-I", "-B", __file__, "client", path, index],
+                command = (["node", "/tests/identity/broker-cross-client.ts", path, index] if cross_runtime
+                           else [sys.executable, "-I", "-B", __file__, "client", path, index])
+                result = subprocess.run(command,
                                         user=1103 if index == "foreign" else UID, group=GID, extra_groups=[],
                                         capture_output=True, text=True, timeout=10)
                 assert result.returncode == 0, f"{index}: {result.stderr}"
@@ -235,6 +237,8 @@ def proof():
             assert not os.path.exists(path)
             print(f"PASS Python/Linux: {len(VECTORS['cases'])} shared framing/readback vectors, foreign peer denied before read, approved reconnect", flush=True)
             print(f"PASS Python/Linux: {len(VECTORS['sourceCases'])} shared source-output vectors, invalid outputs close without a response frame", flush=True)
+            if cross_runtime:
+                print("PASS Node/TypeScript client to Python broker: real Unix socket, production frame reader/writer, all shared cases and approved reconnect", flush=True)
             concurrent_proof(directory)
         finally:
             if process.poll() is None:
@@ -494,5 +498,7 @@ elif sys.argv[1] == "client":
     client(sys.argv[2], sys.argv[3])
 elif sys.argv[1] == "concurrent-server":
     concurrent_server(sys.argv[2])
+elif sys.argv[1] == "cross-runtime":
+    proof(cross_runtime=True)
 else:
     raise ValueError("Unknown fixture mode")
