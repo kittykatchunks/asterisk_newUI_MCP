@@ -3404,6 +3404,48 @@ pre-fence versus post-fence ordering, every failure/cancellation release, and
 restart reconciliation before an isolated call proof. Do not build a module or
 send synthetic calls until that design is reviewed and separately approved.
 
+#### Refined REFER candidate: bridge transfer callback
+
+The pinned bridge API provides a more concrete propagation point than the
+outgoing PJSIP hook alone. `ast_bridge_transfer_blind()` accepts a
+`transfer_channel_cb`; its contract explicitly says the callback can set data on
+the channel that will run dialplan
+([public callback contract](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/bridge.h#L1193)).
+In the two-party path, Asterisk invokes it on the transferee before queueing the
+blind-transfer action
+([callback before enqueue](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_channel.c#L3032)).
+In the multi-party path, Asterisk invokes it on the new Local channel before
+`ast_call()` and bridge insertion
+([callback before call](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4359)).
+This gives a custom REFER handler a plausible place to bind a pre-created,
+generation-scoped claim to the exact channel that will execute the transfer
+dialplan.
+
+The callback's `transfer_channel_data.data` points to caller stack memory and
+must not be retained after callback return
+([lifetime contract](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/bridge.h#L1180)).
+Any propagated claim therefore needs an independently owned/reference-counted
+representation attached to the channel, and the resulting PJSIP branch must
+inherit or otherwise recover that trusted claim before signaling. The callback
+returns `void`; if claim propagation can fail, the transfer path must still
+fail closed rather than enqueue/execute an unowned transfer. That failure
+behavior is not proven by source inspection.
+
+This refines—but does not close—the custom REFER candidate. A purpose-built
+PJSIP supplement could synchronously reserve the operation, validate the
+normalized target/context, call the bridge transfer API with the propagation
+callback, and own the SIP response/progress lifecycle. It still must prove the
+claim can be atomically attached and followed through early dialogs, each
+forked branch, and terminal outcomes. The built-in DTMF transfer path uses its
+own callback, so it must remain disabled or be separately intercepted; parking
+must likewise be disabled or covered.
+
+This is currently the strongest source-supported candidate to test in a design
+review, not a selected implementation. Next, specify the claim object and
+channel propagation/failure protocol, and check whether the supported Asterisk
+APIs can guarantee no unowned transfer when callback attachment fails. Only
+after that review should an isolated proof be proposed for approval.
+
 These APIs make an in-process PJSIP gate technically plausible, but do not
 prove coverage of every queue, transfer, redirect, channel technology, or call
 direction. `incoming_request` runs on a SIP servant thread, so it must not wait
