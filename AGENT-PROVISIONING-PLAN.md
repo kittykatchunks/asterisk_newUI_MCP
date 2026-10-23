@@ -3590,6 +3590,21 @@ silently omit or corrupt the child payload; if the gate rejects that Local
 call, parking reports failure and the bridge API falls through to the ordinary
 transfer path, whose callback runs before its own call.
 
+The timing is stricter than merely "callback after `ast_call()`": the Local
+driver calls `ast_pbx_start()` on its paired `;2` channel, which starts a
+detached PBX thread before returning
+([Local dialplan action](https://github.com/asterisk/asterisk/blob/22.11.0/main/core_local.c#L751-L762),
+[detached PBX thread creation](https://github.com/asterisk/asterisk/blob/22.11.0/main/pbx.c#L3268-L3292)).
+That thread may execute the destination context before the parking function
+returns and invokes the transfer callback. Thus the parking Local path cannot
+depend on callback-attached state for its initial target-context guard or any
+subsequent per-callee `b()` admission. The transfer operation must already be
+bound to the source channel, the core Local-call gate must validate it and
+reserve a Local-attempt child before calling the Local driver, and `;1` to
+`;2` inheritance plus the first target-context guard must be validated before
+any route can reach call-producing logic. Callback state added afterward is
+too late to be trusted as the source of that lineage.
+
 The failed parking attempt can also invoke the callback before bridge
 insertion, then fall through and invoke it again on a different channel. The
 owner must model the parking Local attempt as its own child of the reserved
@@ -3995,7 +4010,7 @@ legs still need generation attribution and complete settlement.
 | Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
-| Multi-party blind transfer through parking whose Local bridge insertion fails | A generation claim gates the parking Local before its initial `ast_call()`; callback retry on ordinary-transfer fallback creates no duplicate or missing operation/child claim; otherwise the path is unavailable. |
+| Multi-party blind transfer through parking where the Local PBX starts before callback or bridge insertion fails | A source-bound operation claim and core Local gate exist before the detached PBX thread starts; the target guard and every child hook do not depend on the later callback; fallback creates and settles a distinct attempt claim; otherwise the path is unavailable. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

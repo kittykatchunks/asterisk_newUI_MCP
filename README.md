@@ -3476,9 +3476,11 @@ association still needs a locked, serialized proof. Parking is an additional
 bypass: its multi-party path inherits datastore state and calls a Local channel
 before the supplied transfer callback, and can retry the callback after
 bridge-insertion failure. A source-channel operation claim plus a synchronous
-Local `ast_call()` gate may cover the first attempt, but inheritance is
-fallible and fallback needs a separately settled child claim; otherwise
-protected transfers must exclude parking.
+Local `ast_call()` gate may cover the first attempt, but the Local driver
+starts the paired PBX thread before the transfer callback, so the target guard
+cannot depend on callback-attached state. Inheritance is fallible, and
+fallback needs a separately settled child claim; otherwise protected transfers
+must exclude parking.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
