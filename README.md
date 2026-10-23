@@ -3490,9 +3490,13 @@ lock in dialog-first order and uses recursive group-lock mutexes
 [group lock](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/lock.c#L410-L456));
 transaction lookup takes a reference without acquiring the transaction lock
 ([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L730-L778)),
-which aligns with the dialog response helper's lock order. The added reference
-must be released exactly once with `pj_grp_lock_dec_ref()`. This remains a
-candidate, not an approved response mechanism.
+which aligns with the dialog response helper's lock order. For response
+construction, `pjsip_dlg_create_response()` uses the cloned request's parsed
+headers and dialog state, not transaction module data
+([response construction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1556-L1587)).
+The added transaction reference must be released exactly once with
+`pj_grp_lock_dec_ref()`. This remains a candidate, not an approved response
+mechanism.
 For an allowed request, returning zero continues into Asterisk's built-in
 transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,
