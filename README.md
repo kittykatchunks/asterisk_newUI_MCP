@@ -3489,12 +3489,19 @@ Thus the final REFER response is the only SIP-level terminal outcome; if that
 send fails, no sipfrag failure notification recovers it. For ordinary blind
 transfer the progress path has no ARI state either, so rely on independently
 correlated channel/bridge lifecycle and leave an absent response unresolved.
-The header decision is not strict boolean parsing: Asterisk looks at the first
-matching header and enables subscription only when its value starts with
-case-insensitive `true`; test duplicate headers, casing and non-boolean values
-or reject forms outside the explicitly supported set
+RFC 4488 defines `Refer-Sub` as `true` or `false` with optional extension
+parameters. A `false` request is only a request: suppression is granted when
+the recipient echoes `Refer-Sub: false` in a 2xx response, and the issuer
+should use it only when the REFER itself will not fork
+([RFC 4488](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
+Asterisk's parser is more permissive: it looks at the first matching header
+and enables subscription only if the first four characters compare
+case-insensitively with `true`; `trueX` enables it, while a short value such as
+`tru` takes the no-subscription path. Test duplicates, casing and malformed
+values, or reject forms outside the explicitly supported set
 ([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_msg.c#L374-L387),
 [value check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L553-L569)).
+Without a final 2xx echo, do not treat subscription suppression as negotiated.
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or

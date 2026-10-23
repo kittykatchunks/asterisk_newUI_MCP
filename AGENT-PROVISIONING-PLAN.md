@@ -3556,19 +3556,29 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   submit the constructed response through that API; any eventual wire response
   or timeout behavior must be captured rather than inferred. This is a
   source-level response-path concern, not a claim about what the peer
-  necessarily observes. The `Refer-Sub` decision is a non-`true` prefix test,
-  not a strict boolean parse: Asterisk finds
+  necessarily observes. RFC 4488 defines `Refer-Sub` values as `true` or
+  `false` (optionally followed by extension parameters); a `false` request asks
+  to suppress the implicit subscription, but suppression is confirmed only
+  when the recipient echoes `Refer-Sub: false` in a 2xx response. The issuer
+  may use the request value only when it can ensure the REFER itself will not
+  fork
+  ([RFC 4488 syntax and negotiation](https://www.rfc-editor.org/rfc/rfc4488.html#section-4),
+  [no-fork requirement](https://www.rfc-editor.org/rfc/rfc4488.html#section-5)).
+  Asterisk's implementation is more permissive: its decision is a non-`true`
+  prefix test, not strict boolean parsing. It finds
   the first `Refer-Sub` header in parsed order and treats its value as
   subscription-enabled when its first four characters compare
-  case-insensitively equal to `true`; any other value selects the
-  no-subscription path
+  case-insensitively equal to `true`; values not matching that four-character
+  prefix select the no-subscription path
   ([header selection](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_msg.c#L374-L387),
   [Asterisk value test](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L553-L569)).
-  Therefore values with a `true` prefix and duplicate `Refer-Sub` headers can
-  affect whether the `202`/subscription path runs. The admission gate must
-  either use the same explicitly tested interpretation or reject ambiguous
-  and unsupported forms before they reach built-in handling; do not equate
-  every non-literal `false` value with a standards-validated boolean.
+  Thus `trueX` enables subscription, whereas short values such as `tru` do
+  not match `true` and are treated as requesting no subscription; duplicate
+  headers are resolved by the first matching header. The admission gate must
+  validate the RFC grammar, reject duplicate/ambiguous values, and not treat
+  Asterisk's permissive fallback as proof that a standards-valid suppression
+  was negotiated. If the final response is absent, the request alone does not
+  establish that the recipient granted no-subscription handling.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
@@ -4754,7 +4764,7 @@ legs still need generation attribution and complete settlement.
 | Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in progress/subscription handling; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. If built-in handling continues, capture whether cloned-rdata transaction lookup causes setup to return `500` before the intended `202`/target validation or whether the selected runtime path supplies a usable transaction. With `Refer-Sub: false`, also capture the ignored dialog-send return, actual wire response/timeout behavior, and retransmissions. Do not expect PJSIP's generic unhandled-request `500` to rescue a failed response while Asterisk's matching REFER supplement claims the request. |
 | Valid blind REFER with `Refer-Sub: false` and cloned request data | Prove whether Asterisk queues the core bridge action before the final response attempt; verify whether cloned-rdata transaction lookup is NULL, `pjsip_dlg_send_response()` returns `PJ_EINVAL`, and no final response reaches the peer. Assert no implicit-subscription `202`, SIP progress sipfrag, or terminal failure sipfrag is produced by the suppressed-subscription path; if ARI transfer handling is active, capture its separate progress events. Verify monitoring framehook/bridge-observer setup and detach/unsubscribe independently from SIP signaling. Confirm the generic dialog `500` is suppressed and inspect transmit-data references for an unreleased created response. Capture same-key retransmission behavior (TRYING transaction ignores the duplicate without rerunning supplements); hold the dialog open beyond 64*T1 and prove whether the unanswered UAS transaction remains registered and keeps `tsx_count`/dialog resources held, then identify the exact termination event. Repeat with distinct higher-CSeq/new-branch retries, measuring whether unanswered transactions and retained dialog references accumulate; prove the selected admission/response path bounds or terminates every attempt while preventing duplicate bridge work and claim overwrite. A missing REFER response is not evidence that the transfer was rejected. |
 | REFER implicit-subscription setup succeeds but `202` creation or send fails | Fault-inject response creation/send failure; record the final wire response and verify the built-in handler's subsequent target-validation/transfer work, progress subscription state, and claim correlation. Asterisk ignores `pjsip_xfer_accept()`'s return, so do not infer that 202 was submitted from subscription allocation or continued handling. |
-| `Refer-Sub` header value/casing/duplicates | Capture absent, literal `true`/`false`, case variants, non-boolean values, `true`-prefixed values, and duplicate headers in order. Prove which parsed header Asterisk uses and whether it creates an implicit subscription/attempts `202`; the implementation uses a four-character case-insensitive `true` prefix test on the first matching header, not strict boolean validation. The admission gate must reject ambiguous/unsupported forms or match the pinned behavior exactly. |
+| `Refer-Sub` negotiation, value/casing/duplicates, and REFER routing | RFC-valid `true`/`false` values and extension parameters are distinguished from malformed values; confirm that suppression is considered negotiated only when a final 2xx echoes `Refer-Sub: false`, and ensure the REFER itself cannot fork. Capture absent, case variants, short/non-boolean values, `true`-prefixed values, and duplicates; prove Asterisk's first-header/four-character prefix behavior. The gate rejects duplicate/invalid values and an unconfirmed no-subscription outcome must not suppress expected subscription handling on the issuer side. |
 | REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the actual wire response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Verify the rejection API works with cloned request data; a failed built-in `pjsip_dlg_respond()` is not rescued by the generic dialog `500` while the matching REFER supplement claims the request. Keep distinct from unknown-target handling, which occurs after implicit-subscription setup if its transaction is available. |
 | Missing `Refer-To`, malformed URI, or unsupported non-SIP/SIPS scheme | Reject before progress setup; no operation claim, implicit subscription/`202`, target channel, or INVITE is created. Verify the actual wire rejection and that the custom gate's response API works on cloned data; confirm agreement with built-in URI eligibility. A failed `pjsip_dlg_respond()` in Asterisk's built-in early path is not rescued by the generic dialog `500`, because the matching session supplement marks REFER handled. |
 | Custom rejection uses `ast_sip_send_stateful_response()` on cloned in-dialog REFER | Source order predicts that the session callback's cloned request reuses the already-registered UAS transaction key, causing helper transaction creation to return `PJ_EEXISTS` before response send. Confirm on the exact deployed path, capture wire behavior and retransmissions, and reject this helper if the expected collision occurs; test an alternative response mechanism. |
