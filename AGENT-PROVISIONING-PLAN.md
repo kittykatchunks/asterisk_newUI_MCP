@@ -2602,3 +2602,48 @@ ownership rejection and forced digest collisions. The ordinary Linux launcher
 runs the five tests as non-root with zero effective capabilities before the
 existing broker regression; portable Windows checks cover the same pure logic.
 Actual Asterisk object-name compatibility remains unverified.
+
+### 9.22 Explicit ledger mapping migration (local metadata only)
+
+The approved next increment integrates the pure mapping helper with the local
+ledger. `migrate_ledger_mappings(path, binding)` explicitly upgrades schema 1 to
+2 in one `BEGIN IMMEDIATE` transaction after validating customer/epoch/namespace.
+It creates `broker_mappings`, derives a mapping for each valid existing
+generation, and updates `user_version` only within the same transaction.
+Existing generation UUID/deadline records are preserved. Ordinary opens do not
+migrate; new bootstrap still creates schema 1, and mapping access requires the
+explicit upgrade. Repeated migration, unknown schemas and mismatched bindings
+fail rather than being treated as successful no-ops.
+
+Schema 2 records derivation version 1, immutable mapping revision 1 and the exact
+endpoint/auth/AOR triple per generation. Primary-key, role-name uniqueness and
+foreign-key constraints protect associations on ledger-owned connections.
+Version-2 `record` inserts metadata and mapping atomically; exact metadata retry
+remains idempotent and changed deadlines still conflict. Mapping updates,
+deadline renewals, deletion and revision advancement are not introduced.
+
+Opening schema 2 and every metadata/mapping read or record operation validates
+all existing generation/mapping associations in the transaction. Stored names
+are recomputed against the pinned scope; missing mappings, orphan associations,
+modified names or unsupported mapping revision fail explicitly. `records`
+retains its existing generation/deadline result shape; `mappings` returns
+detached exact mapping records with `mappingRevision`. This is an internal
+metadata API, not protocol inventory or collector authority.
+
+Nine ledger tests cover both schema versions, reopen persistence, explicit-only
+migration, binding and lock rejection, exact mapping reads, corruption/missing
+association rejection and atomic failure. A forced synthetic digest collision
+must roll back migration DDL, inserted mappings and schema version together;
+an insertion conflict after upgrade must leave no orphan generation metadata.
+Recovery after those failures is tested. Windows and capability-free non-root
+Linux exercise the same SQLite logic through the existing launcher.
+
+This establishes transaction-level rollback/reopen behavior, not power-loss or
+filesystem crash durability, safe online upgrades across old/new processes,
+backup/restore detection or adversarial concurrent file replacement. There is
+no deployed database to upgrade in this increment. Migration requires local
+exclusive operational ownership; do not run an older process against a database
+being upgraded. Production backup/upgrade policy remains a deployment gate.
+Mapping persistence proves only the intended associations. Runtime enrollment,
+actual object ownership/compatibility, fence/dialog evidence, collector access
+and all PBX effects remain separately gated.

@@ -3293,6 +3293,20 @@ capabilities. A supplied ownership snapshot is not authenticated by this helper;
 matching a derived name does not prove ownership of a live PBX object. No ledger
 schema, collector, runtime enrollment or PBX configuration has changed.
 
+The subsequent
+[explicit ledger mapping migration](./AGENT-PROVISIONING-PLAN.md#922-explicit-ledger-mapping-migration-local-metadata-only)
+adds schema 2 support in [`local/broker/ledger.py`](./local/broker/ledger.py).
+Local `migrate_ledger_mappings` atomically preserves generation metadata,
+derives/stores immutable revision-1 mappings and commits the schema version.
+Opening a database never migrates it silently; bootstrap still produces schema
+1 until explicitly upgraded. Version-2 records commit metadata and mapping
+together and revalidate stored names/associations on every operation.
+
+The existing ledger proof now covers migration rollback, insertion conflicts,
+missing/corrupt mappings, binding/lock failures and reopen persistence. This is
+metadata-only integration, not PBX ownership proof, runtime enrollment or
+production upgrade/crash-durability certification.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current
