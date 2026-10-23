@@ -3225,33 +3225,84 @@ closed path matrix and synthetic proof demonstrate equivalent atomic admission
 and complete lifecycle ownership without custom in-process code; current
 evidence does not establish that.
 
-#### Transfer policy required before implementation
+#### Existing Milestone 1 transfer requirement
 
-The recommended initial supported surface should **disable all attended/blind
-transfer, protocol REFER/redirect, parking pickup, forwarding and external
-redirection for generation-managed calls** until each path has a generation
-handoff protocol that preserves ownership and rechecks new-leg admission.
-An in-dialog SIP re-INVITE/UPDATE that does not create a new dialog can remain
-supported only if it cannot escape the tracked call/bridge and is explicitly
-validated. Broker UI may not request an unsupported transfer to make it pass.
+The current [Milestone 1 scope](./MILESTONE-1.md#3-scope) explicitly includes
+browser blind transfer and defers attended transfer. The conservative
+disable-transfer recommendation above must not silently remove that agreed
+scope. Until the product scope is explicitly changed, blind transfer remains a
+required path for design and feasibility; this does not authorize its
+implementation or prove it is compatible with generation fencing.
 
-If the product requires transfers at first release, stop before code and specify
-how a transfer atomically retains/reassigns every old/new dialog obligation,
-blocks expired generation legs, handles attended consultation and rollback, and
-avoids zero-count gaps. Native transfer cannot be treated as a normal dialplan
-continuation merely because both calls share an endpoint.
+Asterisk 22.11.0 documents `PJSIP_TRANSFER_HANDLING(ari-only)` as a mode that
+routes incoming PJSIP REFER handling to ARI rather than the built-in core
+attended/blind handler. The pinned
+[22.11.0 REFER handler](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1553)
+and [dispatch between ARI, attended, and blind handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2057)
+show this is an alternate REFER handling path, not evidence of a generation-
+atomic admission claim. It requires an ARI application/controller and its
+failure, ownership, and lifecycle semantics still need proof. The endpoint
+[`allow_transfer`](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Module_Configuration/res_pjsip/#allow_transfer)
+setting controls SIP REFER; disabling it is not a demonstrated way to preserve
+the Milestone 1 transfer requirement or to disable every possible transfer
+mechanism.
+
+For a permitted blind transfer while a generation is open, ownership must
+cover the new target leg before signaling and preserve the existing call if
+admission fails. Once the generation is fenced, a transfer that creates a new
+generation-owned leg must be rejected while the existing dialog remains
+tracked and usable. A pre-fence transfer with an unresolved target offer remains
+an outstanding obligation until its outcome is known; transfer progress,
+timeouts, and observer gaps must never create a false dialog-zero interval.
+Attended transfer, parking, forwarding, external redirection, and arbitrary
+expert dialplan remain outside the Milestone 1 path set unless separately
+approved and designed.
+
+#### Milestone 1 synthetic-call matrix
+
+Use only the existing Milestone 1 synthetic topology: one customer, one simple
+inbound test route, one queue, browser-agent endpoints, and internal synthetic
+transfer destinations. Component evaluation recommends SIP.js full API but has
+not pinned an exact version or finalized the implementation. The SIP.js transfer
+guide documents `session.refer(targetUri)` for blind transfer, which sends SIP
+REFER; it also says incoming REFER is followed automatically by default unless
+the session delegate supplies `onRefer`. Verify these behaviors against the
+exact selected package version. Do not infer the path from the UI label.
+
+The browser may request a transfer, but it is not an authority for target
+allowlisting, generation state, or dialog ownership. Every REFER-created target
+leg must pass the PBX-side final admission boundary. The browser must install
+explicit incoming-REFER handling on every session so an unsolicited referral
+cannot silently create an unreviewed client-side call.
+
+| Case | Required result |
+| --- | --- |
+| Inbound test route to queue to browser agent | New work is admitted only for the exact generation; queue waiting and each outbound member branch are accounted for. |
+| Blind transfer to an allowed same-customer internal destination while open | Target admission is generation-bound before signaling; source/target ownership is continuous through success, rejection, cancellation, and timeout. |
+| Blind transfer racing the irreversible fence | Admission and fence serialize; either the new leg is claimed before the fence and remains counted, or it is rejected after the fence. |
+| Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
+| Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
+| SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
+| Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
+| REFER retransmission, no progress subscription, target unavailable, or controller/observer restart | Processing is idempotent; incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
+| Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
+
+The protocol-specific matrix must add packet-level expected responses and
+channel/bridge lifecycle observations for the pinned SIP.js package and actual
+Asterisk REFER mode. A successful `session.refer()`/REFER result or a transfer
+event alone does not establish the ownership or serialization assertions above.
 
 #### Next gate
 
-Choose whether first supported release may disable transfer/forwarding/parking
-and queue paths (other than the exact reviewed set). Then produce a finite
-Asterisk 22.11.0 synthetic-call test matrix for only those paths. Required
-evidence: existing call continues through drain; every allowed new-leg path is
-blocked after the latch; in-flight branches remain counted; disabled paths
-cannot bypass the gate; dialog zero is emitted only after complete settlement;
-unknown/restart/observation gaps block removal and replacement.
+Pin the SIP.js version, verify its blind- and incoming-REFER behavior, then
+review the exact Asterisk 22.11.0 transfer path and determine whether it exposes
+a controllable pre-target admission boundary that can share the final
+generation fence. Then design the finite synthetic proof around the matrix
+above. If the chosen transfer path cannot be interposed without a zero-count
+gap or bypass, stop and return to the product scope rather than claim the
+existing Milestone 1 behavior is safely generation-managed.
 
-This is a design recommendation, not PBX module selection or implementation
-approval. The module's exact Asterisk APIs, build compatibility, event ordering
-and failure behavior still require source-level review and isolated tests. No
-real mutation, call or deployment is approved.
+This is a design recommendation and feasibility gate, not PBX module selection
+or implementation approval. Exact Asterisk API coverage, build compatibility,
+event ordering, controller failure behavior, and isolated tests remain
+unproven. No real mutation, call or deployment is approved.
