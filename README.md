@@ -3519,7 +3519,14 @@ subscription termination; because a suppressing recipient sends no NOTIFY,
 the issuer-side subscription may remain until expiry
 ([Asterisk response handler](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1281-L1307),
 [RFC 4488 grammar](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
-Test exact/case-varied values, extension parameters, absence, and cleanup.
+On an exact `false` echo, Asterisk clears its subscription data and locally
+terminates the event subscription; pjproject's termination function changes
+local state without sending a SIP request
+([pjproject implementation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1077-L1097)).
+That callback does not report transfer completion. The initial REFER 2xx is
+acceptance only, not proof of target-call completion or ownership settlement.
+Test exact/case-varied values, extension parameters, absent headers, and
+cleanup without inferring success from the suppressed-subscription path.
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or
