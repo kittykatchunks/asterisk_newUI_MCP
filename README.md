@@ -3087,12 +3087,16 @@ The implementation now has a focused separate-container check:
 ```
 
 It runs the actual Python module as broker UID 1101/GID 2100 with no capabilities,
-network disabled, read-only root and fixed resource limits. Six fresh clients
+network disabled, read-only root and fixed resource limits. Seven fresh clients
 use a shared labelled socket volume mounted read-only on the client side.
 Python and Node foreign-UID clients must be denied; a worker with wrong primary
 GID but supplementary socket-group access must also be denied. Approved Python
-inventory, Node generation and Node inventory reads must match exact expected
-responses. Final source calls must be three, with exactly three peer denials.
+inventory and typed Node generation, authoritative missing-generation and
+inventory reads must match exact expected responses. Final source calls must be
+four, with exactly three peer denials. The Node approved reads use the reusable
+TypeScript client, not just the framing helper; each completion record explicitly
+identifies whether the typed client ran. A missing-generation read is followed
+by fresh inventory on a separate connection to the same running broker.
 
 The launcher checks default UID/GID maps, shared user namespace and distinct
 broker/client PID and mount namespaces, with runtime-specific completion records.
@@ -3189,6 +3193,11 @@ the client deadline even when a complete frame arrives without EOF.
 `Test-PythonBroker.ps1` runs these tests in the existing Linux image. Socket
 behavior tests are explicitly skipped on non-Linux hosts; Windows named pipes
 do not supply the required Unix half-close semantics.
+The separate-container launcher also verifies typed Node inventory, observed and
+authoritative missing-generation results through the actual Python listener,
+with explicit client markers and unchanged kernel UID/primary-GID enforcement.
+Its source remains a deterministic in-memory fixture, not a shared SQLite
+database or live PBX source.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning

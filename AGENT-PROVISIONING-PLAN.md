@@ -1859,16 +1859,16 @@ The first implementation-specific separate-container check is
 It uses the existing image resolved locally to its immutable ID; it never builds
 or pulls implicitly. A temporary owner-labelled volume contains the broker-owned
 0750 directory. Setup alone receives CHOWN; the actual broker UID 1101/GID 2100
-and all six clients run capability-free with network none, read-only root,
+and all seven clients run capability-free with network none, read-only root,
 no-new-privileges, pids 16, memory 96 MiB and one CPU. Client socket-volume mounts
 are read-only.
 
 Python and actual Node foreign-UID clients must receive zero-byte EOF; a worker
 with primary GID 2101 and supplementary GID 2100 must likewise be rejected.
-Approved Python inventory, Node generation and Node inventory reads require exact
-responses. The same actual module owns every accepted socket and performs kernel
+Approved Python inventory and typed Node generation, authoritative
+missing-generation and inventory reads require exact responses. The same actual module owns every accepted socket and performs kernel
 identity lookup; no fixture server or supplied peer identity is substituted.
-Final counts require exactly three source calls and three fixed peer-denial
+Final counts require exactly four source calls and three fixed peer-denial
 diagnostics. The diagnostic PID must be zero for sibling namespace peers, while
 UID/primary GID remain exact authorization inputs.
 
@@ -1982,3 +1982,14 @@ This client adds no worker/application wiring or privileged operation. Protected
 socket publication and server authority are caller prerequisites, not proved by
 an echoed customer/epoch. Production source installation, deployment supervision
 and live-source authority remain gated.
+
+The separate-container implementation launcher now routes its approved Node
+operations through the reusable typed client as well. Completion records
+explicitly distinguish typed operations from raw denied-peer/Python probes.
+Observed generation, authoritative missing generation, then fresh inventory
+must match exact expected results through the same live broker; no retries or
+server restart substitute for recovery. The seven clients retain the existing
+capability, namespace/map, UID/primary-GID and read-only socket-volume assertions,
+with four source calls and three exact cross-namespace denials. This establishes
+typed-consumer topology evidence with the existing in-memory fixture, not
+separate-container SQLite publication, production supervision or PBX access.

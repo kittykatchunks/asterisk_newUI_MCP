@@ -14,7 +14,10 @@ $mounts = @(
     '--mount', "type=bind,source=$(Join-Path $root 'local\broker\readback.py'),target=/broker.py,readonly",
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\python-broker-proof.py'),target=/proof-test.py,readonly",
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly",
-    '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
+    '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\fake-broker-socket-client.ts'),target=/tests/identity/fake-broker-socket-client.ts,readonly",
+    '--mount', "type=bind,source=$(Join-Path $root 'src\agent-broker-client.ts'),target=/src/agent-broker-client.ts,readonly",
+    '--mount', "type=bind,source=$(Join-Path $root 'src\agent-broker-readback.ts'),target=/src/agent-broker-readback.ts,readonly",
+    '--mount', "type=bind,source=$(Join-Path $root 'src\agent-provisioning-expiry.ts'),target=/src/agent-provisioning-expiry.ts,readonly",
     '--mount', "type=bind,source=$(Join-Path $root 'src\agent-broker-frame.ts'),target=/src/agent-broker-frame.ts,readonly"
 )
 try {
@@ -55,6 +58,7 @@ try {
         @('wrong-gid', 'python', '1102:2101'),
         @('inventory', 'python', '1102:2100'),
         @('generation', 'node', '1102:2100'),
+        @('missing', 'node', '1102:2100'),
         @('inventory', 'node', '1102:2100')
     )
     foreach ($case in $cases) {
@@ -70,6 +74,10 @@ try {
         if ($clientEvents.Count -ne 2 -or -not $clientEvents[-1].complete -or
             $clientEvents[-1].mode -ne $case[0] -or $clientEvents[-1].runtime -ne $case[1]) {
             throw "Missing implementation client completion: $case"
+        }
+        $expectedTypedClient = $case[1] -eq 'node' -and $case[0] -ne 'foreign'
+        if ($clientEvents[-1].typedClient -ne $expectedTypedClient) {
+            throw "Missing typed broker client evidence: $case"
         }
         $identity = $clientEvents[0].identity
         $expectedIds = $case[2].Split(':')
@@ -89,7 +97,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or "$exitCode" -ne '0') { throw 'Implementation broker clean stop failed.' }
     $events = @((& docker logs $server 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
     if ($LASTEXITCODE -ne 0 -or $events.Count -ne 6 -or -not $events[-1].complete -or
-        $events[-1].sourceCalls -ne 3 -or $events[-1].peerDenials -ne 3) {
+        $events[-1].sourceCalls -ne 4 -or $events[-1].peerDenials -ne 3) {
         throw 'Unexpected implementation broker final evidence.'
     }
     $denials = @($events | Where-Object { $_.diagnostic } | ForEach-Object { $_.diagnostic })
@@ -97,7 +105,7 @@ try {
         $denials[1] -ne $denials[0] -or $denials[2] -ne 'Broker peer denied: pid=0 uid=1102 gid=2101') {
         throw 'Missing exact cross-namespace kernel denial evidence.'
     }
-    Write-Output 'PASS implementation separate containers: capability-free broker, mapped UID/primary-GID denial, distinct PID/mount namespaces, Python/Node exact readback, clean shutdown and socket removal.'
+    Write-Output 'PASS implementation separate containers: capability-free broker, mapped UID/primary-GID denial, distinct PID/mount namespaces, typed Node inventory/observed/missing reads and Python readback, clean shutdown and socket removal.'
 } finally {
     $errors = [System.Collections.Generic.List[string]]::new()
     foreach ($name in $names) {

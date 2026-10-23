@@ -718,7 +718,7 @@ def container_server():
     observer.start()
     try:
         broker.Broker(binding, source).serve("/socket/broker/readback.sock", stop, ready)
-        assert source.calls == 3, source.calls
+        assert source.calls == 4, source.calls
         assert len(records) == 3 and all(message.startswith("Broker peer denied:") for message in records), records
         assert not os.path.exists("/socket/broker/readback.sock")
         print(json.dumps({"complete": True, "sourceCalls": source.calls, "peerDenials": len(records)}), flush=True)
@@ -732,15 +732,23 @@ def container_client(mode, runtime):
     denied = mode in ("foreign", "wrong-gid")
     expected = (1103, 2100) if mode == "foreign" else (1102, 2101) if mode == "wrong-gid" else (1102, 2100)
     assert (os.getuid(), os.getgid()) == expected
-    assert mode in ("foreign", "wrong-gid", "inventory", "generation") and runtime in ("python", "node")
+    assert mode in ("foreign", "wrong-gid", "inventory", "generation", "missing") and runtime in ("python", "node")
     path = "/socket/broker/readback.sock"
     if runtime == "node":
         assert mode != "wrong-gid"
+        vector = vectors["cases"][1 if mode in ("generation", "missing") else 0]
+        request = json.loads(vector["text"])
+        expected_response = vector["expected"]
+        if mode == "missing":
+            request["generationId"] = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert request["generationId"] != vectors["generation"]["generationId"]
+            expected_response = {**request, "state": "missing"}
         result = subprocess.run(
-            ["node", "/tests/identity/broker-cross-client.ts", path,
-             "foreign" if denied else "generation-reconnect" if mode == "generation" else "reconnect"],
+            ["node", "/tests/identity/fake-broker-socket-client.ts", path, json.dumps(request),
+             "denied" if denied else "accepted"],
             capture_output=True, text=True, timeout=10)
-        assert result.returncode == 0 and result.stdout == "" and result.stderr == "", result.stderr
+        assert result.returncode == 0 and result.stderr == "", result.stderr
+        assert json.loads(result.stdout) == (None if denied else expected_response), result.stdout
     else:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
             connection.settimeout(5)
@@ -755,7 +763,8 @@ def container_client(mode, runtime):
                 while chunk := connection.recv(4096):
                     data.extend(chunk)
                 assert decode(data) == vector["expected"]
-    print(json.dumps({"complete": True, "mode": mode, "runtime": runtime}), flush=True)
+    print(json.dumps({"complete": True, "mode": mode, "runtime": runtime,
+                      "typedClient": runtime == "node" and not denied}), flush=True)
 
 
 if __name__ == "__main__":
