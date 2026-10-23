@@ -1387,12 +1387,19 @@ After generation recovery and the sixth slot release, the fifth source entry
 holds an inventory read on an uncooperative fixture event. An approved competitor
 must be rejected before its deadline. At the measured five-second deadline,
 the original client must receive EOF without response bytes; timeout evidence
-records exactly five source entries. A further approved competitor must still
+records exactly five source entries. After the client exits, the parent sends
+test-only `SIGUSR2` in this timeout-first phase. The existing terminal callback
+must emit explicit late-cancellation evidence with five source entries, three
+timeouts, zero cancellations and the slot locked, without changing the timeout
+outcome or closing/releasing again. This late attempt is admitted only once in
+the expected phase; duplicate or out-of-phase parent control fails the fixture.
+The parent requires the observation before starting the post-timeout competitor.
+A further approved competitor must still
 be rejected after client exit, with the slot locked and no new source entry.
 The two structured capacity observations distinguish the two-timeout
 pre-deadline state from the three-timeout post-deadline state.
 
-Only after both denials does the parent send test-only `SIGUSR1` via Docker to
+Only after late-cancellation evidence and both denials does the parent send test-only `SIGUSR1` via Docker to
 the exact recorded broker container. This releases only the fixture source event:
 there is no wire release request, extra mount, network access or worker privilege.
 The handler is installed only in separate-container admission mode, restored
@@ -1432,6 +1439,9 @@ not worker access to Docker signals or a production cancellation protocol.
 Final counters are exactly eight source entries, six capacity rejections, three
 timeouts (two request and one held-source timeout), two generation reads, two
 source failures and one cancellation.
+Final event evidence independently requires exactly three timeout outcomes,
+one cancellation outcome and ten slot releases, in addition to the aggregate
+counter checks. The late attempt adds no client or source entry.
 
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
@@ -1448,5 +1458,6 @@ after frame reading and under the lifetime lock before source entry. This is a
 test-fixture correction, not a production implementation change.
 Passing these request-wait, held-source and explicit cancellation scenarios does
 not prove peer-disconnect handling or general terminal-race safety.
-In particular, cancellation-before-deadline with a later no-op deadline callback
-does not prove simultaneous cancellation/deadline or response-completion races.
+In particular, the two ordered cases (cancellation before a later no-op deadline,
+and timeout before late cancellation) do not prove simultaneous
+cancellation/deadline or response-completion races.

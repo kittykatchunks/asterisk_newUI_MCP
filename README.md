@@ -2738,7 +2738,11 @@ Next, a complete inventory request enters a deliberately uncooperative source.
 One competitor must be rejected before the five-second deadline. The held client
 then observes EOF with zero response bytes, but a second competitor must still
 be rejected: both observations require the slot to remain locked with exactly
-five source entries. Only then does the parent deliver test-only `SIGUSR1` to
+five source entries. Before the post-timeout competitor, the parent sends
+test-only `SIGUSR2` after the timed-out client has exited. The existing terminal
+callback must report the late cancellation as a no-op: five source entries,
+three timeouts, zero cancellations and a locked slot. The parent requires that
+evidence before starting the competitor. Only then does it deliver test-only `SIGUSR1` to
 the exact recorded broker container to release the source. The fixture rejects
 early or duplicate release control, requires terminal state before source
 settlement, and keeps admission occupied until settlement. Its 15-second source
@@ -2766,8 +2770,12 @@ checked runtime completion and no fallback. Each finite waiting client runs
 alongside its competitor only for this phase and remains subject to
 ownership-checked cleanup.
 
-This covers cancellation winning before a later deadline callback while the
-source remains held. It does not establish simultaneous cancellation/deadline
+This covers both ordered outcomes while the source remains held: cancellation
+before a later deadline callback, and timeout before late cancellation.
+Final event evidence also requires exactly three timeout outcomes, one
+cancellation outcome and ten slot releases, preventing a second terminal event
+or double release from satisfying only the aggregate counters.
+It does not establish simultaneous cancellation/deadline
 race safety or cancellation after a successful response.
 
 The shared concurrent fixture also rechecks terminal state/deadline after frame

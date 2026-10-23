@@ -312,6 +312,9 @@ try {
         throw 'Missing held-source client runtime completion.'
     }
     $identities.Add($heldEvents[0].identity)
+    & docker kill --signal USR2 $admission
+    if ($LASTEXITCODE -ne 0) { throw 'Could not deliver test-only cancellation after timeout.' }
+    Wait-AdmissionEvent $admission 'late-cancellation-observed'
     Invoke-Client 'admission-capacity-expired' '1102:2100'
     Wait-AdmissionEvent $admission 'capacity' 4
     & docker kill --signal USR1 $admission
@@ -423,6 +426,16 @@ try {
         $cancelledDeadlines[0].cancelledDeadline.slotLocked -ne $true) {
         throw 'Original deadline after cancellation changed terminal state or released admission.'
     }
+    $lateCancellations = @($admissionEvents | Where-Object { $_.lateCancellation })
+    if ($lateCancellations.Count -ne 1 -or $lateCancellations[0].lateCancellation.sourceEntries -ne 5 -or
+        $lateCancellations[0].lateCancellation.timeouts -ne 3 -or
+        $lateCancellations[0].lateCancellation.cancellations -ne 0 -or
+        $lateCancellations[0].lateCancellation.slotLocked -ne $true -or
+        @($admissionEvents | Where-Object { $_.event -eq 'timeout' }).Count -ne 3 -or
+        @($admissionEvents | Where-Object { $_.event -eq 'cancelled' }).Count -ne 1 -or
+        @($admissionEvents | Where-Object { $_.event -eq 'released' }).Count -ne 10) {
+        throw 'Late cancellation changed the original timeout outcome or terminal/release event counts.'
+    }
     $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
     Write-Output "PASS separate-container admission ($runtime clients): idle and complete-body/missing-EOF slots exclude competitors, five-second deadlines close without response/source entry, fresh authenticated read succeeds."
     Write-Output "PASS separate-container source failure ($runtime clients): exact diagnostic, zero response bytes, slot released, fresh authenticated read succeeds."
@@ -430,6 +443,7 @@ try {
     Write-Output "PASS separate-container held source ($runtime clients): deadline EOF, competitors rejected before/after timeout, slot retained until parent release and source settlement, fresh read succeeds."
     Write-Output "PASS separate-container cancellation ($runtime clients): zero-byte EOF in $($cancelWatch.Elapsed.TotalSeconds.ToString('F3')) seconds, slot retained until source settlement, fresh read succeeds."
     Write-Output "PASS cancelled deadline ($runtime clients): original five-second timer observes one cancellation without another timeout, competitor remains excluded until source settlement."
+    Write-Output "PASS cancellation after timeout ($runtime clients): original timeout retained without a cancellation outcome or early slot release; competitor excluded until source settlement."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
