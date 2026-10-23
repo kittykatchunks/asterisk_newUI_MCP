@@ -3581,15 +3581,18 @@ values independently, and do not treat this local behavior as proof of valid
 RFC negotiation
 ([Asterisk state and response check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1161-L1164),
 [RFC 4488](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
-401/407 REFER challenges follow a separate bounded path: with outbound
-credentials, Asterisk creates and attempts to send an authenticated request
-from the challenged transaction. It does not check the send result before
-leaving the callback, so test actual request submission rather than treating
-request creation as a successful retry. If creation fails or the retry limit
-is reached, the response is handled as failure and an active subscription may
-get a zero-expiry `SUBSCRIBE`. Capture challenge codes, credential outcomes,
-retry headers, subscription state, and cleanup
+401/407 REFER challenges have two source-level handlers: pjproject's
+event-subscription code first attempts its dialog-auth path; on failure,
+Asterisk may then make a separate endpoint-auth retry from the callback.
+Asterisk's counter allows at most nine callback retries, but does not bound
+pjproject's separate attempts. Asterisk also ignores the in-dialog send
+result, so trace which requests were actually submitted. When the callback
+retry cannot be created or reaches its threshold, the response is treated as
+failure and an active subscription may get a zero-expiry `SUBSCRIBE`. Capture
+challenge codes, credentials, retry headers, both handlers' outcomes,
+subscription state, and cleanup
 ([Asterisk retry path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1378),
+[pjproject auth path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
 [send result](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495)).
 The lookup also uses only the first matching response header, making conflicting
 duplicates order-sensitive; test both orders and reject duplicates as ambiguous.
