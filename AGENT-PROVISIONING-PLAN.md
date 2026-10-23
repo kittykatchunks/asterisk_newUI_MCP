@@ -1784,9 +1784,25 @@ diagnostics and requires exactly its intended terminal reason, one rejected
 late result, the expected capacity/identity denials and no additional records.
 The test module does not replace or instrument the runtime's socket/source logic.
 
+Implementation-specific publication tests now cover four additional cases under
+the real non-root broker UID: conflicting regular file, conflicting symlink,
+replacement regular file at shutdown and replacement socket at shutdown.
+Both startup conflicts must raise `EADDRINUSE` without readiness/source entry.
+Exact device/inode, full mode and owner/group metadata must survive; regular-file
+contents and symlink target/target metadata are independently checked.
+The cleanup cases rename the original published socket aside, keeping its inode
+alive, before installing a new object at the pathname. On stop, cleanup must raise
+exactly `Broker socket changed; refusing cleanup`, leaving the replacement and
+saved original unchanged. This avoids substituting inode reuse for a genuine
+replacement. Only the test removes those explicitly owned paths afterward.
+The same `Broker` instance must then start/stop successfully, proving that both
+startup and cleanup failure release its serving guard. Every case requires zero
+source entries. This is controlled publication evidence, not an arbitrary
+filesystem-race, stale-socket recovery or managed-file-confinement proof.
+
 This is the first implementation slice, not inherited production certification
 from fixture tests. Separate-container, terminal-schedule, blocked-write and broader
-publication-failure checks still need implementation-specific evidence before
+filesystem-race checks still need implementation-specific evidence before
 deployment. The real-process peer-loss and draining-shutdown cases above
 are covered, but are not separate-container or arbitrary-schedule proofs.
 Existing fixture results do not automatically cover the new

@@ -3031,6 +3031,19 @@ Final shutdown source counts exclude replay; fixed diagnostic counts reject
 unexpected source/monitor failures. These are real Linux process/socket tests,
 not yet separate-container integration coverage of the implementation.
 
+Publication tests also run the actual module as the unprivileged broker UID.
+Startup must reject an existing regular file or symlink with `EADDRINUSE`,
+without signalling readiness or entering a source. Tests preserve and compare
+device/inode, full mode, UID/GID, sentinel contents and symlink target.
+For shutdown cleanup, the test renames the original live socket aside and
+publishes a different regular file or socket at its old pathname. Cleanup must
+raise exactly `Broker socket changed; refusing cleanup` and leave both the
+replacement and saved original untouched. Keeping the original inode alive
+avoids inode-reuse ambiguity. After test-owned conflicts are explicitly removed,
+the same broker instance must start and stop cleanly with no source calls.
+These controlled publication checks do not prove arbitrary filesystem-race
+resistance, stale-socket recovery policy or general managed-file confinement.
+
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.
 Implementation-specific integration coverage, concrete read-only source wiring

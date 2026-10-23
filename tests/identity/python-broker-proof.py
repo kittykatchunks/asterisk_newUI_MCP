@@ -1,6 +1,7 @@
 """Exercises the implementation module, not the experimental broker server."""
 
 import copy
+import errno
 import importlib.util
 import json
 import logging
@@ -8,6 +9,7 @@ import multiprocessing
 import os
 import queue
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -311,8 +313,127 @@ def kernel_proof(scenario):
           + (", Python/Node fresh recovery" if scenario != "shutdown" else ", shutdown waits without replay"))
 
 
+def publication_proof():
+    context = multiprocessing.get_context("fork")
+    for scenario in ("conflict-file", "conflict-symlink", "replacement-file", "replacement-socket"):
+        with tempfile.TemporaryDirectory(dir="/proof") as directory:
+            os.chmod(directory, 0o750)
+            os.chown(directory, 1101, 2100)
+
+            def execute():
+                drop(1101)
+                source = FakeSource()
+                runtime = broker.Broker(binding, source)
+                path = os.path.join(directory, "broker.sock")
+                target = os.path.join(directory, "sentinel")
+                saved = os.path.join(directory, "original.sock")
+                content = b"publication fixture sentinel\n"
+
+                def snapshot(filename):
+                    info = os.lstat(filename)
+                    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid)
+
+                def write_sentinel(filename):
+                    with open(filename, "xb") as file:
+                        file.write(content)
+                    os.chmod(filename, 0o640)
+
+                def verify_content(filename):
+                    with open(filename, "rb") as file:
+                        assert file.read() == content
+
+                def clean_run():
+                    stop, ready = threading.Event(), threading.Event()
+                    stop.set()
+                    runtime.serve(path, stop, ready)
+                    assert ready.is_set() and not os.path.lexists(path)
+                    assert source.calls == 0
+
+                if scenario.startswith("conflict-"):
+                    if scenario == "conflict-file":
+                        write_sentinel(path)
+                    else:
+                        write_sentinel(target)
+                        os.symlink(target, path)
+                    before = snapshot(path)
+                    target_before = snapshot(target) if scenario == "conflict-symlink" else None
+                    ready = threading.Event()
+                    try:
+                        runtime.serve(path, threading.Event(), ready)
+                    except OSError as error:
+                        assert error.errno == errno.EADDRINUSE, error
+                    else:
+                        raise AssertionError("Broker accepted a conflicting publication path")
+                    assert not ready.is_set() and source.calls == 0
+                    assert snapshot(path) == before
+                    if scenario == "conflict-symlink":
+                        assert os.readlink(path) == target and snapshot(target) == target_before
+                        verify_content(target)
+                        os.unlink(target)
+                    else:
+                        verify_content(path)
+                    os.unlink(path)
+                    clean_run()
+                    return
+
+                stop, ready = threading.Event(), threading.Event()
+                failures = []
+
+                def serve():
+                    try:
+                        runtime.serve(path, stop, ready)
+                    except RuntimeError as error:
+                        failures.append(str(error))
+
+                worker = threading.Thread(target=serve)
+                replacement = None
+                worker.start()
+                try:
+                    assert ready.wait(3), "Broker did not publish before replacement test"
+                    original = snapshot(path)
+                    assert stat.S_ISSOCK(original[2])
+                    os.rename(path, saved)
+                    if scenario == "replacement-file":
+                        write_sentinel(path)
+                    else:
+                        replacement = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                        replacement.bind(path)
+                        os.chmod(path, 0o660)
+                    replaced = snapshot(path)
+                    assert replaced[:2] != original[:2]
+                    stop.set()
+                    worker.join(3)
+                    assert not worker.is_alive()
+                    assert failures == ["Broker socket changed; refusing cleanup"], failures
+                    assert snapshot(path) == replaced and snapshot(saved) == original
+                    assert source.calls == 0
+                    if scenario == "replacement-file":
+                        verify_content(path)
+                    os.unlink(path)
+                    os.unlink(saved)
+                    clean_run()
+                finally:
+                    stop.set()
+                    worker.join(3)
+                    if replacement is not None:
+                        replacement.close()
+
+            process = context.Process(target=execute)
+            process.start()
+            try:
+                process.join(10)
+                assert not process.is_alive() and process.exitcode == 0, (scenario, process.exitcode)
+            finally:
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+                os.chown(directory, 0, 0)
+        print(f"PASS implementation publication: {scenario}, exact metadata/content preserved, no source entry, same instance reusable")
+
+
 if __name__ == "__main__":
     if not unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(ProtocolTests)).wasSuccessful():
         sys.exit(1)
     for scenario in ("deadline", "peer loss", "shutdown"):
         kernel_proof(scenario)
+    publication_proof()
