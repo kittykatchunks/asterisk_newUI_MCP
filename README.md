@@ -3411,7 +3411,13 @@ low-level API, the `Session.refer()` promise resolves with a request handle and
 does not wait for the REFER final response; 2xx response and later NOTIFY are
 separate callbacks. Its single per-session NOTIFY callback can be replaced by a
 second overlapping REFER, so transfers need per-dialog serialization and PBX
-lifecycle evidence beyond REFER/NOTIFY status.
+lifecycle evidence beyond REFER/NOTIFY status. Asterisk 22.11's in-dialog REFER
+normally returns 202 for subscription setup; later sipfrag NOTIFY carries
+progress. `refer_blind_progress` defaults to yes, but disabling it emits
+terminal 200 from the transfer callback before target answer; monitoring setup
+failures can also explicitly fall back to assumed-success 200. Therefore pin
+the effective setting and require channel/bridge ownership evidence; never use
+terminal NOTIFY 200 alone as a safe-zero signal.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning

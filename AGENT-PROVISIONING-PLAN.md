@@ -3314,6 +3314,37 @@ obligation has settled. Source: the pinned
 [UAC response dispatch](https://github.com/onsip/SIP.js/blob/0.21.2/src/core/user-agents/user-agent-client.ts),
 and [Inviter NOTIFY generation](https://github.com/onsip/SIP.js/blob/0.21.2/src/api/inviter.ts).
 
+The pinned Asterisk 22.11 REFER handler adds a second important distinction.
+For its ordinary in-dialog REFER path, unless the request suppresses
+`Refer-Sub`, it creates the implicit REFER subscription and sends
+**202 Accepted** before the transfer outcome is known. The terminal transfer
+result is later carried in a `message/sipfrag` NOTIFY.
+The endpoint `refer_blind_progress` option defaults to `yes`, but when set to
+`no`, the blind-transfer callback emits terminal `200` NOTIFY as soon as the
+transfer callback runs; that callback precedes completion of the target call.
+Even with progress enabled, Asterisk's source explicitly falls back to a
+terminal `200` “assuming success” if it cannot allocate the transferee
+identifier, attach its framehook, or subscribe to bridge events. Consequently,
+neither the REFER's 202 nor a terminal 200 sipfrag proves the target dialog
+answered or every generation-owned obligation settled. Any test or deployment
+must record the effective endpoint option and distinguish transfer admission,
+progress-monitor health, target answer, and final ownership reconciliation.
+
+SIP.js 0.21.2's `requestDelegate.onAccept` will therefore typically observe the
+initial 202, not the terminal transfer result. With the default
+`refer_blind_progress=yes` and a successful monitoring setup, the terminal
+NOTIFY sipfrag can represent an answer indication from frames/bridge entry,
+but must still be checked against PBX channel/session lifecycle evidence. If
+the subscription is suppressed (for example by `Refer-Sub: false`) or absent,
+or monitoring degrades to Asterisk's assumed-success fallback, that evidence
+is unavailable or explicitly untrustworthy. SIP.js 0.21.2's outgoing REFER
+does not add `Refer-Sub: false` by default, but the wire request and effective
+Asterisk behavior must still be captured in the test. Source: Asterisk's pinned
+[REFER progress setup and 202 response](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L552),
+[blind-transfer callback and progress monitor fallbacks](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L805),
+[progress-frame handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L327),
+and [endpoint option default](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_configuration.c#L2397).
+
 The browser may request a transfer, but it is not an authority for target
 allowlisting, generation state, or dialog ownership. Every REFER-created target
 leg must pass the PBX-side final admission boundary. The browser must install
@@ -3579,14 +3610,16 @@ legs still need generation attribution and complete settlement.
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
-| SIP.js REFER promise resolves without waiting for response; 2xx REFER response followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution is not treated as acceptance; REFER 2xx is not completion; NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
+| SIP.js REFER promise resolves without waiting for response; Asterisk 202 followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no` or monitor setup fell back to assumed success. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and
 channel/bridge lifecycle observations for the pinned SIP.js package and actual
-Asterisk REFER mode. `Session.refer()` promise resolution, a REFER 2xx response,
-an implicit-subscription NOTIFY, or a transfer event alone does not establish
-the ownership or serialization assertions above.
+Asterisk REFER mode, including `Refer-Sub` behavior, effective
+`refer_blind_progress` configuration, and monitoring-failure outcomes.
+`Session.refer()` promise resolution, Asterisk 202 acceptance, terminal 200
+sipfrag, an implicit-subscription NOTIFY, or a transfer event alone does not
+establish the ownership or serialization assertions above.
 
 #### Next gate
 
@@ -3604,14 +3637,15 @@ incoming REFER delegate installation order and demonstrate rejection of an
 unapproved target without originating a new INVITE. Verify that a second
 transfer on the same session cannot overwrite progress correlation; the
 baseline design should permit at most one outstanding REFER per source session.
-The synthetic proof must distinguish API promise resolution, REFER final
-response, NOTIFY contents/state, and PBX channel/bridge settlement. The design
-must also prove that DTMF blind transfer and parking are either interposed or
-disabled. Only then design the finite synthetic proof around the matrix above.
-If the chosen path cannot be
-interposed without a zero-count gap or bypass, stop and return to the product
-scope rather than claim the existing Milestone 1 behavior is safely
-generation-managed.
+The synthetic proof must distinguish API promise resolution, Asterisk 202
+acceptance, NOTIFY contents/state, progress-monitor health, and PBX
+channel/bridge settlement. Pin and assert the effective `refer_blind_progress`
+setting; the permissive 200 fallbacks must not satisfy the success threshold.
+The design must also prove that DTMF blind transfer and parking are either
+interposed or disabled. Only then design the finite synthetic proof around the matrix above.
+If the chosen path cannot be interposed without a zero-count gap or bypass,
+stop and return to the product scope rather than claim the existing Milestone 1
+behavior is safely generation-managed.
 
 This is a design recommendation and feasibility gate, not PBX module selection
 or implementation approval. Exact Asterisk API coverage, build compatibility,
