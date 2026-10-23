@@ -2476,7 +2476,7 @@ released. A later approved readback succeeds. The experiment then injects a
 typed fake-source exception during another approved request: no response bytes
 are returned, the expected fixed diagnostic appears on server stderr, and the
 slot is released so a fresh approved readback succeeds. Exact counters verify
-eight source invocations (including two failures), four capacity denials, two
+nine source invocations (including two failures), five capacity denials, three
 deadline closures and one explicit cancellation. Capacity is checked
 before peer lookup/read, and accepted requests still require real kernel UID/GID.
 
@@ -2537,8 +2537,8 @@ Negative/lifecycle clients require EOF with zero response bytes rather than
 treating a locally timed-out client as successful rejection. Their eight-second
 watchdog is longer than the server's five-second deadline.
 
-Both client variants use the same server scenario and exact counters: eight source
-invocations (two failed, with exactly two generation-source entries), four capacity denials, two deadline closures and one
+Both client variants use the same server scenario and exact counters: nine source
+invocations (two failed, with exactly two generation-source entries), five capacity denials, three deadline closures and one
 explicit cancellation. Default `-Conformance` retains Python clients; only
 `-CrossRuntime` substitutes Node clients. Cancellation still originates from the
 private parent pipe, not a client action. This does not prove automatic
@@ -2553,6 +2553,17 @@ run this scenario. A TypeScript readback regression separately requires original
 exception identity, no inventory-source access, and successful observed recovery.
 The source hook receives its fixture default only after request validation;
 failure selection remains trusted sequencing, not a new client-controlled field.
+
+The final lifecycle case sends a complete valid inventory frame but never
+half-closes its request direction. A competitor is capacity-denied, the server's
+five-second deadline closes the stalled request with zero response bytes, and a
+fresh approved readback succeeds. Both Python and Node clients exercise this
+case with an eight-second client watchdog. Two of the three server timeouts must
+occur in the request phase (idle and complete-without-EOF), with unchanged source
+entry counts; only the held-source timeout occurs after readback begins. Node
+uses the production frame encoder but deliberately bypasses the ending writer
+for this test. This proves bounded waiting for mandatory EOF, not full peer-loss
+detection while source code is blocked.
 
 Only the fixture, vectors, Node client and frame helper are mounted read-only,
 not the repository or PBX. Runtime networking is disabled; existing resource,

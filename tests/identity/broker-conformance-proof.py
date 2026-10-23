@@ -185,8 +185,10 @@ def client(path, index):
         if index == "foreign":
             assert connection.recv(1) == b""
             return
-        if index in ("capacity", "idle", "held-source", "failed-source", "failed-generation"):
-            if index == "failed-generation":
+        if index in ("capacity", "idle", "held-source", "failed-source", "failed-generation", "no-eof"):
+            if index == "no-eof":
+                connection.sendall(frame(VECTORS["cases"][0]["text"], 8192))
+            elif index == "failed-generation":
                 connection.sendall(frame(VECTORS["cases"][1]["text"], 8192))
                 connection.shutdown(socket.SHUT_WR)
             elif index in ("held-source", "failed-source"):
@@ -281,7 +283,8 @@ def concurrent_server(path):
     output_lock = threading.Lock()
     lifetime_lock = threading.RLock()
     active = {}
-    counts = {"reads": 0, "generationReads": 0, "capacity": 0, "timeouts": 0, "sourceFailures": 0, "cancellations": 0}
+    counts = {"reads": 0, "generationReads": 0, "capacity": 0, "timeouts": 0,
+              "requestTimeouts": 0, "sourceFailures": 0, "cancellations": 0}
     errors = []
     tasks = []
 
@@ -311,6 +314,8 @@ def concurrent_server(path):
 
     def serve(connection):
         expired = threading.Event()
+        request_complete = threading.Event()
+        before = counts["reads"]
 
         def source(default):
             counts["reads"] += 1
@@ -334,6 +339,10 @@ def concurrent_server(path):
                     return
                 expired.set()
                 counts["timeouts" if reason == "timeout" else "cancellations"] += 1
+                if reason == "timeout" and not request_complete.is_set():
+                    counts["requestTimeouts"] += 1
+                    if counts["reads"] != before:
+                        errors.append("Source entered before complete request EOF")
                 connection.shutdown(socket.SHUT_RDWR)
                 connection.close()
                 event(reason)
@@ -345,6 +354,7 @@ def concurrent_server(path):
                 active["cancel"] = terminate
             timer.start()
             text = read_frame(connection, 8192, deadline)
+            request_complete.set()
             response = readback(text, source)
             if not expired.is_set():
                 remaining(connection, deadline)
@@ -403,7 +413,8 @@ def concurrent_server(path):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        assert counts == {"reads": 8, "generationReads": 2, "capacity": 4, "timeouts": 2, "sourceFailures": 2, "cancellations": 1}, counts
+        assert counts == {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
+                          "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1}, counts
         event("complete")
     finally:
         release.set()
@@ -516,6 +527,18 @@ def concurrent_proof(directory, cross_runtime=False):
         done(recovered)
         observed = [receive()["event"] for _ in range(2)]
         assert sorted(observed) == ["admitted", "released"]
+        stalled = start("no-eof")
+        event("admitted")
+        competitor = start("capacity")
+        event("capacity")
+        done(competitor)
+        event("timeout")
+        event("released")
+        done(stalled)
+        recovered = start("reconnect")
+        done(recovered)
+        observed = [receive()["event"] for _ in range(2)]
+        assert sorted(observed) == ["admitted", "released"]
         process.stdin.write("stop\n")
         process.stdin.flush()
         event("complete")
@@ -526,6 +549,7 @@ def concurrent_proof(directory, cross_runtime=False):
         print("PASS Python/Linux admission: idle deadline, competitors rejected, timed-out source retains slot until release, reconnect succeeds", flush=True)
         print("PASS Python/Linux source failure: explicit diagnostic, no response frame, slot released and approved reconnect succeeds", flush=True)
         print("PASS Python/Linux generation failure: no missing/success fallback, explicit diagnostic, fresh observed readback succeeds", flush=True)
+        print("PASS Python/Linux missing EOF: complete request times out without source entry, excludes competitors, fresh readback succeeds", flush=True)
         print("PASS Python/Linux cancellation: held request closes within three seconds, slot retained until source settles, approved reconnect succeeds", flush=True)
         if cross_runtime:
             print("PASS Node/TypeScript lifecycle clients: idle and source deadlines, capacity retention, source exception and owner cancellation recovery", flush=True)
