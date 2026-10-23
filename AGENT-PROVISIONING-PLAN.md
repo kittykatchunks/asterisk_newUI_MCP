@@ -3317,9 +3317,12 @@ and [Inviter NOTIFY generation](https://github.com/onsip/SIP.js/blob/0.21.2/src/
 
 The pinned Asterisk 22.11 REFER handler adds a second important distinction.
 For its ordinary in-dialog REFER path, unless the request suppresses
-`Refer-Sub`, it creates the implicit REFER subscription and sends
-**202 Accepted** before the transfer outcome is known. The terminal transfer
-result is later carried in a `message/sipfrag` NOTIFY.
+`Refer-Sub`, it creates the implicit REFER subscription and attempts to send
+**202 Accepted** before the transfer outcome is known. Asterisk ignores the
+accept-call return, and the cloned-rdata transaction constraint described
+below may prevent either subscription setup or response submission. When
+subscription setup and response submission succeed, the terminal transfer
+result may later be carried in a `message/sipfrag` NOTIFY.
 The endpoint `refer_blind_progress` option defaults to `yes`, but when set to
 `no`, the blind-transfer callback emits terminal `200` NOTIFY as soon as the
 transfer callback runs; that callback precedes completion of the target call.
@@ -3344,8 +3347,9 @@ identifier allocation and prove the subscription is not left able to compare
 NULL (or otherwise demonstrate a safe guarded path); also verify that the
 assumed-success NOTIFY cannot settle or mask the transfer claim.
 
-SIP.js 0.21.2's `requestDelegate.onAccept` will therefore typically observe the
-initial 202, not the terminal transfer result. With the default
+When Asterisk successfully submits the implicit-subscription response, SIP.js
+0.21.2's `requestDelegate.onAccept` observes the initial 202, not the terminal
+transfer result. With the default
 `refer_blind_progress=yes` and a successful monitoring setup, the terminal
 NOTIFY sipfrag can represent an answer indication from frames/bridge entry,
 but must still be checked against PBX channel/session lifecycle evidence. If
@@ -3525,14 +3529,34 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Therefore, the admission owner must not key a claim from those PJSIP getter
   results; a retransmission-stable REFER transaction key must be derived from
   clone-safe request data or another proven source and tested against wire
-  retransmissions. This warning also intersects the built-in `Refer-Sub: false`
-  branch: after creating a response, it passes
+  retransmissions. This warning intersects both built-in REFER response modes.
+  For the ordinary implicit-subscription path, Asterisk's pinned
+  [pjproject version is 2.17](https://github.com/asterisk/asterisk/blob/22.11.0/third-party/versions.mak#L3).
+  Its [`pjsip_rx_data_clone()`](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L834-L905)
+  zero-initializes the destination and copies transport, packet, and parsed
+  message data, but not `endpt_info.mod_data`; consequently the clone's
+  `pjsip_rdata_get_tsx()` lookup has no transaction module-data entry.
+  [`pjsip_evsub_create_uas()`](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L958-L987)
+  requires that transaction and returns `PJSIP_ENOTSX` if it is absent.
+  Asterisk's `refer_progress_alloc()` treats `pjsip_xfer_create_uas()` failure
+  as an error, and the request handler sends `500` and returns before the
+  intended `202` or target validation
+  ([setup failure handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L599-L629),
+  [REFER response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2044-L2049)).
+  This is a source-level incompatibility candidate that requires verification
+  against the exact callback request object and wire behavior; do not assume
+  either successful subscription creation or a runtime failure without that
+  proof. The `Refer-Sub: false` branch skips creation but later passes
   `pjsip_rdata_get_tsx(rdata)` to `pjsip_dlg_send_response()`
-  ([no-subscription response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)).
-  Since the session-callback contract says the request clone lacks module data,
-  the transaction value and response/retransmission behavior on this path need
-  explicit verification; source inspection alone does not establish a runtime
-  failure or safe fallback. The built-in REFER supplement is registered at
+  ([no-subscription response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)),
+  then ignores that function's return. In pjproject 2.17 the dialog-send API
+  returns `PJ_EINVAL` when its transaction argument is NULL
+  ([argument check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1642-L1654)).
+  If the callback clone has no transaction module data, this call does not
+  submit the constructed response through that API; any eventual wire response
+  or timeout behavior must be captured rather than inferred. This is a
+  source-level response-path concern, not a claim about what the peer
+  necessarily observes. The built-in REFER supplement is registered at
   [`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2162),
   with `AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL` defined as `1000000`
   ([priority values and ordering](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip.h#L3389-L3398)).
@@ -3542,19 +3566,41 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   nonzero without responding is not a reject implementation; returning zero
   after detecting a policy failure allows the built-in path to run, including
   its implicit-subscription `202` behavior.
+  A custom gate also cannot assume `pjsip_dlg_respond()` works on the cloned
+  request: pjproject 2.17 uses `pjsip_rdata_get_tsx()` and returns
+  `PJ_EINVALIDOP` if no dialog transaction is available
+  ([dialog response helper](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1717-L1764)).
+  Asterisk's built-in early rejection branches call this helper and ignore its
+  result. `ast_sip_send_stateful_response()` is a different API that creates a
+  transaction, but its compatibility with this cloned in-dialog request path
+  and its response/retransmission behavior must be proven before selecting it
+  ([Asterisk stateful response helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L2399-L2441)).
+  Every rejecting gate therefore needs a tested, clone-compatible response
+  mechanism; returning nonzero only stops supplement dispatch.
 
-The built-in blind REFER handler checks the target extension and then calls
+If implicit-subscription setup succeeds, the built-in blind REFER handler
+checks the target extension and then calls
 [`ast_bridge_transfer_blind()`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822).
 For REFERs using the implicit subscription, however, the built-in request
-handler calls `refer_progress_alloc()` first; that helper sends `202 Accepted`
-before dispatching to the blind handler, which then checks whether the target
-extension exists
+handler calls `refer_progress_alloc()` first. That helper attempts
+`pjsip_xfer_accept(..., 202, ...)` before dispatching to the blind handler,
+which then checks whether the target extension exists
 ([202 creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L599-L624),
 [later extension validation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1776-L1807),
 [request ordering](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2044-L2067)).
-Thus an unknown extension can receive `202` and only later a failure NOTIFY;
+The return from `pjsip_xfer_accept()` is ignored by Asterisk. pjproject's
+`pjsip_xfer_accept()` delegates to `pjsip_evsub_accept()`, which can return an
+error while creating or sending the response
+([wrapper](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L350-L360),
+[response creation and send](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1240-L1293)).
+Consequently, neither successful subscription creation nor reaching target
+validation proves that `202` was sent. If response acceptance succeeds, an
+unknown extension can still receive `202` and only later a failure NOTIFY;
 that status is subscription acceptance, not target validity or reservation
-proof. A generation/allowlist gate that must refuse a request before any
+proof. The cloned-rdata transaction lookup described above may prevent
+subscription setup in the pinned path; capture actual response behavior before
+relying on either ordering. A generation/allowlist gate that must refuse a
+request before any
 accepted transfer response needs to run before this built-in handler and send
 its own final response when it stops supplement dispatch. This earlier gate
 must distinguish rejection from ownership of an allowed transfer. Returning
@@ -3567,18 +3613,20 @@ the return code alone does not send a response. Alternatively, continuing to
 the built-in handler is viable only if a separate, proven mechanism binds and
 settles that handler's work against the pre-reserved operation.
 The built-in handler has a distinct earlier branch when `session->channel` is
-absent: it sends `404` and returns before setting up REFER progress or reaching
-the implicit-subscription `202` path
+absent: it attempts a `404` via `pjsip_dlg_respond()` and returns before setting
+up REFER progress or reaching the implicit-subscription `202` path
 ([missing-channel branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1997-L2005)).
 Because the supplement contract does not guarantee a channel, a custom gate
 must treat missing channel/generation association as an explicit fail-closed
 case, avoid dereferencing channel state, and own its response if it stops
 dispatch. This case must be tested separately from an unknown extension,
 whose validation occurs later and can follow `202`.
-Before progress setup, the built-in parser also returns `400` for a missing
+Before progress setup, the built-in parser also attempts `400` for a missing
 `Refer-To` header or for a value that does not parse as a SIP/SIPS URI
 ([header and URI validation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2014-L2049)).
-A pre-handler gate must reject unsupported URI forms itself or deliberately
+Asterisk likewise calls `pjsip_dlg_respond()` for these cases and ignores its
+return; with absent transaction data, the wire `400` is not source-proven. A
+pre-handler gate must reject unsupported URI forms itself or deliberately
 continue only where its parser and policy agree with the built-in parser;
 neither malformed input nor a non-SIP scheme may create a transfer operation,
 implicit subscription, or target attempt.
@@ -4437,15 +4485,16 @@ legs still need generation attribution and complete settlement.
 | Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
-| Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`; verify the cloned-rdata transaction lookup in the built-in response path and exact response behavior across retransmissions. |
-| REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the explicit response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Keep distinct from unknown-target handling, which occurs after implicit-subscription setup. |
-| Missing `Refer-To`, malformed URI, or unsupported non-SIP/SIPS scheme | Reject before progress setup; no operation claim, implicit subscription/`202`, target channel, or INVITE is created. Verify the custom gate and built-in parser agree on eligible URI forms and response ownership. |
+| Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in progress/subscription handling; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. If built-in handling continues, capture whether cloned-rdata transaction lookup causes setup to return `500` before the intended `202`/target validation or whether the selected runtime path supplies a usable transaction. With `Refer-Sub: false`, also capture the ignored dialog-send return, actual wire response/timeout behavior, and retransmissions. |
+| REFER implicit-subscription setup succeeds but `202` creation or send fails | Fault-inject response creation/send failure; record the final wire response and verify the built-in handler's subsequent target-validation/transfer work, progress subscription state, and claim correlation. Asterisk ignores `pjsip_xfer_accept()`'s return, so do not infer that 202 was submitted from subscription allocation or continued handling. |
+| REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the actual wire response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Verify the rejection API works with cloned request data; keep distinct from unknown-target handling, which occurs after implicit-subscription setup if its transaction is available. |
+| Missing `Refer-To`, malformed URI, or unsupported non-SIP/SIPS scheme | Reject before progress setup; no operation claim, implicit subscription/`202`, target channel, or INVITE is created. Verify the actual wire rejection and that the custom gate's response API works on cloned data; confirm agreement with built-in URI eligibility. |
 | Progress setup cannot allocate the transferee unique ID | Inject the `ast_strdup()` failure; prove bridge progress cannot call `strcmp()` with a NULL transferee ID, progress resources are safely handled, and any assumed-success `200` is not treated as transfer or claim completion. |
 | Allowed blind REFER with a pre-handler reservation | If the supplement returns zero, prove the built-in transfer callback, progress, and all terminal outcomes correlate to that reservation; if it handles and returns nonzero, prove it owns the bridge propagation callback and SIP response/progress lifecycle. No reservation-only path may leave built-in work uncorrelated. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, `Replaces`, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; the out-of-scope attended-transfer branch selected by `Replaces` is rejected before built-in handling. No display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
-| SIP.js REFER promise resolves without waiting for response; Asterisk 202 followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
+| SIP.js REFER promise resolves without waiting for response; Asterisk successfully submits 202 before target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and a submitted REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
 | Same REFER transaction retransmitted versus a new REFER with a later CSeq | Verify which retransmissions reach the pinned supplement; the same transaction must not reserve or start duplicate operation work, while a new transaction must follow the one-outstanding-operation policy and cannot overwrite unresolved progress correlation. |
 | Two distinct in-dialog REFER transactions arrive while the first operation is queued but no target leg has reached `b()` admission | Verify PJSIP dialog/transaction dispatch behavior and enforce an atomic per-source-session active-operation latch; accept at most one, explicitly reject the other, and prove no progress state or operation claim is overwritten and no work is queued twice. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
