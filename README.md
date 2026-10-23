@@ -3054,6 +3054,20 @@ Captured broker diagnostics must be exactly four fixed
 `Broker read-only source failed` messages, with no adapter exception detail,
 additional terminal outcome or hidden recovery error.
 
+The complete 36-case request/framing corpus also runs through the actual
+authenticated listener with Python and Node clients (72 fresh connections),
+rather than only a socketpair decoder. Both clients exercise exact limits,
+UTF-8/JSON/schema rejection, scope, concatenated/trailing frames and delayed EOF.
+Each request must add zero source calls when rejected and exactly one when valid;
+the complete successful response must match the shared expected value.
+Only the corpus's concatenated-valid-request case permits read-side connection
+reset instead of EOF, always with zero response bytes. All other errors fail.
+A fresh exact-inventory read follows each runtime's corpus. Captured diagnostics
+must contain only the exact expected number of fixed request-rejection messages,
+with no hidden peer-loss, deadline, source or capacity outcomes. Clean stop must
+remove the socket. This is same-container process integration, not yet proof of
+the implementation's separate-container deployment.
+
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.
 Implementation-specific integration coverage, concrete read-only source wiring

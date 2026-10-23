@@ -8,6 +8,7 @@ import logging
 import multiprocessing
 import os
 import queue
+import select
 import socket
 import stat
 import struct
@@ -534,6 +535,116 @@ def publication_proof():
         print(f"PASS implementation publication: {scenario}, exact metadata/content preserved, no source entry, same instance reusable")
 
 
+def authenticated_corpus_proof():
+    context = multiprocessing.get_context("fork")
+    stop, ready = context.Event(), context.Event()
+    calls = context.Value("i", 0)
+    diagnostics = context.Queue()
+
+    class CountedSource(FakeSource):
+        def inventory(self, cancellation):
+            with calls.get_lock():
+                calls.value += 1
+            return super().inventory(cancellation)
+
+        def generation(self, generation_id, cancellation):
+            with calls.get_lock():
+                calls.value += 1
+            return super().generation(generation_id, cancellation)
+
+    with tempfile.TemporaryDirectory(dir="/proof") as directory:
+        os.chmod(directory, 0o750)
+        os.chown(directory, 1101, 2100)
+        path = os.path.join(directory, "broker.sock")
+
+        def serve():
+            drop(1101)
+            capture_diagnostics(diagnostics)
+            broker.Broker(binding, CountedSource()).serve(path, stop, ready)
+
+        server = context.Process(target=serve)
+        clients = []
+        expected_calls = 0
+        rejected = 0
+        server.start()
+        try:
+            assert ready.wait(3), "Authenticated corpus listener did not become ready"
+            for runtime in ("python", "node"):
+                for index, vector in enumerate(vectors["cases"]):
+                    if runtime == "node":
+                        result = subprocess.run(
+                            ["node", "/tests/identity/broker-cross-client.ts", path, str(index)],
+                            user=1102, group=2100, extra_groups=[], capture_output=True, text=True, timeout=10)
+                        assert result.returncode == 0 and result.stdout == "" and result.stderr == "", (
+                            runtime, vector["name"], result.stderr)
+                    else:
+                        def execute():
+                            drop(1102)
+                            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                                connection.settimeout(5)
+                                connection.connect(path)
+                                if "hex" in vector:
+                                    data = bytes.fromhex(vector["hex"])
+                                else:
+                                    data = broker.encode_frame(
+                                        vector["text"].ljust(vector.get("padBytes", 0), " "), 8192)
+                                connection.sendall(data)
+                                if vector.get("delayEofMs"):
+                                    assert not select.select([connection], [], [], vector["delayEofMs"] / 1000)[0], (
+                                        "Broker responded before request EOF", vector["name"])
+                                if vector.get("trailingHex"):
+                                    connection.sendall(bytes.fromhex(vector["trailingHex"]))
+                                connection.shutdown(socket.SHUT_WR)
+                                response = bytearray()
+                                try:
+                                    while chunk := connection.recv(4096):
+                                        response.extend(chunk)
+                                except ConnectionResetError:
+                                    assert vector["name"] == "concatenated-valid-requests"
+                                if vector["expected"] is None:
+                                    assert not response, vector["name"]
+                                else:
+                                    assert decode(response) == vector["expected"], vector["name"]
+
+                        process = context.Process(target=execute)
+                        clients.append(process)
+                        process.start()
+                        process.join(6)
+                        assert not process.is_alive() and process.exitcode == 0, (
+                            runtime, vector["name"], process.exitcode)
+                    expected_calls += int(vector["expected"] is not None)
+                    rejected += int(vector["expected"] is None)
+                    assert calls.value == expected_calls, (runtime, vector["name"], calls.value, expected_calls)
+                result = subprocess.run(
+                    ["node", "/tests/identity/broker-cross-client.ts", path, "reconnect"],
+                    user=1102, group=2100, extra_groups=[], capture_output=True, text=True, timeout=10)
+                assert result.returncode == 0 and result.stdout == "" and result.stderr == "", result.stderr
+                expected_calls += 1
+                assert calls.value == expected_calls
+            stop.set()
+            server.join(3)
+            assert not server.is_alive() and server.exitcode == 0
+            assert not os.path.exists(path)
+            records = []
+            while True:
+                try:
+                    records.append(diagnostics.get(timeout=0.1))
+                except queue.Empty:
+                    break
+            assert records == ["Broker read-only connection rejected"] * rejected, records
+        finally:
+            stop.set()
+            for process in [*clients, server]:
+                process.join(2)
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+            os.chown(directory, 0, 0)
+            diagnostics.close()
+            diagnostics.join_thread()
+    print("PASS implementation authenticated corpus: all 36 requests via Python and Node, per-request source accounting, exact diagnostics and fresh recovery")
+
+
 if __name__ == "__main__":
     if not unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(ProtocolTests)).wasSuccessful():
         sys.exit(1)
@@ -541,3 +652,4 @@ if __name__ == "__main__":
         kernel_proof(scenario)
     publication_proof()
     source_failure_proof()
+    authenticated_corpus_proof()

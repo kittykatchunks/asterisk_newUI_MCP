@@ -1818,6 +1818,25 @@ unexpected terminal outcomes and capacity failures cannot pass as source-failure
 evidence. The socket must be removed on clean stop. This adds implementation
 coverage without changing runtime behaviour or wiring a real source adapter.
 
+The authenticated-listener corpus follow-up now runs all 36 request/framing
+vectors independently with Python and actual Node clients against the
+implementation listener: 72 fresh corpus connections, plus a fresh inventory
+recovery after each runtime. This complements, rather than replaces, the direct
+decoder/source-output tests. No test identity is injected into the listener;
+clients run as the authorised UID/primary GID and the broker performs its real
+accepted-socket credential check.
+
+Per-request source counters must remain unchanged for every rejection and
+increment exactly once for every valid request. Successful complete responses
+must equal the shared expected values. Delayed-EOF requests must not receive a
+response before EOF. Only the specifically named concatenated-valid-request
+case accepts a read-side connection reset as an alternative to zero-byte EOF;
+other transport failures cannot pass. The broker's captured diagnostics must
+be exactly the expected number of fixed connection-rejection messages, excluding
+unexpected source/terminal/capacity outcomes. Clean shutdown removes the socket.
+This is implementation-specific same-container integration, not a claim that the
+experimental separate-container proof automatically covers this runtime.
+
 This is the first implementation slice, not inherited production certification
 from fixture tests. Separate-container, terminal-schedule, blocked-write and broader
 filesystem-race checks still need implementation-specific evidence before
