@@ -2449,3 +2449,124 @@ Next work remains the protected generation-to-runtime-object mapping and
 authority lifecycle contract, followed by a separately approved producer/access
 decision. These synthetic envelopes do not demonstrate live fence or dialog
 completeness and do not authorize a collector service.
+
+### 9.20 Protected generation mapping and authority lifecycle (design only)
+
+The user selected design of broker-derived per-generation runtime-object mapping
+and authority lifecycle. This section specifies the intended next model; it
+does not change ledger schema, render configuration, enroll a runtime, create
+objects or approve PBX access.
+
+#### Identity and deterministic object names
+
+Use the complete validated tuple `(customer, epoch, namespace, generationId)`
+as generation identity. A phone extension, device identifier, channel name,
+contact address or newest lease lookup must never substitute for that tuple.
+The generation UUID is already part of the provisioning command contract; the
+broker derives runtime names only after scope/authority validation, not from
+caller-supplied object names.
+
+Proposed derivation version **1**:
+
+1. Serialize the ordered string array
+   `["agent-runtime-mapping", "1", customer, epoch, namespace, generationId]`
+   as compact UTF-8 JSON with no whitespace. Inputs use the existing restricted
+   ASCII slug/lowercase UUID formats, so escaping and Unicode normalization are
+   not alternative encodings.
+2. Compute lowercase full SHA-256 hex of those bytes, without truncation.
+3. Derive endpoint `ag1-<digest>-e`, authentication `ag1-<digest>-a` and AOR
+   `ag1-<digest>-r`. Each identifier is 70 ASCII bytes. These are proposed logical
+   object names, not filenames, dial strings or authorization tokens.
+
+Distinct role suffixes prevent cross-role reuse. Including customer, epoch and
+namespace avoids intentional reuse across authorities; the digest does not
+authenticate ownership or mathematically rule out collisions. Before enrollment,
+the authority must reject duplicate names mapped to different tuples and any
+existing object whose ownership cannot be verified. It must not adopt, overwrite
+or delete an object merely because its name matches the prefix or digest.
+Validate identifier compatibility against the exact selected Asterisk
+configuration/rendering path before implementation; this design is not proof
+that every deployment accepts these names.
+
+Record the derivation version and exact object-name triple with the protected
+generation metadata, then recompute and compare on every mapping load. A retry
+must recover the exact same mapping. Object names contain no credentials; auth
+secret generation/storage remains separately gated. Operator-owned transports,
+base contexts, trunks and shared routing objects are excluded from this triple.
+Any future managed routing fence requires its own explicit model and ownership
+record, not a suffix silently added during configuration rendering.
+
+#### Revisions and runtime instance are different authorities
+
+| Identity | Intended scope and change rule |
+| --- | --- |
+| Controller `epoch` | Existing provisioned customer authority. A different epoch cannot adopt an old generation implicitly; replacement/restore requires explicit reconciliation. |
+| Mapping derivation version | Naming algorithm compatibility, initially 1. It is not a counter and cannot change object names during a retry. |
+| Mapping revision | Positive per-generation revision of the protected observation model, initially 1. Covers exact object associations and any later approved fence-model definition. Changes invalidate outstanding evidence; incompatible identity changes require a new generation rather than an in-place rename. |
+| Desired command revision | Existing customer command ordering. Not interchangeable with mapping revision; a deadline-only renewal does not by itself rename objects or prove an observation-model change. |
+| Runtime instance | Broker-enrolled identity of the PBX lifetime being observed, not the broker process, AMI connection or collector process. A PBX restart invalidates prior runtime evidence even if object names persist. |
+| Evidence request ID | One broker-local collection attempt. Never reused as a generation, runtime identity, revision or execution authority. |
+
+The existing metadata ledger cannot yet persist these additions or renew
+deadlines. No migration or renewal is implied by this design. Future mapping
+changes must commit atomically with their revision and ownership association;
+readers must not combine a new revision with old names. Current mapping
+expectations must be checked again when accepting evidence under the same
+authority-coordination boundary, not simply echoed from the producer.
+
+#### Enrollment and recovery rules
+
+1. **Unenrolled:** no trusted PBX lifetime/model association. Ledger records may
+   exist, but live observations fail unavailable; do not infer an empty runtime.
+2. **Enrollment pending:** a separately approved customer-local authority checks
+   the runtime identity, managed namespace and exact object ownership/model.
+   It cannot bootstrap trust by accepting a collector's self-selected UUID.
+   The mechanism for establishing a trustworthy PBX lifetime identity is still
+   unresolved; AMI login success or a start-time string alone is insufficient.
+3. **Bound for observation:** persist the enrolled runtime association and
+   verified mapping revision. Observation requests capture those expectations.
+   This state authorizes only evidence collection, not activation or mutation.
+4. **Invalidated:** PBX restart, uncertain reconnect continuity, authority/epoch
+   change, mapping change, interrupted reconciliation or conflicting runtime
+   objects invalidate affected evidence immediately. An ordinary AMI reconnect
+   neither proves a PBX restart nor proves continuity. Re-enrollment must resolve
+   that uncertainty before fresh positive evidence is accepted.
+5. **Broker/collector restart:** recover mappings without renaming objects.
+   Discard in-memory evidence requests and cached observations; re-establish
+   runtime continuity through the future protected enrollment mechanism. Never
+   reset a deadline or erase drain intent as a restart side effect.
+
+A restored ledger with a matching epoch is not detected by the current
+foundation. Preventing rollback acceptance requires a separately selected
+authority/restore mechanism outside an unverified restored database. Generating
+a new local UUID after restore does not repair that trust problem.
+
+#### Mapping is not observation
+
+The triple identifies what to inspect, not whether objects are loaded, whether
+new calls are blocked, or which SIP dialogs belong to the generation. Endpoint
+name matching alone cannot prove dialog completeness after transfer, Local
+channels, bridge changes or cached authentication. Do not count all channels
+with a string prefix and label the result authoritative dialogs.
+
+Until a separately approved fence model exists, `newCallsBlocked` cannot be
+derived from this mapping or ledger. Unknown/partial ownership fails the
+observation; absence of one mapped object is not `removed` or `missing`.
+Retain ownership records through draining/removal uncertainty so stale objects
+are not abandoned or silently assigned to a replacement generation. Mapping
+design does not approve deletion or introduce a tombstone lifecycle.
+
+#### Bounded implementation gate
+
+The next proposed local increment, requiring approval, is a pure mapping
+derivation/validation helper with deterministic vectors and collision/conflict
+checks against synthetic records. No PBX adapter, new ledger schema, collector
+runtime or enrollment mechanism should be smuggled into that helper.
+Before persistence integration, specify an explicit schema migration and
+transactional mapping ownership/revision rules; preserve rejection of unknown
+schemas and never reinterpret an existing metadata database silently.
+
+The live integration blockers remain concrete: runtime enrollment/continuity,
+generation-correlated complete dialog evidence, effective fence semantics,
+collector authority/access approval and protected publication/supervision.
+Finishing deterministic naming will not close any of those gates by itself.

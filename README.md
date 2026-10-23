@@ -3267,6 +3267,16 @@ collector runtime, transport, credentials, access, live source or deployment
 has been added. Runtime enrollment, mapping persistence and authority-change
 coordination remain prerequisites for integrating a real producer.
 
+The [generation mapping and authority lifecycle design](./AGENT-PROVISIONING-PLAN.md#920-protected-generation-mapping-and-authority-lifecycle-design-only)
+proposes deterministic, role-separated endpoint/auth/AOR names derived from the
+full customer/epoch/namespace/generation tuple, never from an extension or
+caller-selected object name. It distinguishes immutable naming, mapping
+revision, command revision and PBX runtime identity; restarts invalidate evidence
+without silently renaming objects. Runtime enrollment and continuity remain
+unresolved rather than being inferred from an AMI login or start-time string.
+This is documentation only: no schema migration, object creation, collector,
+credentials or PBX access is introduced.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current
