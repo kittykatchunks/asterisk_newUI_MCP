@@ -3727,6 +3727,24 @@ interleaving or impact. The proof/fix must synchronize progress-state
 publication and teardown across all three paths, or exclude the failing-parking
 retry while progress monitoring is active.
 
+The bridge-insertion failure is also later than target PBX startup: the parking
+Local's successful `ast_call()` invokes `ast_pbx_start()` on its paired channel,
+which starts the target dialplan on a detached thread before the callback and
+`ast_bridge_impart()`
+([Local PBX start](https://github.com/asterisk/asterisk/blob/22.11.0/main/core_local.c#L725-L762),
+[parking call/callback/bridge order](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L257-L293),
+[post-callback bridge failure](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L383-L398)).
+Core then tries ordinary transfer to the same destination, which creates and
+calls another Local channel
+([ordinary fallback Local](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4337-L4371)).
+Hanging up the first Local after bridge-insertion failure does not, by source
+ordering alone, prove its target dialplan was stopped before a call-producing
+priority signaled a leg. Thus this fallback can present overlapping attempts
+to the same destination, in addition to the REFER progress-state problem. Safe
+support must prove the first attempt cannot signal before fallback or that its
+signaled work is uniquely claimed and canceled/settled before a replacement is
+started; otherwise disable this fallback path.
+
 The ordinary-transfer failure branches provide a bounded source-call
 preservation signal, but only for those branches: multi-party handling hangs
 up the attempted Local and returns failure when its `ast_call()` fails, before
@@ -4144,6 +4162,7 @@ legs still need generation attribution and complete settlement.
 | Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
 | Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback, then confirm the ordinary fallback callback does not overwrite or race progress correlation; exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
+| Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

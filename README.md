@@ -3497,7 +3497,12 @@ visible repeated-setup cleanup. This is a potential lost-correlation/resource
 cleanup defect; the progress fields are also shared by the callback, framehook,
 and bridge subscription without an evident common lock. This potential
 cross-thread state race requires focused validation and an upstream fix or
-explicit path exclusion before relying on parking fallback.
+explicit path exclusion before relying on parking fallback. The Local target
+PBX is already started before the parking callback and bridge insertion; a
+failed bridge insertion then runs ordinary transfer against the same
+destination. Source ordering does not prove the first route was stopped before
+signaling, so fallback must prevent or explicitly account for overlapping
+target attempts.
 Fallback needs a separately settled child claim; ordinary multi-party fallback
 fails before bridge insertion if its Local `ast_call()` is rejected, and the
 two-party path does not remove the transferer when action enqueue fails. Built-in
