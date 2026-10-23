@@ -3594,12 +3594,24 @@ The transaction callback runs before the internal challenge handler, but
 Asterisk's initial `SENT` subscription state does not enter its later
 `ACTIVE`/`TERMINATED` retry branch. If synchronous auth fails, the terminal
 callback can expose the original challenge to Asterisk's separate endpoint-auth
-retry. If configured async auth is abandoned, pjproject instead reports a
-synthetic event, which Asterisk handles as terminal failure.
+retry. That retry is initiated after the subscription is already terminated;
+pjproject skips terminated no-event-id UAC subscriptions when associating
+transactions, so the retry response may not reach the REFER callback. The
+Asterisk callback also leaves its module-data reference in place on the retry
+branch; verify dialog-session cleanup instead of assuming the response or
+cleanup is observed
+([pjproject subscription lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1591-L1688),
+[Asterisk retry callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
+[retained-dialog destructor](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
+If configured async auth is abandoned, pjproject instead reports a synthetic
+event, which Asterisk handles as terminal failure.
 Asterisk's counter allows at most nine callback retry attempts; it increments
 before request creation, so failed construction consumes the budget and fewer
-than nine retries may be sent. This does not bound pjproject's separate
-attempts. Asterisk ignores the retry send result; at its own retry limit, it
+than nine retries may be sent. This is only a callback-branch threshold, not
+necessarily a limit on sequential wire retries: the terminal-state retry may
+not remain associated with a live evsub, so its response may not reach
+Asterisk's callback. This does not bound pjproject's separate attempts.
+Asterisk ignores the retry send result; at its own retry limit, it
 attempts a zero-expiry `SUBSCRIBE` only if the subscription is not already
 terminated, and ignores that send result too. Capture event types, requests
 actually sent, challenge codes, credentials, subscription state, any
