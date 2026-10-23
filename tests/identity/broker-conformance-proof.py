@@ -307,7 +307,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
     slot = threading.Lock()
     release = threading.Event()
     stop = threading.Event()
-    output_lock = threading.Lock()
+    output_lock = threading.RLock()
     lifetime_lock = threading.RLock()
     active = {}
     counts = {"reads": 0, "generationReads": 0, "capacity": 0, "timeouts": 0,
@@ -320,10 +320,19 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             print(json.dumps({"event": name}), flush=True)
 
     def release_held_source(_signal, _frame):
-        if (counts["reads"] != 5 or counts["timeouts"] != 3 or counts["capacity"] != 4 or
+        state = (counts["reads"], counts["timeouts"], counts["capacity"], counts["cancellations"])
+        if (state not in ((5, 3, 4, 0), (7, 3, 5, 1)) or
                 not slot.locked() or release.is_set()):
             errors.append("Unexpected parent source-release signal")
         release.set()
+
+    def cancel_held_source(_signal, _frame):
+        with lifetime_lock:
+            if (counts["reads"] != 7 or counts["timeouts"] != 3 or counts["cancellations"] != 0 or
+                    release.is_set() or "cancel" not in active):
+                errors.append("Unexpected parent cancellation signal")
+                return
+            active["cancel"]("cancelled")
 
     def control():
         for line in sys.stdin:
@@ -373,14 +382,15 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 if counts["reads"] == 3:
                     assert not isinstance(default, list)
                     raise FixtureSourceFailure("Fixture generation source unavailable")
-                if counts["reads"] == 5:
+                if counts["reads"] in (5, 7):
+                    entry = counts["reads"]
                     release.clear()
                     event("source-entered")
                     if not release.wait(15):
                         errors.append("Held container source was not released by parent")
                         raise TimeoutError("Fixture source was not released")
                     assert expired.is_set() and slot.locked()
-                    assert counts["capacity"] == 4 and counts["reads"] == 5
+                    assert counts["capacity"] == (4 if entry == 5 else 5) and counts["reads"] == entry
                     event("source-settled")
                 return default
             if counts["reads"] in (1, 5):
@@ -433,7 +443,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 remaining(connection, deadline)
                 connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
-                if admission_only and counts["reads"] == 6:
+                if admission_only and counts["reads"] == 8:
                     stop.set()
         except FixtureSourceFailure as error:
             counts["sourceFailures"] += 1
@@ -467,6 +477,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
     try:
         if admission_only:
             previous_release_handler = signal.signal(signal.SIGUSR1, release_held_source)
+            previous_cancel_handler = signal.signal(signal.SIGUSR2, cancel_held_source)
         listener.bind(path)
         os.chmod(path, 0o660)
         listener.listen(1)
@@ -489,10 +500,11 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             if not slot.acquire(blocking=False):
                 counts["capacity"] += 1
                 connection.close()
-                if admission_only and counts["reads"] == 5:
+                if admission_only and counts["reads"] in (5, 7):
                     with output_lock:
                         print(json.dumps({"heldCapacity": {"sourceEntries": counts["reads"],
                                                            "timeouts": counts["timeouts"],
+                                                           "cancellations": counts["cancellations"],
                                                            "slotLocked": slot.locked()}}), flush=True)
                 event("capacity")
                 continue
@@ -504,8 +516,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        expected = ({"reads": 6, "generationReads": 2, "capacity": 4, "timeouts": 3,
-                     "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 0} if admission_only else
+        expected = ({"reads": 8, "generationReads": 2, "capacity": 5, "timeouts": 3,
+                     "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1} if admission_only else
                     {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1})
         assert counts == expected, counts
@@ -516,6 +528,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
     finally:
         if admission_only:
             signal.signal(signal.SIGUSR1, previous_release_handler)
+            signal.signal(signal.SIGUSR2, previous_cancel_handler)
         release.set()
         listener.close()
         os.unlink(path)

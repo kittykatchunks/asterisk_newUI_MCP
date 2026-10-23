@@ -1351,7 +1351,7 @@ scenario across runtimes, not a general retry or response-loss recovery policy.
 The bounded separate-container idle/missing-EOF admission follow-up reuses the concurrent
 fixture with its default positive-PID check retained for the original topology.
 Only the approved separate-container mode authorises mapped UID/primary GID
-without using PID, and records all twelve kernel peer tuples. An idle authenticated
+without using PID, and records all fifteen kernel peer tuples. An idle authenticated
 client occupies the one slot while an overlapping approved competitor must close
 with EOF and zero bytes. The idle connection times out after a measured five
 seconds (at least five, below the eight-second client watchdog) with zero source
@@ -1403,9 +1403,26 @@ fails the fixture's 15-second source watchdog, never a success-shaped fallback.
 The parent requires explicit source-settled and seventh slot-release evidence
 before a fresh authenticated inventory read can succeed. This extends the
 existing test-only parent-control pattern, not production signal/recovery policy.
-Final counters are exactly six source entries, four capacity rejections, three
+After the eighth slot release, source entry seven holds a second inventory
+request. The parent waits for its source-entered event, then sends fixture-only
+`SIGUSR2` to the exact recorded broker container. The launcher measures signal
+dispatch through successful client container exit and requires less than three
+seconds, zero-byte EOF and explicit runtime completion, not reset/timeout
+fallback. The cancellation handler validates the phase and uses the existing
+terminal callback under the lifetime lock; unexpected/duplicate control fails
+the experiment. The output lock is reentrant so signal-triggered terminal
+logging cannot deadlock if it interrupts logging in the same thread.
+
+After the cancellation event, another approved competitor must be rejected
+with the slot still locked, seven source entries, three timeouts and exactly
+one cancellation. Parent `SIGUSR1` then releases the source in this exact phase.
+Source settlement and ninth slot release must precede a fresh authenticated
+inventory response. Both handlers exist only in separate-container admission
+mode and are restored on exit. This is explicit test-parent cancellation,
+not worker access to Docker signals or a production cancellation protocol.
+Final counters are exactly eight source entries, five capacity rejections, three
 timeouts (two request and one held-source timeout), two generation reads, two
-source failures and no cancellations.
+source failures and one cancellation.
 
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
@@ -1420,5 +1437,5 @@ to a complete waiting frame before its thread observed terminal state. The
 concurrent fixture now checks terminal state and the same monotonic deadline
 after frame reading and under the lifetime lock before source entry. This is a
 test-fixture correction, not a production implementation change.
-Passing these request-wait and held-source scenarios does not prove
-separate-container cancellation, peer-disconnect handling or general terminal-race safety.
+Passing these request-wait, held-source and explicit cancellation scenarios does
+not prove peer-disconnect handling or general terminal-race safety.

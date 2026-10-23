@@ -319,6 +319,31 @@ try {
     Wait-AdmissionEvent $admission 'source-settled'
     Wait-AdmissionEvent $admission 'released' 7
     Invoke-Client 'admission-held-reconnect' '1102:2100'
+    Wait-AdmissionEvent $admission 'released' 8
+    $cancelled = Invoke-Client 'admission-cancel-held' '1102:2100' -Detached
+    Wait-AdmissionEvent $admission 'source-entered' 2
+    $cancelWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    & docker kill --signal USR2 $admission
+    if ($LASTEXITCODE -ne 0) { throw 'Could not deliver test-only parent cancellation signal.' }
+    $cancelExit = & docker wait $cancelled
+    $cancelWatch.Stop()
+    if ($LASTEXITCODE -ne 0 -or "$cancelExit" -ne '0' -or $cancelWatch.Elapsed.TotalSeconds -ge 3) {
+        throw 'Cancellation must close the held client without bytes within three seconds.'
+    }
+    $cancelEvents = @((& docker logs $cancelled) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $cancelEvents[-1].lifecycleCase -ne 'admission-cancel-held' -or
+        $cancelEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+        throw 'Missing cancelled client runtime completion.'
+    }
+    $identities.Add($cancelEvents[0].identity)
+    Wait-AdmissionEvent $admission 'cancelled'
+    Invoke-Client 'admission-capacity-cancelled' '1102:2100'
+    Wait-AdmissionEvent $admission 'capacity' 5
+    & docker kill --signal USR1 $admission
+    if ($LASTEXITCODE -ne 0) { throw 'Could not release cancelled fixture source.' }
+    Wait-AdmissionEvent $admission 'source-settled' 2
+    Wait-AdmissionEvent $admission 'released' 9
+    Invoke-Client 'admission-cancel-reconnect' '1102:2100'
     $admissionExit = & docker wait $admission
     if ($LASTEXITCODE -ne 0 -or "$admissionExit" -ne '0') { throw 'Separate-container admission broker failed.' }
     $admissionLogs = @(& docker logs $admission 2>&1 | ForEach-Object { "$_" })
@@ -333,7 +358,7 @@ try {
         ForEach-Object { $_ | ConvertFrom-Json })
     if ($admissionEvents[-1].event -ne 'complete') { throw 'Missing admission completion.' }
     $admissionIdentity = $admissionEvents[0].identity
-    foreach ($identity in @($identities | Select-Object -Last 12)) {
+    foreach ($identity in @($identities | Select-Object -Last 15)) {
         if ($identity.uid_map -ne $admissionIdentity.uid_map -or $identity.gid_map -ne $admissionIdentity.gid_map -or
             $identity.userNamespace -ne $admissionIdentity.userNamespace -or
             $identity.pidNamespace -eq $admissionIdentity.pidNamespace -or
@@ -342,15 +367,16 @@ try {
         }
     }
     $admissionPeers = @($admissionEvents | Where-Object { $_.peer })
-    if ($admissionPeers.Count -ne 12 -or @($admissionPeers | Where-Object {
+    if ($admissionPeers.Count -ne 15 -or @($admissionPeers | Where-Object {
         $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
     }).Count -ne 0) { throw 'Missing exact authenticated admission peer evidence.' }
     $admissionCounts = @($admissionEvents | Where-Object { $_.admissionCounts })
-    if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 6 -or
+    if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 8 -or
         $admissionCounts[0].admissionCounts.generationReads -ne 2 -or
-        $admissionCounts[0].admissionCounts.capacity -ne 4 -or $admissionCounts[0].admissionCounts.timeouts -ne 3 -or
+        $admissionCounts[0].admissionCounts.capacity -ne 5 -or $admissionCounts[0].admissionCounts.timeouts -ne 3 -or
         $admissionCounts[0].admissionCounts.requestTimeouts -ne 2 -or
-        $admissionCounts[0].admissionCounts.sourceFailures -ne 2) { throw 'Unexpected admission source/deadline counters.' }
+        $admissionCounts[0].admissionCounts.sourceFailures -ne 2 -or
+        $admissionCounts[0].admissionCounts.cancellations -ne 1) { throw 'Unexpected admission source/deadline counters.' }
     $sourceFailures = @($admissionEvents | Where-Object { $_.admissionSourceFailure })
     if ($sourceFailures.Count -ne 2 -or $sourceFailures[0].admissionSourceFailure.sourceEntries -ne 1 -or
         $sourceFailures[0].admissionSourceFailure.generationReads -ne 0 -or
@@ -375,15 +401,20 @@ try {
         }
     }
     $heldCapacity = @($admissionEvents | Where-Object { $_.heldCapacity })
-    if ($heldCapacity.Count -ne 2 -or $heldCapacity[0].heldCapacity.timeouts -ne 2 -or
-        $heldCapacity[1].heldCapacity.timeouts -ne 3 -or @($heldCapacity | Where-Object {
+    if ($heldCapacity.Count -ne 3 -or $heldCapacity[0].heldCapacity.timeouts -ne 2 -or
+        $heldCapacity[1].heldCapacity.timeouts -ne 3 -or @($heldCapacity | Select-Object -First 2 | Where-Object {
             $_.heldCapacity.sourceEntries -ne 5 -or $_.heldCapacity.slotLocked -ne $true
         }).Count -ne 0) { throw 'Held source did not retain the slot before and after connection timeout.' }
+    if ($heldCapacity[2].heldCapacity.sourceEntries -ne 7 -or $heldCapacity[2].heldCapacity.timeouts -ne 3 -or
+        $heldCapacity[2].heldCapacity.cancellations -ne 1 -or $heldCapacity[2].heldCapacity.slotLocked -ne $true) {
+        throw 'Cancelled source did not retain the admission slot without an extra timeout/source entry.'
+    }
     $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
     Write-Output "PASS separate-container admission ($runtime clients): idle and complete-body/missing-EOF slots exclude competitors, five-second deadlines close without response/source entry, fresh authenticated read succeeds."
     Write-Output "PASS separate-container source failure ($runtime clients): exact diagnostic, zero response bytes, slot released, fresh authenticated read succeeds."
     Write-Output "PASS separate-container generation failure ($runtime clients): exact diagnostic, zero response bytes rather than missing, slot released, fresh observed generation succeeds."
     Write-Output "PASS separate-container held source ($runtime clients): deadline EOF, competitors rejected before/after timeout, slot retained until parent release and source settlement, fresh read succeeds."
+    Write-Output "PASS separate-container cancellation ($runtime clients): zero-byte EOF in $($cancelWatch.Elapsed.TotalSeconds.ToString('F3')) seconds, slot retained until source settlement, fresh read succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
