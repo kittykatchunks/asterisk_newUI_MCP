@@ -3104,6 +3104,32 @@ Only setup receives CHOWN; broker and clients remain capability-free.
 This is focused deployment-topology evidence, not the old fixture's full
 separate-container lifecycle/corpus coverage or a production service launcher.
 
+The first concrete source bridge is deliberately **test-only**:
+[`fake-broker-source.py`](./tests/identity/fake-broker-source.py) reads the existing
+TypeScript fake provisioning runtime's synthetic SQLite database. It opens a
+fresh `mode=ro` connection with `query_only`, checks the pinned customer/epoch
+inside each read transaction, bounds inventory to the protocol limit, and checks
+cancellation before and after the read. It neither creates a database nor imports
+mutation operations. An absent generation remains an error, matching the fake
+runtime; it is not converted into authoritative `missing`.
+
+```powershell
+node --test .\tests\python-broker-source.test.ts
+```
+
+This requires local Python 3 and Node with SQLite support. The existing
+`Test-PythonBroker.ps1` also runs it inside the existing Linux proof image before
+the socket regression. The test creates state through the actual TypeScript
+runtime, compares Python readback with TypeScript expiry reads across prepared,
+active, draining and removed states, including live and unknown dialog counts,
+and verifies unchanged database bytes, file list and effect count. A write
+attempt on the reader connection must fail with `SQLITE_READONLY`. Wrong binding,
+missing database/generation, corrupt state and pre-cancellation must fail.
+This exercises the actual Python protocol encoder with a concrete synthetic
+source, not yet that source through the authenticated socket listener.
+Concurrent-writer/WAL behavior, real-source authority and production source
+installation are not established by this rollback-journal fake-runtime proof.
+
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.
 Implementation-specific integration coverage, concrete read-only source wiring

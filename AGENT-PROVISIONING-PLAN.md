@@ -1894,3 +1894,31 @@ Existing fixture results do not automatically cover the new
 code. Production packaging/supervision and a concrete read-only source adapter
 remain next integration work; real-source authority and privileged gates remain
 separately approved.
+
+The next integration increment introduces a test-only concrete source bridge,
+`tests/identity/fake-broker-source.py`, for the synthetic database written by
+`fake-provisioning-runtime.ts`. It is not installed in the production broker.
+Each call opens SQLite in URI `mode=ro`, sets `query_only`, and checks exactly one
+matching customer/epoch binding in the same read transaction as its query.
+Inventory is bounded and validated; generation output uses the existing Python
+observation validator. Cancellation is checked before connection and after the
+read, with a SQLite progress handler for query interruption and a bounded busy
+timeout. There is no schema creation or mutation API. Missing generations fail
+like the existing fake runtime rather than returning authoritative absence.
+
+`tests/python-broker-source.test.ts` uses the real TypeScript runtime to produce
+prepared, active, draining and removed state, including live and unknown dialog
+counts. It invokes the actual Python protocol encoder with the concrete reader
+and compares inventory/observation to TypeScript expiry results after each state
+change. Successful and rejected reads leave database bytes, directory entries
+and effect counts unchanged. The reader's connection must reject a write with
+`SQLITE_READONLY`; wrong epoch, absent database/generation, corrupt state and
+pre-cancellation fail explicitly. The ordinary implementation launcher runs this
+cross-runtime test in Linux before the existing listener suite; it can also run
+locally with Python 3 and Node.
+
+This is a synthetic-source/readback proof, not authenticated-listener wiring of
+that source or live PBX integration. The fixture uses the fake runtime's default
+rollback journal; concurrent writers, WAL/shared-memory behavior, source-path
+deployment policy and production packaging are not certified. Those remain
+separate integration decisions, not permission to access real PBX state.

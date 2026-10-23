@@ -12,11 +12,16 @@ try {
         --security-opt no-new-privileges:true --pids-limit 32 --memory 96m --cpus 1 `
         --user '0:0' --tmpfs '/proof:rw,noexec,nosuid,size=1m,mode=1777' `
         --mount "type=bind,source=$(Join-Path $root 'local\broker\readback.py'),target=/broker.py,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'local\broker\readback.py'),target=/local/broker/readback.py,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'tests\python-broker-source.test.ts'),target=/tests/python-broker-source.test.ts,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'tests\identity\fake-provisioning-runtime.ts'),target=/tests/identity/fake-provisioning-runtime.ts,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'tests\identity\fake-broker-source.py'),target=/tests/identity/fake-broker-source.py,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'tests\identity\fake-broker-source-proof.py'),target=/tests/identity/fake-broker-source-proof.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\python-broker-proof.py'),target=/proof-test.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'src\agent-broker-frame.ts'),target=/src/agent-broker-frame.ts,readonly" `
-        --entrypoint python3 $image -I -B /proof-test.py
+        --env TMPDIR=/proof --entrypoint sh $image -c 'node --test /tests/python-broker-source.test.ts && exec python3 -I -B /proof-test.py'
     if ($LASTEXITCODE -ne 0) { throw 'Python broker implementation proof failed.' }
 } finally {
     $owned = & docker container ls -aq --filter "name=^/$name$" --filter "label=$label"
