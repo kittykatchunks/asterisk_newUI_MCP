@@ -3577,17 +3577,29 @@ There is also a callback-ordering bypass before the ordinary bridge-transfer
 branches: `ast_bridge_transfer_blind()` tries the parking provider first
 ([parking attempt before normal transfer](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4697-L4706)).
 For a multi-party parking transfer, `park_local_transfer()` creates and calls
-a Local channel before the parking provider invokes the supplied callback
+a Local channel, inherits datastores from the parker, and calls it before the
+parking provider invokes the supplied callback
 ([Local call before callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L247-L293),
 [callback and bridge insertion](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L377-L402)).
-Therefore that callback cannot be the first admission boundary for this
-parking-created Local call. A transfer claim must already be discoverable by
-the Local/core call gate, or parking must be excluded for protected transfers.
-If bridge insertion fails after the callback, parking returns failure and
-core falls through to ordinary transfer handling, which can invoke the same
-callback again on a different target channel. The operation owner must support
-that retry without reusing one datastore node across channels or duplicating
-the logical operation claim; otherwise this fallback path must be disabled.
+The callback is therefore too late to admit the parking-created Local call, but
+this ordering does not by itself prove parking unusable: a transfer-operation
+claim reserved on the source channel before entering the bridge API could be
+inherited to that Local channel and checked by a synchronous core admission
+gate at its `ast_call()`. This is only a candidate. Datastore inheritance can
+silently omit or corrupt the child payload; if the gate rejects that Local
+call, parking reports failure and the bridge API falls through to the ordinary
+transfer path, whose callback runs before its own call.
+
+The failed parking attempt can also invoke the callback before bridge
+insertion, then fall through and invoke it again on a different channel. The
+owner must model the parking Local attempt as its own child of the reserved
+operation, settle that child as failed if the Local is torn down, and create a
+fresh child for ordinary-transfer fallback. Callback retry must be idempotent
+for operation identity without reusing one datastore node across channels or
+counting two channel attempts as one unsettled child. Otherwise parking must be
+excluded. The source-level sequence suggests a fail-closed fallback may be
+possible; it does not prove source-call preservation, target-PBX race handling,
+or exact claim settlement.
 
 For the supported `Dial()` and `Queue()` paths, source confirms that each
 application explicitly calls `ast_channel_datastore_inherit()` on every

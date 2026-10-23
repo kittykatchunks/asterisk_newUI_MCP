@@ -3473,10 +3473,12 @@ interception point while preserving the existing call. Preallocation could
 remove allocation failure, but Asterisk's pinned datastore-add helper always
 returns success and does not detect duplicate attachments, so exact-once
 association still needs a locked, serialized proof. Parking is an additional
-bypass: its multi-party path can call a Local channel before the supplied
-transfer callback and can retry that callback after bridge-insertion failure;
-protected transfers need an earlier claim gate and retry-safe ownership, or
-must exclude parking.
+bypass: its multi-party path inherits datastore state and calls a Local channel
+before the supplied transfer callback, and can retry the callback after
+bridge-insertion failure. A source-channel operation claim plus a synchronous
+Local `ast_call()` gate may cover the first attempt, but inheritance is
+fallible and fallback needs a separately settled child claim; otherwise
+protected transfers must exclude parking.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
