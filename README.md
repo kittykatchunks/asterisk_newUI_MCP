@@ -2693,7 +2693,7 @@ successfully without stdout/stderr, and the wrapper emits explicit per-case Node
 completion evidence. The launcher checks that evidence rather than inferring
 which runtime ran from a flag. No fallback to Python occurs on Node failure.
 
-Only Node corpus and crash/restart clients receive the extra two read-only
+Only Node corpus, crash/restart and admission clients receive the extra two read-only
 mounts. The broker, identity/publication/conflict checks and stale cleanup remain Python in both modes, with
 unchanged resource limits and ownership-checked cleanup. Default Python corpus
 clients also emit checked runtime completion evidence.
@@ -2710,8 +2710,26 @@ cleanup rejection and exactly one newly authenticated read after restart.
 The wrapper emits checked per-step Node runtime completion with no fallback.
 Default mode keeps the original Python crash/restart clients.
 
-Broader namespace configurations and concurrent lifecycle coverage
-across separate containers remain future cases. Conflicting-path preservation is not proof of general
+The separate-container admission phase now overlaps an authenticated idle client
+with a second approved client. The idle client holds the single slot; its
+competitor gets EOF without response bytes. The fixture measures a five-second
+deadline (at least five and below the eight-second client watchdog), verifies
+zero source entries at timeout, then releases the slot. A fresh authenticated
+connection must return exact inventory. Final counters require one read, one
+capacity rejection, one request timeout and no source failures/cancellations.
+All three clients have separate PID/mount namespaces from the broker and the
+same approved UID/GID maps; every connection records its kernel peer tuple.
+Default mode uses Python; `-NodeClients` uses Node for all three clients with
+checked runtime completion and no fallback. The finite idle client runs alongside
+the competitor only for this phase and remains subject to ownership-checked cleanup.
+
+The shared concurrent fixture also rechecks terminal state/deadline after frame
+EOF and before source entry. This prevents deadline-triggered socket shutdown
+from supplying an apparent request EOF that could otherwise reach the source.
+The original single-container lifecycle sequence remains covered.
+
+Broader namespace configurations and held-source, cancellation and disconnect
+lifecycle coverage across separate containers remain future cases. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)

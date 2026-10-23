@@ -1200,7 +1200,7 @@ environment/credential dumps. A short-lived root setup container has only CHOWN
 in addition to the restrictive common flags and initialises exact new paths;
 broker/clients are separate non-root, zero-capability containers with network
 disabled, read-only roots and resource limits. Three fixture inputs are
-mounted read-only; opt-in Node corpus and crash/restart clients add only their client and framing
+mounted read-only; opt-in Node corpus, crash/restart and admission clients add only their client and framing
 helper read-only. No PBX, Docker socket or repository-wide mounts are used.
 
 The Python fixture reuses the existing framing/readback/validation functions;
@@ -1311,10 +1311,11 @@ accept wait. Each client retains its 15-second process alarm and existing socket
 budget. Cleanup retains every recorded container until the run ends for evidence,
 then removes only owner-labelled resources. Passing this complete finite corpus
 does not establish full protocol equivalence, remapped user-namespace support or
-concurrent lifecycle behaviour across containers; those remain distinct gaps.
+general concurrent lifecycle behaviour across containers; those remain distinct gaps.
 
 `Test-BrokerContainerProof.ps1 -NodeClients` now substitutes Node/TypeScript
-clients for the sequential separate-container corpus and the three crash/restart client steps. The existing client
+clients for the sequential separate-container corpus, the three crash/restart
+client steps and the idle admission phase below. The existing client
 imports the production framing helper, and every case must produce explicit
 wrapper completion evidence identifying Node. The Python identity wrapper
 checks maps/groups/namespaces first and runs Node with inherited credentials,
@@ -1346,3 +1347,29 @@ rejection and exact inode cleanup before explicitly starting its replacement.
 The replacement authenticates a new socket and records one source entry.
 Default Python mode is unchanged. This extends the same bounded no-replay
 scenario across runtimes, not a general retry or response-loss recovery policy.
+
+The bounded separate-container idle admission follow-up reuses the concurrent
+fixture with its default positive-PID check retained for the original topology.
+Only the approved separate-container mode authorises mapped UID/primary GID
+without using PID, and records all three kernel peer tuples. An idle authenticated
+client occupies the one slot while an overlapping approved competitor must close
+with EOF and zero bytes. The idle connection times out after a measured five
+seconds (at least five, below the eight-second client watchdog) with zero source
+entries, then releases the slot. A new authenticated client gets exact inventory.
+Final counters are exactly one read, one capacity rejection, one request timeout,
+no generation reads, no source failures and no cancellations.
+
+Both default Python and opt-in Node clients exercise this sequence in independent
+containers with checked identity/maps, distinct broker/client PID/mount namespaces,
+runtime completion and the existing resource/cleanup restrictions. No extra
+mounts beyond the already approved Node inputs or network access are introduced.
+The fixture exits after the fresh read, without a new wire or private control
+operation. The original full lifecycle sequence remains unchanged by default.
+
+Validation exposed a shared fixture race: deadline shutdown could supply EOF
+to a complete waiting frame before its thread observed terminal state. The
+concurrent fixture now checks terminal state and the same monotonic deadline
+after frame reading and under the lifetime lock before source entry. This is a
+test-fixture correction, not a production implementation change.
+Passing this idle scenario does not prove separate-container held-source slot
+retention, cancellation, peer-disconnect handling or general terminal-race safety.

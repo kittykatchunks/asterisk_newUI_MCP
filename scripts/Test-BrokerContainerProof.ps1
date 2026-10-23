@@ -19,13 +19,13 @@ $mounts = @(
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance-proof.py'),target=/fixture.py,readonly",
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly"
 )
-function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable) {
+function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable, [switch]$Detached) {
     $name = "$owner-$($Mode.Replace(':', '-'))"
     $names.Add($name)
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
     $clientArguments = @()
-    $nodeLifecycle = $NodeClients -and $Mode -in @('crash-wait', 'stale-refused', 'restart-read')
+    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
     if ($NodeClients -and ($Mode.StartsWith('corpus-') -or $nodeLifecycle)) {
         $clientMounts = @(
             '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
@@ -33,18 +33,23 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
         )
         $clientArguments = @('node-client')
     }
-    $output = & docker run --name $name --label $label @common --user $User @Extra `
+    [string[]]$runOptions = @(if ($Detached) { '-d' })
+    $output = & docker run @runOptions --name $name --label $label @common --user $User @Extra `
         --mount "type=volume,source=$volume,target=/socket$access" @mounts @clientMounts `
         --entrypoint python3 $image -I -B /container-proof.py $Mode @clientArguments
     if ($LASTEXITCODE -ne 0) { throw "Separate-container client failed: $Mode" }
+    if ($Detached) { return $output }
     $events = @($output | ForEach-Object { $_ | ConvertFrom-Json })
     if ($Mode.StartsWith('corpus-')) {
         $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
         if ($events[-1].clientRuntime -ne $expectedRuntime -or
             $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
     }
-    if ($nodeLifecycle -and ($events[-1].clientRuntime -ne 'node' -or $events[-1].lifecycleCase -ne $Mode)) {
-        throw "Unexpected Node lifecycle completion: $Mode"
+    if ($nodeLifecycle -or $Mode.StartsWith('admission-')) {
+        $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
+        if ($events[-1].clientRuntime -ne $expectedRuntime -or $events[-1].lifecycleCase -ne $Mode) {
+            throw "Unexpected lifecycle completion: $Mode"
+        }
     }
     $identities.Add($events[0].identity)
     Write-Output $output
@@ -59,12 +64,23 @@ function Start-TestBroker([string]$Mode) {
     for ($attempt = 0; $attempt -lt 40; $attempt++) {
         $logs = @(& docker logs $id 2>&1)
         if ($LASTEXITCODE -ne 0) { throw "Could not read broker logs: $Mode" }
-        if ($logs -contains '{"ready": true}') { return $id }
+        if ($logs -contains '{"ready": true}' -or $logs -contains '{"event": "ready"}') { return $id }
         $running = & docker inspect --format '{{.State.Running}}' $id
         if ($LASTEXITCODE -ne 0 -or $running -ne 'true') { throw "Broker stopped before readiness: $logs" }
         Start-Sleep -Milliseconds 250
     }
     throw "Broker readiness deadline exceeded: $Mode"
+}
+function Wait-AdmissionEvent([string]$Id, [string]$Event) {
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        $logs = @(& docker logs $Id 2>&1)
+        if ($LASTEXITCODE -ne 0) { throw 'Could not read admission broker events.' }
+        if ($logs -contains "{`"event`": `"$Event`"}") { return }
+        $running = & docker inspect --format '{{.State.Running}}' $Id
+        if ($LASTEXITCODE -ne 0 -or $running -ne 'true') { throw "Admission broker stopped before ${Event}: $logs" }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "Admission event deadline exceeded: $Event"
 }
 try {
     & docker volume create --label $label $volume
@@ -243,6 +259,51 @@ try {
     }
     $runtime = if ($NodeClients) { 'Node/TypeScript' } else { 'Python' }
     Write-Output "PASS separate-container corpus ($runtime clients): $($vectors.cases.Count) framing/request and $($vectors.sourceCases.Count) source-output cases, foreign denial, per-case source assertions and approved reconnect."
+    $admission = Start-TestBroker 'server-admission'
+    $idle = Invoke-Client 'admission-idle' '1102:2100' -Detached
+    Wait-AdmissionEvent $admission 'admitted'
+    Invoke-Client 'admission-capacity' '1102:2100'
+    Wait-AdmissionEvent $admission 'capacity'
+    Wait-AdmissionEvent $admission 'timeout'
+    Wait-AdmissionEvent $admission 'released'
+    $idleExit = & docker wait $idle
+    if ($LASTEXITCODE -ne 0 -or "$idleExit" -ne '0') { throw 'Idle admission client did not observe clean deadline EOF.' }
+    $idleEvents = @((& docker logs $idle) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $idleEvents[-1].lifecycleCase -ne 'admission-idle' -or
+        $idleEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+        throw 'Missing idle admission client runtime completion.'
+    }
+    $identities.Add($idleEvents[0].identity)
+    Invoke-Client 'admission-reconnect' '1102:2100'
+    $admissionExit = & docker wait $admission
+    if ($LASTEXITCODE -ne 0 -or "$admissionExit" -ne '0') { throw 'Separate-container admission broker failed.' }
+    $admissionEvents = @((& docker logs $admission) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $admissionEvents[-1].event -ne 'complete') { throw 'Missing admission completion.' }
+    $admissionIdentity = $admissionEvents[0].identity
+    foreach ($identity in @($identities | Select-Object -Last 3)) {
+        if ($identity.uid_map -ne $admissionIdentity.uid_map -or $identity.gid_map -ne $admissionIdentity.gid_map -or
+            $identity.userNamespace -ne $admissionIdentity.userNamespace -or
+            $identity.pidNamespace -eq $admissionIdentity.pidNamespace -or
+            $identity.mntNamespace -eq $admissionIdentity.mntNamespace) {
+            throw 'Admission client namespace topology differs from approved separation.'
+        }
+    }
+    $admissionPeers = @($admissionEvents | Where-Object { $_.peer })
+    if ($admissionPeers.Count -ne 3 -or @($admissionPeers | Where-Object {
+        $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
+    }).Count -ne 0) { throw 'Missing exact authenticated admission peer evidence.' }
+    $admissionCounts = @($admissionEvents | Where-Object { $_.admissionCounts })
+    if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 1 -or
+        $admissionCounts[0].admissionCounts.capacity -ne 1 -or $admissionCounts[0].admissionCounts.timeouts -ne 1 -or
+        $admissionCounts[0].admissionCounts.requestTimeouts -ne 1) { throw 'Unexpected admission source/deadline counters.' }
+    $admissionTimeouts = @($admissionEvents | Where-Object { $_.admissionTimeout })
+    if ($admissionTimeouts.Count -ne 1 -or $admissionTimeouts[0].admissionTimeout.elapsedSeconds -lt 5 -or
+        $admissionTimeouts[0].admissionTimeout.elapsedSeconds -ge 8 -or
+        $admissionTimeouts[0].admissionTimeout.sourceEntries -ne 0) {
+        throw 'Idle deadline was outside the measured five-to-eight-second budget or entered a source.'
+    }
+    $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
+    Write-Output "PASS separate-container admission ($runtime clients): idle slot excludes competitor, five-second deadline closes without response/source entry, fresh authenticated read succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

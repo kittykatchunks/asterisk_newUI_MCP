@@ -298,7 +298,7 @@ def proof(cross_runtime=False):
                 process.communicate(timeout=5)
             os.chown(directory, 0, 0)
 
-def concurrent_server(path):
+def concurrent_server(path, require_visible_pid=True, admission_only=False):
     unprivileged()
     assert os.getuid() == BROKER_UID
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -343,9 +343,15 @@ def concurrent_server(path):
         before = counts["reads"]
 
         def source(default):
-            counts["reads"] += 1
-            if not isinstance(default, list):
-                counts["generationReads"] += 1
+            with lifetime_lock:
+                if expired.is_set():
+                    raise TimeoutError("Fixture source after terminal connection")
+                remaining(connection, deadline)
+                counts["reads"] += 1
+                if not isinstance(default, list):
+                    counts["generationReads"] += 1
+            if admission_only:
+                return default
             if counts["reads"] in (1, 5):
                 release.clear()
                 event("source-entered")
@@ -368,6 +374,12 @@ def concurrent_server(path):
                     counts["requestTimeouts"] += 1
                     if counts["reads"] != before:
                         errors.append("Source entered before complete request EOF")
+                if admission_only and reason == "timeout":
+                    elapsed = time.monotonic() - (deadline - 5)
+                    assert 5 <= elapsed < 8, elapsed
+                    with output_lock:
+                        print(json.dumps({"admissionTimeout": {"elapsedSeconds": elapsed,
+                                                              "sourceEntries": counts["reads"]}}), flush=True)
                 connection.shutdown(socket.SHUT_RDWR)
                 connection.close()
                 event(reason)
@@ -379,19 +391,27 @@ def concurrent_server(path):
                 active["cancel"] = terminate
             timer.start()
             text = read_frame(connection, 8192, deadline)
-            request_complete.set()
+            with lifetime_lock:
+                if expired.is_set():
+                    return
+                remaining(connection, deadline)
+                request_complete.set()
             response = readback(text, source)
             if not expired.is_set():
                 remaining(connection, deadline)
                 connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
+                if admission_only:
+                    stop.set()
         except FixtureSourceFailure as error:
             counts["sourceFailures"] += 1
             with output_lock:
                 print(str(error), file=sys.stderr, flush=True)
             event("source-failed")
         except TimeoutError as error:
-            if time.monotonic() >= deadline:
+            if expired.is_set():
+                pass
+            elif time.monotonic() >= deadline:
                 terminate("timeout")
             else:
                 errors.append(repr(error))
@@ -413,23 +433,26 @@ def concurrent_server(path):
         os.chmod(path, 0o660)
         listener.listen(1)
         listener.settimeout(0.1)
-        threading.Thread(target=control, daemon=True).start()
+        if not admission_only:
+            threading.Thread(target=control, daemon=True).start()
         event("ready")
         while not stop.is_set():
             try:
                 connection, _ = listener.accept()
             except socket.timeout:
                 continue
+            pid, uid, gid = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+            if not require_visible_pid:
+                with output_lock:
+                    print(json.dumps({"peer": {"pid": pid, "uid": uid, "gid": gid}}), flush=True)
+            if uid != UID or gid != GID or (require_visible_pid and pid <= 0):
+                connection.close()
+                raise AssertionError("Concurrent fixture unexpected identity")
             if not slot.acquire(blocking=False):
                 counts["capacity"] += 1
                 connection.close()
                 event("capacity")
                 continue
-            pid, uid, gid = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
-            if uid != UID or gid != GID or pid <= 0:
-                connection.close()
-                slot.release()
-                raise AssertionError("Concurrent fixture unexpected identity")
             task = threading.Thread(target=serve, args=(connection,))
             tasks.append(task)
             task.start()
@@ -438,8 +461,14 @@ def concurrent_server(path):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        assert counts == {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
-                          "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1}, counts
+        expected = ({"reads": 1, "generationReads": 0, "capacity": 1, "timeouts": 1,
+                     "requestTimeouts": 1, "sourceFailures": 0, "cancellations": 0} if admission_only else
+                    {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
+                     "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1})
+        assert counts == expected, counts
+        if admission_only:
+            with output_lock:
+                print(json.dumps({"admissionCounts": counts}), flush=True)
         event("complete")
     finally:
         release.set()
