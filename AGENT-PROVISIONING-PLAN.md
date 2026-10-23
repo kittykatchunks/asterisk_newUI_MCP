@@ -3659,6 +3659,40 @@ or disable/restrict the relevant AMI/ARI surfaces and in-process callers.
 Dialplan route guards, `Dial()` option `i`, and `Queue()` option `i` do not
 contain a direct API call.
 
+A wider `ast_call()` inventory also identifies call-producing paths outside
+those APIs and the two dialplan applications:
+
+- `FollowMe()` creates Local destination channels, inherits caller datastores,
+  runs its predial Gosub only when configured, and then calls `ast_call()`
+  ([channel setup and optional hook](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_followme.c#L1109-L1149),
+  [signal](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_followme.c#L1173-L1185)).
+  It needs an explicit feature policy and per-destination admission; it does
+  not inherit `Dial()`'s `b()` guarantee.
+- Core `ast_call_forward()` creates and calls a replacement channel directly
+  ([replacement setup and signal](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L5943-L5989)).
+  The request-and-dial helper also signals its requested channel and follows
+  forwarding responses directly
+  ([request-and-dial](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L5995-L6000),
+  [initial signal and forward loop](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L6079-L6099)).
+  Neither boundary guarantees execution of a dialplan callee `b()` hook.
+- Bridge transfer helpers create Local/target channels and call them directly.
+  The multi-party blind-transfer callback is one specific interception point,
+  not coverage of every bridge transfer route
+  ([blind-transfer Local call](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4336-L4368),
+  [other bridge transfer Local call](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4454-L4493)).
+  Attended-transfer target dialing and recall are separate paths and remain
+  outside the initial supported set unless integrated or disabled
+  ([attended target](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_basic.c#L3464-L3484),
+  [recall target](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_basic.c#L2638-L2679)).
+- Parking bridge features can create a Local replacement and call it directly
+  ([parking target](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L264-L293)).
+  Parking must therefore be blocked or covered at the actual feature path,
+  not merely omitted from generated dialplan.
+- The DAHDI/PRI idle-dial facility originates its configured destination via
+  `ast_call()` ([idle dial](https://github.com/asterisk/asterisk/blob/22.11.0/channels/sig_pri.c#L2007-L2029)).
+  If this driver/feature is present, deployment policy must classify and
+  restrict it so maintenance traffic cannot become an unclaimed customer leg.
+
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
 datastore whose duplicated `data` is NULL if the duplicator fails, while
