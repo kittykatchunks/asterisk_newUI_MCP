@@ -74,7 +74,7 @@ def server(mode="server"):
             nonlocal entries
             entries += 1
 
-        for case in range(5 if mode == "server" else len(DISCONNECT_BYTES) + 1 if mode == "server-disconnect" else 1):
+        for case in range(5 if mode == "server" else len(DISCONNECT_BYTES) * 2 if mode == "server-disconnect" else 1):
             connection, _ = listener.accept()
             with connection:
                 peer = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
@@ -93,15 +93,15 @@ def server(mode="server"):
                 try:
                     text = protocol.read_frame(connection, 8192, deadline, on_bytes=received_bytes)
                 except ValueError as error:
-                    if mode != "server-disconnect" or case >= len(DISCONNECT_BYTES) or str(error) != "Truncated frame":
+                    if mode != "server-disconnect" or case % 2 != 0 or str(error) != "Truncated frame":
                         raise
-                    assert request_bytes == list(DISCONNECT_BYTES.values())[case]
-                    assert entries == 0 and response_attempts == 0
+                    assert request_bytes == list(DISCONNECT_BYTES.values())[case // 2]
+                    assert entries == case // 2 and response_attempts == case // 2
                     disconnects += 1
                     emit({"requestDisconnected": {"requestBytes": request_bytes, "sourceEntries": entries,
                                                    "responseAttempts": response_attempts}})
                     continue
-                assert mode != "server-disconnect" or case == len(DISCONNECT_BYTES)
+                assert mode != "server-disconnect" or case % 2 == 1
                 if mode == "server-crash":
                     emit({"crashingBeforeSource": True, "sourceEntries": entries})
                     os._exit(23)
@@ -110,9 +110,13 @@ def server(mode="server"):
                 response_attempts += 1
                 connection.sendall(protocol.frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
-        assert (entries, denied) == ((3, 2) if mode == "server" else (1, 0)), (entries, denied)
+                if mode == "server-disconnect":
+                    assert entries == case // 2 + 1 and response_attempts == entries
+                    emit({"requestRecovered": {"sourceEntries": entries, "responseAttempts": response_attempts}})
+        expected = (3, 2) if mode == "server" else (len(DISCONNECT_BYTES), 0) if mode == "server-disconnect" else (1, 0)
+        assert (entries, denied) == expected, (entries, denied)
         if mode == "server-disconnect":
-            assert disconnects == len(DISCONNECT_BYTES) and response_attempts == 1
+            assert disconnects == len(DISCONNECT_BYTES) and response_attempts == len(DISCONNECT_BYTES)
             emit({"disconnectComplete": True, "disconnects": disconnects,
                   "responseAttempts": response_attempts, "sourceEntries": entries})
         emit({"complete": True, "sourceEntries": entries, "deniedBeforeRead": denied})

@@ -2827,9 +2827,13 @@ The last two clients construct valid frames and assert that exactly one byte
 is withheld. The maximum case declares the permitted 8,192-byte body, not an
 oversized length; its missing byte is trailing JSON whitespace, so a parser
 accepting available JSON before checking declared length would fail this test.
-A ninth approved client must receive exact inventory, with final counters of
-eight request disconnects, one source entry and one response attempt.
-All nine clients require explicit runtime
+Every rejected prefix is immediately followed by a fresh approved client that
+must receive exact inventory before the next prefix is tested. Rejection evidence
+must leave the cumulative source/send counts unchanged; recovery evidence must
+increment each exactly once. The launcher checks the alternating rejection/
+recovery outcome order, not just the final totals.
+Final counters require eight request disconnects, eight source entries and eight
+response attempts. All sixteen clients require explicit runtime
 completion, kernel peer authentication and separate PID/mount namespace evidence.
 The optional byte-count observation hook does not alter frame parsing and is
 disabled for existing callers. This adds no wire operation, mount or privilege.

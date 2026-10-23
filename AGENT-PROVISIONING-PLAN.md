@@ -1506,11 +1506,13 @@ simultaneous cancellation delivery or cancellation after successful completion.
 
 The early-disconnect follow-up uses a separate finite broker instance on the
 same isolated socket volume after the admission broker has exited and removed
-its path. Nine fresh approved clients run sequentially: close without a
+its path. Sixteen fresh approved clients run in eight rejection/recovery pairs.
+The rejected prefixes are: close without a
 request, close after one/two/three bytes of a valid four-byte length header,
 close after the full header without any body, close after that header plus
 three body bytes, close one byte short of the ordinary body, close one byte
-short of an 8,192-byte padded body, then a complete inventory read. Each prefix
+short of an 8,192-byte padded body. Each rejection is immediately followed by a
+new complete inventory read that must succeed before the next prefix. Each prefix
 comes from a valid inventory frame, so invalid length is not substituted for
 truncation. The final two clients assert that their full encoded frame is
 exactly one byte longer than the selected prefix. The maximum case uses the
@@ -1523,11 +1525,14 @@ close. Errors/watchdog expiry are not successful disconnect completion.
 The existing frame reader has an optional byte-count observation hook at actual
 successful receives, disabled by default. The broker requires exactly
 0/1/2/3/4/7 bytes, the ordinary UTF-8 body length plus three, then 8,195 bytes,
-in order, and the specific `Truncated frame` exception for the first eight
-connections. All must have zero source entries and zero response attempts;
-other errors or unexpected complete frames fail. The ninth connection must
-return exact inventory. Final evidence requires eight expected disconnects,
-one source entry and one response attempt, nine authenticated kernel peers,
+in order, and the specific `Truncated frame` exception for each rejected
+connection. Each rejection must leave cumulative source-entry/send-attempt
+counts unchanged at its pair index; the following recovery must increment
+both exactly once and return exact inventory. The launcher independently checks
+all eight recovery records and the alternating rejection/recovery event order.
+Other errors or unexpected complete frames fail.
+Final evidence requires eight expected disconnects, eight source entries and
+eight response attempts, sixteen authenticated kernel peers,
 explicit Python/Node completion and approved maps with distinct broker/client
 PID/mount namespaces. Runtime restrictions and ownership-checked cleanup are
 unchanged; no extra mount, signal or wire action is added.

@@ -19,8 +19,8 @@ $mounts = @(
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance-proof.py'),target=/fixture.py,readonly",
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly"
 )
-function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable, [switch]$Detached) {
-    $name = "$owner-$($Mode.Replace(':', '-'))"
+function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable, [switch]$Detached, [string]$Instance = '') {
+    $name = "$owner-$($Mode.Replace(':', '-'))$Instance"
     $names.Add($name)
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
@@ -489,14 +489,16 @@ try {
         'disconnect-body-last', 'disconnect-limit-last')
     $expectedDisconnectBytes = @(0, 1, 2, 3, 4, 7,
         ([System.Text.Encoding]::UTF8.GetByteCount($vectors.cases[0].text) + 3), 8195)
-    foreach ($mode in $disconnectModes) { Invoke-Client $mode '1102:2100' }
-    Invoke-Client 'disconnect-reconnect' '1102:2100'
+    for ($index = 0; $index -lt $disconnectModes.Count; $index++) {
+        Invoke-Client $disconnectModes[$index] '1102:2100'
+        Invoke-Client 'disconnect-reconnect' '1102:2100' -Instance "-$index"
+    }
     $disconnectExit = & docker wait $disconnect
     if ($LASTEXITCODE -ne 0 -or "$disconnectExit" -ne '0') { throw 'Request-disconnect broker failed.' }
     $disconnectEvents = @((& docker logs $disconnect 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
     if ($LASTEXITCODE -ne 0 -or -not $disconnectEvents[-1].complete) { throw 'Missing disconnect completion.' }
     $disconnectIdentity = $disconnectEvents[0].identity
-    foreach ($identity in @($identities | Select-Object -Last ($disconnectModes.Count + 1))) {
+    foreach ($identity in @($identities | Select-Object -Last ($disconnectModes.Count * 2))) {
         if ($identity.uid_map -ne $disconnectIdentity.uid_map -or $identity.gid_map -ne $disconnectIdentity.gid_map -or
             $identity.userNamespace -ne $disconnectIdentity.userNamespace -or
             $identity.pidNamespace -eq $disconnectIdentity.pidNamespace -or
@@ -505,7 +507,7 @@ try {
         }
     }
     $disconnectPeers = @($disconnectEvents | Where-Object { $_.peer })
-    if ($disconnectPeers.Count -ne ($disconnectModes.Count + 1) -or @($disconnectPeers | Where-Object {
+    if ($disconnectPeers.Count -ne ($disconnectModes.Count * 2) -or @($disconnectPeers | Where-Object {
         -not $_.allowed -or $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
     }).Count -ne 0) { throw 'Missing authenticated disconnect peer evidence.' }
     $rejections = @($disconnectEvents | Where-Object { $_.requestDisconnected })
@@ -513,15 +515,29 @@ try {
     for ($index = 0; $index -lt $rejections.Count; $index++) {
         $rejection = $rejections[$index].requestDisconnected
         if ($rejection.requestBytes -ne $expectedDisconnectBytes[$index] -or
-            $rejection.sourceEntries -ne 0 -or $rejection.responseAttempts -ne 0) {
+            $rejection.sourceEntries -ne $index -or $rejection.responseAttempts -ne $index) {
             throw "Incomplete disconnect had unexpected bytes or source/response entry at boundary $index"
+        }
+    }
+    $recoveries = @($disconnectEvents | Where-Object { $_.requestRecovered })
+    $outcomes = @($disconnectEvents | Where-Object { $_.requestDisconnected -or $_.requestRecovered })
+    if ($recoveries.Count -ne $disconnectModes.Count -or $outcomes.Count -ne ($disconnectModes.Count * 2)) {
+        throw 'Missing per-boundary recovery evidence.'
+    }
+    for ($index = 0; $index -lt $recoveries.Count; $index++) {
+        if ($recoveries[$index].requestRecovered.sourceEntries -ne ($index + 1) -or
+            $recoveries[$index].requestRecovered.responseAttempts -ne ($index + 1) -or
+            $null -eq $outcomes[$index * 2].requestDisconnected -or
+            $null -eq $outcomes[$index * 2 + 1].requestRecovered) {
+            throw "Disconnect boundary $index did not recover before the next rejection."
         }
     }
     $disconnectResult = @($disconnectEvents | Where-Object { $_.disconnectComplete })
     if ($disconnectResult.Count -ne 1 -or $disconnectResult[0].disconnects -ne $disconnectModes.Count -or
-        $disconnectResult[0].responseAttempts -ne 1 -or $disconnectResult[0].sourceEntries -ne 1 -or
+        $disconnectResult[0].responseAttempts -ne $disconnectModes.Count -or
+        $disconnectResult[0].sourceEntries -ne $disconnectModes.Count -or
         $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
-    Write-Output "PASS request disconnect ($runtime clients): exact header and one-byte-short body boundaries (including 8195 bytes) close without source/send entry; fresh authenticated inventory succeeds."
+    Write-Output "PASS request disconnect ($runtime clients): each of eight exact truncation boundaries adds no source/send entry and is immediately followed by fresh authenticated inventory recovery."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
