@@ -3603,6 +3603,12 @@ cleanup is observed
 ([pjproject subscription lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1591-L1688),
 [Asterisk retry callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
 [retained-dialog destructor](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
+This association gap applies to Asterisk's terminal fallback, not
+pjproject's own dialog-auth retry: pjproject attempts that retry before
+terminating the evsub, so its new transaction can still be associated by
+`Event: refer`. Trace the two retry branches separately
+([pjproject retry ordering](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
+[transaction association](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1520-L1688)).
 If configured async auth is abandoned, pjproject instead reports a synthetic
 event, which Asterisk handles as terminal failure.
 Asterisk's counter allows at most nine callback retry attempts; it increments
