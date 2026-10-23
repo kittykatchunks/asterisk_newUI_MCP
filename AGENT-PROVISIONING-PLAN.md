@@ -3428,6 +3428,19 @@ notification, this leaves the framehook without that retry/cleanup path until
 some other lifecycle action removes it. Verify this branch separately from
 control-frame answer and bridge-entry completion.
 
+Notification allocation is not the only failure point. In both the terminal
+framehook and bridge-entry callbacks, a failed `ast_sip_push_task()` causes the
+caller to clean up the notification object rather than retry it; the framehook
+has already detached, and the bridge callback unsubscribes after the attempted
+push
+([framehook enqueue](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L371-L382),
+[bridge enqueue and unsubscribe](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L302-L309)).
+This is a distinct terminal-report loss path even when notification allocation
+succeeds. Inject serializer-task enqueue failure for each callback and prove
+that absent NOTIFY delivery leaves the operation unresolved until channel and
+claim lifecycle evidence reconciles it; do not infer success, failure, or
+zero-count from the lost report.
+
 This is not limited to a framehook timing race. With
 `refer_blind_progress=no`, `refer_blind_callback()` itself queues terminal
 `200` as soon as it is called; in the two-party path that callback precedes the
@@ -4418,6 +4431,7 @@ legs still need generation attribution and complete settlement.
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
 | Two-party blind-transfer enqueue fails after progress hook attachment | Force queue failure while transferee frames are still flowing; capture final REFER response and all terminal NOTIFY sipfrags/order, prove any hook-generated `200` cannot mask the core failure or failure NOTIFY, create a target leg, or settle the transfer claim as successful. |
 | Terminal progress NOTIFY allocation fails after voice-derived answer | Inject allocation failure after `subclass` is set; prove repeated voice frames do not leave progress permanently unreported or the hook/resources stranded, and verify no missing terminal notification is treated as transfer/claim settlement. Test separately from explicit answer-control frames and bridge-entry notification. |
+| Terminal progress task enqueue fails after notification allocation | Force `ast_sip_push_task()` failure for terminal framehook and bridge-entry reports; verify notification loss is observable/recoverable through independent channel and claim lifecycle evidence, monitor cleanup does not imply transfer completion, and the operation remains unresolved rather than being settled from an absent NOTIFY. |
 | Two-party enqueue failure with `refer_blind_progress=no` | Force the callback's early terminal `200` NOTIFY followed by enqueue failure; record that NOTIFY, the final non-200 REFER response, and the queued failure NOTIFY independently, and prove no success is inferred or claim settled from the first sipfrag. |
 | Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
 | Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |

@@ -3491,6 +3491,10 @@ as transfer settlement. For voice-derived answer, the framehook sets
 `subclass` before allocation, so later voice frames do not retry the notification;
 verify the hook is still cleaned through another path. This is source-level
 behavior, not a confirmed permanent leak.
+Even with successful allocation, terminal `ast_sip_push_task()` failure frees
+the notification after detach/unsubscribe, with no retry in those callbacks.
+Test task-queue failure and require channel/claim reconciliation when NOTIFY is
+missing.
 If copying the transferee unique ID fails, the callback still creates a bridge
 subscription; that callback later passes the NULL field to `strcmp()`. Inject
 the failure and prove this cannot reach an unguarded comparison or be mistaken
