@@ -1007,7 +1007,7 @@ and the separate Node/Python image remains an approved experiment only.
 | Read-only request/response subset | Shared 36 request/framing and 28 source-output vectors pass independently and with real Node clients against Python Unix sockets, including strict JSON constants, exact 100/101 inventory bounds, delayed EOF, truncation, concatenated-frame and strict UTF-8 rejection. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
 | Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
 | Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. Idle and complete-without-EOF deadlines leave source counts unchanged. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios count nine actual source invocations, including two failures and exactly two generation entries. |
-| Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. Section 9.12 adds terminal ordering and Linux poll-based blocked-source peer-loss coverage, preserving the distinction between write half-close and full hangup. | Arbitrary terminal/disconnect scheduling, partial-write interruption and slow response consumption remain unproved. Required request EOF alone is not proof of peer loss. Production integration and other transports remain separate. |
+| Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected source failures, private owner cancellation and fresh recovery. Section 9.12 adds terminal ordering, Linux poll-based blocked-source peer loss and measured backpressure with slow-reader completion/non-reader deadline recovery. | Arbitrary terminal/disconnect scheduling and immediate cancellation during partial writes remain unproved. Required request EOF alone is not proof of peer loss. Production integration and other transports remain separate. |
 | Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. Section 9.12 adds separate-container default-map evidence and publication denial. | Broader user-namespace mappings, restart/conflicting-path publication and same-UID compromise still need explicit deployment treatment. PID positivity alone is not process attestation. |
 | Admission/resources | One active slot is retained until source settlement; capacity denial precedes peer lookup/read; fixtures have container limits. | Backlog one is not an end-to-end resource/rate limit. Production listener policy, process supervision, shutdown and crash behaviour are unselected. Fixture threads/control pipe are not that architecture. |
 | Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler, and no production Python broker is selected. Choose a runtime/binding/helper separately; passing test interoperability does not choose one. |
@@ -1613,7 +1613,7 @@ Default lifecycle/control regressions must preserve their existing results.
 This completes the bounded terminal-ordering batch, not arbitrary scheduling,
 simultaneous duplicate cancellation, partial-write interruption or production
 cancellation policy. The blocked-source peer-disconnect batch is described below;
-slow/non-reading-client handling remains the final planned experiment batch. No production runtime
+slow/non-reading-client handling is the final planned experiment batch below. No production runtime
 or privileged operation is selected.
 
 The blocked-source peer-disconnect batch uses an opt-in Linux `poll` watcher in
@@ -1649,4 +1649,70 @@ Both Python and Node clients pass this bounded Linux Unix-stream/container
 disconnect case. It is not a production runtime choice or proof for other
 transports/kernels, arbitrary disconnect/response interleavings, leaked duplicate
 socket descriptors or remote network failure. The final planned experiment batch
-is slow/non-reading-client response handling.
+is slow/non-reading-client response handling, described next.
+
+The bounded writer batch starts two more isolated brokers, one for a slow reader
+and one for a non-reading client. The first source produces baseline-plus-one
+inventory and the fixture pads its valid JSON body to the permitted 32,768 bytes.
+Including the four-byte header, the frame must be exactly 32,772 bytes. Only these
+cases request a small `SO_SNDBUF` and require the actual kernel buffer to be smaller
+than that frame. Initial nonblocking sends must reach real `BlockingIOError`
+(`EAGAIN`) after sending strictly more than zero and less than the complete frame.
+No backpressure is inferred merely from the requested buffer size or client delay.
+The remainder uses `sendall` with the existing connection's remaining deadline,
+not a fresh five-second write budget. Both portions count as one response attempt.
+
+The slow reader pauses one second, then consumes approximately 512 bytes per
+20 milliseconds; the Node socket's readable high-water mark is 512 bytes.
+Each runtime requires exactly one complete frame, header length 32,768, EOF and
+exact baseline-plus-one inventory. The broker must complete before five seconds
+with no timeout. The non-reading client delays application reads for six seconds;
+bounded initial Node buffering is allowed, but actual server backpressure and
+write timeout remain mandatory. The socket's write deadline must expire at five
+to under eight elapsed seconds. The existing terminal callback records one timeout,
+not a request timeout or source failure. When client reads resume, the actual
+Python frame reader and production TypeScript frame reader must reject the
+partial response specifically as truncation. Reset/read timeout is not success.
+
+A fresh competitor must be denied while each write is backpressured. Evidence
+requires one response attempt, incomplete delivery on timeout, a locked slot
+until write settlement and exactly two releases. The final fresh client must
+receive baseline-plus-two inventory. Both cases require three authenticated peers,
+explicit runtime completion, separate PID/mount namespaces and existing resource/
+ownership-checked cleanup restrictions. The timed-out write has already sent
+bytes; it is not classified as zero-byte suppression or retried.
+
+The lifetime lock remains held during the bounded write. This batch proves
+deadline-bounded settlement, not immediate owner cancellation during a blocked
+send or atomic rollback of transmitted bytes. The writer-specific small buffer,
+nonblocking prefill and padded response are opt-in test conditions; default
+shared corpus/lifecycle expectations and production sources remain unchanged.
+
+### 9.13 Read-only experiment closure review
+
+The three bounded follow-up batches are complete for the approved Linux
+default-map container topology:
+
+| Batch | Closure evidence |
+| --- | --- |
+| Terminal orderings | Unforced contention, controlled cancellation winning, response/cancellation orderings, timeout-before-response and timer no-op after completed response; distinct fresh recovery. |
+| Blocked-source peer loss | Required write half-close remains nonterminal; killed client produces full hangup before deadline, retained source capacity, late-result discard and distinct recovery. |
+| Slow/non-reading clients | Measured partial-send `EAGAIN`; slow reader receives exact inventory, non-reader reaches write deadline and framing rejects the partial result; capacity and fresh inventory recover. |
+
+Both Python and actual Node/TypeScript client modes pass, alongside the existing
+shared conformance/lifecycle regressions. This closes the planned finite
+experiment scope, not the first production acceptance gate. Do not continue
+adding fixture variants without a concrete deployment need or observed defect.
+
+Remaining limitations are explicit: arbitrary schedules, simultaneous duplicate
+cancellation, immediate cancellation during blocking writes, other kernels/
+transports, rootless/remapped namespaces, leaked descriptors and production
+listener/rate-limit/supervision architecture. Unsupported namespace modes may
+remain unsupported rather than expanding the experiment.
+
+The next milestone is a separate production runtime/OS-identity integration
+decision (native Node binding, socket-owning helper or dedicated local runtime),
+followed by implementation-specific validation. No option is selected here.
+PBX access, secret lifecycle, managed-file confinement/durability, mutation ledger,
+live routing/dialog fences and independent expiry retain their separate approval
+and acceptance gates.

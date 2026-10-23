@@ -17,11 +17,13 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
   sourceCases: { kind: string; value: unknown; inventoryCount?: number; valid: boolean }[];
 };
 const disconnectRecovery = index.startsWith("disconnect-reconnect-");
+const writerClient = index === "writer-slow" || index === "writer-nonreading";
 let vector = vectors.cases[["reconnect", "restart-read"].includes(index) ? 0 : Number(index)];
 if (index === "held-reconnect" || index === "cancel-reconnect" || index === "race-reconnect" ||
-    index === "completion-success" || disconnectRecovery) {
+    index === "completion-success" || writerClient || disconnectRecovery) {
   const entry = disconnectRecovery ? Number(index.slice("disconnect-reconnect-".length)) :
-    index === "held-reconnect" ? 6 : index === "race-reconnect" ? 2 : index === "completion-success" ? 1 : 8;
+    index === "held-reconnect" ? 6 : index === "race-reconnect" ? 2 :
+      index === "completion-success" || writerClient ? 1 : 8;
   if (disconnectRecovery) {
     assert.ok(Number.isSafeInteger(entry) && entry >= 1 && entry <= 16);
     assert.equal(index, `disconnect-reconnect-${entry}`);
@@ -52,7 +54,7 @@ if (index.startsWith("source:")) {
       { state: "observed", observation: source.value }),
   } : null };
 }
-const socket = createConnection({ path, allowHalfOpen: true });
+const socket = createConnection({ path, allowHalfOpen: true, ...(writerClient ? { highWaterMark: 512 } : {}) });
 const disconnectBytes: Readonly<Record<string, number>> = {
   "disconnect-empty": 0, "disconnect-header-1": 1, "disconnect-header-2": 2,
   "disconnect-header-3": 3, "disconnect-header-only": 4, "disconnect-partial": 7,
@@ -61,7 +63,7 @@ const disconnectBytes: Readonly<Record<string, number>> = {
 };
 const halfClose = index.startsWith("half-close-");
 const disconnectMode = halfClose ? index.replace("half-close-", "disconnect-") : index;
-socket.setTimeout(passive || held ? 8000 : 5000, () => socket.destroy(new Error("Cross-runtime client timed out")));
+socket.setTimeout(passive || held || writerClient ? 8000 : 5000, () => socket.destroy(new Error("Cross-runtime client timed out")));
 async function send() {
   if (index === "no-eof") {
     socket.write(encodeBrokerFrame(vector.text!, "request"));
@@ -84,7 +86,29 @@ try {
     assert.equal(socket.bytesWritten, 0);
   } else {
     await once(socket, "connect");
-    if (index === "peer-held") {
+    if (writerClient) {
+      await send();
+      await delay(index === "writer-slow" ? 1000 : 6000);
+      if (index === "writer-nonreading") {
+        await assert.rejects(readBrokerFrame(socket, "response"), {
+          message: "Truncated broker frame",
+        });
+        assert.ok(socket.bytesRead > 4 && socket.bytesRead < 32772,
+          `Expected partial frame, received ${socket.bytesRead}`);
+      } else {
+        const chunks: Buffer[] = [];
+        for await (const chunk of socket) {
+          assert.ok(Buffer.isBuffer(chunk));
+          chunks.push(chunk);
+          await delay(20 * Math.ceil(chunk.length / 512));
+        }
+        const data = Buffer.concat(chunks);
+        assert.ok(data.length >= 4);
+        assert.equal(data.readUInt32BE(0), 32768);
+        assert.equal(data.length, 32772);
+        assert.deepEqual(JSON.parse(data.subarray(4).toString("utf8")), vector.expected);
+      }
+    } else if (index === "peer-held") {
       const ended = once(socket, "end");
       socket.resume();
       await send();

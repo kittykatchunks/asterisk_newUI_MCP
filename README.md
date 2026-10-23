@@ -2894,7 +2894,7 @@ client containers with the existing namespace/resource restrictions.
 These controlled schedules complete the planned terminal-ordering batch; they
 do not establish all thread schedules, simultaneous duplicate cancellation,
 partial-write interruption or production cancellation policy. Blocked-source
-peer disconnect is tested separately below; slow/non-reading clients remain open. Existing
+peer disconnect and slow/non-reading clients are tested separately below. Existing
 shared lifecycle regressions retain their expected results; no wire action,
 PBX access or production runtime selection is added.
 
@@ -2926,17 +2926,57 @@ before releasing the slot.
 This completes the bounded blocked-source disconnect batch for the tested Linux
 Unix-stream/container topology. It does not prove other kernels/transports,
 arbitrary disconnect/response races, leaked duplicate descriptors or remote
-network failure detection. Slow/non-reading clients remain the final planned
-experiment batch; production integration remains unselected.
+network failure detection. Slow/non-reading clients are the final bounded
+experiment batch below; production integration remains unselected.
 Broader namespace configurations remain future cases. The earlier framing
 failures alone do not prove the half-close distinction. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 
+The final writer batch runs slow and non-reading clients against two isolated
+broker instances. The first source produces valid inventory with synthetic
+baseline-plus-one expiry, padded with JSON whitespace to the allowed 32,768-byte
+response body (32,772 bytes including the header). Only these writer cases request
+a small `SO_SNDBUF`; the actual kernel buffer must be smaller than the frame.
+The fixture initially sends nonblocking until a real `BlockingIOError` (`EAGAIN`)
+with a strictly partial frame. Merely sleeping a client or shrinking a buffer is
+not sufficient evidence. It then restores the original remaining socket deadline
+and sends the rest using the same response attempt.
+
+The slow reader waits one second, then consumes approximately 512 bytes per
+20 milliseconds. Node uses a 512-byte readable high-water mark to prevent its
+normal buffering from silently consuming the whole frame. Both clients must
+receive the exact frame length, valid header, EOF and complete expected inventory;
+the server must finish before five seconds without a terminal outcome.
+The non-reading client defers application reads for six seconds. The server must
+hit its remaining write deadline at five to under eight seconds, emit exactly one
+timeout and release capacity. When reading resumes, the actual Python frame
+reader or production TypeScript frame reader must reject specifically as a
+truncated frame, not a reset, local read timeout or successful response.
+Node may buffer a bounded initial chunk; server-side `EAGAIN` and write timeout
+are required independently, so this cannot masquerade as full client consumption.
+
+Each case rejects a fresh competitor while backpressured, records a single
+attempted response (a timed-out partial write is not zero-byte suppression), and
+releases only after the write settles. A fresh client then receives exact
+baseline-plus-two inventory. Three clients per case require runtime completion,
+mapped kernel credentials, namespace separation and existing resource restrictions.
+This proves bounded write settlement for these fixtures, not immediate cancellation
+during a blocking send: the lifetime lock serializes sends and terminal callbacks,
+and the socket deadline bounds the wait. No retry or completion is claimed for
+the partially transmitted response.
+
+**Experiment closure:** the three planned batches (terminal orderings, blocked
+peer loss and slow/non-reading clients) are covered for the approved Linux
+default-map topology with Python and Node clients. Stop expanding this fixture
+without a specific new requirement. Broader namespace modes, arbitrary schedules,
+process/rate-limit architecture and production runtime/identity integration remain
+explicit deployment/design decisions, not reasons to claim production readiness.
+
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
 separates tested read-only interoperability from unproved parity/deployment
 behaviour. The request-version forms and independent source-entry accounting
-gaps are now covered by shared tests; slow clients
-and broader terminal scheduling remain open. The first acceptance gate is not signed off; production runtime
+gaps are now covered by shared tests; broader terminal scheduling and production
+integration remain open. The first acceptance gate is not signed off; production runtime
 selection and every privileged probe still require separate approval.
 
 The [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)

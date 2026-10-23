@@ -309,7 +309,7 @@ def proof(cross_runtime=False):
             os.chown(directory, 0, 0)
 
 def concurrent_server(path, require_visible_pid=True, admission_only=False, terminal_race=False,
-                      cancellation_first=False, completion_race=None, peer_disconnect=False):
+                      cancellation_first=False, completion_race=None, peer_disconnect=False, slow_response=None):
     unprivileged()
     assert os.getuid() == BROKER_UID
     assert not (admission_only and terminal_race)
@@ -317,6 +317,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
         "response-first", "cancel-first", "deadline-first", "completed-deadline"))
     assert not cancellation_first or terminal_race
     assert not peer_disconnect or not (admission_only or terminal_race or completion_race)
+    assert not slow_response or (slow_response in ("slow", "nonreading") and
+                                not (admission_only or terminal_race or completion_race or peer_disconnect))
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     slot = threading.Lock()
     release = threading.Event()
@@ -439,6 +441,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
         completion_attempts = []
         peer_watch_stop = threading.Event()
         peer_watch = None
+        write_evidence = None
 
         def received(payload):
             vector = VECTORS["cases"][0]
@@ -470,7 +473,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
                     assert expired.is_set() and slot.locked() and counts["peerDisconnects"] == 1
                     event("source-settled")
                 return [{**default[0], "notAfter": default[0]["notAfter"] + counts["reads"]}]
-            if terminal_race or completion_race:
+            if terminal_race or completion_race or slow_response:
                 assert isinstance(default, list) and len(default) == 1
                 if terminal_race and counts["reads"] == 1:
                     release.clear()
@@ -629,13 +632,41 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
                 errors.append(repr(error))
 
         def complete_response():
-            nonlocal response_attempts
+            nonlocal response_attempts, write_evidence
             with lifetime_lock:
                 if expired.is_set():
                     return False
                 remaining(connection, deadline)
                 response_attempts += 1
-                connection.sendall(frame(json.dumps(response), 32768))
+                if slow_response and before == 0:
+                    data = frame(json.dumps(response).ljust(32768, " "), 32768)
+                    connection.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024)
+                    send_buffer = connection.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+                    assert send_buffer < len(data), send_buffer
+                    connection.setblocking(False)
+                    sent = 0
+                    while sent < len(data):
+                        try:
+                            count = connection.send(data[sent:])
+                            assert count > 0
+                            sent += count
+                        except BlockingIOError:
+                            break
+                    assert 0 < sent < len(data), "Writer never experienced actual backpressure"
+                    write_evidence = {"frameBytes": len(data), "initialBytes": sent, "sendBuffer": send_buffer,
+                                      "completed": False, "timedOut": False}
+                    with output_lock:
+                        print(json.dumps({"writeBackpressure": dict(write_evidence)}), flush=True)
+                    event("write-backpressure")
+                    remaining(connection, deadline)
+                    try:
+                        connection.sendall(data[sent:])
+                    except TimeoutError:
+                        write_evidence["timedOut"] = True
+                        raise
+                    write_evidence["completed"] = True
+                else:
+                    connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
                 completed.set()
                 return True
@@ -714,7 +745,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
             if delivered:
                 if admission_only and counts["reads"] == 8:
                     stop.set()
-                if (terminal_race or completion_race or peer_disconnect) and counts["reads"] == 2:
+                if (terminal_race or completion_race or peer_disconnect or slow_response) and counts["reads"] == 2:
                     stop.set()
         except FixtureSourceFailure as error:
             counts["sourceFailures"] += 1
@@ -726,6 +757,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
                                                                  "timeouts": counts["timeouts"]}}), flush=True)
             event("source-failed")
         except TimeoutError as error:
+            if slow_response:
+                result_discarded = True
             if expired.is_set():
                 pass
             elif time.monotonic() >= deadline:
@@ -746,7 +779,16 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
                 peer_watch.join(2)
                 assert not peer_watch.is_alive()
             connection.close()
-            if admission_only or terminal_race or completion_race or peer_disconnect:
+            if slow_response and before == 0:
+                assert write_evidence is not None
+                assert write_evidence["completed"] == (slow_response == "slow")
+                assert write_evidence["timedOut"] == (slow_response == "nonreading")
+                with output_lock:
+                    print(json.dumps({"writeOutcome": {**write_evidence,
+                        "elapsedSeconds": time.monotonic() - (deadline - 5),
+                        "terminal": expired.is_set(), "slotLocked": slot.locked(),
+                    }}), flush=True)
+            if admission_only or terminal_race or completion_race or peer_disconnect or slow_response:
                 with output_lock:
                     print(json.dumps({"delivery": {
                         "sourceEntries": counts["reads"], "responseAttempts": response_attempts,
@@ -766,7 +808,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
         os.chmod(path, 0o660)
         listener.listen(1)
         listener.settimeout(0.1)
-        if not admission_only and not terminal_race and not completion_race and not peer_disconnect:
+        if not admission_only and not terminal_race and not completion_race and not peer_disconnect and not slow_response:
             threading.Thread(target=control, daemon=True).start()
         event("ready")
         while not stop.is_set():
@@ -803,6 +845,12 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False, term
             task.join(4)
             assert not task.is_alive()
         assert not errors, errors
+        if slow_response:
+            assert counts == {"reads": 2, "generationReads": 0, "capacity": 1,
+                              "timeouts": int(slow_response == "nonreading"), "requestTimeouts": 0,
+                              "sourceFailures": 0, "cancellations": 0}, counts
+            event("complete")
+            return
         if peer_disconnect:
             assert counts == {"reads": 2, "generationReads": 0, "capacity": 2, "timeouts": 0,
                               "requestTimeouts": 0, "sourceFailures": 0, "cancellations": 0,

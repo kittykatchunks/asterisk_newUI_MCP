@@ -231,6 +231,60 @@ def fresh_inventory_client(entry):
 
 
 def client(mode):
+    if mode.startswith("writer-"):
+        assert mode in ("writer-slow", "writer-nonreading", "writer-capacity", "writer-reconnect")
+        assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
+        if len(sys.argv) == 3:
+            assert sys.argv[2] == "node-client"
+            node_client(mode if mode in ("writer-slow", "writer-nonreading") else
+                        "capacity" if mode == "writer-capacity" else "race-reconnect")
+            runtime = "node"
+        else:
+            assert len(sys.argv) == 2
+            if mode == "writer-reconnect":
+                fresh_inventory_client(2)
+            elif mode == "writer-capacity":
+                protocol.client(PATH, "capacity")
+            else:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                    connection.settimeout(8)
+                    connection.connect(PATH)
+                    connection.sendall(protocol.frame(protocol.VECTORS["cases"][0]["text"], 8192))
+                    connection.shutdown(socket.SHUT_WR)
+                    time.sleep(1 if mode == "writer-slow" else 6)
+                    if mode == "writer-nonreading":
+                        received = 0
+
+                        def received_bytes(count):
+                            nonlocal received
+                            received += count
+
+                        try:
+                            protocol.read_frame(connection, 32768, time.monotonic() + 2, on_bytes=received_bytes)
+                        except ValueError as error:
+                            assert str(error) == "Truncated frame" and 4 < received < 32772, (str(error), received)
+                        else:
+                            raise AssertionError("Non-reading client unexpectedly received a complete frame")
+                        emit({"lifecycleCase": mode, "clientRuntime": "python"})
+                        return
+                    data = bytearray()
+                    while True:
+                        chunk = connection.recv(512)
+                        if not chunk:
+                            break
+                        data.extend(chunk)
+                        if mode == "writer-slow":
+                            time.sleep(0.02)
+                    assert len(data) >= 4 and struct.unpack(">I", data[:4])[0] == 32768
+                    assert len(data) == 32772
+                    expected = {**protocol.VECTORS["cases"][0]["expected"], "generations": [
+                        {**protocol.VECTORS["generation"],
+                         "notAfter": protocol.VECTORS["generation"]["notAfter"] + 1}
+                    ]}
+                    assert json.loads(data[4:]) == expected
+            runtime = "python"
+        emit({"lifecycleCase": mode, "clientRuntime": runtime})
+        return
     if mode.startswith("peer-"):
         assert mode in ("peer-held", "peer-capacity-before", "peer-capacity-after", "peer-reconnect")
         assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
@@ -443,6 +497,7 @@ def client(mode):
 signal.alarm(180 if sys.argv[1] == "server-corpus" else 60 if sys.argv[1].startswith("server") else 15)
 identity()
 if sys.argv[1] in ("server-corpus", "server-admission", "server-race", "server-race-cancel-first", "server-peer",
+                   "server-writer-slow", "server-writer-nonreading",
                    "server-completion-response-first", "server-completion-cancel-first",
                    "server-completion-deadline-first", "server-completion-completed-deadline"):
     assert (os.getuid(), os.getgid()) == (1101, 2100) and set(os.getgroups()) <= {2100}
@@ -457,7 +512,9 @@ if sys.argv[1] in ("server-corpus", "server-admission", "server-race", "server-r
                                    cancellation_first=sys.argv[1] == "server-race-cancel-first",
                                    completion_race=(sys.argv[1].removeprefix("server-completion-")
                                                     if sys.argv[1].startswith("server-completion-") else None),
-                                   peer_disconnect=sys.argv[1] == "server-peer")
+                                   peer_disconnect=sys.argv[1] == "server-peer",
+                                   slow_response=(sys.argv[1].removeprefix("server-writer-")
+                                                  if sys.argv[1].startswith("server-writer-") else None))
     else:
         protocol.server(PATH, require_visible_pid=False)
 elif sys.argv[1] in ("server", "server-crash", "server-restarted", "server-disconnect"):

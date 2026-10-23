@@ -25,7 +25,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
     $clientArguments = @()
-    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode.StartsWith('completion-') -or $Mode.StartsWith('peer-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
+    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode.StartsWith('completion-') -or $Mode.StartsWith('peer-') -or $Mode.StartsWith('writer-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
     if ($NodeClients -and ($Mode.StartsWith('corpus-') -or $nodeLifecycle)) {
         $clientMounts = @(
             '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
@@ -45,7 +45,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
         if ($events[-1].clientRuntime -ne $expectedRuntime -or
             $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
     }
-    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode.StartsWith('completion-') -or $Mode.StartsWith('peer-')) {
+    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode.StartsWith('completion-') -or $Mode.StartsWith('peer-') -or $Mode.StartsWith('writer-')) {
         $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
         if ($events[-1].clientRuntime -ne $expectedRuntime -or $events[-1].lifecycleCase -ne $Mode) {
             throw "Unexpected lifecycle completion: $Mode"
@@ -801,6 +801,67 @@ try {
         throw 'Disconnected source must settle, discard and then release.'
     }
     Write-Output "PASS blocked-source peer disconnect ($runtime clients): required write-half-close stays nonterminal; killed client yields full HUP in $($peerKillWatch.Elapsed.TotalSeconds.ToString('F3')) seconds, retains capacity until discard, then fresh inventory succeeds."
+    foreach ($writerMode in @('slow', 'nonreading')) {
+        $writer = Start-TestBroker "server-writer-$writerMode"
+        $writerClientMode = "writer-$writerMode"
+        $writerClient = Invoke-Client $writerClientMode '1102:2100' -Detached
+        Wait-AdmissionEvent $writer 'write-backpressure'
+        Invoke-Client 'writer-capacity' '1102:2100' -Instance "-$writerMode"
+        Wait-AdmissionEvent $writer 'capacity'
+        Wait-AdmissionEvent $writer 'released'
+        Invoke-Client 'writer-reconnect' '1102:2100' -Instance "-$writerMode"
+        $writerClientExit = & docker wait $writerClient
+        if ($LASTEXITCODE -ne 0 -or "$writerClientExit" -ne '0') { throw "Writer client failed: $writerMode" }
+        $writerClientEvents = @((& docker logs $writerClient) | ForEach-Object { $_ | ConvertFrom-Json })
+        if ($LASTEXITCODE -ne 0 -or $writerClientEvents[-1].lifecycleCase -ne $writerClientMode -or
+            $writerClientEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+            throw "Missing writer client runtime completion: $writerMode"
+        }
+        $identities.Add($writerClientEvents[0].identity)
+        $writerExit = & docker wait $writer
+        if ($LASTEXITCODE -ne 0 -or "$writerExit" -ne '0') { throw "Writer broker failed: $writerMode" }
+        $writerEvents = @((& docker logs $writer 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
+        if ($LASTEXITCODE -ne 0 -or $writerEvents[-1].event -ne 'complete') { throw 'Missing writer completion.' }
+        $writerIdentity = $writerEvents[0].identity
+        foreach ($identity in @($identities | Select-Object -Last 3)) {
+            if ($identity.uid_map -ne $writerIdentity.uid_map -or $identity.gid_map -ne $writerIdentity.gid_map -or
+                $identity.userNamespace -ne $writerIdentity.userNamespace -or
+                $identity.pidNamespace -eq $writerIdentity.pidNamespace -or
+                $identity.mntNamespace -eq $writerIdentity.mntNamespace) { throw 'Unexpected writer namespace topology.' }
+        }
+        $writerPeers = @($writerEvents | Where-Object { $_.peer })
+        if ($writerPeers.Count -ne 3 -or @($writerPeers | Where-Object {
+            $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
+        }).Count -ne 0) { throw 'Missing authenticated writer peers.' }
+        $pressure = @($writerEvents | Where-Object { $_.writeBackpressure } | ForEach-Object { $_.writeBackpressure })
+        $outcomes = @($writerEvents | Where-Object { $_.writeOutcome } | ForEach-Object { $_.writeOutcome })
+        $timedOut = $writerMode -eq 'nonreading'
+        if ($pressure.Count -ne 1 -or $outcomes.Count -ne 1 -or $pressure[0].frameBytes -ne 32772 -or
+            $pressure[0].initialBytes -le 0 -or $pressure[0].initialBytes -ge 32772 -or
+            $pressure[0].sendBuffer -ge 32772 -or $pressure[0].completed -or $pressure[0].timedOut -or
+            $outcomes[0].initialBytes -ne $pressure[0].initialBytes -or
+            $outcomes[0].completed -eq $timedOut -or $outcomes[0].timedOut -ne $timedOut -or
+            $outcomes[0].terminal -ne $timedOut -or -not $outcomes[0].slotLocked -or
+            $outcomes[0].elapsedSeconds -ge 8 -or
+            ($timedOut -and $outcomes[0].elapsedSeconds -lt 5) -or
+            (-not $timedOut -and $outcomes[0].elapsedSeconds -ge 5)) {
+            throw "Writer must experience actual backpressure and settle within its deadline: $writerMode"
+        }
+        $writerDeliveries = @($writerEvents | Where-Object { $_.delivery } | ForEach-Object { $_.delivery })
+        if ($writerDeliveries.Count -ne 2 -or $writerDeliveries[0].sourceEntries -ne 1 -or
+            $writerDeliveries[0].responseAttempts -ne 1 -or $writerDeliveries[0].resultDiscarded -ne $timedOut -or
+            $writerDeliveries[0].terminal -ne $timedOut -or -not $writerDeliveries[0].slotLocked -or
+            $writerDeliveries[0].inventoryNotAfter -ne ($vectors.generation.notAfter + 1) -or
+            $writerDeliveries[1].sourceEntries -ne 2 -or $writerDeliveries[1].responseAttempts -ne 1 -or
+            $writerDeliveries[1].resultDiscarded -or $writerDeliveries[1].terminal -or
+            -not $writerDeliveries[1].slotLocked -or
+            $writerDeliveries[1].inventoryNotAfter -ne ($vectors.generation.notAfter + 2) -or
+            @($writerEvents | Where-Object { $_.event -eq 'released' }).Count -ne 2 -or
+            @($writerEvents | Where-Object { $_.event -eq 'timeout' }).Count -ne [int]$timedOut) {
+            throw "Unexpected writer delivery/timeout/recovery totals: $writerMode"
+        }
+        Write-Output "PASS bounded writer ($runtime clients): $writerMode, actual EAGAIN before remaining-deadline send, exact full inventory or rejected partial frame, fresh capacity recovery."
+    }
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
