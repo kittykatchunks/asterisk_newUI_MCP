@@ -111,8 +111,12 @@ def source_value(source, default, on_source):
     return source["value"] if source is not None else default
 
 
+def reject_json_constant(token):
+    raise json.JSONDecodeError("Non-standard JSON constant", token, 0)
+
+
 def readback(text, source=None, on_source=None):
-    request = json.loads(text, parse_int=float)
+    request = json.loads(text, parse_int=float, parse_constant=reject_json_constant)
     binding = VECTORS["binding"]
     if (not isinstance(request, dict) or type(request.get("version")) not in (int, float)
             or request["version"] != 1):
@@ -173,6 +177,8 @@ def server(path):
                 except (ValueError, UnicodeError, TimeoutError) as error:
                     if failure == "utf8":
                         assert isinstance(error, UnicodeDecodeError), (index, repr(error))
+                    elif failure == "json":
+                        assert isinstance(error, json.JSONDecodeError), (index, repr(error))
                     elif failure:
                         assert type(error) is ValueError and failure in str(error).lower(), (index, repr(error))
                     rejected += 1

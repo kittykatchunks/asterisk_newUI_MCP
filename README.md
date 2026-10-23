@@ -2407,7 +2407,7 @@ signed-token regression, not this Keycloak run.
 
 `.\scripts\Test-BrokerPeerProof.ps1 -Conformance` now runs the shared
 TypeScript vector test followed by an isolated Linux Python experiment.
-Both consume `tests/identity/broker-conformance.json`: the same 32 cases cover
+Both consume `tests/identity/broker-conformance.json`: the same 36 cases cover
 inventory at the exact 8 KiB request limit, observed unknown dialogs, missing
 generation, invalid JSON/version/UUID/scope, forbidden mutation/secret fields,
 BOM, invalid UTF-8, zero/oversized length, truncation and trailing bytes.
@@ -2433,6 +2433,15 @@ Independent source-entry counters require zero entries for each malformed
 request and one for every valid request, including missing-generation readback.
 Every source-output case enters the source once even when its output is rejected;
 successful response counts remain separate. TypeScript checks the same counts.
+
+Strict JSON syntax is also shared: Python explicitly rejects its decoder's
+non-standard `NaN`, `Infinity` and `-Infinity` constants. Three regression cases
+put each token in an earlier duplicate version field followed by valid version 1,
+so rejection must happen during parsing, not merely final-field validation.
+Both implementations require a JSON syntax error, zero source entries and zero
+response bytes. A quoted `"NaN"` value overwritten by version 1 remains valid
+JSON and succeeds, preserving the existing last-field-wins behaviour rather than
+introducing a substring filter or a new duplicate-key policy.
 
 Two shared timing cases send a complete valid inventory frame, hold request EOF
 for 50 ms, and require no response bytes or server EOF during that interval. One
@@ -2546,7 +2555,7 @@ writer, sends valid requests with request EOF, validates complete framed replies
 and requires zero response bytes for rejected requests. Malformed raw frames
 deliberately bypass the writer. The two delayed-EOF cases use the production frame
 encoder but explicit writes/half-close to control timing; ordinary valid requests
-still use the production writer. All 32 request/framing and 28 source-output cases,
+still use the production writer. All 36 request/framing and 28 source-output cases,
 foreign-UID denial and approved reconnect pass over a real Unix socket against
 the Python server. The admission/failure/cancellation experiment then runs with
 Node clients too: idle connections reach the server deadline; timed-out held

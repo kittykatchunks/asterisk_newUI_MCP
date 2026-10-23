@@ -906,7 +906,7 @@ runtime selection. The existing owned-container launcher now has `-Conformance`:
 it first runs the TypeScript shared-vector test, then the Linux Python socket
 fixture with the same language-neutral JSON cases mounted read-only.
 
-Thirty-two shared cases verify exact expected replies for static inventory,
+Thirty-six shared cases verify exact expected replies for static inventory,
 unknown dialogs and missing generation; reject foreign scope, mutation/secret
 fields, invalid JSON/version/UUID/BOM and malformed/oversized/trailing frames;
 and cover fragmented framing at the exact 8 KiB request boundary. The Linux
@@ -970,7 +970,7 @@ complete source failure handling or a production runtime choice.
 The user additionally approved a separate test-only Node/Python Linux image.
 `Test-BrokerPeerProof.ps1 -CrossRuntime` now launches non-root Node clients
 against the Python server's actual Unix socket. The client imports the production
-TypeScript framing helper; all 32 request/framing vectors and 28 source-output
+TypeScript framing helper; all 36 request/framing vectors and 28 source-output
 vectors, foreign-UID denial and approved reconnect pass across the language
 boundary. Invalid raw frames intentionally bypass the writer; valid replies
 must decode and equal the expected object, and rejections must return zero bytes.
@@ -1004,7 +1004,7 @@ and the separate Node/Python image remains an approved experiment only.
 
 | Surface | Evidence now present | Remaining evidence / decision |
 | --- | --- | --- |
-| Read-only request/response subset | Shared 32 request/framing and 28 source-output vectors pass independently and with real Node clients against Python Unix sockets, including exact 100/101 inventory bounds, delayed EOF, truncation, concatenated-frame and strict UTF-8 rejection. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
+| Read-only request/response subset | Shared 36 request/framing and 28 source-output vectors pass independently and with real Node clients against Python Unix sockets, including strict JSON constants, exact 100/101 inventory bounds, delayed EOF, truncation, concatenated-frame and strict UTF-8 rejection. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
 | Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
 | Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. Idle and complete-without-EOF deadlines leave source counts unchanged. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios count nine actual source invocations, including two failures and exactly two generation entries. |
 | Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. | Peer full disconnect during blocked source code, cancellation/deadline/response races and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
@@ -1079,3 +1079,13 @@ The 100-entry reply must match all ordered values exactly through framed socket
 readback; 101 yields zero response bytes after one source entry. Later cases and
 approved reconnect remain successful. This proves the existing inventory bound,
 not a configurable limit, a larger response-size boundary or production source.
+
+The strict-JSON follow-up closes a reproduced Python decoder discrepancy:
+`NaN`, `Infinity` and `-Infinity` tokens are rejected via `parse_constant`
+before request/source validation. Shared regressions hide each token behind a
+later duplicate version 1, requiring a JSON syntax error and zero source entries,
+not just eventual version rejection. A quoted `"NaN"` overwritten by version 1
+is a valid control case and still succeeds. Existing last-field-wins parsing
+matches TypeScript; no new duplicate-key policy or text filtering is introduced.
+This changes the test-only Python fixture, not the production TypeScript parser,
+and does not establish equivalence for every JSON edge case.
