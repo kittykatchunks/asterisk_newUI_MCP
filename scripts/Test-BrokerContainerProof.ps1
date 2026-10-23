@@ -19,13 +19,13 @@ $mounts = @(
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance-proof.py'),target=/fixture.py,readonly",
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly"
 )
-function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable, [switch]$Detached) {
-    $name = "$owner-$($Mode.Replace(':', '-'))"
+function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable, [switch]$Detached, [string]$Instance = '') {
+    $name = "$owner-$($Mode.Replace(':', '-'))$Instance"
     $names.Add($name)
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
     $clientArguments = @()
-    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
+    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode.StartsWith('completion-') -or $Mode.StartsWith('peer-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
     if ($NodeClients -and ($Mode.StartsWith('corpus-') -or $nodeLifecycle)) {
         $clientMounts = @(
             '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
@@ -45,7 +45,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
         if ($events[-1].clientRuntime -ne $expectedRuntime -or
             $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
     }
-    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-')) {
+    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode.StartsWith('completion-') -or $Mode.StartsWith('peer-')) {
         $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
         if ($events[-1].clientRuntime -ne $expectedRuntime -or $events[-1].lifecycleCase -ne $Mode) {
             throw "Unexpected lifecycle completion: $Mode"
@@ -541,90 +541,266 @@ try {
         $disconnectResult[0].sourceEntries -ne $disconnectModes.Count -or
         $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
     Write-Output "PASS request disconnect ($runtime clients): eight exact truncation boundaries in full-close and write-half-close modes add no source/send entry; half-closed clients require zero-byte EOF and every rejection has immediate authenticated inventory recovery with its own exact fresh expiry."
-    $race = Start-TestBroker 'server-race'
-    $raceHeld = Invoke-Client 'race-held' '1102:2100' -Detached
-    Wait-AdmissionEvent $race 'source-entered'
-    Invoke-Client 'race-capacity-before' '1102:2100'
-    Wait-AdmissionEvent $race 'capacity'
-    & docker kill --signal USR2 $race
-    if ($LASTEXITCODE -ne 0) { throw 'Could not arm test-only competing cancellation callback.' }
-    Wait-AdmissionEvent $race 'race-settled'
-    $raceHeldExit = & docker wait $raceHeld
-    if ($LASTEXITCODE -ne 0 -or "$raceHeldExit" -ne '0') { throw 'Race client did not observe zero-byte EOF.' }
-    $raceHeldEvents = @((& docker logs $raceHeld) | ForEach-Object { $_ | ConvertFrom-Json })
-    if ($LASTEXITCODE -ne 0 -or $raceHeldEvents[-1].lifecycleCase -ne 'race-held' -or
-        $raceHeldEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
-        throw 'Missing race client runtime completion.'
+    foreach ($raceMode in @('server-race', 'server-race-cancel-first')) {
+        $race = Start-TestBroker $raceMode
+        $raceHeld = Invoke-Client 'race-held' '1102:2100' -Detached -Instance "-$raceMode"
+        Wait-AdmissionEvent $race 'source-entered'
+        Invoke-Client 'race-capacity-before' '1102:2100' -Instance "-$raceMode"
+        Wait-AdmissionEvent $race 'capacity'
+        & docker kill --signal USR2 $race
+        if ($LASTEXITCODE -ne 0) { throw 'Could not arm test-only competing cancellation callback.' }
+        Wait-AdmissionEvent $race 'race-settled'
+        $raceHeldExit = & docker wait $raceHeld
+        if ($LASTEXITCODE -ne 0 -or "$raceHeldExit" -ne '0') { throw 'Race client did not observe zero-byte EOF.' }
+        $raceHeldEvents = @((& docker logs $raceHeld) | ForEach-Object { $_ | ConvertFrom-Json })
+        if ($LASTEXITCODE -ne 0 -or $raceHeldEvents[-1].lifecycleCase -ne 'race-held' -or
+            $raceHeldEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+            throw 'Missing race client runtime completion.'
+        }
+        $identities.Add($raceHeldEvents[0].identity)
+        Invoke-Client 'race-capacity-after' '1102:2100' -Instance "-$raceMode"
+        Wait-AdmissionEvent $race 'capacity' 2
+        & docker kill --signal USR1 $race
+        if ($LASTEXITCODE -ne 0) { throw 'Could not release test-only race source.' }
+        Wait-AdmissionEvent $race 'source-settled'
+        Wait-AdmissionEvent $race 'released'
+        Invoke-Client 'race-reconnect' '1102:2100' -Instance "-$raceMode"
+        $raceExit = & docker wait $race
+        if ($LASTEXITCODE -ne 0 -or "$raceExit" -ne '0') { throw 'Terminal-race broker failed.' }
+        $raceEvents = @((& docker logs $race 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
+        if ($LASTEXITCODE -ne 0 -or $raceEvents[-1].event -ne 'complete') { throw 'Missing terminal-race completion.' }
+        $raceIdentity = $raceEvents[0].identity
+        foreach ($identity in @($identities | Select-Object -Last 4)) {
+            if ($identity.uid_map -ne $raceIdentity.uid_map -or $identity.gid_map -ne $raceIdentity.gid_map -or
+                $identity.userNamespace -ne $raceIdentity.userNamespace -or
+                $identity.pidNamespace -eq $raceIdentity.pidNamespace -or
+                $identity.mntNamespace -eq $raceIdentity.mntNamespace) {
+                throw 'Race client namespace topology differs from approved separation.'
+            }
+        }
+        $racePeers = @($raceEvents | Where-Object { $_.peer })
+        if ($racePeers.Count -ne 4 -or @($racePeers | Where-Object {
+            -not ($_.peer.uid -eq 1102 -and $_.peer.gid -eq 2100)
+        }).Count -ne 0) { throw 'Missing authenticated race peer evidence.' }
+        $raceAttempts = @($raceEvents | Where-Object { $_.terminalRace } | ForEach-Object { $_.terminalRace })
+        $raceWinners = @($raceAttempts | Where-Object { $_.won })
+        if ($raceAttempts.Count -ne 2 -or $raceWinners.Count -ne 1 -or
+            @($raceAttempts | Where-Object { $_.reason -eq 'timeout' }).Count -ne 1 -or
+            @($raceAttempts | Where-Object { $_.reason -eq 'cancelled' }).Count -ne 1 -or
+            @($raceAttempts | Where-Object {
+                $_.sourceEntries -ne 1 -or $_.responseAttempts -ne 0 -or -not $_.slotLocked -or
+                ($_.timeouts + $_.cancellations) -ne 1 -or $_.elapsedSeconds -lt 5 -or $_.elapsedSeconds -ge 8
+            }).Count -ne 0) { throw 'Race must record one terminal winner and one unchanged loser at the deadline.' }
+        $expectedRaceTimeouts = if ($raceWinners[0].reason -eq 'timeout') { 1 } else { 0 }
+        if ($raceMode -eq 'server-race-cancel-first' -and $raceWinners[0].reason -ne 'cancelled') {
+            throw 'Controlled cancellation-first schedule did not select cancellation.'
+        }
+        if (@($raceAttempts | Where-Object {
+            $_.timeouts -ne $expectedRaceTimeouts -or $_.cancellations -ne (1 - $expectedRaceTimeouts)
+        }).Count -ne 0) { throw 'Race loser must preserve the winner reason and counters.' }
+        $raceCounts = @($raceEvents | Where-Object { $_.raceCounts })
+        if ($raceCounts.Count -ne 1 -or $raceCounts[0].raceCounts.reads -ne 2 -or
+            $raceCounts[0].raceCounts.capacity -ne 2 -or $raceCounts[0].raceCounts.requestTimeouts -ne 0 -or
+            $raceCounts[0].raceCounts.sourceFailures -ne 0 -or $raceCounts[0].raceCounts.generationReads -ne 0 -or
+            $raceCounts[0].raceCounts.timeouts -ne $expectedRaceTimeouts -or
+            $raceCounts[0].raceCounts.cancellations -ne (1 - $expectedRaceTimeouts) -or
+            ($raceCounts[0].raceCounts.timeouts + $raceCounts[0].raceCounts.cancellations) -ne 1 -or
+            @($raceEvents | Where-Object { $_.event -in @('timeout', 'cancelled') }).Count -ne 1 -or
+            @($raceEvents | Where-Object { $_.event -eq 'released' }).Count -ne 2) {
+            throw 'Unexpected terminal-race lifecycle totals.'
+        }
+        $raceDeliveries = @($raceEvents | Where-Object { $_.delivery } | ForEach-Object { $_.delivery })
+        if ($raceDeliveries.Count -ne 2 -or $raceDeliveries[0].sourceEntries -ne 1 -or
+            $raceDeliveries[0].responseAttempts -ne 0 -or -not $raceDeliveries[0].resultDiscarded -or
+            -not $raceDeliveries[0].terminal -or -not $raceDeliveries[0].slotLocked -or
+            $raceDeliveries[0].inventoryNotAfter -ne ($vectors.generation.notAfter + 1) -or
+            $raceDeliveries[1].sourceEntries -ne 2 -or $raceDeliveries[1].responseAttempts -ne 1 -or
+            $raceDeliveries[1].resultDiscarded -or $raceDeliveries[1].terminal -or
+            -not $raceDeliveries[1].slotLocked -or
+            $raceDeliveries[1].inventoryNotAfter -ne ($vectors.generation.notAfter + 2)) {
+            throw 'Race result must be discarded before fresh inventory delivery.'
+        }
+        $settledIndex = -1
+        for ($index = 0; $index -lt $raceEvents.Count; $index++) {
+            if ($raceEvents[$index].event -eq 'source-settled') { $settledIndex = $index }
+        }
+        if ($settledIndex -lt 0 -or $null -eq $raceEvents[$settledIndex + 1].delivery -or
+            $raceEvents[$settledIndex + 2].event -ne 'released') {
+            throw 'Race source must settle and discard its result before releasing the slot.'
+        }
+        Write-Output "PASS terminal race ($runtime clients): barrier-released deadline/cancellation callbacks have exactly one winner ($($raceWinners[0].reason)), retain capacity through late-result discard, then deliver distinct fresh inventory."
     }
-    $identities.Add($raceHeldEvents[0].identity)
-    Invoke-Client 'race-capacity-after' '1102:2100'
-    Wait-AdmissionEvent $race 'capacity' 2
-    & docker kill --signal USR1 $race
-    if ($LASTEXITCODE -ne 0) { throw 'Could not release test-only race source.' }
-    Wait-AdmissionEvent $race 'source-settled'
-    Wait-AdmissionEvent $race 'released'
-    Invoke-Client 'race-reconnect' '1102:2100'
-    $raceExit = & docker wait $race
-    if ($LASTEXITCODE -ne 0 -or "$raceExit" -ne '0') { throw 'Terminal-race broker failed.' }
-    $raceEvents = @((& docker logs $race 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
-    if ($LASTEXITCODE -ne 0 -or $raceEvents[-1].event -ne 'complete') { throw 'Missing terminal-race completion.' }
-    $raceIdentity = $raceEvents[0].identity
+    foreach ($schedule in @('response-first', 'cancel-first', 'deadline-first', 'completed-deadline')) {
+        $completion = Start-TestBroker "server-completion-$schedule"
+        $succeeds = $schedule -in @('response-first', 'completed-deadline')
+        $expectedTimeouts = if ($schedule -eq 'deadline-first') { 1 } else { 0 }
+        $expectedCancellations = if ($schedule -eq 'cancel-first') { 1 } else { 0 }
+        $clientMode = if ($succeeds) { 'completion-success' } else { 'completion-rejected' }
+        $completionClient = Invoke-Client $clientMode '1102:2100' -Detached -Instance "-$schedule"
+        Wait-AdmissionEvent $completion 'response-ready'
+        Invoke-Client 'completion-capacity' '1102:2100' -Instance "-$schedule"
+        Wait-AdmissionEvent $completion 'capacity'
+        & docker kill --signal USR2 $completion
+        if ($LASTEXITCODE -ne 0) { throw "Could not arm completion schedule: $schedule" }
+        Wait-AdmissionEvent $completion 'completion-race-settled'
+        Wait-AdmissionEvent $completion 'released'
+        $completionClientExit = & docker wait $completionClient
+        if ($LASTEXITCODE -ne 0 -or "$completionClientExit" -ne '0') {
+            throw "Completion client failed: $schedule"
+        }
+        $completionClientEvents = @((& docker logs $completionClient) | ForEach-Object { $_ | ConvertFrom-Json })
+        if ($LASTEXITCODE -ne 0 -or $completionClientEvents[-1].lifecycleCase -ne $clientMode -or
+            $completionClientEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+            throw "Missing completion client runtime evidence: $schedule"
+        }
+        $identities.Add($completionClientEvents[0].identity)
+        Invoke-Client 'completion-reconnect' '1102:2100' -Instance "-$schedule"
+        $completionExit = & docker wait $completion
+        if ($LASTEXITCODE -ne 0 -or "$completionExit" -ne '0') { throw "Completion broker failed: $schedule" }
+        $completionEvents = @((& docker logs $completion 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
+        if ($LASTEXITCODE -ne 0 -or $completionEvents[-1].event -ne 'complete') {
+            throw "Missing completion evidence: $schedule"
+        }
+        $completionIdentity = $completionEvents[0].identity
+        foreach ($identity in @($identities | Select-Object -Last 3)) {
+            if ($identity.uid_map -ne $completionIdentity.uid_map -or $identity.gid_map -ne $completionIdentity.gid_map -or
+                $identity.userNamespace -ne $completionIdentity.userNamespace -or
+                $identity.pidNamespace -eq $completionIdentity.pidNamespace -or
+                $identity.mntNamespace -eq $completionIdentity.mntNamespace) {
+                throw "Unexpected completion namespace topology: $schedule"
+            }
+        }
+        $completionPeers = @($completionEvents | Where-Object { $_.peer })
+        if ($completionPeers.Count -ne 3 -or @($completionPeers | Where-Object {
+            $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
+        }).Count -ne 0) { throw "Missing authenticated completion peers: $schedule" }
+        $observations = @($completionEvents | Where-Object { $_.completionRace })
+        if ($observations.Count -ne 1) { throw "Missing completion race observation: $schedule" }
+        $observation = $observations[0].completionRace
+        $expectedReason = if ($schedule -in @('deadline-first', 'completed-deadline')) { 'timeout' } else { 'cancelled' }
+        $attempts = @($observation.attempts)
+        $responseAttempts = @($attempts | Where-Object { $_.reason -eq 'response' })
+        $terminalAttempts = @($attempts | Where-Object { $_.reason -eq $expectedReason })
+        if ($observation.schedule -ne $schedule -or $attempts.Count -ne 2 -or
+            $responseAttempts.Count -ne 1 -or $terminalAttempts.Count -ne 1 -or
+            $responseAttempts[0].won -ne $succeeds -or $terminalAttempts[0].won -eq $succeeds -or
+            $observation.sourceEntries -ne 1 -or $observation.responseAttempts -ne [int]$succeeds -or
+            $observation.timeouts -ne $expectedTimeouts -or $observation.cancellations -ne $expectedCancellations -or
+            $observation.completed -ne $succeeds -or $observation.terminal -eq $succeeds -or
+            ($succeeds -and $responseAttempts[0].elapsedSeconds -ge 5) -or
+            ($expectedReason -eq 'timeout' -and $terminalAttempts[0].elapsedSeconds -lt 5) -or
+            -not $observation.slotLocked -or $observation.elapsedSeconds -lt 0 -or
+            $observation.elapsedSeconds -ge 8 -or
+            ($expectedReason -eq 'timeout' -and $observation.elapsedSeconds -lt 5) -or
+            ($expectedReason -eq 'cancelled' -and $observation.elapsedSeconds -ge 5)) {
+            throw "Completion schedule had an incorrect winner, delivery or deadline: $schedule"
+        }
+        $deliveries = @($completionEvents | Where-Object { $_.delivery } | ForEach-Object { $_.delivery })
+        if ($deliveries.Count -ne 2 -or $deliveries[0].sourceEntries -ne 1 -or
+            $deliveries[0].responseAttempts -ne [int]$succeeds -or $deliveries[0].resultDiscarded -eq $succeeds -or
+            $deliveries[0].terminal -eq $succeeds -or -not $deliveries[0].slotLocked -or
+            $deliveries[0].inventoryNotAfter -ne ($vectors.generation.notAfter + 1) -or
+            $deliveries[1].sourceEntries -ne 2 -or $deliveries[1].responseAttempts -ne 1 -or
+            $deliveries[1].resultDiscarded -or $deliveries[1].terminal -or -not $deliveries[1].slotLocked -or
+            $deliveries[1].inventoryNotAfter -ne ($vectors.generation.notAfter + 2) -or
+            @($completionEvents | Where-Object { $_.event -eq 'released' }).Count -ne 2 -or
+            @($completionEvents | Where-Object { $_.event -in @('timeout', 'cancelled') }).Count -ne
+                ($expectedTimeouts + $expectedCancellations)) {
+            throw "Unexpected completion delivery or release totals: $schedule"
+        }
+        Write-Output "PASS response/terminal schedule ($runtime clients): $schedule, exact single winner, full fresh inventory or zero-byte EOF, then distinct recovery."
+    }
+    $peerBroker = Start-TestBroker 'server-peer'
+    $peerClient = Invoke-Client 'peer-held' '1102:2100' -Detached
+    Wait-AdmissionEvent $peerBroker 'source-entered'
+    Wait-AdmissionEvent $peerBroker 'peer-half-close-observed'
+    Invoke-Client 'peer-capacity-before' '1102:2100'
+    Wait-AdmissionEvent $peerBroker 'capacity'
+    $peerClientEvents = @((& docker logs $peerClient) | ForEach-Object { $_ | ConvertFrom-Json })
+    $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
+    if ($LASTEXITCODE -ne 0 -or $peerClientEvents.Count -ne 2 -or
+        -not $peerClientEvents[-1].holdingPeer -or $peerClientEvents[-1].clientRuntime -ne $expectedRuntime) {
+        throw 'Missing actual runtime evidence from the held peer before killing its container.'
+    }
+    $identities.Add($peerClientEvents[0].identity)
+    $peerKillWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    & docker kill --signal KILL $peerClient
+    if ($LASTEXITCODE -ne 0) { throw 'Could not kill the owned held-peer container.' }
+    $peerClientExit = & docker wait $peerClient
+    if ($LASTEXITCODE -ne 0 -or "$peerClientExit" -ne '137') { throw 'Held peer must exit from the explicit parent kill.' }
+    Wait-AdmissionEvent $peerBroker 'peer-disconnect-observed'
+    $peerKillWatch.Stop()
+    if ($peerKillWatch.Elapsed.TotalSeconds -ge 3) { throw 'Full peer loss was not observed within three seconds.' }
+    Invoke-Client 'peer-capacity-after' '1102:2100'
+    Wait-AdmissionEvent $peerBroker 'capacity' 2
+    & docker kill --signal USR1 $peerBroker
+    if ($LASTEXITCODE -ne 0) { throw 'Could not release the disconnected fixture source.' }
+    Wait-AdmissionEvent $peerBroker 'source-settled'
+    Wait-AdmissionEvent $peerBroker 'released'
+    Invoke-Client 'peer-reconnect' '1102:2100'
+    $peerBrokerExit = & docker wait $peerBroker
+    if ($LASTEXITCODE -ne 0 -or "$peerBrokerExit" -ne '0') { throw 'Blocked-source peer-disconnect broker failed.' }
+    $peerEvents = @((& docker logs $peerBroker 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $peerEvents[-1].event -ne 'complete') { throw 'Missing peer-disconnect completion.' }
+    $peerIdentity = $peerEvents[0].identity
     foreach ($identity in @($identities | Select-Object -Last 4)) {
-        if ($identity.uid_map -ne $raceIdentity.uid_map -or $identity.gid_map -ne $raceIdentity.gid_map -or
-            $identity.userNamespace -ne $raceIdentity.userNamespace -or
-            $identity.pidNamespace -eq $raceIdentity.pidNamespace -or
-            $identity.mntNamespace -eq $raceIdentity.mntNamespace) {
-            throw 'Race client namespace topology differs from approved separation.'
+        if ($identity.uid_map -ne $peerIdentity.uid_map -or $identity.gid_map -ne $peerIdentity.gid_map -or
+            $identity.userNamespace -ne $peerIdentity.userNamespace -or
+            $identity.pidNamespace -eq $peerIdentity.pidNamespace -or
+            $identity.mntNamespace -eq $peerIdentity.mntNamespace) {
+            throw 'Unexpected peer-disconnect client namespace topology.'
         }
     }
-    $racePeers = @($raceEvents | Where-Object { $_.peer })
-    if ($racePeers.Count -ne 4 -or @($racePeers | Where-Object {
-        -not ($_.peer.uid -eq 1102 -and $_.peer.gid -eq 2100)
-    }).Count -ne 0) { throw 'Missing authenticated race peer evidence.' }
-    $raceAttempts = @($raceEvents | Where-Object { $_.terminalRace } | ForEach-Object { $_.terminalRace })
-    $raceWinners = @($raceAttempts | Where-Object { $_.won })
-    if ($raceAttempts.Count -ne 2 -or $raceWinners.Count -ne 1 -or
-        @($raceAttempts | Where-Object { $_.reason -eq 'timeout' }).Count -ne 1 -or
-        @($raceAttempts | Where-Object { $_.reason -eq 'cancelled' }).Count -ne 1 -or
-        @($raceAttempts | Where-Object {
-            $_.sourceEntries -ne 1 -or $_.responseAttempts -ne 0 -or -not $_.slotLocked -or
-            ($_.timeouts + $_.cancellations) -ne 1 -or $_.elapsedSeconds -lt 5 -or $_.elapsedSeconds -ge 8
-        }).Count -ne 0) { throw 'Race must record one terminal winner and one unchanged loser at the deadline.' }
-    $expectedRaceTimeouts = if ($raceWinners[0].reason -eq 'timeout') { 1 } else { 0 }
-    if (@($raceAttempts | Where-Object {
-        $_.timeouts -ne $expectedRaceTimeouts -or $_.cancellations -ne (1 - $expectedRaceTimeouts)
-    }).Count -ne 0) { throw 'Race loser must preserve the winner reason and counters.' }
-    $raceCounts = @($raceEvents | Where-Object { $_.raceCounts })
-    if ($raceCounts.Count -ne 1 -or $raceCounts[0].raceCounts.reads -ne 2 -or
-        $raceCounts[0].raceCounts.capacity -ne 2 -or $raceCounts[0].raceCounts.requestTimeouts -ne 0 -or
-        $raceCounts[0].raceCounts.sourceFailures -ne 0 -or $raceCounts[0].raceCounts.generationReads -ne 0 -or
-        $raceCounts[0].raceCounts.timeouts -ne $expectedRaceTimeouts -or
-        $raceCounts[0].raceCounts.cancellations -ne (1 - $expectedRaceTimeouts) -or
-        ($raceCounts[0].raceCounts.timeouts + $raceCounts[0].raceCounts.cancellations) -ne 1 -or
-        @($raceEvents | Where-Object { $_.event -in @('timeout', 'cancelled') }).Count -ne 1 -or
-        @($raceEvents | Where-Object { $_.event -eq 'released' }).Count -ne 2) {
-        throw 'Unexpected terminal-race lifecycle totals.'
+    $peerPeers = @($peerEvents | Where-Object { $_.peer })
+    if ($peerPeers.Count -ne 4 -or @($peerPeers | Where-Object {
+        $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
+    }).Count -ne 0) { throw 'Missing authenticated peer-disconnect clients.' }
+    $halfClosed = @($peerEvents | Where-Object { $_.peerHalfClosed } | ForEach-Object { $_.peerHalfClosed })
+    $disconnected = @($peerEvents | Where-Object { $_.peerDisconnected } | ForEach-Object { $_.peerDisconnected })
+    $linuxPollReadHangup = 8192
+    $linuxPollHangup = 16
+    if ($halfClosed.Count -ne 1 -or $disconnected.Count -ne 1 -or
+        ($halfClosed[0].mask -band $linuxPollReadHangup) -eq 0 -or ($halfClosed[0].mask -band $linuxPollHangup) -ne 0 -or
+        $halfClosed[0].terminal -or $halfClosed[0].peerDisconnects -ne 0 -or
+        $halfClosed[0].sourceEntries -ne 1 -or $halfClosed[0].responseAttempts -ne 0 -or
+        -not $halfClosed[0].slotLocked -or $halfClosed[0].timeouts -ne 0 -or $halfClosed[0].cancellations -ne 0 -or
+        ($disconnected[0].mask -band $linuxPollHangup) -eq 0 -or $disconnected[0].peerDisconnects -ne 1 -or
+        $disconnected[0].sourceEntries -ne 1 -or $disconnected[0].responseAttempts -ne 0 -or
+        -not $disconnected[0].slotLocked -or $disconnected[0].timeouts -ne 0 -or
+        $disconnected[0].cancellations -ne 0 -or $disconnected[0].elapsedSeconds -lt 0 -or
+        $disconnected[0].elapsedSeconds -ge 5) {
+        throw 'Half-close must remain nonterminal; only full peer loss may terminate the held request.'
     }
-    $raceDeliveries = @($raceEvents | Where-Object { $_.delivery } | ForEach-Object { $_.delivery })
-    if ($raceDeliveries.Count -ne 2 -or $raceDeliveries[0].sourceEntries -ne 1 -or
-        $raceDeliveries[0].responseAttempts -ne 0 -or -not $raceDeliveries[0].resultDiscarded -or
-        -not $raceDeliveries[0].terminal -or -not $raceDeliveries[0].slotLocked -or
-        $raceDeliveries[0].inventoryNotAfter -ne ($vectors.generation.notAfter + 1) -or
-        $raceDeliveries[1].sourceEntries -ne 2 -or $raceDeliveries[1].responseAttempts -ne 1 -or
-        $raceDeliveries[1].resultDiscarded -or $raceDeliveries[1].terminal -or
-        -not $raceDeliveries[1].slotLocked -or
-        $raceDeliveries[1].inventoryNotAfter -ne ($vectors.generation.notAfter + 2)) {
-        throw 'Race result must be discarded before fresh inventory delivery.'
+    $peerCounts = @($peerEvents | Where-Object { $_.peerDisconnectCounts })
+    if ($peerCounts.Count -ne 1) { throw 'Missing peer-disconnect final counts.' }
+    $counts = $peerCounts[0].peerDisconnectCounts
+    if ($counts.reads -ne 2 -or $counts.generationReads -ne 0 -or $counts.capacity -ne 2 -or
+        $counts.peerDisconnects -ne 1 -or $counts.timeouts -ne 0 -or $counts.cancellations -ne 0 -or
+        $counts.requestTimeouts -ne 0 -or $counts.sourceFailures -ne 0 -or
+        @($peerEvents | Where-Object { $_.event -eq 'disconnected' }).Count -ne 1 -or
+        @($peerEvents | Where-Object { $_.event -eq 'released' }).Count -ne 2) {
+        throw 'Unexpected blocked-source peer-disconnect lifecycle totals.'
     }
-    $settledIndex = -1
-    for ($index = 0; $index -lt $raceEvents.Count; $index++) {
-        if ($raceEvents[$index].event -eq 'source-settled') { $settledIndex = $index }
+    $peerDeliveries = @($peerEvents | Where-Object { $_.delivery } | ForEach-Object { $_.delivery })
+    if ($peerDeliveries.Count -ne 2 -or $peerDeliveries[0].sourceEntries -ne 1 -or
+        $peerDeliveries[0].responseAttempts -ne 0 -or -not $peerDeliveries[0].resultDiscarded -or
+        -not $peerDeliveries[0].terminal -or -not $peerDeliveries[0].slotLocked -or
+        $peerDeliveries[0].inventoryNotAfter -ne ($vectors.generation.notAfter + 1) -or
+        $peerDeliveries[1].sourceEntries -ne 2 -or $peerDeliveries[1].responseAttempts -ne 1 -or
+        $peerDeliveries[1].resultDiscarded -or $peerDeliveries[1].terminal -or
+        -not $peerDeliveries[1].slotLocked -or
+        $peerDeliveries[1].inventoryNotAfter -ne ($vectors.generation.notAfter + 2)) {
+        throw 'Disconnected source result must be discarded before distinct recovery.'
     }
-    if ($settledIndex -lt 0 -or $null -eq $raceEvents[$settledIndex + 1].delivery -or
-        $raceEvents[$settledIndex + 2].event -ne 'released') {
-        throw 'Race source must settle and discard its result before releasing the slot.'
+    $peerSettled = -1
+    for ($index = 0; $index -lt $peerEvents.Count; $index++) {
+        if ($peerEvents[$index].event -eq 'source-settled') { $peerSettled = $index }
     }
-    Write-Output "PASS terminal race ($runtime clients): barrier-released deadline/cancellation callbacks have exactly one winner ($($raceWinners[0].reason)), retain capacity through late-result discard, then deliver distinct fresh inventory."
+    if ($peerSettled -lt 0 -or $null -eq $peerEvents[$peerSettled + 1].delivery -or
+        $peerEvents[$peerSettled + 2].event -ne 'released') {
+        throw 'Disconnected source must settle, discard and then release.'
+    }
+    Write-Output "PASS blocked-source peer disconnect ($runtime clients): required write-half-close stays nonterminal; killed client yields full HUP in $($peerKillWatch.Elapsed.TotalSeconds.ToString('F3')) seconds, retains capacity until discard, then fresh inventory succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

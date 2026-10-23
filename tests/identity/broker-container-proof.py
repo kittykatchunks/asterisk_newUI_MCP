@@ -206,6 +206,9 @@ def remove_stale():
 
 
 def node_client(index):
+    if index == "peer-held":
+        result = subprocess.run(["node", "/tests/identity/broker-cross-client.ts", PATH, index], timeout=10)
+        raise AssertionError(f"Held peer client exited without parent kill: {result.returncode}")
     result = subprocess.run(["node", "/tests/identity/broker-cross-client.ts", PATH, index],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
@@ -228,6 +231,51 @@ def fresh_inventory_client(entry):
 
 
 def client(mode):
+    if mode.startswith("peer-"):
+        assert mode in ("peer-held", "peer-capacity-before", "peer-capacity-after", "peer-reconnect")
+        assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
+        index = ("capacity" if mode in ("peer-capacity-before", "peer-capacity-after") else
+                 "race-reconnect" if mode == "peer-reconnect" else mode)
+        if len(sys.argv) == 3:
+            assert sys.argv[2] == "node-client"
+            node_client(index)
+            runtime = "node"
+        else:
+            assert len(sys.argv) == 2
+            if mode == "peer-held":
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                    connection.settimeout(8)
+                    connection.connect(PATH)
+                    connection.sendall(protocol.frame(protocol.VECTORS["cases"][0]["text"], 8192))
+                    connection.shutdown(socket.SHUT_WR)
+                    emit({"holdingPeer": True, "clientRuntime": "python"})
+                    data = connection.recv(1)
+                    raise AssertionError(f"Held peer received before parent kill: {data!r}")
+            elif mode == "peer-reconnect":
+                fresh_inventory_client(2)
+            else:
+                protocol.client(PATH, index)
+            runtime = "python"
+        emit({"lifecycleCase": mode, "clientRuntime": runtime})
+        return
+    if mode.startswith("completion-"):
+        index = {"completion-success": "completion-success", "completion-rejected": "held-source",
+                 "completion-capacity": "capacity", "completion-reconnect": "race-reconnect"}.get(mode)
+        assert index is not None
+        assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
+        if len(sys.argv) == 3:
+            assert sys.argv[2] == "node-client"
+            node_client(index)
+            runtime = "node"
+        else:
+            assert len(sys.argv) == 2
+            if index in ("completion-success", "race-reconnect"):
+                fresh_inventory_client(1 if index == "completion-success" else 2)
+            else:
+                protocol.client(PATH, index)
+            runtime = "python"
+        emit({"lifecycleCase": mode, "clientRuntime": runtime})
+        return
     if mode.startswith("race-"):
         index = {"race-held": "held-source", "race-capacity-before": "capacity",
                  "race-capacity-after": "capacity", "race-reconnect": "race-reconnect"}.get(mode)
@@ -394,16 +442,22 @@ def client(mode):
 
 signal.alarm(180 if sys.argv[1] == "server-corpus" else 60 if sys.argv[1].startswith("server") else 15)
 identity()
-if sys.argv[1] in ("server-corpus", "server-admission", "server-race"):
+if sys.argv[1] in ("server-corpus", "server-admission", "server-race", "server-race-cancel-first", "server-peer",
+                   "server-completion-response-first", "server-completion-cancel-first",
+                   "server-completion-deadline-first", "server-completion-completed-deadline"):
     assert (os.getuid(), os.getgid()) == (1101, 2100) and set(os.getgroups()) <= {2100}
     directory = os.lstat("/socket/broker")
     assert stat.S_ISDIR(directory.st_mode) and stat.S_IMODE(directory.st_mode) == 0o750
     assert (directory.st_uid, directory.st_gid) == (1101, 2100)
     os.umask(0o117)
-    if sys.argv[1] in ("server-admission", "server-race"):
+    if sys.argv[1] != "server-corpus":
         protocol.concurrent_server(PATH, require_visible_pid=False,
                                    admission_only=sys.argv[1] == "server-admission",
-                                   terminal_race=sys.argv[1] == "server-race")
+                                   terminal_race=sys.argv[1] in ("server-race", "server-race-cancel-first"),
+                                   cancellation_first=sys.argv[1] == "server-race-cancel-first",
+                                   completion_race=(sys.argv[1].removeprefix("server-completion-")
+                                                    if sys.argv[1].startswith("server-completion-") else None),
+                                   peer_disconnect=sys.argv[1] == "server-peer")
     else:
         protocol.server(PATH, require_visible_pid=False)
 elif sys.argv[1] in ("server", "server-crash", "server-restarted", "server-disconnect"):

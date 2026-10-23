@@ -1007,7 +1007,7 @@ and the separate Node/Python image remains an approved experiment only.
 | Read-only request/response subset | Shared 36 request/framing and 28 source-output vectors pass independently and with real Node clients against Python Unix sockets, including strict JSON constants, exact 100/101 inventory bounds, delayed EOF, truncation, concatenated-frame and strict UTF-8 rejection. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
 | Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
 | Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. Idle and complete-without-EOF deadlines leave source counts unchanged. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios count nine actual source invocations, including two failures and exactly two generation entries. |
-| Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. Section 9.12 adds barrier-released cancellation/deadline contention with one terminal winner and no late send. | Peer full disconnect during blocked source code, broader terminal/response-completion races and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
+| Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. Section 9.12 adds terminal ordering and Linux poll-based blocked-source peer-loss coverage, preserving the distinction between write half-close and full hangup. | Arbitrary terminal/disconnect scheduling, partial-write interruption and slow response consumption remain unproved. Required request EOF alone is not proof of peer loss. Production integration and other transports remain separate. |
 | Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. Section 9.12 adds separate-container default-map evidence and publication denial. | Broader user-namespace mappings, restart/conflicting-path publication and same-UID compromise still need explicit deployment treatment. PID positivity alone is not process attestation. |
 | Admission/resources | One active slot is retained until source settlement; capacity denial precedes peer lookup/read; fixtures have container limits. | Backlog one is not an end-to-end resource/rate limit. Production listener policy, process supervision, shutdown and crash behaviour are unselected. Fixture threads/control pipe are not that architecture. |
 | Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler, and no production Python broker is selected. Choose a runtime/binding/helper separately; passing test interoperability does not choose one. |
@@ -1571,9 +1571,82 @@ baseline plus two, and one send attempt.
 Final evidence requires two source entries, two capacity denials, one terminal
 outcome, no request timeout or source failure, two slot releases, four kernel
 peers and explicit client-runtime completion. All existing identity, namespace,
-resource and ownership-checked cleanup restrictions remain. The default shared
-lifecycle/control path is unchanged. This is bounded test-fixture contention, not
-proof of both possible winners, all schedules, response-completion races,
-simultaneous duplicate cancellation, cancellation after successful completion or
-production cancellation policy. Blocked-source peer-disconnect handling remains
-open; no production runtime or privileged operation is selected.
+resource and ownership-checked cleanup restrictions remain.
+
+The next terminal-ordering batch repeats that case with an explicit
+cancellation-first schedule. After the common barrier, the deadline contender
+waits up to three seconds for cancellation to finish. The existing terminal
+callback must select cancellation, and the real timer callback must preserve its
+reason/counters. This is controlled schedule coverage, not a claim that an
+unforced run happened to select both winners.
+
+Four further isolated broker instances exercise a settled inventory result
+competing with a terminal action:
+
+1. **Response before cancellation:** both contenders meet at a barrier; the
+   callback waits for the response path to finish. Exact baseline-plus-one
+   inventory is delivered before five seconds, with cancellation a no-op.
+2. **Cancellation before response:** after the barrier, delivery waits for the
+   callback. The ready result is discarded with no send attempt and zero-byte EOF.
+3. **Deadline before response:** the ready result meets the actual five-second
+   timer at a barrier, then waits for timeout to win. No response is attempted.
+4. **Completed response before deadline:** delivery completes before five
+   seconds, but the fixture keeps the lifetime/slot until the real timer fires.
+   Successful completion must prevent a timeout outcome.
+
+Each uses a complete request and one actual source entry. A fresh competitor is
+denied while delivery is paused; after both actions are observed, exactly one
+winning action, correct elapsed-time bounds, send/terminal counters and locked
+slot must be recorded before release. There are exactly two slot releases, three
+authenticated client containers and a final fresh inventory with baseline plus
+two. Both Python and Node clients independently require exact inventory or
+zero-byte EOF according to schedule; transport errors, partial responses and
+watchdog expiry are not success.
+
+The response path previously checked terminal state and sent outside the lifetime
+lock. The shared test fixture now checks state/deadline, sends and records
+successful completion under that lock; terminal callbacks reject completion as
+already final. Writes retain the remaining socket deadline. This is a coupled
+fixture correction, not a production implementation or a slow-writer proof.
+Default lifecycle/control regressions must preserve their existing results.
+
+This completes the bounded terminal-ordering batch, not arbitrary scheduling,
+simultaneous duplicate cancellation, partial-write interruption or production
+cancellation policy. The blocked-source peer-disconnect batch is described below;
+slow/non-reading-client handling remains the final planned experiment batch. No production runtime
+or privileged operation is selected.
+
+The blocked-source peer-disconnect batch uses an opt-in Linux `poll` watcher in
+another isolated broker instance. It starts only after the actual frame reader
+has validated the full request and write EOF and the first inventory source has
+entered. `POLLRDHUP` without `POLLHUP` must be observed as nonterminal half-close:
+one source, zero responses, zero terminal counts, with the slot locked.
+The watcher then removes read-hangup interest to avoid a persistent-EOF busy loop;
+it does not read from the socket or alter framing. A fresh competitor must be denied.
+
+The held client sends a runtime-specific marker after writing and half-closing;
+the Node marker is emitted by TypeScript itself through the wrapper's inherited
+stdout. The parent verifies that marker before explicitly killing only the owned
+client container. Exit 137 is required; this intentional process death has no
+normal successful client-completion record. The broker must observe real
+`POLLHUP` and invoke the existing terminal callback, producing one peer-disconnect
+outcome, zero timeout/cancellation outcomes and no send attempt before the
+five-second connection deadline. Parent kill dispatch through hangup observation
+must take under three seconds. Poll errors or invalid descriptors are failures,
+not accepted proxies for full peer loss.
+
+A fresh competitor is denied again after disconnect. Parent `SIGUSR1` releases
+only the test source. Its baseline-plus-one result must settle, be discarded with
+zero send attempts and then release the slot. The final fresh read independently
+requires baseline-plus-two inventory. Final evidence requires two sources, two
+capacity denials, one peer disconnect, zero request timeouts/source failures and
+two releases. The watcher is stopped/joined before slot release. All four clients,
+including the killed one, require mapped kernel identity and separate namespace
+evidence; the other three require explicit runtime completion. Existing resource
+limits, signals and ownership-checked cleanup remain unchanged.
+
+Both Python and Node clients pass this bounded Linux Unix-stream/container
+disconnect case. It is not a production runtime choice or proof for other
+transports/kernels, arbitrary disconnect/response interleavings, leaked duplicate
+socket descriptors or remote network failure. The final planned experiment batch
+is slow/non-reading-client response handling.

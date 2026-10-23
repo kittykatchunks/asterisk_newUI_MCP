@@ -2849,7 +2849,7 @@ completion, kernel peer authentication and separate PID/mount namespace evidence
 The optional byte-count observation hook does not alter frame parsing and is
 disabled for existing callers. This adds no wire operation, mount or privilege.
 
-A final isolated broker phase holds one inventory source while two threads
+An isolated broker phase holds one inventory source while two threads
 contend to invoke the existing terminal callback. Parent `SIGUSR2` arms the
 cancellation thread; it waits at a two-party barrier with the actual five-second
 deadline timer. Both then contend for the existing lifetime lock, without forcing
@@ -2863,22 +2863,80 @@ the single slot. Only parent `SIGUSR1` releases the test source. Its late result
 then release the slot. A fresh client must receive exact inventory with baseline
 plus two. Four fresh client containers require runtime completion, kernel
 UID/primary-GID checks and the same separate PID/mount namespace evidence.
-The default shared lifecycle is unchanged; this opt-in fixture adds no wire action,
-PBX access or production runtime selection. A passing run does not require both
-possible winners or prove all schedules, response-completion races, simultaneous
-duplicate cancellation or cancellation after successful completion.
+This unforced case is followed by the same barrier test with a bounded ordering
+hook: the deadline contender must wait for the cancellation contender to finish.
+The launcher requires cancellation to win and the actual deadline callback to
+leave that outcome unchanged. Neither case bypasses the terminal callback.
 
-Broader namespace configurations and peer-disconnect handling while a source is
-blocked remain future cases. These early framing failures do not prove that
-full disconnect can be distinguished from required request half-close after a
-complete request. Conflicting-path preservation is not proof of general
+Four additional isolated response/terminal schedules start with a complete
+request, one settled source result and a fresh capacity-denied competitor:
+
+| Schedule | Required result |
+| --- | --- |
+| Response before cancellation | Both threads meet at a barrier, then the cancellation callback waits for response completion. The client receives exact inventory; cancellation is a no-op. |
+| Cancellation before response | Both threads meet at a barrier, then the response path waits for cancellation. The client receives zero-byte EOF; the ready result is discarded without a send attempt. |
+| Deadline before response | The ready response waits at a barrier with the real five-second timer, then waits for the terminal callback. The client receives zero-byte EOF with no send attempt. |
+| Completed response before deadline | The response completes before five seconds; the fixture retains its lifetime until the real timer runs. The timer must be a no-op, not a second terminal outcome. |
+
+The shared test fixture now performs its terminal-state check, deadline check,
+send and successful-completion marker under the existing lifetime lock. Terminal
+callbacks treat successful completion as final. This closes the fixture's former
+check/send window; it is not a production broker implementation. Socket writes
+still use the remaining connection deadline.
+The launcher checks exactly one winning action, correct per-action timing,
+send/terminal counters, locked-slot delivery evidence and exactly two releases.
+After each schedule, a fresh client must receive baseline-plus-two inventory,
+distinct from the first result's baseline-plus-one value. Both client runtimes
+require either the complete exact response or zero-byte EOF, never partial-frame,
+reset or timeout success. Each schedule uses three independently authenticated
+client containers with the existing namespace/resource restrictions.
+
+These controlled schedules complete the planned terminal-ordering batch; they
+do not establish all thread schedules, simultaneous duplicate cancellation,
+partial-write interruption or production cancellation policy. Blocked-source
+peer disconnect is tested separately below; slow/non-reading clients remain open. Existing
+shared lifecycle regressions retain their expected results; no wire action,
+PBX access or production runtime selection is added.
+
+The blocked-source peer-loss phase adds a Linux-only `poll` watcher to the
+test fixture, disabled in existing modes. After the complete request and mandatory
+write EOF, `POLLRDHUP` without `POLLHUP` records half-close, not cancellation.
+The watcher then stops requesting read-hangup notifications to avoid spinning on
+the persistent EOF; it waits for full hangup without consuming request bytes.
+The source remains held while a fresh authenticated competitor is rejected.
+Only after that evidence and a runtime-specific `holdingPeer` marker does the
+parent kill the owned client container with `SIGKILL`, requiring exit 137.
+The Node marker comes from the actual TypeScript client, not its Python wrapper.
+This intentional client death cannot emit normal successful runtime completion.
+
+The accepted socket must then report `POLLHUP`. The existing terminal callback
+records exactly one peer-disconnect outcome before the five-second deadline,
+with zero timeout/cancellation outcomes or send attempts. Parent signal dispatch
+through observed hangup must take under three seconds. Poll errors, invalid file
+descriptors and timeout are failures, not alternate disconnect evidence.
+A second fresh competitor is denied after peer loss, proving that disconnection
+does not free the slot while the source is blocked. Parent `SIGUSR1` alone releases
+that source; baseline-plus-one inventory must settle, be discarded without a
+send attempt, then release the slot. A new client must receive exact
+baseline-plus-two inventory. Final totals are two sources, two capacity denials,
+one peer disconnect and two slot releases. All four clients retain kernel
+UID/primary-GID and namespace checks. Polling stops and its thread is joined
+before releasing the slot.
+
+This completes the bounded blocked-source disconnect batch for the tested Linux
+Unix-stream/container topology. It does not prove other kernels/transports,
+arbitrary disconnect/response races, leaked duplicate descriptors or remote
+network failure detection. Slow/non-reading clients remain the final planned
+experiment batch; production integration remains unselected.
+Broader namespace configurations remain future cases. The earlier framing
+failures alone do not prove the half-close distinction. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
 separates tested read-only interoperability from unproved parity/deployment
 behaviour. The request-version forms and independent source-entry accounting
-gaps are now covered by shared tests; blocked-source peer disconnect and broader
-terminal/response-completion races remain open. The first acceptance gate is not signed off; production runtime
+gaps are now covered by shared tests; slow clients
+and broader terminal scheduling remain open. The first acceptance gate is not signed off; production runtime
 selection and every privileged probe still require separate approval.
 
 The [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)

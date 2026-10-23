@@ -18,9 +18,10 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
 };
 const disconnectRecovery = index.startsWith("disconnect-reconnect-");
 let vector = vectors.cases[["reconnect", "restart-read"].includes(index) ? 0 : Number(index)];
-if (index === "held-reconnect" || index === "cancel-reconnect" || index === "race-reconnect" || disconnectRecovery) {
+if (index === "held-reconnect" || index === "cancel-reconnect" || index === "race-reconnect" ||
+    index === "completion-success" || disconnectRecovery) {
   const entry = disconnectRecovery ? Number(index.slice("disconnect-reconnect-".length)) :
-    index === "held-reconnect" ? 6 : index === "race-reconnect" ? 2 : 8;
+    index === "held-reconnect" ? 6 : index === "race-reconnect" ? 2 : index === "completion-success" ? 1 : 8;
   if (disconnectRecovery) {
     assert.ok(Number.isSafeInteger(entry) && entry >= 1 && entry <= 16);
     assert.equal(index, `disconnect-reconnect-${entry}`);
@@ -33,7 +34,7 @@ if (index === "held-reconnect" || index === "cancel-reconnect" || index === "rac
 }
 if (index === "generation-reconnect") vector = vectors.cases[1];
 const passive = ["foreign", "idle", "capacity"].includes(index);
-const held = ["held-source", "failed-source", "failed-generation", "no-eof", "crash-wait"].includes(index);
+const held = ["held-source", "failed-source", "failed-generation", "no-eof", "crash-wait", "peer-held"].includes(index);
 if (held) vector = { ...vectors.cases[index === "failed-generation" ? 1 : 0], expected: null };
 if (index.startsWith("source:")) {
   const source = vectors.sourceCases[Number(index.split(":")[1])];
@@ -83,7 +84,14 @@ try {
     assert.equal(socket.bytesWritten, 0);
   } else {
     await once(socket, "connect");
-    if (Object.hasOwn(disconnectBytes, disconnectMode)) {
+    if (index === "peer-held") {
+      const ended = once(socket, "end");
+      socket.resume();
+      await send();
+      console.log(JSON.stringify({ holdingPeer: true, clientRuntime: "node" }));
+      await ended;
+      assert.fail("Held peer ended before parent kill");
+    } else if (Object.hasOwn(disconnectBytes, disconnectMode)) {
       const text = disconnectMode === "disconnect-limit-last" ?
         vectors.cases[0].text!.padEnd(8192, " ") : vectors.cases[0].text!;
       const frame = encodeBrokerFrame(text, "request");
