@@ -3667,6 +3667,10 @@ Authorization header
 ([Asterisk selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L91-L248),
 [per-realm challenge handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L303-L426),
 [pjproject credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901)).
+That Asterisk helper also keys the challenge-header class to status: its
+401 path scans `WWW-Authenticate`, while 407 scans `Proxy-Authenticate`.
+Test those pairings and any opposite-class challenge separately
+([status/header selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L44-L61)).
 Asterisk then sends it through the stateful dialog helper: pjproject assigns
 the next local CSeq and creates a new UAC transaction. The `auth_retry` txdata
 marker is not read by the PJSIP transaction path, so it does not resume the
