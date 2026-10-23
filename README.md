@@ -3381,6 +3381,15 @@ not substitutes. Transfer semantics and the concrete PBX enforcement/ownership
 mechanism still require decisions before a separately approved synthetic-call
 proof. This design introduces no PBX mutation, call or live source.
 
+The [enforcement comparison](./AGENT-PROVISIONING-PLAN.md#929-dialplan-only-versus-in-process-admissiondialog-enforcement-recommendation)
+checks Asterisk 22 transfer and Dial/Queue behavior. Recommendation: a
+closed generated dialplan plus a small in-process final-admission/lifecycle
+owner—not dialplan Gosubs alone. Native transfer paths can be independent of
+core feature-code options, and queue/parallel legs create pending work that a
+pre-dial check alone does not serialize. Initially disable transfer,
+forwarding and parking until a generation-aware handoff is designed. This is a
+design recommendation only; no module, call path, PBX config or call was changed.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

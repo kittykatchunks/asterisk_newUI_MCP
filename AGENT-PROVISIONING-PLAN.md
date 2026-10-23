@@ -3162,3 +3162,96 @@ If the selected Asterisk interfaces cannot provide a serialized admission hook
 and complete ownership evidence, stop the collector-only approach and revisit
 PBX-side instrumentation. The next decision is that enforcement/ownership
 mechanism, not another AMI query or additional socket fixture variation.
+
+### 9.29 Dialplan-only versus in-process admission/dialog enforcement (recommendation)
+
+The user requested comparison against the pinned Asterisk 22.11.0 behavior.
+Sources checked:
+
+- [Dial() documentation](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Applications/Dial/)
+  documents `b()` pre-dial processing on each newly created outbound channel,
+  `B()` on the current channel, and call/transfer options.
+- [Queue() documentation](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Applications/Queue/)
+  documents `B()` before outbound member calls and transfer options, but queue
+  admission itself can precede a member leg.
+- [Core transfer feature documentation](https://docs.asterisk.org/Configuration/Features/Feature-Code-Call-Transfers/)
+  distinguishes core feature-code transfers from channel-driver native transfer
+  capability; application `t`/`T` options gate only that application's feature
+  code path, not transfers initiated by other methods.
+- [AttendedTransfer()](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Applications/AttendedTransfer/)
+  and [BlindTransfer()](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Applications/BlindTransfer/)
+  can redirect/restart channels into transfer destinations/contexts.
+- [Transfer()](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Applications/Transfer/)
+  can request a protocol-level transfer/redirect.
+
+These public docs describe control surfaces; they do not prove the selected
+image's effective configuration or a complete generation ownership mechanism.
+
+| Property | Dialplan-only wrappers | Purpose-built in-process Asterisk module/hook |
+| --- | --- | --- |
+| Centralized fixed routes | Readable and straightforward when every call enters a closed, broker-generated context. | Can expose fixed admission operations while retaining generated dialplan, but must still cover all entry contexts. |
+| Final admission race | A dialplan check followed by `Dial`, `Queue`, transfer or another application can race the drain latch unless an atomic claim surrounds final channel admission. Gosub/pre-dial handlers are useful policy points, not by themselves a serialization guarantee. | Can own a lock/claim and generation latch inside the PBX around the final supported admission path, if every relevant path invokes it before signaling and the lock/state lifetime is correctly implemented. |
+| Queues and parallel/forked dialing | Queue can hold work before an outbound member channel; `Dial` can originate multiple branches. Separate wrappers must account for queued/pending branches and cancellation races. | Can centralize per-branch admission and outstanding-claim accounting, but must integrate/test Queue and Dial semantics rather than assume the hook is universal. |
+| Transfers and direct protocol behavior | Application `t`/`T` options and dialplan transfer contexts do not globally govern channel-driver-native transfer methods. Redirect/transfer destinations can enter a different context. A fully closed configuration could disable unsupported transfer paths, but must prove every endpoint/module/channel feature is constrained. | Can mediate only the transfer/admission APIs it explicitly hooks. Native PJSIP and core transfer paths may bypass a custom dialplan app; the module must disable or integrate those paths and prove the coverage. |
+| Dialog lifecycle | Dialplan hangup handlers/channel variables can help for a narrow closed path but require correct propagation through bridges, Local channels, queue legs, transfer and failure/early-dialog cases. | Can attach channel/datastore/bridge lifecycle tracking close to PBX events and reconcile outstanding admissions, but implementation is ABI/version coupled and still needs complete semantics/tests. |
+| Operational cost | Lower initial code/build cost; high risk of missing a route or future configuration/module change. Strong configuration lint and a closed feature matrix required. | Asterisk build/module packaging and upgrade burden; larger in-process fault blast radius. Easier to make one explicit serialized owner, but not automatically complete or safe. |
+
+#### Recommendation: hybrid closed world plus PBX-owned gate
+
+Do not select either as sufficient alone. Prefer a hybrid in which:
+
+1. A broker-generated closed dialplan/configuration allowlist enumerates every
+   supported ingress, dispatch, queue, outbound and transfer path. Unknown
+   contexts, unmanaged endpoint routes and unsupported feature modules are
+   disabled/rejected by verified configuration.
+2. A small version-pinned in-process admission owner provides the atomic
+   generation check/claim at the final supported new-leg admission boundary and
+   owns outstanding generation-scoped dialog/admission lifecycle records.
+3. Every configured `Dial`, `Queue` member leg, internal transfer target and
+   supported redirect path must enter that owner before a new generation-owned
+   leg can be signaled. Module hooks alone are not assumed universal; explicit
+   configuration disables any path that cannot be interposed.
+4. Drain takes the same serialization boundary as admission, latches
+   irreversibly, prevents later claims and accounts for every already-claimed
+   pending leg. Existing admitted dialogs remain tracked and continue.
+5. The module returns only a fixed internal observation snapshot; no generic CLI,
+   AMI action, arbitrary dialplan target, path or object selector is exposed.
+   Broker readback remains observation-only; fence/removal remain separately
+   authorized operations.
+
+This recommendation rejects “just add a Gosub before every Dial” as the final
+safety design. A config-only implementation could be reconsidered only if a
+closed path matrix and synthetic proof demonstrate equivalent atomic admission
+and complete lifecycle ownership without custom in-process code; current
+evidence does not establish that.
+
+#### Transfer policy required before implementation
+
+The recommended initial supported surface should **disable all attended/blind
+transfer, protocol REFER/redirect, parking pickup, forwarding and external
+redirection for generation-managed calls** until each path has a generation
+handoff protocol that preserves ownership and rechecks new-leg admission.
+An in-dialog SIP re-INVITE/UPDATE that does not create a new dialog can remain
+supported only if it cannot escape the tracked call/bridge and is explicitly
+validated. Broker UI may not request an unsupported transfer to make it pass.
+
+If the product requires transfers at first release, stop before code and specify
+how a transfer atomically retains/reassigns every old/new dialog obligation,
+blocks expired generation legs, handles attended consultation and rollback, and
+avoids zero-count gaps. Native transfer cannot be treated as a normal dialplan
+continuation merely because both calls share an endpoint.
+
+#### Next gate
+
+Choose whether first supported release may disable transfer/forwarding/parking
+and queue paths (other than the exact reviewed set). Then produce a finite
+Asterisk 22.11.0 synthetic-call test matrix for only those paths. Required
+evidence: existing call continues through drain; every allowed new-leg path is
+blocked after the latch; in-flight branches remain counted; disabled paths
+cannot bypass the gate; dialog zero is emitted only after complete settlement;
+unknown/restart/observation gaps block removal and replacement.
+
+This is a design recommendation, not PBX module selection or implementation
+approval. The module's exact Asterisk APIs, build compatibility, event ordering
+and failure behavior still require source-level review and isolated tests. No
+real mutation, call or deployment is approved.
