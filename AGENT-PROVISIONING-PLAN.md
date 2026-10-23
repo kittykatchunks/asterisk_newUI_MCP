@@ -1351,7 +1351,7 @@ scenario across runtimes, not a general retry or response-loss recovery policy.
 The bounded separate-container idle/missing-EOF admission follow-up reuses the concurrent
 fixture with its default positive-PID check retained for the original topology.
 Only the approved separate-container mode authorises mapped UID/primary GID
-without using PID, and records all eight kernel peer tuples. An idle authenticated
+without using PID, and records all twelve kernel peer tuples. An idle authenticated
 client occupies the one slot while an overlapping approved competitor must close
 with EOF and zero bytes. The idle connection times out after a measured five
 seconds (at least five, below the eight-second client watchdog) with zero source
@@ -1382,20 +1382,43 @@ event are required; structured evidence must show three total source entries,
 one generation entry and the unchanged two timeouts.
 After the fifth slot release, a new authenticated generation connection must
 return the exact `observed` response, not merely any valid response frame.
-Final counters are exactly four source entries, two capacity rejections, two request
-timeouts, two generation reads, two source failures and no cancellations.
+
+After generation recovery and the sixth slot release, the fifth source entry
+holds an inventory read on an uncooperative fixture event. An approved competitor
+must be rejected before its deadline. At the measured five-second deadline,
+the original client must receive EOF without response bytes; timeout evidence
+records exactly five source entries. A further approved competitor must still
+be rejected after client exit, with the slot locked and no new source entry.
+The two structured capacity observations distinguish the two-timeout
+pre-deadline state from the three-timeout post-deadline state.
+
+Only after both denials does the parent send test-only `SIGUSR1` via Docker to
+the exact recorded broker container. This releases only the fixture source event:
+there is no wire release request, extra mount, network access or worker privilege.
+The handler is installed only in separate-container admission mode, restored
+on exit, and records an experiment failure for early/duplicate control or an
+unexpected source/capacity/timeout state. Source settlement requires terminal
+connection state with the admission slot still locked. A missing parent release
+fails the fixture's 15-second source watchdog, never a success-shaped fallback.
+The parent requires explicit source-settled and seventh slot-release evidence
+before a fresh authenticated inventory read can succeed. This extends the
+existing test-only parent-control pattern, not production signal/recovery policy.
+Final counters are exactly six source entries, four capacity rejections, three
+timeouts (two request and one held-source timeout), two generation reads, two
+source failures and no cancellations.
 
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
 runtime completion and the existing resource/cleanup restrictions. No extra
 mounts beyond the already approved Node inputs or network access are introduced.
-The fixture exits after the fresh observed generation read, without a new wire or private control
-operation. The original full lifecycle sequence remains unchanged by default.
+The fixture exits after the post-settlement fresh inventory read, without a new
+wire operation. The original full lifecycle sequence and private stdin control
+remain unchanged by default.
 
 Validation exposed a shared fixture race: deadline shutdown could supply EOF
 to a complete waiting frame before its thread observed terminal state. The
 concurrent fixture now checks terminal state and the same monotonic deadline
 after frame reading and under the lifetime lock before source entry. This is a
 test-fixture correction, not a production implementation change.
-Passing these request-wait scenarios does not prove separate-container held-source slot
-retention, cancellation, peer-disconnect handling or general terminal-race safety.
+Passing these request-wait and held-source scenarios does not prove
+separate-container cancellation, peer-disconnect handling or general terminal-race safety.

@@ -2734,11 +2734,23 @@ diagnostic and a second source-failure event are required. The parent waits for
 slot release, then a fresh generation client must receive the exact `observed`
 response. Failure evidence records three total source entries, one generation
 entry and the unchanged two timeouts before this recovery.
-Final counters require four source entries (two generation entries), two source
-failures, two capacity rejections, two request timeouts and no cancellations.
-All eight clients have separate PID/mount namespaces from the broker and the
+Next, a complete inventory request enters a deliberately uncooperative source.
+One competitor must be rejected before the five-second deadline. The held client
+then observes EOF with zero response bytes, but a second competitor must still
+be rejected: both observations require the slot to remain locked with exactly
+five source entries. Only then does the parent deliver test-only `SIGUSR1` to
+the exact recorded broker container to release the source. The fixture rejects
+early or duplicate release control, requires terminal state before source
+settlement, and keeps admission occupied until settlement. Its 15-second source
+watchdog fails the experiment rather than providing successful recovery.
+After explicit settlement and slot-release evidence, a fresh inventory read
+must succeed. No release action is added to the socket protocol.
+Final counters require six source entries (two generation entries), two source
+failures, four capacity rejections, three timeouts (two request timeouts and one
+held-source timeout) and no cancellations.
+All twelve clients have separate PID/mount namespaces from the broker and the
 same approved UID/GID maps; every connection records its kernel peer tuple.
-Default mode uses Python; `-NodeClients` uses Node for all eight clients with
+Default mode uses Python; `-NodeClients` uses Node for all twelve clients with
 checked runtime completion and no fallback. Each finite waiting client runs
 alongside its competitor only for this phase and remains subject to
 ownership-checked cleanup.
@@ -2748,7 +2760,7 @@ EOF and before source entry. This prevents deadline-triggered socket shutdown
 from supplying an apparent request EOF that could otherwise reach the source.
 The original single-container lifecycle sequence remains covered.
 
-Broader namespace configurations and held-source, cancellation and disconnect
+Broader namespace configurations and cancellation and disconnect
 lifecycle coverage across separate containers remain future cases. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 

@@ -298,6 +298,27 @@ try {
     Wait-AdmissionEvent $admission 'source-failed' 2
     Wait-AdmissionEvent $admission 'released' 5
     Invoke-Client 'admission-generation-reconnect' '1102:2100'
+    Wait-AdmissionEvent $admission 'released' 6
+    $held = Invoke-Client 'admission-held-source' '1102:2100' -Detached
+    Wait-AdmissionEvent $admission 'source-entered'
+    Invoke-Client 'admission-capacity-held' '1102:2100'
+    Wait-AdmissionEvent $admission 'capacity' 3
+    Wait-AdmissionEvent $admission 'timeout' 3
+    $heldExit = & docker wait $held
+    if ($LASTEXITCODE -ne 0 -or "$heldExit" -ne '0') { throw 'Held-source client did not observe deadline EOF without bytes.' }
+    $heldEvents = @((& docker logs $held) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $heldEvents[-1].lifecycleCase -ne 'admission-held-source' -or
+        $heldEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+        throw 'Missing held-source client runtime completion.'
+    }
+    $identities.Add($heldEvents[0].identity)
+    Invoke-Client 'admission-capacity-expired' '1102:2100'
+    Wait-AdmissionEvent $admission 'capacity' 4
+    & docker kill --signal USR1 $admission
+    if ($LASTEXITCODE -ne 0) { throw 'Could not deliver test-only parent source-release signal.' }
+    Wait-AdmissionEvent $admission 'source-settled'
+    Wait-AdmissionEvent $admission 'released' 7
+    Invoke-Client 'admission-held-reconnect' '1102:2100'
     $admissionExit = & docker wait $admission
     if ($LASTEXITCODE -ne 0 -or "$admissionExit" -ne '0') { throw 'Separate-container admission broker failed.' }
     $admissionLogs = @(& docker logs $admission 2>&1 | ForEach-Object { "$_" })
@@ -312,7 +333,7 @@ try {
         ForEach-Object { $_ | ConvertFrom-Json })
     if ($admissionEvents[-1].event -ne 'complete') { throw 'Missing admission completion.' }
     $admissionIdentity = $admissionEvents[0].identity
-    foreach ($identity in @($identities | Select-Object -Last 8)) {
+    foreach ($identity in @($identities | Select-Object -Last 12)) {
         if ($identity.uid_map -ne $admissionIdentity.uid_map -or $identity.gid_map -ne $admissionIdentity.gid_map -or
             $identity.userNamespace -ne $admissionIdentity.userNamespace -or
             $identity.pidNamespace -eq $admissionIdentity.pidNamespace -or
@@ -321,13 +342,13 @@ try {
         }
     }
     $admissionPeers = @($admissionEvents | Where-Object { $_.peer })
-    if ($admissionPeers.Count -ne 8 -or @($admissionPeers | Where-Object {
+    if ($admissionPeers.Count -ne 12 -or @($admissionPeers | Where-Object {
         $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
     }).Count -ne 0) { throw 'Missing exact authenticated admission peer evidence.' }
     $admissionCounts = @($admissionEvents | Where-Object { $_.admissionCounts })
-    if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 4 -or
+    if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 6 -or
         $admissionCounts[0].admissionCounts.generationReads -ne 2 -or
-        $admissionCounts[0].admissionCounts.capacity -ne 2 -or $admissionCounts[0].admissionCounts.timeouts -ne 2 -or
+        $admissionCounts[0].admissionCounts.capacity -ne 4 -or $admissionCounts[0].admissionCounts.timeouts -ne 3 -or
         $admissionCounts[0].admissionCounts.requestTimeouts -ne 2 -or
         $admissionCounts[0].admissionCounts.sourceFailures -ne 2) { throw 'Unexpected admission source/deadline counters.' }
     $sourceFailures = @($admissionEvents | Where-Object { $_.admissionSourceFailure })
@@ -340,20 +361,29 @@ try {
         throw 'Inventory/generation source exceptions did not match the exact source-entry sequence.'
     }
     $admissionTimeouts = @($admissionEvents | Where-Object { $_.admissionTimeout })
-    if ($admissionTimeouts.Count -ne 2 -or $admissionTimeouts[0].admissionTimeout.bodyReceived -ne $false -or
-        $admissionTimeouts[1].admissionTimeout.bodyReceived -ne $true) {
-        throw 'Expected idle timeout followed by complete-body/missing-EOF timeout.'
+    if ($admissionTimeouts.Count -ne 3 -or $admissionTimeouts[0].admissionTimeout.bodyReceived -ne $false -or
+        $admissionTimeouts[1].admissionTimeout.bodyReceived -ne $true -or
+        $admissionTimeouts[2].admissionTimeout.bodyReceived -ne $true) {
+        throw 'Expected idle, complete-body/missing-EOF and held-source timeouts.'
     }
-    foreach ($timeout in $admissionTimeouts) {
+    for ($index = 0; $index -lt $admissionTimeouts.Count; $index++) {
+        $timeout = $admissionTimeouts[$index]
+        $expectedEntries = if ($index -eq 2) { 5 } else { 0 }
         if ($timeout.admissionTimeout.elapsedSeconds -lt 5 -or $timeout.admissionTimeout.elapsedSeconds -ge 8 -or
-            $timeout.admissionTimeout.sourceEntries -ne 0) {
-            throw 'Request deadline was outside the measured five-to-eight-second budget or entered a source.'
+            $timeout.admissionTimeout.sourceEntries -ne $expectedEntries) {
+            throw 'Deadline was outside the measured five-to-eight-second budget or had unexpected source entries.'
         }
     }
+    $heldCapacity = @($admissionEvents | Where-Object { $_.heldCapacity })
+    if ($heldCapacity.Count -ne 2 -or $heldCapacity[0].heldCapacity.timeouts -ne 2 -or
+        $heldCapacity[1].heldCapacity.timeouts -ne 3 -or @($heldCapacity | Where-Object {
+            $_.heldCapacity.sourceEntries -ne 5 -or $_.heldCapacity.slotLocked -ne $true
+        }).Count -ne 0) { throw 'Held source did not retain the slot before and after connection timeout.' }
     $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
     Write-Output "PASS separate-container admission ($runtime clients): idle and complete-body/missing-EOF slots exclude competitors, five-second deadlines close without response/source entry, fresh authenticated read succeeds."
     Write-Output "PASS separate-container source failure ($runtime clients): exact diagnostic, zero response bytes, slot released, fresh authenticated read succeeds."
     Write-Output "PASS separate-container generation failure ($runtime clients): exact diagnostic, zero response bytes rather than missing, slot released, fresh observed generation succeeds."
+    Write-Output "PASS separate-container held source ($runtime clients): deadline EOF, competitors rejected before/after timeout, slot retained until parent release and source settlement, fresh read succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

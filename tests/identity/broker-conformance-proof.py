@@ -319,6 +319,12 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         with output_lock:
             print(json.dumps({"event": name}), flush=True)
 
+    def release_held_source(_signal, _frame):
+        if (counts["reads"] != 5 or counts["timeouts"] != 3 or counts["capacity"] != 4 or
+                not slot.locked() or release.is_set()):
+            errors.append("Unexpected parent source-release signal")
+        release.set()
+
     def control():
         for line in sys.stdin:
             if line.strip() == "release":
@@ -367,6 +373,15 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 if counts["reads"] == 3:
                     assert not isinstance(default, list)
                     raise FixtureSourceFailure("Fixture generation source unavailable")
+                if counts["reads"] == 5:
+                    release.clear()
+                    event("source-entered")
+                    if not release.wait(15):
+                        errors.append("Held container source was not released by parent")
+                        raise TimeoutError("Fixture source was not released")
+                    assert expired.is_set() and slot.locked()
+                    assert counts["capacity"] == 4 and counts["reads"] == 5
+                    event("source-settled")
                 return default
             if counts["reads"] in (1, 5):
                 release.clear()
@@ -418,7 +433,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 remaining(connection, deadline)
                 connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
-                if admission_only and counts["reads"] == 4:
+                if admission_only and counts["reads"] == 6:
                     stop.set()
         except FixtureSourceFailure as error:
             counts["sourceFailures"] += 1
@@ -450,6 +465,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             event("released")
 
     try:
+        if admission_only:
+            previous_release_handler = signal.signal(signal.SIGUSR1, release_held_source)
         listener.bind(path)
         os.chmod(path, 0o660)
         listener.listen(1)
@@ -472,6 +489,11 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             if not slot.acquire(blocking=False):
                 counts["capacity"] += 1
                 connection.close()
+                if admission_only and counts["reads"] == 5:
+                    with output_lock:
+                        print(json.dumps({"heldCapacity": {"sourceEntries": counts["reads"],
+                                                           "timeouts": counts["timeouts"],
+                                                           "slotLocked": slot.locked()}}), flush=True)
                 event("capacity")
                 continue
             task = threading.Thread(target=serve, args=(connection,))
@@ -482,7 +504,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        expected = ({"reads": 4, "generationReads": 2, "capacity": 2, "timeouts": 2,
+        expected = ({"reads": 6, "generationReads": 2, "capacity": 4, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 0} if admission_only else
                     {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1})
@@ -492,6 +514,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 print(json.dumps({"admissionCounts": counts}), flush=True)
         event("complete")
     finally:
+        if admission_only:
+            signal.signal(signal.SIGUSR1, previous_release_handler)
         release.set()
         listener.close()
         os.unlink(path)
