@@ -3536,9 +3536,16 @@ does not establish successful negotiation.
 Asterisk's out-of-dialog REFER client also compares the entire echoed header
 value to `false` rather than parsing RFC 4488 extension parameters. Thus a
 valid `Refer-Sub: false;foo=bar` 2xx echo does not trigger its immediate
-subscription termination; because a suppressing recipient sends no NOTIFY,
-the issuer-side subscription may remain until expiry
+subscription termination. Because a suppressing recipient sends no NOTIFY,
+pjproject's default REFER event-package expiry is 600 seconds; absent an
+`Expires` override, it schedules a refresh around 585–594 seconds later. Its
+default refresh is a `SUBSCRIBE`, not another REFER, and Asterisk's caller
+header is attached only to the initial request, so that refresh does not
+inherit `Refer-Sub: false`
 ([Asterisk response handler](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1281-L1307),
+[pjproject expiry and refresh](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L31-L32),
+[default refresh method](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L585-L600),
+[Asterisk's one-time header insertion](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1473-L1477),
 [RFC 4488 grammar](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
 Neither SIP.js 0.21.2 nor Asterisk 22.11 adds `Refer-Sub: false` to its
 outgoing REFER by default. Asterisk's PJSIP transfer builder adds `Refer-To`,
