@@ -3512,6 +3512,14 @@ adds `Refer-Sub: false` without restricting it to 2xx
 ([response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)),
 although RFC 4488 defines that response header for 2xx only. A non-2xx echo
 does not establish successful negotiation.
+Asterisk's out-of-dialog REFER client also compares the entire echoed header
+value to `false` rather than parsing RFC 4488 extension parameters. Thus a
+valid `Refer-Sub: false;foo=bar` 2xx echo does not trigger its immediate
+subscription termination; because a suppressing recipient sends no NOTIFY,
+the issuer-side subscription may remain until expiry
+([Asterisk response handler](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1281-L1307),
+[RFC 4488 grammar](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
+Test exact/case-varied values, extension parameters, absence, and cleanup.
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or
