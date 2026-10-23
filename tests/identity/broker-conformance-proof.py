@@ -95,22 +95,25 @@ class FixtureSourceFailure(RuntimeError):
     pass
 
 
-def source_value(source, default):
+def source_value(source, default, on_source):
+    if on_source is not None:
+        on_source()
     if callable(source):
         return source()
     return source["value"] if source is not None else default
 
 
-def readback(text, source=None):
-    request = json.loads(text)
+def readback(text, source=None, on_source=None):
+    request = json.loads(text, parse_int=float)
     binding = VECTORS["binding"]
-    if not isinstance(request, dict) or type(request.get("version")) is not int or request["version"] != 1:
+    if (not isinstance(request, dict) or type(request.get("version")) not in (int, float)
+            or request["version"] != 1):
         raise ValueError("Invalid request")
     if request.get("customer") != binding["customer"] or request.get("epoch") != binding["epoch"]:
         raise ValueError("Foreign scope")
     base = {"version": 1, "customer": binding["customer"], "epoch": binding["epoch"]}
     if request.get("action") == "inventory" and set(request) == {"version", "customer", "epoch", "action"}:
-        value = source_value(source, [VECTORS["generation"]])
+        value = source_value(source, [VECTORS["generation"]], on_source)
         return {**base, "action": "inventory", "generations": inventory(value)}
     if request.get("action") == "generation" and set(request) == {"version", "customer", "epoch", "action", "generationId"}:
         generation = request["generationId"]
@@ -119,7 +122,7 @@ def readback(text, source=None):
         result = {**base, "action": "generation", "generationId": generation}
         value = source_value(source, {
             "newCallsBlocked": True, "dialogs": "unknown", "removed": False,
-        })
+        }, on_source)
         return {**result, "state": "observed", "observation": observation(value)} if generation == VECTORS["generation"]["generationId"] else {**result, "state": "missing"}
     raise ValueError("Unsupported fields/action")
 
@@ -131,6 +134,12 @@ def server(path):
     reads = 0
     rejected = 0
     denied = 0
+    source_entries = 0
+
+    def entered():
+        nonlocal source_entries
+        source_entries += 1
+
     try:
         listener.bind(path)
         os.chmod(path, 0o660)
@@ -145,18 +154,23 @@ def server(path):
                 if uid != UID or gid != GID or pid <= 0:
                     denied += 1
                     continue
+                before = source_entries
+                source_index = index - len(VECTORS["cases"]) - 1
+                expected_entries = (1 if index > len(VECTORS["cases"]) else
+                                    int(VECTORS["cases"][index - 1]["expected"] is not None))
                 try:
-                    source_index = index - len(VECTORS["cases"]) - 1
                     source = VECTORS["sourceCases"][source_index] if 0 <= source_index < len(VECTORS["sourceCases"]) else None
-                    response = readback(read_frame(connection, 8192, deadline), source)
+                    response = readback(read_frame(connection, 8192, deadline), source, entered)
                 except (ValueError, UnicodeError, TimeoutError):
                     rejected += 1
                     continue
+                finally:
+                    assert source_entries - before == expected_entries, (index, source_entries - before, expected_entries)
                 reads += 1
                 remaining(connection, deadline)
                 connection.sendall(frame(json.dumps(response, separators=(",", ":")), 32768))
                 connection.shutdown(socket.SHUT_WR)
-        print(json.dumps({"reads": reads, "rejected": rejected, "denied": denied}), flush=True)
+        print(json.dumps({"reads": reads, "sourceEntries": source_entries, "rejected": rejected, "denied": denied}), flush=True)
     finally:
         listener.close()
         os.unlink(path)
@@ -233,7 +247,12 @@ def proof(cross_runtime=False):
             output, error = process.communicate(timeout=10)
             assert process.returncode == 0, error
             rejected = sum(case["expected"] is None for case in VECTORS["cases"]) + sum(not case["valid"] for case in VECTORS["sourceCases"])
-            assert json.loads(output) == {"reads": len(VECTORS["cases"]) + len(VECTORS["sourceCases"]) - rejected + 1, "rejected": rejected, "denied": 1}
+            request_entries = sum(case["expected"] is not None for case in VECTORS["cases"])
+            assert json.loads(output) == {
+                "reads": len(VECTORS["cases"]) + len(VECTORS["sourceCases"]) - rejected + 1,
+                "sourceEntries": request_entries + len(VECTORS["sourceCases"]) + 1,
+                "rejected": rejected, "denied": 1,
+            }
             assert not os.path.exists(path)
             print(f"PASS Python/Linux: {len(VECTORS['cases'])} shared framing/readback vectors, foreign peer denied before read, approved reconnect", flush=True)
             print(f"PASS Python/Linux: {len(VECTORS['sourceCases'])} shared source-output vectors, invalid outputs close without a response frame", flush=True)
@@ -308,12 +327,12 @@ def concurrent_server(path):
                 connection.close()
                 event(reason)
 
-        timer = threading.Timer(5, terminate, args=("timeout",))
+        deadline = time.monotonic() + 5
+        timer = threading.Timer(max(0, deadline - time.monotonic()), terminate, args=("timeout",))
         try:
             with lifetime_lock:
                 active["cancel"] = terminate
             timer.start()
-            deadline = time.monotonic() + 5
             text = read_frame(connection, 8192, deadline)
             response = readback(text, source)
             if not expired.is_set():
@@ -325,7 +344,12 @@ def concurrent_server(path):
             with output_lock:
                 print(str(error), file=sys.stderr, flush=True)
             event("source-failed")
-        except (OSError, ValueError, TimeoutError) as error:
+        except TimeoutError as error:
+            if time.monotonic() >= deadline:
+                terminate("timeout")
+            else:
+                errors.append(repr(error))
+        except (OSError, ValueError) as error:
             if not expired.is_set():
                 errors.append(repr(error))
         finally:
@@ -392,7 +416,9 @@ def concurrent_proof(directory, cross_runtime=False):
             remaining_time = deadline - time.monotonic()
             assert remaining_time > 0 and select.select([process.stdout], [], [], remaining_time)[0], "Missing fixture event"
             byte = os.read(process.stdout.fileno(), 1)
-            assert byte, "Fixture event stream closed"
+            if not byte:
+                _, error = process.communicate(timeout=5)
+                raise AssertionError(f"Fixture event stream closed: {error}")
             data.extend(byte)
             assert len(data) <= 1024
         return json.loads(data)

@@ -35,7 +35,7 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
       assert.equal(reads, before + 1, vector.name);
     }
   }
-  assert.equal(reads, 3);
+  assert.equal(reads, vectors.cases.filter((vector) => vector.expected !== null).length);
 });
 
 test("shared source-output vectors enforce exact expiry shapes in TypeScript broker responses", async () => {
@@ -48,9 +48,10 @@ test("shared source-output vectors enforce exact expiry shapes in TypeScript bro
     const validate = () => vector.kind === "inventory" ? parseExpiryInventory(vector.value) : parseExpiryObservation(vector.value);
     if (vector.valid) assert.deepEqual(validate(), vector.value, vector.name);
     else assert.throws(validate, vector.name);
+    let entries = 0;
     const broker = createAgentBrokerReadback(vectors.binding, {
-      async inventory() { return JSON.parse(JSON.stringify(vector.value)); },
-      async generation() { return JSON.parse(JSON.stringify(vector.value)); },
+      async inventory() { entries++; return JSON.parse(JSON.stringify(vector.value)); },
+      async generation() { entries++; return JSON.parse(JSON.stringify(vector.value)); },
     });
     const request = { version: 1, customer: vectors.binding.customer, epoch: vectors.binding.epoch,
       ...(vector.kind === "inventory" ? { action: "inventory" } :
@@ -61,5 +62,6 @@ test("shared source-output vectors enforce exact expiry shapes in TypeScript bro
       assert.deepEqual(result.action === "inventory" ? result.generations :
         result.state === "observed" ? result.observation : undefined, vector.value, vector.name);
     }
+    assert.equal(entries, 1, vector.name);
   }
 });

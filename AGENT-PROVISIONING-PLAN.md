@@ -906,7 +906,7 @@ runtime selection. The existing owned-container launcher now has `-Conformance`:
 it first runs the TypeScript shared-vector test, then the Linux Python socket
 fixture with the same language-neutral JSON cases mounted read-only.
 
-Sixteen shared cases verify exact expected replies for static inventory,
+Twenty-two shared cases verify exact expected replies for static inventory,
 unknown dialogs and missing generation; reject foreign scope, mutation/secret
 fields, invalid JSON/version/UUID/BOM and malformed/oversized/trailing frames;
 and cover fragmented framing at the exact 8 KiB request boundary. The Linux
@@ -969,7 +969,7 @@ complete source failure handling or a production runtime choice.
 The user additionally approved a separate test-only Node/Python Linux image.
 `Test-BrokerPeerProof.ps1 -CrossRuntime` now launches non-root Node clients
 against the Python server's actual Unix socket. The client imports the production
-TypeScript framing helper; all 16 request/framing vectors and 26 source-output
+TypeScript framing helper; all 22 request/framing vectors and 26 source-output
 vectors, foreign-UID denial and approved reconnect pass across the language
 boundary. Invalid raw frames intentionally bypass the writer; valid replies
 must decode and equal the expected object, and rejections must return zero bytes.
@@ -1003,21 +1003,27 @@ and the separate Node/Python image remains an approved experiment only.
 
 | Surface | Evidence now present | Remaining evidence / decision |
 | --- | --- | --- |
-| Read-only request/response subset | Shared 16 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
-| Numeric JSON semantics | Source validators reject booleans/fractions/unsafe integers and accept integral numeric source values. | Request version parity is incomplete: TypeScript accepts JSON `1.0` as version 1, while Python requires `type(version) is int`. Add shared request cases for integral/exponent forms and preserve boolean rejection before claiming parity. |
-| Source accounting | Sequential fixture counters establish accepted/rejected case totals; concurrent scenarios count six actual source invocations, including one failure. | Sequential `reads` increments only after successful readback validation: it is not an independent source-entry counter for rejected outputs. Instrument the source boundary before making a broader no-source-access claim. |
+| Read-only request/response subset | Shared 22 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
+| Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
+| Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios still count six actual source invocations, including one failure. |
 | Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, one injected inventory failure, private owner cancellation and fresh recovery. | Peer full disconnect during blocked source code, cancellation/deadline/response races, generation-source failures and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
 | Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. | All processes share one container's namespaces. Separate-container UID/GID mapping, user namespaces, socket publication/replacement and same-UID compromise need explicit deployment treatment. PID positivity alone is not process attestation. |
 | Admission/resources | One active slot is retained until source settlement; capacity denial precedes peer lookup/read; fixtures have container limits. | Backlog one is not an end-to-end resource/rate limit. Production listener policy, process supervision, shutdown and crash behaviour are unselected. Fixture threads/control pipe are not that architecture. |
 | Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler, and no production Python broker is selected. Choose a runtime/binding/helper separately; passing test interoperability does not choose one. |
 | Privileged effects | No new evidence is claimed beyond the unprivileged subset. | Control access, managed-file confinement/durability, crash ledger, secrets, runtime truth, routing/dialog fences and independent expiry remain the separate gates in sections 9.3-9.5. |
 
-Recommended next bounded increment is shared request-number parity plus honest
-source-entry accounting, still entirely within the existing unprivileged
-fixtures. Then test peer disconnect/terminal races without confusing request
+The shared request-number parity and source-entry accounting increment is now
+implemented within the existing unprivileged fixtures. Python request integer
+decoding uses floating-point semantics to match JavaScript JSON numbers and
+explicitly rejects booleans. Next test peer disconnect/terminal races without confusing request
 half-close with cancellation. A separate-container experiment requires an
 explicit namespace/socket-publication test design; production runtime selection
 and any control-access probe require their own decision and approval.
 
-This review records gaps only: it adds no new runtime behaviour, does not
-retroactively broaden earlier PASS messages and does not approve a later gate.
+The original review was documentation-only; the follow-up parity/accounting
+increment changes test fixtures only. It does not retroactively broaden earlier
+PASS messages or approve a later gate. The lifecycle fixture also now uses one
+deadline for socket I/O and its timer, funnels socket deadline expiry through the
+same terminal callback, and includes server stderr if its event stream closes
+unexpectedly. This improves fixture diagnostics and deadline accounting without
+claiming that general terminal races are proved.
