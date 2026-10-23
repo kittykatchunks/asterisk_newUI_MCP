@@ -3275,6 +3275,49 @@ leg must pass the PBX-side final admission boundary. The browser must install
 explicit incoming-REFER handling on every session so an unsolicited referral
 cannot silently create an unreviewed client-side call.
 
+#### Asterisk 22.11 candidate admission hooks (feasibility only)
+
+Pinned source exposes two relevant PJSIP session-supplement callbacks:
+
+- [`session_create`](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip_session.h#L391)
+  is called by
+  [`ast_sip_session_create_outgoing()`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L3312)
+  before it resolves the destination or creates the dialog/invite resources.
+  A nonzero callback result blocks creation. Its inputs are the endpoint,
+  contact, location, request user, and stream topology; it does not receive a
+  trusted generation token or route cause. This is a plausible final gate for
+  outgoing PJSIP legs if every generation-owned endpoint is broker-generated,
+  resolvable to exactly one generation, and unknown identities fail closed.
+- [`incoming_request`](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip_session.h#L319)
+  can stop later session supplements. On failure the callback must send a SIP
+  response, it runs on a SIP servant thread, and a channel is not guaranteed to
+  exist. The built-in REFER supplement is registered at
+  [`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2162),
+  so a lower-numbered-priority supplement could run before REFER handling; if
+  it stops the built-in handler, it must deliberately own the response and
+  transfer result rather than merely observe and continue.
+
+The built-in blind REFER handler checks the target extension and then calls
+[`ast_bridge_transfer_blind()`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822).
+The outgoing-session callback may gate resulting PJSIP legs, but it does not by
+itself constrain the transfer context, non-PJSIP legs, or arbitrary dialplan
+redirection. Initial inbound INVITEs follow a distinct path: Asterisk sends
+[`100 Trying`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4054)
+before it invokes incoming-request supplements
+([dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4096)).
+Whether that is a safe generation-aware admission boundary, and how initial
+INVITEs are distinguished from in-dialog requests, must be proven for the
+selected configuration.
+
+These APIs make an in-process PJSIP gate technically plausible, but do not
+prove coverage of every queue, transfer, redirect, channel technology, or call
+direction. `incoming_request` runs on a SIP servant thread, so it must not wait
+on the broker, database, or network. All admission hooks need bounded
+in-process state, and the caller-thread behavior of `session_create` must be
+confirmed before implementation. The exact session mapping, callback ordering,
+SIP response behavior, in-flight claim accounting, and unload/restart behavior
+remain proof obligations.
+
 | Case | Required result |
 | --- | --- |
 | Inbound test route to queue to browser agent | New work is admitted only for the exact generation; queue waiting and each outbound member branch are accounted for. |
