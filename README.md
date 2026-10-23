@@ -3604,6 +3604,10 @@ peer-visible unsubscribe, and cleanup
 [pjproject async abandonment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L605-L684),
 [pjproject send result](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1441-L1493),
 [send result](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495)).
+Asterisk's `Refer completed` debug line is emitted for statuses at or above
+200, with 2xx classified as success and other codes as failure; it may
+therefore describe an intermediate challenge, not target-call completion
+([status classification and log](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1358-L1378)).
 The lookup also uses only the first matching response header, making conflicting
 duplicates order-sensitive; test both orders and reject duplicates as ambiguous.
 Test exact/case-varied values, extension parameters, absent headers, and cleanup
