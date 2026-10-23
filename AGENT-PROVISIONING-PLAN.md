@@ -3190,8 +3190,8 @@ image's effective configuration or a complete generation ownership mechanism.
 | Property | Dialplan-only wrappers | Purpose-built in-process Asterisk module/hook |
 | --- | --- | --- |
 | Centralized fixed routes | Readable and straightforward when every call enters a closed, broker-generated context. | Can expose fixed admission operations while retaining generated dialplan, but must still cover all entry contexts. |
-| Final admission race | A dialplan check followed by `Dial`, `Queue`, transfer or another application can race the drain latch unless an atomic claim surrounds final channel admission. Gosub/pre-dial handlers are useful policy points, not by themselves a serialization guarantee. | Can own a lock/claim and generation latch inside the PBX around the final supported admission path, if every relevant path invokes it before signaling and the lock/state lifetime is correctly implemented. |
-| Queues and parallel/forked dialing | Queue can hold work before an outbound member channel; `Dial` can originate multiple branches. Separate wrappers must account for queued/pending branches and cancellation races. | Can centralize per-branch admission and outstanding-claim accounting, but must integrate/test Queue and Dial semantics rather than assume the hook is universal. |
+| Final admission race | A dialplan check before `Dial` or `Queue` can race the drain latch. Asterisk 22.11 provides per-callee `b()` Gosubs in both applications; source runs them after the called channel is created and before `ast_call()`. A Gosub alone is not serialization, but it can invoke an in-process admission operation that atomically records a pending-leg claim against the same latch used by drain. A denied Gosub must hang up the callee channel; both applications proceed to `ast_call()`, which refuses an already hung-up channel. | Can own a lock/claim and generation latch inside the PBX at these verified pre-call points, if every relevant path invokes the operation, rejected channels cannot reach their channel driver's call method, and claim/state lifetime is correct. |
+| Queues and parallel/forked dialing | Queue can hold work before an outbound member channel; `Dial` can originate multiple branches. `b()` runs per callee after channel datastore inheritance, but the queue-waiting obligation begins earlier and must remain counted separately. Every branch needs its own admission record, and cancellation/failure must settle it. | Can centralize per-branch admission and outstanding-claim accounting through per-callee hooks while separately owning queue-waiting work; integration must prove all options, retries and channel technologies rather than assume the hook is universal. |
 | Transfers and direct protocol behavior | Application `t`/`T` options and dialplan transfer contexts do not globally govern channel-driver-native transfer methods. Redirect/transfer destinations can enter a different context. A fully closed configuration could disable unsupported transfer paths, but must prove every endpoint/module/channel feature is constrained. | Can mediate only the transfer/admission APIs it explicitly hooks. Native PJSIP and core transfer paths may bypass a custom dialplan app; the module must disable or integrate those paths and prove the coverage. |
 | Dialog lifecycle | Dialplan hangup handlers/channel variables can help for a narrow closed path but require correct propagation through bridges, Local channels, queue legs, transfer and failure/early-dialog cases. | Can attach channel/datastore/bridge lifecycle tracking close to PBX events and reconcile outstanding admissions, but implementation is ABI/version coupled and still needs complete semantics/tests. |
 | Operational cost | Lower initial code/build cost; high risk of missing a route or future configuration/module change. Strong configuration lint and a closed feature matrix required. | Asterisk build/module packaging and upgrade burden; larger in-process fault blast radius. Easier to make one explicit serialized owner, but not automatically complete or safe. |
@@ -3207,10 +3207,14 @@ Do not select either as sufficient alone. Prefer a hybrid in which:
 2. A small version-pinned in-process admission owner provides the atomic
    generation check/claim at the final supported new-leg admission boundary and
    owns outstanding generation-scoped dialog/admission lifecycle records.
-3. Every configured `Dial`, `Queue` member leg, internal transfer target and
-   supported redirect path must enter that owner before a new generation-owned
-   leg can be signaled. Module hooks alone are not assumed universal; explicit
-   configuration disables any path that cannot be interposed.
+3. Every configured `Dial` and `Queue` member leg must invoke that owner from
+   its per-callee `b()` hook before `ast_call()`. The owner atomically converts
+   trusted inherited operation state into a per-leg pending claim; a denied or
+   untrusted callee is hung up so the channel driver cannot signal it. Queue
+   waiting and transfer-start work need their own earlier claims. Every internal
+   transfer target and supported redirect path must preserve that chain.
+   Module hooks alone are not assumed universal; explicit configuration
+   disables any path that cannot be interposed.
 4. Drain takes the same serialization boundary as admission, latches
    irreversibly, prevents later claims and accounts for every already-claimed
    pending leg. Existing admitted dialogs remain tracked and continue.
@@ -3219,11 +3223,14 @@ Do not select either as sufficient alone. Prefer a hybrid in which:
    Broker readback remains observation-only; fence/removal remain separately
    authorized operations.
 
-This recommendation rejects “just add a Gosub before every Dial” as the final
-safety design. A config-only implementation could be reconsidered only if a
-closed path matrix and synthetic proof demonstrate equivalent atomic admission
-and complete lifecycle ownership without custom in-process code; current
-evidence does not establish that.
+This recommendation rejects a plain policy-check Gosub before `Dial` as the
+final safety design. The verified per-callee `b()` points are a better
+invocation boundary: a Gosub there can call the in-process owner, which must
+atomically create a pending claim and hang up the callee on denial. The claim,
+not the Gosub's return or a later SIP event, serializes with drain. A config-only
+implementation could be reconsidered only if a closed path matrix and synthetic
+proof demonstrate equivalent atomic admission and complete lifecycle ownership
+without custom in-process code; current evidence does not establish that.
 
 #### Existing Milestone 1 transfer requirement
 
@@ -3435,14 +3442,52 @@ claim and datastore before starting the transfer, then attaching it while
 holding the target channel lock. This is a feasibility lead, not yet a proven
 callback implementation or ownership contract.
 
-Do not assume the datastore will then propagate reliably to every child
-channel: `ast_channel_datastore_inherit()` allocates a duplicate datastore and
-silently skips it if allocation fails, while returning success
-([inheritance implementation](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L2357)).
-The selected route must detect missing claim state and deny before target
-signaling, or use another explicitly correlated in-process association. This
-is particularly important for forked `Dial()`/`Queue()` legs and Local-channel
-optimizations.
+For the supported `Dial()` and `Queue()` paths, source confirms that each
+application explicitly calls `ast_channel_datastore_inherit()` on every
+requested callee before invoking its per-callee `b()` Gosub:
+[Dial inheritance and hook](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_dial.c#L2771),
+[Queue inheritance and hook](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L5063).
+The hook is then run before `ast_call()` in both applications
+([Dial](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_dial.c#L2887),
+[Queue](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L5084)).
+This resolves the narrow correlation gap left by `session_create`: the latter
+still lacks the requestor channel, but the pre-call Gosub runs on the already
+created called channel, where trusted inherited state can be examined.
+
+This is not a core-level admission guarantee by itself. `ast_pre_call()` uses a
+channel-technology `pre_call` override when present, otherwise it executes the
+Gosub; the pinned PJSIP channel technology does not define that override
+([dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L6461),
+[PJSIP technology](https://github.com/asterisk/asterisk/blob/22.11.0/channels/chan_pjsip.c#L109)).
+The custom Gosub must call the in-process owner synchronously. That operation
+must, under the same serialization boundary as drain, verify the inherited
+operation claim and open generation, then register a unique per-callee pending
+claim before returning. On denial, missing/invalid state, or allocation error,
+the Gosub must hang up the callee; both applications call `ast_call()` next,
+and core `ast_call()` skips the channel driver's call method for a hung-up
+channel ([guard](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L6478)).
+This makes a pre-fence claim remain visible as pending even if signaling starts
+after the fence; the fence must wait for that claim to settle. It does not make
+the target leg disappear or cancel an already claimed attempt.
+
+Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
+the child datastore if datastore allocation fails, and it can insert a
+datastore whose duplicated `data` is NULL if the duplicator fails, while
+returning success ([implementation](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L2357)).
+The admission operation must validate both datastore presence and a usable,
+generation-bound payload, then fail closed before `ast_call()`. For forked
+calls, it must create a distinct child-leg record per callee rather than count
+one inherited transfer token as all branches. Queue waiting remains covered by
+its parent operation claim independently of these member-leg claims.
+
+The transfer callback can therefore provide the parent claim on the channel
+that will execute the target dialplan: the transferee in the two-party case or
+the new Local channel in the multi-party case. The fixed target route must
+retain that parent obligation while running `Dial()`/`Queue()`, and the
+per-callee admission Gosub then creates claims for each resulting member leg.
+Whether Local-channel optimization, call forwarding, non-PJSIP technologies,
+or any other supported path preserves or invokes the same owner is still an
+explicit coverage proof, not an assumption.
 
 The callback itself returns `void`, so any callback-side condition that could
 leave the transfer queued/executing without a valid claim must fail closed.
@@ -3460,10 +3505,12 @@ own callback, so it must remain disabled or be separately intercepted; parking
 must likewise be disabled or covered.
 
 This is currently the strongest source-supported candidate to test in a design
-review, not a selected implementation. Next, specify the claim object and
-channel propagation/failure protocol, and check whether the supported Asterisk
-APIs can guarantee no unowned transfer when callback attachment fails. Only
-after that review should an isolated proof be proposed for approval.
+review, not a selected implementation. The next design should specify the
+transfer-operation claim, per-callee child claims, duplicate/retransmission
+behavior, and terminal release protocol. It must also prove that the target
+dialplan cannot omit or bypass the admission Gosub and that callback attachment
+failure cannot leave queued work unowned. Only after that review should an
+isolated proof be proposed for approval.
 
 These APIs make an in-process PJSIP gate technically plausible, but do not
 prove coverage of every queue, transfer, redirect, channel technology, or call
@@ -3505,15 +3552,19 @@ event alone does not establish the ownership or serialization assertions above.
 #### Next gate
 
 Pin the SIP.js version and verify its blind- and incoming-REFER behavior. Then
-specify where a generation claim is created before the two-party transfer is
-queued or a multi-party `Local` channel is started, and how that claim is bound
-to every later target-leg admission and released on all terminal outcomes.
-`session_create` alone is too late to represent that transfer-start obligation.
-The design must also prove that DTMF blind transfer and parking are either
-interposed or disabled. Only then design the finite synthetic proof around the
-matrix above. If the chosen path cannot be interposed without a zero-count gap
-or bypass, stop and return to the product scope rather than claim the existing
-Milestone 1 behavior is safely generation-managed.
+specify the transfer-operation claim created before the two-party transfer is
+queued or a multi-party `Local` channel is started, and how per-callee `b()`
+admission creates and settles a unique child claim before each supported
+`Dial()`/`Queue()` leg can be signaled. `session_create` alone is too early to
+inspect the requestor's claim and too late to represent the transfer-start
+obligation; the per-callee hook is a candidate final boundary, subject to
+proving queue-wait accounting, fail-closed denial, inheritance, and every
+channel/redirect path. The design must also prove that DTMF blind transfer and
+parking are either interposed or disabled. Only then design the finite
+synthetic proof around the matrix above. If the chosen path cannot be
+interposed without a zero-count gap or bypass, stop and return to the product
+scope rather than claim the existing Milestone 1 behavior is safely
+generation-managed.
 
 This is a design recommendation and feasibility gate, not PBX module selection
 or implementation approval. Exact Asterisk API coverage, build compatibility,

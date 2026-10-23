@@ -3384,19 +3384,22 @@ proof. This design introduces no PBX mutation, call or live source.
 The [enforcement comparison](./AGENT-PROVISIONING-PLAN.md#929-dialplan-only-versus-in-process-admissiondialog-enforcement-recommendation)
 checks Asterisk 22 transfer and Dial/Queue behavior. Recommendation: a
 closed generated dialplan plus a small in-process final-admission/lifecycle
-owner—not dialplan Gosubs alone. Native transfer paths can be independent of
-core feature-code options, and queue/parallel legs create pending work that a
-pre-dial check alone does not serialize. Milestone 1 already includes browser
-blind transfer, so section 9.30 reconciles that scope with the required
-generation-aware handoff and synthetic-call matrix. Pinned Asterisk source
-shows ARI-only REFER publication and transfer success do not constitute a
-synchronous generation claim. Asterisk's bridge transfer callback is a
+owner—not dialplan Gosubs alone. Asterisk 22.11 runs per-callee `b()` Gosubs
+after `Dial()`/`Queue()` inherit datastores and before `ast_call()`; this is a
+candidate invocation point for an atomic in-process per-leg claim, not a
+serialization guarantee by itself. Queue waiting needs a separate parent
+obligation, and parallel branches need unique child claims. Native transfer
+paths can be independent of core feature-code options. Milestone 1 already
+includes browser blind transfer, so section 9.30 reconciles that scope with the
+required generation-aware handoff and synthetic-call matrix. Pinned Asterisk
+source shows ARI-only REFER publication and transfer success do not constitute
+a synchronous generation claim. Asterisk's bridge transfer callback is a
 potential claim-propagation point for a custom REFER path, but its void callback
-and claim-lifetime/failure semantics need proof. Pinned datastore inheritance
-can silently omit a child copy on allocation failure, so target admission must
-fail closed if trusted state is missing. DTMF transfer and parking need separate
-treatment. This remains design work: no module, call path, PBX config or call
-was changed.
+and claim-lifetime/failure semantics need proof. Datastore inheritance can omit
+a child datastore or leave its duplicated payload NULL on allocation failure;
+target admission must validate usable trusted state and fail closed. DTMF
+transfer and parking need separate treatment. This remains design work: no
+module, call path, PBX config or call was changed.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
