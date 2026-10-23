@@ -3477,8 +3477,10 @@ and wire result, then prove a different response mechanism. The stateless
 endpoint helper is also unsafe by default: its active-transaction guard reads
 the same missing cloned transaction data and can send outside the live UAS
 transaction; because this does not update the transaction's status, PJSIP may
-subsequently send its unhandled-request `500` as well. Looking up the existing
-transaction by clone-safe Via/CSeq fields is more promising: PJSIP feeds the
+subsequently send its unhandled-request `500` as well. Calling
+`pjsip_tsx_create_key()` on the clone's parsed message and then looking up the
+existing transaction is more promising than hand-building a Via/CSeq key:
+PJSIP feeds the
 initial request to the transaction before releasing the dialog lock, moves it
 to `TRYING`, then invokes Asterisk's transaction-state callback, where the
 session supplements run. A synchronous response through the found transaction
@@ -3494,6 +3496,12 @@ which aligns with the dialog response helper's lock order. For response
 construction, `pjsip_dlg_create_response()` uses the cloned request's parsed
 headers and dialog state, not transaction module data
 ([response construction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1556-L1587)).
+The clone preserves Via, CSeq, Call-ID, From, and To headers used by key
+construction
+([rdata clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L834-L905)).
+pjproject selects the RFC 3261 branch+method algorithm for standard branches
+and its RFC 2543 key algorithm otherwise
+([key selection](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L402-L430)).
 The added transaction reference must be released exactly once with
 `pj_grp_lock_dec_ref()`. This remains a candidate, not an approved response
 mechanism.

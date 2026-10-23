@@ -3608,14 +3608,22 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   also leave the transaction eligible for a second final response. Do not
   select it without proving response ownership and retransmission behavior.
   A source-backed route worth evaluating is to derive the request's UAS key
-  from clone-safe Via/CSeq data with `pjsip_tsx_create_key()`, retrieve the
-  already registered transaction with `pjsip_tsx_layer_find_tsx2()`, build a
-  response with `pjsip_dlg_create_response()`, then send it through
+  from the cloned parsed message with `pjsip_tsx_create_key()`—not by
+  hand-composing a Via/CSeq key—retrieve the already registered transaction
+  with `pjsip_tsx_layer_find_tsx2()`, build a response with
+  `pjsip_dlg_create_response()`, then send it through
   `pjsip_dlg_send_response(session->inv_session->dlg, tsx, tdata)`.
   pjproject exposes the key/lookup APIs
   ([API contracts](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transaction.h#L184-L216),
   [key creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transaction.h#L394-L409)),
-  and the in-dialog UAS transaction is associated with its dialog before
+  and the clone deep-copies the parsed SIP message and restores pointers to
+  Via, CSeq, Call-ID, From, and To headers while omitting endpoint module data
+  ([rdata clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L834-L905)).
+  The key function uses the RFC 3261 Via branch plus method for standard
+  branches, but falls back to the RFC 2543 key algorithm for non-standard
+  branches
+  ([key selection](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L402-L430)).
+  The in-dialog UAS transaction is associated with its dialog before
   usage dispatch
   ([dialog association](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1861-L1865)).
   Response construction itself appears clone-compatible: the dialog helper
@@ -4607,7 +4615,7 @@ legs still need generation attribution and complete settlement.
 | SIP.js REFER promise resolves without waiting for response; Asterisk successfully submits 202 before target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and a submitted REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
 | Same REFER transaction retransmitted versus a new REFER with a later CSeq | Confirm the pinned transaction layer recognizes same-branch retransmissions before dialog dispatch; the supplement must not reserve or start duplicate operation work, and the transaction's saved response behavior is captured. A new CSeq creates a distinct request and must follow the one-outstanding-operation policy without overwriting unresolved progress correlation. |
 | Two distinct in-dialog REFER transactions arrive while the first operation is queued but no target leg has reached `b()` admission | Confirm PJSIP's dialog lock serializes session-supplement callbacks but does not serialize the lifetime of separate operations; enforce a bounded per-source-session active-operation latch that accepts at most one and explicitly rejects the other, proving no progress state or operation claim is overwritten and no work is queued twice. |
-| Custom gate sends final rejection through looked-up UAS transaction inside supplement callback | Confirm the supplement runs after the transaction has entered `TRYING`; derive the same key from clone-safe request data, find the existing transaction, build with `pjsip_dlg_create_response()`, send through its owning dialog, and release its added reference exactly once. Capture send errors and wire response, prove no final response was already sent, and verify transaction-managed retransmissions and exactly-one-final-response behavior. |
+| Custom gate sends final rejection through looked-up UAS transaction inside supplement callback | Confirm the supplement runs after the transaction has entered `TRYING`; use `pjsip_tsx_create_key()` on the clone's parsed message and prove it matches the active UAS transaction for both RFC 3261 and legacy RFC 2543 key paths; build with `pjsip_dlg_create_response()`, send through the owning dialog, and release the added reference exactly once. Capture send errors and wire response, prove no final response was already sent, and verify transaction-managed retransmissions and exactly-one-final-response behavior. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and
