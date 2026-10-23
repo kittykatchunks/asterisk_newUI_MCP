@@ -3703,7 +3703,20 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Authentication challenges are a separate response path with two source
   layers. pjproject's event-subscription transaction handler itself processes
   401/407 using the dialog authentication session and may send a reinitialized
-  request. Its async handler is opt-in through
+  request if credentials are configured in that session. In this Asterisk
+  REFER path, `ast_sip_create_dialog_uac()` creates the dialog, then
+  `ast_sip_dialog_set_endpoint()` associates it with the endpoint for
+  Asterisk's lookup; that association does not copy the endpoint's
+  `outbound_auths` vector into pjproject's dialog auth session. The separate
+  Asterisk retry branch explicitly passes that vector to
+  `ast_sip_create_request_with_auth()`
+  ([dialog construction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L962-L1074),
+  [endpoint association](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_distributor.c#L291-L317),
+  [explicit endpoint-auth retry](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
+  Do not assume pjproject's generic auth capability means this particular
+  dialog already has endpoint credentials; confirm any additional credential
+  wiring in the deployed source/configuration.
+  Its async handler is opt-in through
   `pjsip_auth_clt_async_configure()`; do not assume that path is active merely
   because the pinned library supports it
   ([async API setup contract](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_auth.h#L637-L755)).
@@ -4968,7 +4981,7 @@ legs still need generation attribution and complete settlement.
 
 | Case | Required result |
 | --- | --- |
-| Outgoing REFER authentication challenge and abandonment | Exercise 401/407 with credentials that succeed and fail synchronously; exercise asynchronous abandonment only if `pjsip_auth_clt_async_configure()` is enabled in the deployed configuration. Distinguish pjproject's event-subscription auth handling from Asterisk's endpoint-auth callback retry; capture initial `SENT` state, callback event type, retry count, each REFER actually sent, and any zero-expiry `SUBSCRIBE`. If async mode is enabled, abandonment produces a synthetic event, so verify that Asterisk does not re-enter the response-based retry branch and that terminal state/ref cleanup completes without assuming an unsubscribe was sent. Treat Asterisk's `Refer completed` debug line as callback/status logging, not proof of target-call completion or a transfer terminal event; correlate it with actual challenge response, retries, NOTIFY, and bridge/channel evidence. |
+| Outgoing REFER authentication challenge and abandonment | Exercise 401/407 with credentials that succeed and fail synchronously; first establish whether/how the out-of-dialog dialog auth session receives credentials, since endpoint association is not itself credential installation. Exercise asynchronous abandonment only if `pjsip_auth_clt_async_configure()` is enabled in the deployed configuration. Distinguish pjproject's event-subscription auth handling from Asterisk's endpoint-auth callback retry; capture initial `SENT` state, callback event type, retry count, each REFER actually sent, and any zero-expiry `SUBSCRIBE`. If async mode is enabled, abandonment produces a synthetic event, so verify that Asterisk does not re-enter the response-based retry branch and that terminal state/ref cleanup completes without assuming an unsubscribe was sent. Treat Asterisk's `Refer completed` debug line as callback/status logging, not proof of target-call completion or a transfer terminal event; correlate it with actual challenge response, retries, NOTIFY, and bridge/channel evidence. |
 | Inbound test route to queue to browser agent | New work is admitted only for the exact generation; queue waiting and each outbound member branch are accounted for. |
 | Blind transfer to an allowed same-customer internal destination while open | Target admission is generation-bound before signaling; source/target ownership is continuous through success, rejection, cancellation, and timeout. |
 | Blind transfer racing the irreversible fence | Admission and fence serialize; either the new leg is claimed before the fence and remains counted, or it is rejected after the fence. |

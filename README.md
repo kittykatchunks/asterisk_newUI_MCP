@@ -3582,13 +3582,20 @@ RFC negotiation
 ([Asterisk state and response check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1161-L1164),
 [RFC 4488](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
 401/407 REFER challenges have two source-level handlers. pjproject may retry
-using dialog auth; async handling is opt-in and must be confirmed in the
-deployed configuration. Its transaction callback runs before the internal
-challenge handler, but Asterisk's initial `SENT` subscription state does not
-enter Asterisk's later `ACTIVE`/`TERMINATED` retry branch. If synchronous auth
-fails, the terminal callback can expose the original challenge to Asterisk's
-separate endpoint-auth retry. If configured async auth is abandoned, pjproject
-instead reports a synthetic event, which Asterisk handles as terminal failure.
+using dialog auth when credentials are configured in that dialog session.
+The REFER path associates the endpoint with the dialog but does not copy its
+`outbound_auths` vector there; Asterisk's separate retry explicitly uses that
+vector. Confirm any other dialog credential wiring before assuming pjproject's
+auth retry is credentialed
+([Asterisk dialog construction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L962-L1074),
+[endpoint association](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_distributor.c#L291-L317)).
+Async handling is opt-in and must be confirmed in the deployed configuration.
+The transaction callback runs before the internal challenge handler, but
+Asterisk's initial `SENT` subscription state does not enter its later
+`ACTIVE`/`TERMINATED` retry branch. If synchronous auth fails, the terminal
+callback can expose the original challenge to Asterisk's separate endpoint-auth
+retry. If configured async auth is abandoned, pjproject instead reports a
+synthetic event, which Asterisk handles as terminal failure.
 Asterisk's counter allows at most nine callback retry attempts; it increments
 before request creation, so failed construction consumes the budget and fewer
 than nine retries may be sent. This does not bound pjproject's separate
