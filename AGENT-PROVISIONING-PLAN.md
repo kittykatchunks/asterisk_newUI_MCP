@@ -3544,9 +3544,17 @@ created called channel, where trusted inherited state can be examined.
 
 This is not a core-level admission guarantee by itself. `ast_pre_call()` uses a
 channel-technology `pre_call` override when present, otherwise it executes the
-Gosub; the pinned PJSIP channel technology does not define that override
-([dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L6461),
-[PJSIP technology](https://github.com/asterisk/asterisk/blob/22.11.0/channels/chan_pjsip.c#L109)).
+Gosub ([callback field](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/channel.h#L861),
+[dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L6461)).
+A source scan of Asterisk 22.11.0's in-tree channel-driver locations
+(`channels/`, `addons/`, and `main/`) found no driver assigning this override;
+the PJSIP driver also has no such initializer. This makes the configured
+Gosub path apply to the pinned in-tree drivers, but it is not a contract for
+out-of-tree channel modules, vendor patches, or future drivers.
+Deployment qualification must inventory loaded channel technologies and
+reject any unaudited driver that may install a `pre_call` override, or verify
+that the override itself invokes the same serialized admission owner and
+fails closed. A static dialplan check cannot establish that property.
 The custom Gosub must call the in-process owner synchronously. That operation
 must, under the same serialization boundary as drain, verify the inherited
 operation claim and open generation, then register a unique per-callee pending

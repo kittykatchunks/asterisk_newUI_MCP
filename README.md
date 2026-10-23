@@ -3442,7 +3442,9 @@ suppresses member forwarding and is a candidate containment that must be
 validated on every protected route. PJSIP `redirect_method=uri_pjsip` follows
 3xx redirects inside `chan_pjsip`, supports multiple potential targets, and
 cannot be prevented by core handling; protected endpoints need a PJSIP-level
-target gate or must exclude that mode.
+target gate or must exclude that mode. Asterisk 22.11's in-tree channel drivers
+do not assign `pre_call` overrides, but deployment must reject or separately
+audit out-of-tree drivers that could replace the configured admission Gosub.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
