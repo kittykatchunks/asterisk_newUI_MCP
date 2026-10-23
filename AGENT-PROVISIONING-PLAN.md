@@ -3369,6 +3369,14 @@ The transfer wrapper has two different lifetime rules. `transfer_channel_cb`
 may read its `data` pointer only during the callback; the pinned PJSIP callback
 dereferences it there
 ([callback data access](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L805-L818)).
+PJSIP passes the address of its stack-local `refer_blind` object as that data.
+In the pinned core paths, the two-party helper invokes the callback before it
+queues the bridge action, and the multi-party helper invokes it inline before
+calling/imparting its Local channel
+([two-party callback before queue](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_channel.c#L3017-L3040),
+[multi-party callback before call/impart](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4359-L4371)).
+Thus the current synchronous callback use fits the stack object's lifetime;
+an asynchronous callback or retained dereference of `.data` would not.
 For progress, PJSIP takes an AO2 reference to the wrapper, and parking
 subscriptions can retain another reference until their final Stasis message
 ([PJSIP retain/release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L853-L855),
