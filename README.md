@@ -2454,7 +2454,7 @@ trailing data: that case alone accepts EOF or the exact read-reset error, always
 with zero response bytes. No timeout, write error or other socket error is
 accepted as its rejection. Other negative cases retain the zero-byte EOF check.
 
-An additional 26 shared source-output cases run through TypeScript readback
+An additional 28 shared source-output cases run through TypeScript readback
 and the authenticated Python socket server. They exercise valid empty inventory,
 safe integer boundaries and unknown/zero dialogs, and reject duplicate or invalid
 generation IDs, extra secret-like fields, missing fields, boolean/numeric type
@@ -2464,6 +2464,16 @@ Integral JSON numbers such as `1.0` remain valid in both languages. Invalid sour
 outputs close the connection without a response frame; valid replies match the
 shared value exactly. Source cases are selected by trusted fixture sequence, not
 by new client fields/actions. This does not add a dynamic PBX source adapter.
+
+The inventory boundary cases expand trusted fixture-only `inventoryCount`
+metadata into 100 or 101 unique generations. Zero-based indices form the
+12-character hexadecimal UUID suffix, deadlines are index plus one, and draining
+alternates starting with true. TypeScript and Python generate the same ordered
+values. Exactly 100 entries must return intact through the bounded response
+frame; 101 must close with zero response bytes after exactly one source entry.
+The subsequent cases and approved reconnect still succeed, proving rejection
+does not terminate the fixture server. The count metadata is never sent as a
+request property and does not raise the production inventory limit.
 
 This is the approved **experiment**, not a production Python runtime decision,
 full protocol equivalence or a privileged broker. There is no dynamic source
@@ -2536,7 +2546,7 @@ writer, sends valid requests with request EOF, validates complete framed replies
 and requires zero response bytes for rejected requests. Malformed raw frames
 deliberately bypass the writer. The two delayed-EOF cases use the production frame
 encoder but explicit writes/half-close to control timing; ordinary valid requests
-still use the production writer. All 32 request/framing and 26 source-output cases,
+still use the production writer. All 32 request/framing and 28 source-output cases,
 foreign-UID denial and approved reconnect pass over a real Unix socket against
 the Python server. The admission/failure/cancellation experiment then runs with
 Node clients too: idle connections reach the server deadline; timed-out held

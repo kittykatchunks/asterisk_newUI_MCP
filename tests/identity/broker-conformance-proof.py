@@ -16,6 +16,14 @@ import time
 
 with open("/vectors.json", encoding="utf8") as file:
     VECTORS = json.load(file)
+for case in VECTORS["sourceCases"]:
+    if "inventoryCount" in case:
+        case["value"] = [
+            {"generationId": f"22222222-2222-2222-2222-{index:012x}",
+             "notAfter": index + 1, "draining": index % 2 == 0}
+            for index in range(case["inventoryCount"])
+        ]
+        assert len({item["generationId"] for item in case["value"]}) == case["inventoryCount"]
 UID = 1102
 GID = 2100
 BROKER_UID = 1101

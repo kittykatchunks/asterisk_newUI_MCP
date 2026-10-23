@@ -61,9 +61,18 @@ test("shared source-output vectors enforce exact expiry shapes in TypeScript bro
   const vectors = JSON.parse(await readFile(new URL("./identity/broker-conformance.json", import.meta.url), "utf8")) as {
     binding: { customer: string; epoch: string; principal: string };
     generation: { generationId: string };
-    sourceCases: { name: string; kind: "inventory" | "observation"; value: unknown; valid: boolean }[];
+    sourceCases: { name: string; kind: "inventory" | "observation"; value: unknown; inventoryCount?: number; valid: boolean }[];
   };
   for (const vector of vectors.sourceCases) {
+    if (vector.inventoryCount !== undefined) {
+      const inventory = Array.from({ length: vector.inventoryCount }, (_, index) => ({
+        generationId: `22222222-2222-2222-2222-${index.toString(16).padStart(12, "0")}`,
+        notAfter: index + 1, draining: index % 2 === 0,
+      }));
+      vector.value = inventory;
+      assert.equal(new Set(inventory.map((item) => item.generationId)).size,
+        vector.inventoryCount, vector.name);
+    }
     const validate = () => vector.kind === "inventory" ? parseExpiryInventory(vector.value) : parseExpiryObservation(vector.value);
     if (vector.valid) assert.deepEqual(validate(), vector.value, vector.name);
     else assert.throws(validate, vector.name);

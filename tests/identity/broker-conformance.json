@@ -2,6 +2,8 @@
   "binding": { "customer": "customer-a", "epoch": "11111111-1111-1111-1111-111111111111", "principal": "fixture-worker" },
   "generation": { "generationId": "22222222-2222-2222-2222-222222222222", "notAfter": 160000, "draining": true },
   "sourceCases": [
+    { "name": "inventory-at-limit", "kind": "inventory", "inventoryCount": 100, "valid": true },
+    { "name": "inventory-over-limit", "kind": "inventory", "inventoryCount": 101, "valid": false },
     { "name": "empty-inventory", "kind": "inventory", "value": [], "valid": true },
     { "name": "invalid-generation-id", "kind": "inventory", "value": [{ "generationId": "../private", "notAfter": 1, "draining": false }], "valid": false },
     { "name": "deadline-zero", "kind": "inventory", "value": [{ "generationId": "22222222-2222-2222-2222-222222222222", "notAfter": 0, "draining": false }], "valid": false },

@@ -14,7 +14,7 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
   generation: { generationId: string };
   cases: { name?: string; text?: string; hex?: string; padBytes?: number;
     delayEofMs?: number; trailingHex?: string; expected: unknown }[];
-  sourceCases: { kind: string; value: unknown; valid: boolean }[];
+  sourceCases: { kind: string; value: unknown; inventoryCount?: number; valid: boolean }[];
 };
 let vector = vectors.cases[index === "reconnect" ? 0 : Number(index)];
 if (index === "generation-reconnect") vector = vectors.cases[1];
@@ -23,6 +23,12 @@ const held = ["held-source", "failed-source", "failed-generation", "no-eof"].inc
 if (held) vector = { ...vectors.cases[index === "failed-generation" ? 1 : 0], expected: null };
 if (index.startsWith("source:")) {
   const source = vectors.sourceCases[Number(index.split(":")[1])];
+  if (source.inventoryCount !== undefined) {
+    source.value = Array.from({ length: source.inventoryCount }, (_, item) => ({
+      generationId: `22222222-2222-2222-2222-${item.toString(16).padStart(12, "0")}`,
+      notAfter: item + 1, draining: item % 2 === 0,
+    }));
+  }
   const request = { version: 1, customer: vectors.binding.customer, epoch: vectors.binding.epoch,
     ...(source.kind === "inventory" ? { action: "inventory" } :
       { action: "generation", generationId: vectors.generation.generationId }) };
