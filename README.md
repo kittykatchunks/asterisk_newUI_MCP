@@ -3437,6 +3437,9 @@ not lose or deadlock the claim-owner handoff. Asterisk 22.11's `Dial()` also
 has a forwarding bypass: replacement channels are signaled without rerunning
 the per-callee `b()` hook. Forwarding must be intercepted or explicitly
 disabled on every protected route before the admission design can be complete.
+Queue has the same bypass when member forwarding is allowed; its `i` option
+suppresses member forwarding and is a candidate containment that must be
+validated on every protected route.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning

@@ -3191,7 +3191,7 @@ image's effective configuration or a complete generation ownership mechanism.
 | --- | --- | --- |
 | Centralized fixed routes | Readable and straightforward when every call enters a closed, broker-generated context. | Can expose fixed admission operations while retaining generated dialplan, but must still cover all entry contexts. |
 | Final admission race | A dialplan check before `Dial` or `Queue` can race the drain latch. Asterisk 22.11 provides per-callee `b()` Gosubs in both applications; source runs them after the called channel is created and before `ast_call()`. A Gosub alone is not serialization, but it can invoke an in-process admission operation that atomically records a pending-leg claim against the same latch used by drain. A denied Gosub must hang up the callee channel; both applications proceed to `ast_call()`, which refuses an already hung-up channel. | Can own a lock/claim and generation latch inside the PBX at these verified pre-call points, if every relevant path invokes the operation, rejected channels cannot reach their channel driver's call method, and claim/state lifetime is correct. |
-| Queues and parallel/forked dialing | Queue can hold work before an outbound member channel; `Dial` can originate multiple branches. `b()` runs per callee after channel datastore inheritance, but the queue-waiting obligation begins earlier and must remain counted separately. Every branch needs its own admission record, and cancellation/failure must settle it. | Can centralize per-branch admission and outstanding-claim accounting through per-callee hooks while separately owning queue-waiting work; integration must prove all options, retries and channel technologies rather than assume the hook is universal. |
+| Queues and parallel/forked dialing | Queue can hold work before an outbound member channel; `Dial` can originate multiple branches. `b()` runs per callee after channel datastore inheritance, but the queue-waiting obligation begins earlier and must remain counted separately. Every branch needs its own admission record, and cancellation/failure must settle it. Both applications have forwarding paths that bypass re-running the initial per-callee Gosub; protected routes must intercept or explicitly suppress forwarding and prove the effective option. | Can centralize per-branch admission and outstanding-claim accounting through per-callee hooks while separately owning queue-waiting work; integration must prove all options, retries, forwarding and channel technologies rather than assume the hook is universal. |
 | Transfers and direct protocol behavior | Application `t`/`T` options and dialplan transfer contexts do not globally govern channel-driver-native transfer methods. Redirect/transfer destinations can enter a different context. A fully closed configuration could disable unsupported transfer paths, but must prove every endpoint/module/channel feature is constrained. | Can mediate only the transfer/admission APIs it explicitly hooks. Native PJSIP and core transfer paths may bypass a custom dialplan app; the module must disable or integrate those paths and prove the coverage. |
 | Dialog lifecycle | Dialplan hangup handlers/channel variables can help for a narrow closed path but require correct propagation through bridges, Local channels, queue legs, transfer and failure/early-dialog cases. | Can attach channel/datastore/bridge lifecycle tracking close to PBX events and reconcile outstanding admissions, but implementation is ABI/version coupled and still needs complete semantics/tests. |
 | Operational cost | Lower initial code/build cost; high risk of missing a route or future configuration/module change. Strong configuration lint and a closed feature matrix required. | Asterisk build/module packaging and upgrade burden; larger in-process fault blast radius. Easier to make one explicit serialized owner, but not automatically complete or safe. |
@@ -3579,9 +3579,28 @@ one possible containment, but it changes forwarding behavior and is not yet
 approved as the product policy. Otherwise forwarding needs a separately proven
 pre-signal admission hook on every replacement channel. A generated route
 guard alone is insufficient because the forwarding replacement is made inside
-`Dial()` and is signaled without re-entering that route's `b()` Gosub. Queues,
-technology-level redirects, and other forwarding mechanisms remain separate
-coverage obligations.
+`Dial()` and is signaled without re-entering that route's `b()` Gosub.
+
+`Queue()` has the same shape when member forwarding is enabled. Its
+per-callee Gosub runs on the initially requested member channel before its
+first `ast_call()` ([Queue hook and call](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L5084-L5091)).
+Later, `wait_for_answer()` creates a replacement channel for a member forward,
+inherits datastore state from the queued caller, and calls `ast_call()` on the
+replacement without rerunning that Gosub ([forward replacement](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L5568-L5617),
+[direct call](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L5678-L5685)).
+The inherited parent marker does not create a distinct child-leg claim for the
+replacement, so the initial member claim cannot prove its ownership.
+
+Unlike `Dial()`, `Queue()` documents option `i` to ignore member call-forward
+requests ([option](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L186-L189)).
+The implementation defaults forwarding to allowed and sets it disallowed when
+`i` is present ([default and option handling](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L7289-L7290),
+[flag handling](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c#L7344-L7346)).
+For a protected route, requiring and validating Queue option `i` is a
+candidate containment; if member forwarding must remain supported, a separate
+replacement-channel admission hook is required. Queue `i` only addresses this
+member-forward path; technology-level redirects and other call-producing
+mechanisms remain distinct coverage obligations.
 
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
@@ -3763,10 +3782,13 @@ incoming REFER delegate installation order and demonstrate rejection of an
 unapproved target without originating a new INVITE. Verify that a second
 transfer on the same session cannot overwrite progress correlation; the
 baseline design should permit at most one outstanding REFER per source session.
-Include an endpoint-forwarding attempt in every protected `Dial()` test: prove
-the fixed route applies `i` and receives no replacement call, or prove a
-separate replacement-channel gate registers its own child claim before
-`ast_call()`. A passing initial-channel `b()` test alone does not cover it.
+Include endpoint/member-forwarding attempts in every protected `Dial()` and
+`Queue()` test. For `Dial()`, prove the fixed route applies `i` and receives no
+replacement call, or prove a separate replacement-channel gate registers its
+own child claim before `ast_call()`. For `Queue()`, prove option `i` is
+effective and suppresses member forwarding, or prove equivalent replacement
+admission. A passing initial-channel `b()` test alone does not cover either
+bypass.
 The synthetic proof must distinguish API promise resolution, Asterisk 202
 acceptance, NOTIFY contents/state, progress-monitor health, and PBX
 channel/bridge settlement. Assert that target answer and every forked leg are
