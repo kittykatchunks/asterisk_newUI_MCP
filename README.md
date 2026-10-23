@@ -3248,6 +3248,25 @@ proved, the design must use another constrained authority or investigate a
 purpose-built PBX-side surface. No collector runtime, credentials, access or
 deployment is approved by the recommendation.
 
+The approved next increment is a
+[synthetic broker-side evidence validator](./AGENT-PROVISIONING-PLAN.md#919-synthetic-broker-side-evidence-validator-approved-bounded-implementation),
+implemented in [`local/broker/evidence.py`](./local/broker/evidence.py).
+It checks broker-owned scope/generation/mapping/runtime expectations, a fresh
+single-use request ID, a local monotonic lifetime shorter than five seconds,
+cancellation and exact complete/unknown/unavailable result shapes. Unknown
+dialogs never become zero; unavailable evidence raises an explicit error.
+Contradictory removal evidence is rejected.
+
+```powershell
+python -I -B .\tests\identity\broker-evidence-proof.py
+```
+
+The Linux broker launcher also runs these synthetic tests as non-root with no
+effective capabilities. This is not evidence authentication or PBX truth: no
+collector runtime, transport, credentials, access, live source or deployment
+has been added. Runtime enrollment, mapping persistence and authority-change
+coordination remain prerequisites for integrating a real producer.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

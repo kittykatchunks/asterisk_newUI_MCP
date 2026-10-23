@@ -2381,3 +2381,71 @@ small isolated-PBX feasibility proof be considered. Stop if the collector would
 need forbidden secret queries, unapproved permissions, unprovable zero-dialog
 assumptions or caller-selected runtime objects. A full deployment plan is not a
 prerequisite for this comparison, and this recommendation approves no deployment.
+
+### 9.19 Synthetic broker-side evidence validator (approved bounded implementation)
+
+The user approved a Python broker-side evidence validator with synthetic tests
+only. `local/broker/evidence.py` implements that boundary; it does not implement
+the recommended collector, choose its runtime, add IPC or connect to a PBX.
+There is no change to external broker protocol v1 or the installed source.
+
+`EvidenceBinding` pins a validated ledger customer/epoch/namespace, generation
+UUID, positive safe-integer mapping revision and runtime-instance UUID. These
+are **broker-owned expectations**, not authority inferred from producer JSON.
+Mapping revision and runtime enrollment are not yet persisted/implemented in
+the metadata ledger. They must not be fabricated from endpoint names or a
+collector echo when a real source is introduced.
+
+Each `EvidenceRequest` generates a fresh UUID and starts a broker-local monotonic
+lifetime. Its expected envelope contains exactly:
+
+```text
+version, customer, epoch, namespace, generationId,
+mappingRevision, runtimeInstance, requestId, outcome
+```
+
+Successful outcomes additionally require exactly one `observation` field:
+
+- `complete` requires the existing validated observation shape with numeric
+  dialogs, not `"unknown"`.
+- `dialogs-unknown` requires `"unknown"` dialogs while fence/removal fields
+  remain asserted by the producer. It is never converted to zero.
+- `unavailable` carries no observation/details and raises the fixed
+  `EvidenceUnavailable` error. It cannot become `MISSING`, empty inventory or
+  another success-shaped result.
+
+`removed: true` additionally requires a blocked new-call fence and numeric zero
+dialogs; contradictory or malformed results are rejected. A known open fence
+can remain `false` with `removed: false`, not an activation permission.
+Returned observations are detached from the supplied envelope.
+
+Validation accepts only a locally measured elapsed lifetime in `[0, 5)` seconds,
+an unset cancellation event, and a caller-supplied current binding equal to the
+original expectation. Exact field sets and correlation IDs reject unexpected,
+cross-generation or mismatched evidence. Every validation attempt consumes the
+request, including rejected/unavailable/cancelled results; a lock protects this
+single-use transition. A response for a different fresh request is rejected.
+Lifetime boundary tests use the local clock seam rather than slow sleeps or
+producer timestamps.
+
+This is **correlation and structural validation, not authentication or proof of
+truth**. A trusted producer that knows the expectation can still lie. No
+cross-process clock synchronization, authenticated evidence transport, durable
+anti-replay store, global epoch rollback detection or atomic authority-change
+fence is implemented. The future caller must obtain/recheck current authority
+under its actual ownership rules and fit evidence collection inside the
+connection's existing remaining budget; creating a new evidence request must
+not renew that budget. The helper itself neither collects nor waits for data.
+
+`tests/identity/broker-evidence-proof.py` exercises complete/unknown/unavailable
+results, exact field/schema checks, stale and negative elapsed times, the exact
+five-second rejection boundary, changed runtime/mapping/epoch expectations,
+cancelled and reused requests, cross-request correlation and contradictory
+removal state. The ordinary Linux launcher runs it under non-root UID 1101/GID
+2100 with zero effective capabilities, alongside the ledger and existing broker
+regression. Portable Windows tests exercise the same pure validation logic.
+
+Next work remains the protected generation-to-runtime-object mapping and
+authority lifecycle contract, followed by a separately approved producer/access
+decision. These synthetic envelopes do not demonstrate live fence or dialog
+completeness and do not authorize a collector service.
