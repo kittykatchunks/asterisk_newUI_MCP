@@ -3351,6 +3351,17 @@ ordinary bridge transfer branches
 so parking must also be explicitly disabled or covered rather than assumed to
 be excluded by the REFER handler.
 
+The built-in blind REFER route is also context-dependent: it uses the channel's
+`TRANSFER_CONTEXT` when set, otherwise the endpoint's configured context
+([context selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1013)),
+then looks up the `Refer-To` URI user portion as an extension in that context
+([target lookup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1784)).
+The user interface must not treat a displayed destination string or URI domain
+as the effective PBX target. The generated configuration must control both the
+selected transfer context and its complete extension patterns; the policy
+should reject URI forms not explicitly supported and verify the resolved
+same-customer destination before any target leg is signaled.
+
 These APIs make an in-process PJSIP gate technically plausible, but do not
 prove coverage of every queue, transfer, redirect, channel technology, or call
 direction. `incoming_request` runs on a SIP servant thread, so it must not wait
@@ -3377,6 +3388,7 @@ legs still need generation attribution and complete settlement.
 | Blind transfer racing the irreversible fence | Admission and fence serialize; either the new leg is claimed before the fence and remains counted, or it is rejected after the fence. |
 | Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
+| `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
 | REFER 200 followed by target failure/timeout, retransmission, no progress subscription, or controller/observer restart | Acceptance is not treated as completion; processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
