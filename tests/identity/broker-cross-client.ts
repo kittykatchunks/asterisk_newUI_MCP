@@ -16,9 +16,15 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
     delayEofMs?: number; trailingHex?: string; expected: unknown }[];
   sourceCases: { kind: string; value: unknown; inventoryCount?: number; valid: boolean }[];
 };
-let vector = vectors.cases[["reconnect", "restart-read", "disconnect-reconnect"].includes(index) ? 0 : Number(index)];
-if (index === "held-reconnect" || index === "cancel-reconnect") {
-  const entry = index === "held-reconnect" ? 6 : 8;
+const disconnectRecovery = index.startsWith("disconnect-reconnect-");
+let vector = vectors.cases[["reconnect", "restart-read"].includes(index) ? 0 : Number(index)];
+if (index === "held-reconnect" || index === "cancel-reconnect" || disconnectRecovery) {
+  const entry = disconnectRecovery ? Number(index.slice("disconnect-reconnect-".length)) :
+    index === "held-reconnect" ? 6 : 8;
+  if (disconnectRecovery) {
+    assert.ok(Number.isSafeInteger(entry) && entry >= 1 && entry <= 16);
+    assert.equal(index, `disconnect-reconnect-${entry}`);
+  }
   const { customer, epoch } = vectors.binding;
   vector = { ...vectors.cases[0], expected: {
     version: 1, customer, epoch, action: "inventory",

@@ -1537,6 +1537,11 @@ the readable side. Both require zero-byte EOF before local close, without accept
 a timeout, transport reset or response bytes. Every half-close rejection also
 requires immediate exact-inventory recovery. The expected byte-count sequence
 therefore repeats once.
+Every recovery source returns a copied observation whose synthetic `notAfter`
+is the shared baseline plus its one-based source-entry count. Independently
+indexed Python and Node clients require that exact inventory, and the launcher
+checks each recovery event's expiry. A previous successful response cannot pass
+as a later recovery. The shared corpus is not mutated.
 Final evidence requires sixteen expected rejections, sixteen source entries and
 sixteen response attempts, thirty-two authenticated kernel peers,
 explicit Python/Node completion and approved maps with distinct broker/client

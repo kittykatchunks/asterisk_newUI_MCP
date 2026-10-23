@@ -19,8 +19,8 @@ $mounts = @(
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance-proof.py'),target=/fixture.py,readonly",
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly"
 )
-function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable, [switch]$Detached, [string]$Instance = '') {
-    $name = "$owner-$($Mode.Replace(':', '-'))$Instance"
+function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable, [switch]$Detached) {
+    $name = "$owner-$($Mode.Replace(':', '-'))"
     $names.Add($name)
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
@@ -493,7 +493,7 @@ try {
     $expectedDisconnectBytes += $expectedDisconnectBytes
     for ($index = 0; $index -lt $disconnectModes.Count; $index++) {
         Invoke-Client $disconnectModes[$index] '1102:2100'
-        Invoke-Client 'disconnect-reconnect' '1102:2100' -Instance "-$index"
+        Invoke-Client "disconnect-reconnect-$($index + 1)" '1102:2100'
     }
     $disconnectExit = & docker wait $disconnect
     if ($LASTEXITCODE -ne 0 -or "$disconnectExit" -ne '0') { throw 'Request-disconnect broker failed.' }
@@ -529,6 +529,7 @@ try {
     for ($index = 0; $index -lt $recoveries.Count; $index++) {
         if ($recoveries[$index].requestRecovered.sourceEntries -ne ($index + 1) -or
             $recoveries[$index].requestRecovered.responseAttempts -ne ($index + 1) -or
+            $recoveries[$index].requestRecovered.notAfter -ne ($vectors.generation.notAfter + $index + 1) -or
             $null -eq $outcomes[$index * 2].requestDisconnected -or
             $null -eq $outcomes[$index * 2 + 1].requestRecovered) {
             throw "Disconnect boundary $index did not recover before the next rejection."
@@ -539,7 +540,7 @@ try {
         $disconnectResult[0].responseAttempts -ne $disconnectModes.Count -or
         $disconnectResult[0].sourceEntries -ne $disconnectModes.Count -or
         $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
-    Write-Output "PASS request disconnect ($runtime clients): eight exact truncation boundaries in full-close and write-half-close modes add no source/send entry; half-closed clients require zero-byte EOF and every rejection has immediate authenticated inventory recovery."
+    Write-Output "PASS request disconnect ($runtime clients): eight exact truncation boundaries in full-close and write-half-close modes add no source/send entry; half-closed clients require zero-byte EOF and every rejection has immediate authenticated inventory recovery with its own exact fresh expiry."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

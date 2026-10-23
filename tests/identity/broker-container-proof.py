@@ -78,6 +78,9 @@ def server(mode="server"):
             nonlocal entries
             entries += 1
 
+        def fresh_inventory(default):
+            return [{**generation, "notAfter": generation["notAfter"] + entries} for generation in default]
+
         for case in range(5 if mode == "server" else len(DISCONNECT_BYTES) * 2 if mode == "server-disconnect" else 1):
             connection, _ = listener.accept()
             with connection:
@@ -109,14 +112,16 @@ def server(mode="server"):
                 if mode == "server-crash":
                     emit({"crashingBeforeSource": True, "sourceEntries": entries})
                     os._exit(23)
-                response = protocol.readback(text, on_source=entered)
+                response = protocol.readback(text, source=fresh_inventory if mode == "server-disconnect" else None,
+                                             on_source=entered)
                 protocol.remaining(connection, deadline)
                 response_attempts += 1
                 connection.sendall(protocol.frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
                 if mode == "server-disconnect":
                     assert entries == case // 2 + 1 and response_attempts == entries
-                    emit({"requestRecovered": {"sourceEntries": entries, "responseAttempts": response_attempts}})
+                    emit({"requestRecovered": {"sourceEntries": entries, "responseAttempts": response_attempts,
+                                               "notAfter": response["generations"][0]["notAfter"]}})
         expected = (3, 2) if mode == "server" else (len(DISCONNECT_BYTES), 0) if mode == "server-disconnect" else (1, 0)
         assert (entries, denied) == expected, (entries, denied)
         if mode == "server-disconnect":
@@ -208,16 +213,31 @@ def node_client(index):
 
 
 def client(mode):
-    if mode in DISCONNECT_BYTES or mode == "disconnect-reconnect":
+    recovery = mode.startswith("disconnect-reconnect-")
+    if mode in DISCONNECT_BYTES or recovery:
         assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
+        if recovery:
+            entry = int(mode.removeprefix("disconnect-reconnect-"))
+            assert 1 <= entry <= len(DISCONNECT_BYTES) and mode == f"disconnect-reconnect-{entry}"
         if len(sys.argv) == 3:
             assert sys.argv[2] == "node-client"
             node_client(mode)
             runtime = "node"
         else:
             assert len(sys.argv) == 2
-            if mode == "disconnect-reconnect":
-                protocol.client(PATH, "reconnect")
+            if recovery:
+                vector = protocol.VECTORS["cases"][0]
+                expected = {**vector["expected"], "generations": [
+                    {**protocol.VECTORS["generation"], "notAfter": protocol.VECTORS["generation"]["notAfter"] + entry}
+                ]}
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                    connection.settimeout(5)
+                    connection.connect(PATH)
+                    deadline = time.monotonic() + 5
+                    protocol.remaining(connection, deadline)
+                    connection.sendall(protocol.frame(vector["text"], 8192))
+                    connection.shutdown(socket.SHUT_WR)
+                    assert json.loads(protocol.read_frame(connection, 32768, deadline)) == expected
             else:
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                     connection.settimeout(5)

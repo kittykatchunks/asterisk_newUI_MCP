@@ -2837,6 +2837,11 @@ full local close. Python shuts down only its write side; Node ends its write sid
 and keeps reading. Each must receive zero-byte EOF, not a timeout, reset or
 response byte, before closing locally. Each half-close rejection also has an
 immediate exact-inventory recovery.
+Each recovery source returns a copied observation with synthetic `notAfter`
+equal to the baseline plus its one-based source-entry count. Python and Node
+require the complete expected inventory, including that distinct expiry; the
+launcher also checks the emitted expiry sequence. Replaying any earlier
+recovery response cannot satisfy a later read. Shared corpus values are unchanged.
 Final counters require sixteen request rejections, sixteen source entries and
 sixteen response attempts. All thirty-two clients require explicit runtime
 completion, kernel peer authentication and separate PID/mount namespace evidence.
