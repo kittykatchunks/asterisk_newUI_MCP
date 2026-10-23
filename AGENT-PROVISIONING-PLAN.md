@@ -3579,7 +3579,13 @@ that Asterisk subsequently truncates or maps to `s`. The generated
 configuration must control both the selected transfer context and its
 complete extension patterns; reject URI forms not explicitly supported and
 verify the resolved same-customer destination before any target leg is
-signaled.
+signaled. In addition, the REFER dispatcher checks the parsed target URI for a
+`Replaces` parameter and selects the attended-transfer handler instead of the
+blind handler when one is present
+([handler selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2052-L2066)).
+Because attended transfer is outside the supported scope, the gate must reject
+that branch before continuing to built-in REFER handling; validating only its
+URI user as a blind extension does not constrain the attended-transfer path.
 
 The `ari-only` PJSIP mode is not itself a transfer admission controller. In
 22.11.0 the REFER handler builds transfer state, attaches a frame hook, then
@@ -4358,7 +4364,7 @@ legs still need generation attribution and complete settlement.
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
 | Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`; verify the cloned-rdata transaction lookup in the built-in response path and exact response behavior across retransmissions. |
-| `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; no display-name/domain spoof or unreviewed context reroute is admitted. |
+| `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, `Replaces`, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; the out-of-scope attended-transfer branch selected by `Replaces` is rejected before built-in handling. No display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
 | SIP.js REFER promise resolves without waiting for response; Asterisk 202 followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |

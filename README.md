@@ -3451,6 +3451,9 @@ context) and the `Refer-To` URI user, not its displayed URI as a whole. With
 `ignore_uri_user_options` enabled it truncates user text at `;`, and an empty
 user becomes extension `s`; admission must validate that same effective target
 and pin the global setting.
+The built-in handler also dispatches a target URI containing `Replaces` to the
+attended-transfer path, so a blind-only gate must reject that parameter rather
+than validating only the URI user.
 Asterisk's progress watcher tracks the transferee's frames/bridge re-entry; its
 internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
