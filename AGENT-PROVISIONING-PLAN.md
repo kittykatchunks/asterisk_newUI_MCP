@@ -3531,6 +3531,31 @@ claim and datastore before starting the transfer, then attaching it while
 holding the target channel lock. This is a feasibility lead, not yet a proven
 callback implementation or ownership contract.
 
+There is an important failure-semantic limit: `transfer_channel_cb` returns
+`void` ([callback type](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/bridge.h#L1193-L1205)),
+so it cannot report claim-attachment failure to
+`ast_bridge_transfer_blind()`. In the two-party path, Asterisk calls it before
+queueing the blind-transfer action, but then proceeds to enqueue regardless of
+anything the callback did; enqueue failure is reported only afterward
+([callback then queue](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_channel.c#L3017-L3040)).
+In the multi-party path, Asterisk likewise proceeds from the callback to
+`ast_call(local, ...)` ([callback then call](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4359-L4365)).
+Thus a callback-side error flag can inform the caller after the bridge API
+returns, but cannot itself prevent the queued/action path or multi-party call
+from starting. A target-context guard can prevent an unclaimed downstream dial
+but does not by itself roll back a transfer already accepted or preserve the
+source call.
+
+The proposed preallocation must therefore establish a stronger invariant than
+"allocation is unlikely": before calling the bridge API, the owner must reserve
+the transfer operation and prove that callback attachment on the eventual
+channel cannot fail (including duplicate-datastore and channel-lifecycle
+cases), or identify a separate interception point that can abort without
+changing the existing call. If the callback cannot establish that invariant,
+the path is not safely supported; fail-closed target dialplan is necessary but
+not sufficient. Also settle the reserved operation idempotently when the bridge
+API returns an enqueue/originate error after the callback has attached state.
+
 For the supported `Dial()` and `Queue()` paths, source confirms that each
 application explicitly calls `ast_channel_datastore_inherit()` on every
 requested callee before invoking its per-callee `b()` Gosub:
@@ -3767,6 +3792,15 @@ redirects. The combined callback/core/per-callee design is still only a
 candidate contract; its ownership, lock order, and every terminal path need a
 separate proof before implementation.
 
+The blind-transfer callback is not a cancellable admission callback: its
+`void` return means attachment failure cannot reject the already-entered bridge
+operation. Add explicit proof cases for callback attachment failure and for
+bridge enqueue failure after successful attachment. The former must be
+impossible by construction or intercepted before changing the existing call;
+the latter must settle the reserved transfer claim exactly once. A target-route
+guard that merely hangs up after transfer acceptance does not satisfy the
+existing-call-preservation requirement.
+
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
 datastore whose duplicated `data` is NULL if the duplicator fails, while
@@ -3914,6 +3948,8 @@ legs still need generation attribution and complete settlement.
 | Blind transfer to an allowed same-customer internal destination while open | Target admission is generation-bound before signaling; source/target ownership is continuous through success, rejection, cancellation, and timeout. |
 | Blind transfer racing the irreversible fence | Admission and fence serialize; either the new leg is claimed before the fence and remains counted, or it is rejected after the fence. |
 | Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
+| Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
+| Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

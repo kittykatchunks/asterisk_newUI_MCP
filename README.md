@@ -3466,7 +3466,10 @@ and prove bounded execution and lock ordering; internal PJSIP redirects remain
 a separate gap. Admission also has distinct stages: reserve transfer work
 before it is queued, gate the Local/core call, then create a unique claim for
 each outbound branch. No one stage substitutes for the others. This is not
-implementation approval.
+implementation approval. The blind-transfer propagation callback returns
+`void`: attachment failure cannot reject the queued/started transfer, so safe
+support requires proving attachment cannot fail or adding an earlier abortable
+interception point while preserving the existing call.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
