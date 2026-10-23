@@ -3417,7 +3417,10 @@ progress. `refer_blind_progress` defaults to yes, but disabling it emits
 terminal 200 from the transfer callback before target answer; monitoring setup
 failures can also explicitly fall back to assumed-success 200. Therefore pin
 the effective setting and require channel/bridge ownership evidence; never use
-terminal NOTIFY 200 alone as a safe-zero signal.
+terminal NOTIFY 200 alone as a safe-zero signal. Asterisk's progress watcher
+tracks the transferee's frames/bridge re-entry; its internal `completed` flag
+marks transfer-action preparation, not target answer. Progress NOTIFY is thus
+not an identity-complete record for forked target legs.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning

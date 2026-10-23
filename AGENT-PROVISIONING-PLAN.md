@@ -3345,6 +3345,25 @@ Asterisk behavior must still be captured in the test. Source: Asterisk's pinned
 [progress-frame handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L327),
 and [endpoint option default](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_configuration.c#L2397).
 
+The source also clarifies what Asterisk's `transfer_channel_data.completed`
+means. Core sets it after the parking attempt and before branching into ordinary
+bridge transfer logic; it marks transfer-action preparation complete so deferred
+progress can be reported. It is not set by target answer or successful target
+dialog settlement. In the two-party path, the REFER callback is invoked on the
+transferee before the blind-transfer action is queued; in the multi-party path,
+it runs on the new Local channel before `ast_call()` and bridge insertion. With
+blind progress enabled, the PJSIP framehook is attached to the channel being
+transferred and interprets its ringing/progress/answer control frames or media;
+the bridge subscription separately treats that same transferee re-entering a
+bridge after the transfer action is marked completed as an answer indication.
+This is not a direct identity/lifecycle record for every forked target leg. It
+can provide transfer UX progress, but cannot replace per-leg claims, exact
+target correlation, or complete dialog ownership tracking. Source: pinned
+[transfer completion flag ordering](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4700),
+[two-party callback before queue](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_channel.c#L3017),
+[multi-party callback before Local call](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4336),
+[frame and bridge answer signals](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L272).
+
 The browser may request a transfer, but it is not an authority for target
 allowlisting, generation state, or dialog ownership. Every REFER-created target
 leg must pass the PBX-side final admission boundary. The browser must install
@@ -3610,13 +3629,15 @@ legs still need generation attribution and complete settlement.
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
-| SIP.js REFER promise resolves without waiting for response; Asterisk 202 followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no` or monitor setup fell back to assumed success. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
+| SIP.js REFER promise resolves without waiting for response; Asterisk 202 followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and
 channel/bridge lifecycle observations for the pinned SIP.js package and actual
 Asterisk REFER mode, including `Refer-Sub` behavior, effective
-`refer_blind_progress` configuration, and monitoring-failure outcomes.
+`refer_blind_progress` configuration, monitoring-failure outcomes, and the
+relationship (not equivalence) between transferee progress and per-target-leg
+lifecycle.
 `Session.refer()` promise resolution, Asterisk 202 acceptance, terminal 200
 sipfrag, an implicit-subscription NOTIFY, or a transfer event alone does not
 establish the ownership or serialization assertions above.
@@ -3639,7 +3660,9 @@ transfer on the same session cannot overwrite progress correlation; the
 baseline design should permit at most one outstanding REFER per source session.
 The synthetic proof must distinguish API promise resolution, Asterisk 202
 acceptance, NOTIFY contents/state, progress-monitor health, and PBX
-channel/bridge settlement. Pin and assert the effective `refer_blind_progress`
+channel/bridge settlement. Assert that target answer and every forked leg are
+independently correlated; a transferee frame or bridge-entry signal alone is
+not the per-leg proof. Pin and assert the effective `refer_blind_progress`
 setting; the permissive 200 fallbacks must not satisfy the success threshold.
 The design must also prove that DTMF blind transfer and parking are either
 interposed or disabled. Only then design the finite synthetic proof around the matrix above.
