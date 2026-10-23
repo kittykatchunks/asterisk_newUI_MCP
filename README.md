@@ -3619,7 +3619,9 @@ cached realm/algorithm stale counter. Auth retries use
 that reset: `PJSIP_MAX_STALE_COUNT` applies across the retry transaction
 sequence for that challenge, but not across later, freshly created requests.
 The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
-deployed value, and test exhaustion and a new request separately before
+deployed value: the counter increments before its `>=` check, so the default
+allows two changed/stale-nonce retries, and a third stale challenge ends
+pjproject's retry path. Test exhaustion and a new request separately before
 concluding that a challenge uses only one retry path
 ([auth reinitializer errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1559-L1705),
 [initial request auth initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1270),
