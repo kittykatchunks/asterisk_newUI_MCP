@@ -3517,6 +3517,15 @@ SIP response/progress lifecycle, and return nonzero to stop later handling;
 the return code alone does not send a response. Alternatively, continuing to
 the built-in handler is viable only if a separate, proven mechanism binds and
 settles that handler's work against the pre-reserved operation.
+The built-in handler has a distinct earlier branch when `session->channel` is
+absent: it sends `404` and returns before setting up REFER progress or reaching
+the implicit-subscription `202` path
+([missing-channel branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1997-L2005)).
+Because the supplement contract does not guarantee a channel, a custom gate
+must treat missing channel/generation association as an explicit fail-closed
+case, avoid dereferencing channel state, and own its response if it stops
+dispatch. This case must be tested separately from an unknown extension,
+whose validation occurs later and can follow `202`.
 The outgoing-session callback may gate resulting PJSIP legs, but it does not by
 itself constrain the transfer context, non-PJSIP legs, or arbitrary dialplan
 redirection. Initial inbound INVITEs follow a distinct path: Asterisk sends
@@ -4371,6 +4380,7 @@ legs still need generation attribution and complete settlement.
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
 | Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`; verify the cloned-rdata transaction lookup in the built-in response path and exact response behavior across retransmissions. |
+| REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the explicit response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Keep distinct from unknown-target handling, which occurs after implicit-subscription setup. |
 | Allowed blind REFER with a pre-handler reservation | If the supplement returns zero, prove the built-in transfer callback, progress, and all terminal outcomes correlate to that reservation; if it handles and returns nonzero, prove it owns the bridge propagation callback and SIP response/progress lifecycle. No reservation-only path may leave built-in work uncorrelated. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, `Replaces`, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; the out-of-scope attended-transfer branch selected by `Replaces` is rejected before built-in handling. No display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

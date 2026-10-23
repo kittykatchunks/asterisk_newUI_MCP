@@ -3451,6 +3451,9 @@ transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,
 response, and progress lifecycle and stop later handling, or the design must
 prove another mechanism correlates and settles built-in work to the reservation.
+The built-in handler responds `404` before progress setup when its session has
+no channel; a custom gate must fail closed on that missing claim source and
+handle it separately from an unknown extension that may already receive `202`.
 For blind REFER, Asterisk routes using `TRANSFER_CONTEXT` (or the endpoint
 context) and the `Refer-To` URI user, not its displayed URI as a whole. With
 `ignore_uri_user_options` enabled it truncates user text at `;`, and an empty
