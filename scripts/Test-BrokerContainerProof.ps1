@@ -342,6 +342,9 @@ try {
     Wait-AdmissionEvent $admission 'cancelled'
     Invoke-Client 'admission-capacity-cancelled' '1102:2100'
     Wait-AdmissionEvent $admission 'capacity' 5
+    & docker kill --signal USR2 $admission
+    if ($LASTEXITCODE -ne 0) { throw 'Could not deliver test-only repeated cancellation.' }
+    Wait-AdmissionEvent $admission 'repeated-cancellation-observed'
     Wait-AdmissionEvent $admission 'cancelled-deadline-observed'
     Invoke-Client 'admission-capacity-cancel-deadline' '1102:2100'
     Wait-AdmissionEvent $admission 'capacity' 6
@@ -427,6 +430,13 @@ try {
         throw 'Original deadline after cancellation changed terminal state or released admission.'
     }
     $lateCancellations = @($admissionEvents | Where-Object { $_.lateCancellation })
+    $repeatedCancellations = @($admissionEvents | Where-Object { $_.repeatedCancellation })
+    if ($repeatedCancellations.Count -ne 1 -or $repeatedCancellations[0].repeatedCancellation.sourceEntries -ne 7 -or
+        $repeatedCancellations[0].repeatedCancellation.timeouts -ne 3 -or
+        $repeatedCancellations[0].repeatedCancellation.cancellations -ne 1 -or
+        $repeatedCancellations[0].repeatedCancellation.slotLocked -ne $true) {
+        throw 'Repeated cancellation changed the original cancellation outcome or released admission.'
+    }
     if ($lateCancellations.Count -ne 1 -or $lateCancellations[0].lateCancellation.sourceEntries -ne 5 -or
         $lateCancellations[0].lateCancellation.timeouts -ne 3 -or
         $lateCancellations[0].lateCancellation.cancellations -ne 0 -or
@@ -444,6 +454,7 @@ try {
     Write-Output "PASS separate-container cancellation ($runtime clients): zero-byte EOF in $($cancelWatch.Elapsed.TotalSeconds.ToString('F3')) seconds, slot retained until source settlement, fresh read succeeds."
     Write-Output "PASS cancelled deadline ($runtime clients): original five-second timer observes one cancellation without another timeout, competitor remains excluded until source settlement."
     Write-Output "PASS cancellation after timeout ($runtime clients): original timeout retained without a cancellation outcome or early slot release; competitor excluded until source settlement."
+    Write-Output "PASS repeated cancellation ($runtime clients): one cancellation outcome, no extra timeout/source entry or early slot release, fresh read succeeds after settlement."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

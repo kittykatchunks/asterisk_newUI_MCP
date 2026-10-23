@@ -2754,6 +2754,12 @@ From signal dispatch through client container exit, the launcher requires less
 than three seconds and successful zero-byte EOF completion. The fixture must
 record cancellation, not an additional timeout. A competitor remains rejected
 with the slot locked, seven source entries and one cancellation. The parent
+then sends one additional test-only `SIGUSR2`, which must reach the same
+connection's terminal callback and report a no-op with those counters and the
+lock unchanged. Explicit repeated-cancellation evidence is required before
+source release; it adds no new client or source entry. A third cancellation
+signal or an out-of-phase signal fails the fixture.
+The parent
 then waits for the original timer's callback, which must record a measured
 five-to-eight-second deadline with the same source/timeout/cancellation counts
 and the slot still locked. A further competitor must remain rejected after
@@ -2772,6 +2778,8 @@ ownership-checked cleanup.
 
 This covers both ordered outcomes while the source remains held: cancellation
 before a later deadline callback, and timeout before late cancellation.
+It also covers one sequential repeated cancellation of an already-cancelled
+connection while its source remains held.
 Final event evidence also requires exactly three timeout outcomes, one
 cancellation outcome and ten slot releases, preventing a second terminal event
 or double release from satisfying only the aggregate counters.

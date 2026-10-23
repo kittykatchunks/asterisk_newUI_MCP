@@ -1416,13 +1416,21 @@ request. The parent waits for its source-entered event, then sends fixture-only
 dispatch through successful client container exit and requires less than three
 seconds, zero-byte EOF and explicit runtime completion, not reset/timeout
 fallback. The cancellation handler validates the phase and uses the existing
-terminal callback under the lifetime lock; unexpected/duplicate control fails
+terminal callback under the lifetime lock; unexpected/out-of-phase control fails
 the experiment. The output lock is reentrant so signal-triggered terminal
 logging cannot deadlock if it interrupts logging in the same thread.
 
 After the cancellation event, another approved competitor must be rejected
 with the slot still locked, seven source entries, three timeouts and exactly
-one cancellation. The source remains held through the original connection
+one cancellation. The parent sends one further fixture-only `SIGUSR2` in this
+exact phase. It must reach the same terminal callback and produce explicit
+repeated-cancellation evidence with seven source entries, three timeouts,
+one cancellation and a locked slot. This is a no-op: no second terminal
+outcome, socket close, source entry or slot release. The handler permits exactly
+this one repeated attempt; a third or out-of-phase signal fails the experiment.
+Source release requires the repeated-attempt observation. No extra client,
+wire action, mount or privilege is introduced.
+The source remains held through the original connection
 deadline. The parent requires explicit evidence from the original timer callback
 at a measured five-to-eight seconds: seven source entries, three timeouts,
 one cancellation and a still-locked slot. The already-terminal callback must
@@ -1441,7 +1449,7 @@ timeouts (two request and one held-source timeout), two generation reads, two
 source failures and one cancellation.
 Final event evidence independently requires exactly three timeout outcomes,
 one cancellation outcome and ten slot releases, in addition to the aggregate
-counter checks. The late attempt adds no client or source entry.
+counter checks. The late and repeated attempts add no client or source entry.
 
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
@@ -1461,3 +1469,5 @@ not prove peer-disconnect handling or general terminal-race safety.
 In particular, the two ordered cases (cancellation before a later no-op deadline,
 and timeout before late cancellation) do not prove simultaneous
 cancellation/deadline or response-completion races.
+The sequential repeated-cancellation case likewise does not establish
+simultaneous cancellation delivery or cancellation after successful completion.

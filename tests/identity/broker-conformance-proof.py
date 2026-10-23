@@ -311,6 +311,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
     lifetime_lock = threading.RLock()
     active = {}
     late_cancel_observed = threading.Event()
+    repeat_cancel_observed = threading.Event()
     counts = {"reads": 0, "generationReads": 0, "capacity": 0, "timeouts": 0,
               "requestTimeouts": 0, "sourceFailures": 0, "cancellations": 0}
     errors = []
@@ -324,15 +325,17 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         state = (counts["reads"], counts["timeouts"], counts["capacity"], counts["cancellations"])
         if (state not in ((5, 3, 4, 0), (7, 3, 6, 1)) or
                 not slot.locked() or release.is_set() or
-                (counts["reads"] == 5 and not late_cancel_observed.is_set())):
+                (counts["reads"] == 5 and not late_cancel_observed.is_set()) or
+                (counts["reads"] == 7 and not repeat_cancel_observed.is_set())):
             errors.append("Unexpected parent source-release signal")
         release.set()
 
     def cancel_held_source(_signal, _frame):
         with lifetime_lock:
             state = (counts["reads"], counts["timeouts"], counts["capacity"], counts["cancellations"])
-            if (state not in ((5, 3, 3, 0), (7, 3, 4, 0)) or
+            if (state not in ((5, 3, 3, 0), (7, 3, 4, 0), (7, 3, 5, 1)) or
                     (counts["reads"] == 5 and late_cancel_observed.is_set()) or
+                    (counts["reads"] == 7 and repeat_cancel_observed.is_set()) or
                     not slot.locked() or release.is_set() or "cancel" not in active):
                 errors.append("Unexpected parent cancellation signal")
                 return
@@ -414,6 +417,14 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 if active.get("cancel") is not terminate:
                     return
                 if expired.is_set():
+                    if admission_only and reason == "cancelled" and counts["reads"] == 7:
+                        repeat_cancel_observed.set()
+                        with output_lock:
+                            print(json.dumps({"repeatedCancellation": {
+                                "sourceEntries": counts["reads"], "timeouts": counts["timeouts"],
+                                "cancellations": counts["cancellations"], "slotLocked": slot.locked(),
+                            }}), flush=True)
+                        event("repeated-cancellation-observed")
                     if admission_only and reason == "cancelled" and counts["reads"] == 5:
                         late_cancel_observed.set()
                         with output_lock:
