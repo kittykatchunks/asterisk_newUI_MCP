@@ -3427,6 +3427,11 @@ terminal NOTIFY 200 alone as a safe-zero signal. Asterisk's progress watcher
 tracks the transferee's frames/bridge re-entry; its internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
 not an identity-complete record for forked target legs.
+With `refer_blind_progress=no`, the callback queues terminal `200` before the
+two-party bridge action is enqueued; if enqueue then fails, Asterisk can also
+queue a failure NOTIFY and return a non-200 REFER response. This success-shaped
+sipfrag is possible without a framehook race and must not be treated as
+transfer success.
 In the two-party path, `completed` is already set when the callback attaches
 the progress framehook, before the bridge action is enqueued. If that enqueue
 fails, a concurrent frame may still produce a progress `200`; test and record
