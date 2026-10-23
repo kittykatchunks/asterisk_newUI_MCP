@@ -48,9 +48,13 @@ test("Python source reads the TypeScript fake runtime without mutation and fails
       const responses = success("listener");
       for (const client of ["python", "node"]) {
         const inventory = success("inventory");
+        const generation = success("generation");
         assert.deepEqual(responses[client], {
-          denied: null, scope: null, inventory, generation: success("generation"),
+          denied: null, scope: null, inventory, generation,
           missing: null, recovery: inventory,
+          "pending-inventory": inventory, "pending-generation": generation,
+          "locked-inventory": null, "locked-generation": null,
+          "unlocked-inventory": inventory, "unlocked-generation": generation,
         });
       }
     }
@@ -90,8 +94,9 @@ test("Python source reads the TypeScript fake runtime without mutation and fails
       /unable to open database file/);
     assert.deepEqual(await snapshot(), before);
     if (process.env.ASTERISK_SYNTHETIC_LISTENER_PROOF === "1") {
-      t.diagnostic("Authenticated synthetic source: 5 state snapshots, 60 Python/Node connections, " +
-        "40 source entries, 30 expected denials/rejections, exact responses and unchanged database.");
+      t.diagnostic("Authenticated synthetic source: 5 state snapshots, 120 Python/Node connections, " +
+        "100 source entries, 50 expected denials/rejections; uncommitted writes hidden, " +
+        "20 exact SQLITE_BUSY outcomes before broker cancellation, fresh recovery and unchanged database.");
     }
 
     const corrupt = new DatabaseSync(path);

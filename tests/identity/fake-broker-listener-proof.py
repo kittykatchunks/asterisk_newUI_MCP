@@ -8,10 +8,12 @@ from pathlib import Path
 import queue
 import re
 import socket
+import sqlite3
 import stat
 import struct
 import subprocess
 import tempfile
+import time
 import uuid
 
 
@@ -23,17 +25,26 @@ def prove(broker, source_type, database, binding, generation_id):
     stop, ready = context.Event(), context.Event()
     calls = context.Value("i", 0)
     diagnostics = context.Queue()
+    lock_failures = context.Queue()
 
     class CountedSource(source_type):
+        def _read(self, action, cancellation):
+            started = time.monotonic()
+            try:
+                return action()
+            except sqlite3.OperationalError as error:
+                lock_failures.put((error.sqlite_errorcode, time.monotonic() - started, cancellation.is_set()))
+                raise
+
         def inventory(self, cancellation):
             with calls.get_lock():
                 calls.value += 1
-            return super().inventory(cancellation)
+            return self._read(lambda: source_type.inventory(self, cancellation), cancellation)
 
         def generation(self, generation_id, cancellation):
             with calls.get_lock():
                 calls.value += 1
-            return super().generation(generation_id, cancellation)
+            return self._read(lambda: source_type.generation(self, generation_id, cancellation), cancellation)
 
     def drop(uid, groups=()):
         os.setgroups(groups)
@@ -49,7 +60,7 @@ def prove(broker, source_type, database, binding, generation_id):
     os.chown(Path(database).parent, 0, 2100)
     os.chmod(Path(database).parent, 0o750)
     os.chown(database, 0, 1101)
-    os.chmod(database, 0o440)
+    os.chmod(database, 0o640)
     with tempfile.TemporaryDirectory(dir="/proof") as directory:
         os.chmod(directory, 0o750)
         os.chown(directory, 1101, 2100)
@@ -74,8 +85,11 @@ def prove(broker, source_type, database, binding, generation_id):
         expected_diagnostics = []
         base = {"version": 1, "customer": binding.customer, "epoch": binding.epoch}
         server.start()
+        writer = None
         try:
             assert ready.wait(3), "Synthetic source listener did not become ready"
+            writer = sqlite3.connect(database, timeout=0.25)
+            assert writer.execute("PRAGMA journal_mode").fetchone() == ("delete",)
             for runtime in ("python", "node"):
                 results[runtime] = {}
                 cases = [
@@ -85,8 +99,27 @@ def prove(broker, source_type, database, binding, generation_id):
                     ("generation", {**base, "action": "generation", "generationId": generation_id}, "accepted", 1),
                     ("missing", {**base, "action": "generation", "generationId": str(uuid.uuid4())}, "rejected", 1),
                     ("recovery", {**base, "action": "inventory"}, "accepted", 1),
+                    ("pending-inventory", {**base, "action": "inventory"}, "accepted", 1),
+                    ("pending-generation", {**base, "action": "generation", "generationId": generation_id}, "accepted", 1),
+                    ("locked-inventory", {**base, "action": "inventory"}, "rejected", 1),
+                    ("locked-generation", {**base, "action": "generation", "generationId": generation_id}, "rejected", 1),
+                    ("unlocked-inventory", {**base, "action": "inventory"}, "accepted", 1),
+                    ("unlocked-generation", {**base, "action": "generation", "generationId": generation_id}, "accepted", 1),
                 ]
                 for name, request, outcome, entries in cases:
+                    if name == "pending-inventory":
+                        writer.execute("BEGIN IMMEDIATE")
+                        writer.execute("UPDATE fake_binding SET epoch = 'uncommitted-wrong-epoch'")
+                        writer.execute("UPDATE fake_generations SET phase = 'uncommitted-invalid-state'")
+                        assert writer.execute("SELECT epoch FROM fake_binding").fetchone() == (
+                            "uncommitted-wrong-epoch",)
+                        assert writer.execute("SELECT phase FROM fake_generations WHERE id = ?",
+                                              (generation_id,)).fetchone() == ("uncommitted-invalid-state",)
+                    elif name == "locked-inventory":
+                        writer.rollback()
+                        writer.execute("BEGIN EXCLUSIVE")
+                    elif name == "unlocked-inventory":
+                        writer.rollback()
                     uid = 1103 if outcome == "denied" else 1102
                     if runtime == "node":
                         result = subprocess.run(
@@ -143,7 +176,12 @@ def prove(broker, source_type, database, binding, generation_id):
                         else:
                             expected_diagnostics.append(f"Broker peer denied: pid={pid} uid=1103 gid=2100")
                     elif outcome == "rejected":
-                        expected_diagnostics.append("Broker read-only connection rejected")
+                        expected_diagnostics.append("Broker read-only source failed" if name.startswith("locked-")
+                                                    else "Broker read-only connection rejected")
+                    if name.startswith("locked-"):
+                        code, elapsed, cancelled = lock_failures.get(timeout=1)
+                        assert code == sqlite3.SQLITE_BUSY and 0.2 <= elapsed < 2 and not cancelled, (
+                            runtime, name, code, elapsed, cancelled)
                     # Consume each record before the next case; no hidden outcomes.
                     if outcome != "accepted" and not (outcome == "denied" and runtime == "node"):
                         assert diagnostics.get(timeout=1) == expected_diagnostics[-1]
@@ -157,9 +195,17 @@ def prove(broker, source_type, database, binding, generation_id):
                 pass
             else:
                 raise AssertionError(f"Unexpected broker diagnostic: {extra}")
-            assert calls.value == 8 and len(expected_diagnostics) == 6
+            try:
+                extra = lock_failures.get(timeout=0.1)
+            except queue.Empty:
+                pass
+            else:
+                raise AssertionError(f"Unexpected SQLite failure: {extra}")
+            assert calls.value == 20 and len(expected_diagnostics) == 10
             return results
         finally:
+            if writer is not None:
+                writer.close()
             stop.set()
             for process in [*clients, server]:
                 process.join(1)

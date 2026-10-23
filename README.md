@@ -3130,8 +3130,19 @@ authenticated Python listener. For each of five state snapshots (prepared,
 active with one dialog, active with unknown dialogs, draining, removed), both
 Python and actual Node clients check foreign-UID denial, wrong-epoch rejection,
 exact inventory and generation responses, zero-byte rejection for an absent
-generation, and a fresh inventory recovery. These are 60 connections with exactly
-40 source entries and 30 expected peer/rejection diagnostics. Denied peers and
+generation, and a fresh inventory recovery. Each client then reads inventory and
+generation while a separate SQLite writer holds `BEGIN IMMEDIATE` with an
+uncommitted wrong epoch and invalid phase; both reads must still match the
+committed snapshot. A subsequent `BEGIN EXCLUSIVE` must cause both operations to
+close with zero response bytes and the fixed source-failure diagnostic. The
+fixture requires exact `SQLITE_BUSY`, no cancellation, and a source duration of
+0.2 to less than 2 seconds around the configured 250 ms busy timeout, not a
+substituted five-second broker deadline. After rollback, both operations must
+recover through the same running listener.
+
+These are 120 connections with exactly 100 source entries and 50 expected
+peer/rejection/source-failure diagnostics, including 20 exact lock failures.
+Denied peers and
 wrong-scope requests must never enter the source. Node uses the production frame
 reader/writer. The TypeScript driver compares complete responses and verifies
 database bytes, directory entries and effect counts across each socket batch.
@@ -3145,8 +3156,10 @@ network isolation and read-only root; its task limit is now 64 to accommodate
 the nested Node test runner, real Node client and Python processes/threads.
 This is same-container concrete-source integration, not a production source
 installation or separate-container database deployment.
-Concurrent-writer/WAL behavior, real-source authority and production source
-installation are not established by this rollback-journal fake-runtime proof.
+This establishes only these reserved/exclusive writer schedules in rollback
+journal mode. Concurrent commits within a read snapshot, WAL/shared-memory
+behavior, real-source authority and production source installation are not
+established by this fake-runtime proof.
 
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.

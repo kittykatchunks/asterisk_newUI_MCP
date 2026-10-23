@@ -1921,10 +1921,23 @@ The subsequent integration wires that concrete synthetic source through the
 actual Python authenticated listener under Linux. At each of five snapshots
 (prepared, active with a dialog, active with unknown dialogs, draining, removed),
 Python and actual Node clients each exercise foreign UID, wrong epoch, inventory,
-generation, absent generation and fresh inventory recovery. Full responses must
+generation, absent generation and fresh inventory recovery. Each client also
+reads inventory and generation while a separate SQLite connection holds
+`BEGIN IMMEDIATE` with a staged wrong epoch and invalid generation phase. The
+writer verifies its own staged values; the broker must still return the exact
+committed inventory/observation. The writer rolls back, takes `BEGIN EXCLUSIVE`,
+and both reads must fail with zero response bytes and the fixed
+`Broker read-only source failed` diagnostic. The harness requires exact
+`SQLITE_BUSY`, no cancellation, and source execution lasting at least 0.2 and
+less than 2 seconds around the configured 250 ms busy timeout; deadline failure
+cannot substitute for the expected lock outcome. After rollback, both reads
+must recover through the same listener without restart.
+
+Full responses must
 match the TypeScript source and database bytes/file list/effect counts must stay
-unchanged. The 60 connections require exactly 40 source calls and 30 expected
-diagnostics, excluding capacity, deadline or hidden source failures. Wrong peers
+unchanged. The 120 connections require exactly 100 source calls and 50 expected
+diagnostics, including 20 exact lock failures and excluding capacity, deadline
+or hidden source failures. Wrong peers
 and wrong request scope enter no source; absent generations close with zero
 response bytes rather than inventing authoritative missing state.
 
@@ -1939,6 +1952,7 @@ unchanged. No runtime module, live adapter or deployed service is changed.
 
 This is same-container synthetic-source integration, not live PBX integration or
 separate-container database deployment. The fixture uses the fake runtime's default
-rollback journal; concurrent writers, WAL/shared-memory behavior, source-path
+rollback journal. Only the explicit reserved/exclusive writer schedules above
+are established; concurrent commits inside a read snapshot, WAL/shared-memory behavior, source-path
 deployment policy and production packaging are not certified. Those remain
 separate integration decisions, not permission to access real PBX state.
