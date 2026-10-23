@@ -3406,6 +3406,11 @@ Retransmissions must resolve to the same operation; parking fallback on a
 different Local requires a distinct attempt. Parent obligations remain open
 until every child is reconciled, and the callback's `void` result means claim
 capacity must be secured before entering a path that cannot abort.
+The PJSIP `incoming_request` supplement runs synchronously on a SIP servant
+thread; the pinned dispatch path shows no admission-owner per-session latch.
+Dialog/transaction serialization of concurrent distinct REFERs still needs
+verification, while a bounded PBX-side per-session reservation must prevent a
+second pending operation from overwriting the first or queuing duplicate work.
 
 The repository's pinned SIP.js version is 0.21.2. Its `SessionManager` installs
 an incoming `onRefer` handler that accepts referrals and sends an INVITE to the

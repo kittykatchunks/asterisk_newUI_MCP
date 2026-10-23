@@ -4109,6 +4109,23 @@ operation per source session until a terminal outcome is reconciled; a second
 independent REFER is rejected or deferred by explicit policy, never allowed to
 overwrite progress or operation correlation.
 
+The REFER supplement's `incoming_request` is called synchronously from
+`handle_incoming()` on a SIP servant thread; the pinned REFER handler dispatches
+directly into its request parser and transfer owner. This handler path shows no
+per-session owner serializer or active-operation latch
+([supplement thread contract](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip_session.h#L319-L335),
+[session request dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4462-L4476),
+[REFER direct dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2104-L2110)).
+This does not establish whether PJSIP's dialog/transaction machinery serializes
+two distinct in-dialog REFERs before the supplement. Do not infer such a
+guarantee from the servant-thread contract or from transaction retransmission
+handling. The owner needs an atomic, bounded per-source-session reservation;
+it must reject a second distinct operation while one remains unresolved, and
+must not block the SIP servant on broker, network, database, or long-running
+work. Verify on-wire retransmissions and concurrent distinct CSeq REFERs
+separately, including a case where the first transfer is queued but its target
+has not yet reached the per-callee admission hook.
+
 The callback's `void` contract makes allocation after entry unsafe as the only
 claim-creation strategy. The owner must pre-reserve enough operation/attempt
 state for every callback that can run, or provide a separately proven
@@ -4301,6 +4318,7 @@ legs still need generation attribution and complete settlement.
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
 | SIP.js REFER promise resolves without waiting for response; Asterisk 202 followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
 | Same REFER transaction retransmitted versus a new REFER with a later CSeq | Verify which retransmissions reach the pinned supplement; the same transaction must not reserve or start duplicate operation work, while a new transaction must follow the one-outstanding-operation policy and cannot overwrite unresolved progress correlation. |
+| Two distinct in-dialog REFER transactions arrive while the first operation is queued but no target leg has reached `b()` admission | Verify PJSIP dialog/transaction dispatch behavior and enforce an atomic per-source-session active-operation latch; accept at most one, explicitly reject the other, and prove no progress state or operation claim is overwritten and no work is queued twice. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and
