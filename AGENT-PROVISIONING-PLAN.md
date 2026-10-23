@@ -3318,6 +3318,16 @@ confirmed before implementation. The exact session mapping, callback ordering,
 SIP response behavior, in-flight claim accounting, and unload/restart behavior
 remain proof obligations.
 
+The supplement also exposes `session_begin`, `session_end`, and
+`session_destroy`. Asterisk calls
+[`session_end`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4501)
+when the session is marked dead, but its
+[callback contract](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip_session.h#L305)
+warns it may run outside a SIP servant thread. Treat this as one idempotent
+lifecycle input, not a standalone numeric-zero assertion: all forked sessions,
+early dialogs, queued work, channel/bridge transitions, and transfer-created
+legs still need generation attribution and complete settlement.
+
 | Case | Required result |
 | --- | --- |
 | Inbound test route to queue to browser agent | New work is admitted only for the exact generation; queue waiting and each outbound member branch are accounted for. |
