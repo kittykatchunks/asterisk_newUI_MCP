@@ -2719,12 +2719,19 @@ body has arrived, not merely that a client connected. The fixture measures each
 five-second deadline (at least five and below the eight-second client watchdog),
 verifies zero source entries at both timeouts, then releases the slot. Timeout
 evidence distinguishes idle/no-body from complete-body/missing-EOF.
-A fresh authenticated connection must return exact inventory. Final counters
-require one read, two capacity rejections, two request timeouts and no source
-failures/cancellations.
-All five clients have separate PID/mount namespaces from the broker and the
+After the request deadlines, a fresh complete request deliberately encounters
+an inventory-source exception. Its client requires EOF with zero response bytes,
+not a reset/timeout or success-shaped fallback. The broker must emit exactly one
+fixed `Fixture source unavailable` diagnostic and one source-failure event,
+with one source entry and the unchanged two request timeouts. The parent waits
+for slot release before starting the recovery client, which must return exact
+inventory on a fresh authenticated connection. Unexpected log lines fail parsing
+rather than being discarded.
+Final counters require two source entries, one source failure, two capacity
+rejections, two request timeouts and no generation reads/cancellations.
+All six clients have separate PID/mount namespaces from the broker and the
 same approved UID/GID maps; every connection records its kernel peer tuple.
-Default mode uses Python; `-NodeClients` uses Node for all five clients with
+Default mode uses Python; `-NodeClients` uses Node for all six clients with
 checked runtime completion and no fallback. Each finite waiting client runs
 alongside its competitor only for this phase and remains subject to
 ownership-checked cleanup.

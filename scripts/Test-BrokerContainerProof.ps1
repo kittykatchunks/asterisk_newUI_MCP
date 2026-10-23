@@ -289,13 +289,22 @@ try {
         throw 'Missing no-EOF admission client runtime completion.'
     }
     $identities.Add($noEofEvents[0].identity)
+    Invoke-Client 'admission-failed-source' '1102:2100'
+    Wait-AdmissionEvent $admission 'source-failed'
+    Wait-AdmissionEvent $admission 'released' 3
     Invoke-Client 'admission-reconnect' '1102:2100'
     $admissionExit = & docker wait $admission
     if ($LASTEXITCODE -ne 0 -or "$admissionExit" -ne '0') { throw 'Separate-container admission broker failed.' }
-    $admissionEvents = @((& docker logs $admission) | ForEach-Object { $_ | ConvertFrom-Json })
-    if ($LASTEXITCODE -ne 0 -or $admissionEvents[-1].event -ne 'complete') { throw 'Missing admission completion.' }
+    $admissionLogs = @(& docker logs $admission 2>&1 | ForEach-Object { "$_" })
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read admission evidence.' }
+    if (@($admissionLogs | Where-Object { $_ -eq 'Fixture source unavailable' }).Count -ne 1) {
+        throw 'Missing exact single source-failure diagnostic.'
+    }
+    $admissionEvents = @($admissionLogs | Where-Object { $_ -ne 'Fixture source unavailable' } |
+        ForEach-Object { $_ | ConvertFrom-Json })
+    if ($admissionEvents[-1].event -ne 'complete') { throw 'Missing admission completion.' }
     $admissionIdentity = $admissionEvents[0].identity
-    foreach ($identity in @($identities | Select-Object -Last 5)) {
+    foreach ($identity in @($identities | Select-Object -Last 6)) {
         if ($identity.uid_map -ne $admissionIdentity.uid_map -or $identity.gid_map -ne $admissionIdentity.gid_map -or
             $identity.userNamespace -ne $admissionIdentity.userNamespace -or
             $identity.pidNamespace -eq $admissionIdentity.pidNamespace -or
@@ -304,13 +313,19 @@ try {
         }
     }
     $admissionPeers = @($admissionEvents | Where-Object { $_.peer })
-    if ($admissionPeers.Count -ne 5 -or @($admissionPeers | Where-Object {
+    if ($admissionPeers.Count -ne 6 -or @($admissionPeers | Where-Object {
         $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
     }).Count -ne 0) { throw 'Missing exact authenticated admission peer evidence.' }
     $admissionCounts = @($admissionEvents | Where-Object { $_.admissionCounts })
-    if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 1 -or
+    if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 2 -or
         $admissionCounts[0].admissionCounts.capacity -ne 2 -or $admissionCounts[0].admissionCounts.timeouts -ne 2 -or
-        $admissionCounts[0].admissionCounts.requestTimeouts -ne 2) { throw 'Unexpected admission source/deadline counters.' }
+        $admissionCounts[0].admissionCounts.requestTimeouts -ne 2 -or
+        $admissionCounts[0].admissionCounts.sourceFailures -ne 1) { throw 'Unexpected admission source/deadline counters.' }
+    $sourceFailures = @($admissionEvents | Where-Object { $_.admissionSourceFailure })
+    if ($sourceFailures.Count -ne 1 -or $sourceFailures[0].admissionSourceFailure.sourceEntries -ne 1 -or
+        $sourceFailures[0].admissionSourceFailure.timeouts -ne 2) {
+        throw 'Source exception did not occur on exactly the first source entry after the request deadlines.'
+    }
     $admissionTimeouts = @($admissionEvents | Where-Object { $_.admissionTimeout })
     if ($admissionTimeouts.Count -ne 2 -or $admissionTimeouts[0].admissionTimeout.bodyReceived -ne $false -or
         $admissionTimeouts[1].admissionTimeout.bodyReceived -ne $true) {
@@ -324,6 +339,7 @@ try {
     }
     $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
     Write-Output "PASS separate-container admission ($runtime clients): idle and complete-body/missing-EOF slots exclude competitors, five-second deadlines close without response/source entry, fresh authenticated read succeeds."
+    Write-Output "PASS separate-container source failure ($runtime clients): exact diagnostic, zero response bytes, slot released, fresh authenticated read succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

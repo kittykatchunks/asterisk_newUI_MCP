@@ -1351,7 +1351,7 @@ scenario across runtimes, not a general retry or response-loss recovery policy.
 The bounded separate-container idle/missing-EOF admission follow-up reuses the concurrent
 fixture with its default positive-PID check retained for the original topology.
 Only the approved separate-container mode authorises mapped UID/primary GID
-without using PID, and records all five kernel peer tuples. An idle authenticated
+without using PID, and records all six kernel peer tuples. An idle authenticated
 client occupies the one slot while an overlapping approved competitor must close
 with EOF and zero bytes. The idle connection times out after a measured five
 seconds (at least five, below the eight-second client watchdog) with zero source
@@ -1364,9 +1364,18 @@ nor enters a source. The second timeout must report body received, whereas the
 first must report no body, both with zero source entries and measured
 five-to-eight-second budgets. Both waiting clients require EOF without response
 bytes, never reset/timeout success fallbacks.
-A new authenticated client then gets exact inventory.
-Final counters are exactly one read, two capacity rejections, two request timeouts,
-no generation reads, no source failures and no cancellations.
+A new authenticated client then sends a complete inventory request whose source
+deliberately raises `FixtureSourceFailure`. It must receive EOF with zero response
+bytes, never a reset/timeout or successful/missing fallback. Broker evidence
+requires exactly one fixed `Fixture source unavailable` diagnostic plus a
+source-failed event and structured evidence of one source entry with the two
+earlier request timeouts unchanged. The launcher accepts only that exact diagnostic;
+all other log lines must parse as structured evidence, so unexpected tracebacks
+or extra diagnostics fail.
+The parent waits for the third slot release before starting a fresh authenticated
+recovery client, which must return exact inventory. No automatic retry is added.
+Final counters are exactly two source entries, two capacity rejections, two request
+timeouts, no generation reads, one source failure and no cancellations.
 
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
