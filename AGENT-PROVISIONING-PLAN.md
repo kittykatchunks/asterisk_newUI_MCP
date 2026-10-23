@@ -3508,8 +3508,15 @@ that status is subscription acceptance, not target validity or reservation
 proof. A generation/allowlist gate that must refuse a request before any
 accepted transfer response needs to run before this built-in handler and send
 its own final response when it stops supplement dispatch. This earlier gate
-must also reserve the operation before allowing the built-in handler to emit
-`202`; it still cannot make the later void propagation callback cancellable.
+must distinguish rejection from ownership of an allowed transfer. Returning
+zero after reserving lets the built-in handler continue, but does not replace
+its `refer_blind_callback` or prove that the built-in transfer, progress, and
+terminal outcomes correlate to the reservation. A custom path that must attach
+its own propagation callback needs to perform the transfer itself, own the
+SIP response/progress lifecycle, and return nonzero to stop later handling;
+the return code alone does not send a response. Alternatively, continuing to
+the built-in handler is viable only if a separate, proven mechanism binds and
+settles that handler's work against the pre-reserved operation.
 The outgoing-session callback may gate resulting PJSIP legs, but it does not by
 itself constrain the transfer context, non-PJSIP legs, or arbitrary dialplan
 redirection. Initial inbound INVITEs follow a distinct path: Asterisk sends
@@ -4364,6 +4371,7 @@ legs still need generation attribution and complete settlement.
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
 | Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`; verify the cloned-rdata transaction lookup in the built-in response path and exact response behavior across retransmissions. |
+| Allowed blind REFER with a pre-handler reservation | If the supplement returns zero, prove the built-in transfer callback, progress, and all terminal outcomes correlate to that reservation; if it handles and returns nonzero, prove it owns the bridge propagation callback and SIP response/progress lifecycle. No reservation-only path may leave built-in work uncorrelated. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, `Replaces`, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; the out-of-scope attended-transfer branch selected by `Replaces` is rejected before built-in handling. No display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |

@@ -3446,6 +3446,11 @@ Keep `Refer-Sub: false` as a distinct proof case: the built-in no-subscription
 response path also uses `pjsip_rdata_get_tsx()` despite that clone warning, so
 verify the transaction and wire-response behavior without assuming a runtime
 failure.
+For an allowed request, returning zero continues into Asterisk's built-in
+transfer callback; that alone does not bind transfer work to a custom claim.
+A custom propagation callback requires the supplement to own the transfer,
+response, and progress lifecycle and stop later handling, or the design must
+prove another mechanism correlates and settles built-in work to the reservation.
 For blind REFER, Asterisk routes using `TRANSFER_CONTEXT` (or the endpoint
 context) and the `Refer-To` URI user, not its displayed URI as a whole. With
 `ignore_uri_user_options` enabled it truncates user text at `;`, and an empty
