@@ -3330,6 +3330,19 @@ neither the REFER's 202 nor a terminal 200 sipfrag proves the target dialog
 answered or every generation-owned obligation settled. Any test or deployment
 must record the effective endpoint option and distinguish transfer admission,
 progress-monitor health, target answer, and final ownership reconciliation.
+The transferee-ID allocation failure has an additional source-level hazard:
+`refer_blind_callback()` assigns the `ast_strdup()` result to
+`progress->transferee`, queues the assumed-success notification if it is NULL,
+but continues to create the bridge subscription; `refer_progress_bridge()`
+later passes that field to `strcmp()` without a NULL check
+([ID assignment and continued setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L838-L885),
+[bridge comparison](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L285-L299)).
+If a matching bridge-entry callback runs with the missing identifier, the
+source can call `strcmp()` with a NULL argument. This is a potential invalid
+memory access, not a runtime-confirmed crash. Inject failure of this
+identifier allocation and prove the subscription is not left able to compare
+NULL (or otherwise demonstrate a safe guarded path); also verify that the
+assumed-success NOTIFY cannot settle or mask the transfer claim.
 
 SIP.js 0.21.2's `requestDelegate.onAccept` will therefore typically observe the
 initial 202, not the terminal transfer result. With the default
@@ -4404,6 +4417,7 @@ legs still need generation attribution and complete settlement.
 | Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`; verify the cloned-rdata transaction lookup in the built-in response path and exact response behavior across retransmissions. |
 | REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the explicit response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Keep distinct from unknown-target handling, which occurs after implicit-subscription setup. |
 | Missing `Refer-To`, malformed URI, or unsupported non-SIP/SIPS scheme | Reject before progress setup; no operation claim, implicit subscription/`202`, target channel, or INVITE is created. Verify the custom gate and built-in parser agree on eligible URI forms and response ownership. |
+| Progress setup cannot allocate the transferee unique ID | Inject the `ast_strdup()` failure; prove bridge progress cannot call `strcmp()` with a NULL transferee ID, progress resources are safely handled, and any assumed-success `200` is not treated as transfer or claim completion. |
 | Allowed blind REFER with a pre-handler reservation | If the supplement returns zero, prove the built-in transfer callback, progress, and all terminal outcomes correlate to that reservation; if it handles and returns nonzero, prove it owns the bridge propagation callback and SIP response/progress lifecycle. No reservation-only path may leave built-in work uncorrelated. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, `Replaces`, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; the out-of-scope attended-transfer branch selected by `Replaces` is rejected before built-in handling. No display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

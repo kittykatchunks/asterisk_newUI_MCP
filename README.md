@@ -3488,6 +3488,11 @@ Terminal NOTIFY allocation failure can also bypass cleanup in both progress
 callbacks: unsubscribe/framehook detach are nested under successful allocation.
 Verify injected failure and cleanup; treat missing progress as unresolved, not
 as transfer settlement. This is a source-level risk, not a confirmed leak.
+If copying the transferee unique ID fails, the callback still creates a bridge
+subscription; that callback later passes the NULL field to `strcmp()`. Inject
+the failure and prove this cannot reach an unguarded comparison or be mistaken
+for successful transfer/claim settlement. This is a potential invalid access,
+not a confirmed runtime crash.
 
 The multi-party transfer callback receives the Local `;1` channel. Asterisk's
 Local driver then inherits datastores to `;2` before starting its target
