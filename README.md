@@ -3547,6 +3547,13 @@ inherit `Refer-Sub: false`
 [default refresh method](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L585-L600),
 [Asterisk's one-time header insertion](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1473-L1477),
 [RFC 4488 grammar](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
+pjproject rearms the refresh timer after a successful refresh, using any
+response `Expires` value or retaining the existing duration. If the peer
+continues returning 2xx without a terminating NOTIFY, recurring `SUBSCRIBE`s
+are possible
+([successful refresh handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1917-L1973)).
+Test repeated refresh and eventual termination separately from transfer
+completion.
 If that refresh receives 481 or another non-2xx response, pjproject terminates
 the UAC subscription and Asterisk treats it as a failed REFER subscription;
 that is not target-call failure or ownership settlement
@@ -3567,6 +3574,13 @@ local state without sending a SIP request
 ([pjproject implementation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1077-L1097)).
 That callback does not report transfer completion. The initial REFER 2xx is
 acceptance only, not proof of target-call completion or ownership settlement.
+The callback checks the response header without recording whether the outgoing
+REFER requested suppression; Asterisk may locally terminate on exact
+`Refer-Sub: false` even when the request omitted it. Test request and response
+values independently, and do not treat this local behavior as proof of valid
+RFC negotiation
+([Asterisk state and response check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1161-L1164),
+[RFC 4488](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
 The lookup also uses only the first matching response header, making conflicting
 duplicates order-sensitive; test both orders and reject duplicates as ambiguous.
 Test exact/case-varied values, extension parameters, absent headers, and cleanup
