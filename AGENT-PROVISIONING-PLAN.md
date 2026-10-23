@@ -3703,9 +3703,12 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Authentication challenges are a separate response path with two source
   layers. pjproject's event-subscription transaction handler itself processes
   401/407 using the dialog authentication session and may send a reinitialized
-  request; if that authentication path fails, it terminates the subscription
-  and invokes the application state callback
-  ([pjproject challenge handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914)).
+  request. If its synchronous fallback fails, it terminates the subscription
+  with the original transaction event; if the async auth handler abandons,
+  pjproject terminates it with a synthetic user event instead
+  ([pjproject challenge handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
+  [async abandonment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L605-L626),
+  [state callback event substitution](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L632-L684)).
   In Asterisk's callback, a received 401/407 for REFER increments its own
   per-operation count and, while that count is below `MAX_RX_CHALLENGES`
   (defined as 10), asks the endpoint outbound-auth configuration to create a
@@ -3730,13 +3733,22 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([challenge and terminal branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1378),
   [pjproject evsub send result](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1441-L1493),
   [outbound-auth request helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L208-L215)).
+  Do not conflate synchronous fallback failure with async abandonment:
+  Asterisk's callback only recognizes a 401/407 retry candidate when it
+  receives the transaction RX event. A synthetic user event does not meet that
+  condition; Asterisk maps it to status 500, sees the subscription already
+  terminated, and releases its reference without another unsubscribe attempt
+  ([Asterisk event guard and terminal handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1262-L1277),
+  [Asterisk challenge and cleanup branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1318-L1385)).
   Exercise 401 and 407 with valid credentials, absent/invalid credentials, and
-  repeated challenges. Trace which layer handles each challenge; capture each
-  request actually submitted, its Authorization and Refer-To headers, the
-  callback counter, subscription state, the zero-expiry unsubscribe attempt
-  and actual peer-visible result, callback result, and cleanup. Do not classify
-  the first challenge as transfer failure or infer retry success from request
-  creation or attempted submission alone.
+  repeated challenges. Trace which layer handles each challenge, including
+  synchronous auth failure versus async abandonment; capture event type,
+  whether Asterisk takes its second retry branch, each request actually
+  submitted, its Authorization and Refer-To headers, the callback counter,
+  subscription state, any zero-expiry unsubscribe attempt and actual
+  peer-visible result, callback result, and cleanup. Do not classify the first
+  challenge as transfer failure or infer retry success from request creation
+  or attempted submission alone.
   Since Asterisk adds caller-supplied REFER variables only to the initial
   txdata, and does not put them in the event subscription's custom-header list,
   this refresh does not inherit the explicit `Refer-Sub: false` value
@@ -4937,6 +4949,7 @@ legs still need generation attribution and complete settlement.
 
 | Case | Required result |
 | --- | --- |
+| Outgoing REFER authentication challenge and abandonment | Exercise 401/407 with credentials that succeed, fail synchronously, and abandon asynchronously. Distinguish pjproject's event-subscription auth handling from Asterisk's endpoint-auth callback retry; capture the callback event type, retry count, each REFER actually sent, and any zero-expiry `SUBSCRIBE`. Async abandonment produces a synthetic event, so verify that Asterisk does not re-enter the response-based retry branch and that terminal state/ref cleanup completes without assuming an unsubscribe was sent. |
 | Inbound test route to queue to browser agent | New work is admitted only for the exact generation; queue waiting and each outbound member branch are accounted for. |
 | Blind transfer to an allowed same-customer internal destination while open | Target admission is generation-bound before signaling; source/target ownership is continuous through success, rejection, cancellation, and timeout. |
 | Blind transfer racing the irreversible fence | Admission and fence serialize; either the new leg is claimed before the fence and remains counted, or it is rejected after the fence. |
