@@ -1351,15 +1351,15 @@ scenario across runtimes, not a general retry or response-loss recovery policy.
 The bounded separate-container idle/missing-EOF admission follow-up reuses the concurrent
 fixture with its default positive-PID check retained for the original topology.
 Only the approved separate-container mode authorises mapped UID/primary GID
-without using PID, and records all six kernel peer tuples. An idle authenticated
+without using PID, and records all eight kernel peer tuples. An idle authenticated
 client occupies the one slot while an overlapping approved competitor must close
 with EOF and zero bytes. The idle connection times out after a measured five
 seconds (at least five, below the eight-second client watchdog) with zero source
 entries, then releases the slot. The sequence repeats with a complete valid framed
 inventory body but withheld EOF. The parent waits for explicit broker
 body-received evidence before starting that competitor. The observation hook
-checks the exact fixture payload (unpadded request or its specified padded
-reconnect form) before the frame reader waits for EOF; it neither accepts EOF
+checks the exact fixture payload (unpadded inventory request, its specified padded
+reconnect form or the generation request) before the frame reader waits for EOF; it neither accepts EOF
 nor enters a source. The second timeout must report body received, whereas the
 first must report no body, both with zero source entries and measured
 five-to-eight-second budgets. Both waiting clients require EOF without response
@@ -1369,19 +1369,27 @@ deliberately raises `FixtureSourceFailure`. It must receive EOF with zero respon
 bytes, never a reset/timeout or successful/missing fallback. Broker evidence
 requires exactly one fixed `Fixture source unavailable` diagnostic plus a
 source-failed event and structured evidence of one source entry with the two
-earlier request timeouts unchanged. The launcher accepts only that exact diagnostic;
+earlier request timeouts unchanged. The launcher accepts only the two exact source diagnostics;
 all other log lines must parse as structured evidence, so unexpected tracebacks
 or extra diagnostics fail.
 The parent waits for the third slot release before starting a fresh authenticated
 recovery client, which must return exact inventory. No automatic retry is added.
-Final counters are exactly two source entries, two capacity rejections, two request
-timeouts, no generation reads, one source failure and no cancellations.
+The broker remains available for a generation-source exception on the third
+total source entry (first generation entry). That client must get EOF with zero
+response bytes, not a `missing` or other success-shaped response. Exactly one
+`Fixture generation source unavailable` diagnostic and a second source-failed
+event are required; structured evidence must show three total source entries,
+one generation entry and the unchanged two timeouts.
+After the fifth slot release, a new authenticated generation connection must
+return the exact `observed` response, not merely any valid response frame.
+Final counters are exactly four source entries, two capacity rejections, two request
+timeouts, two generation reads, two source failures and no cancellations.
 
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
 runtime completion and the existing resource/cleanup restrictions. No extra
 mounts beyond the already approved Node inputs or network access are introduced.
-The fixture exits after the fresh read, without a new wire or private control
+The fixture exits after the fresh observed generation read, without a new wire or private control
 operation. The original full lifecycle sequence remains unchanged by default.
 
 Validation exposed a shared fixture race: deadline shutdown could supply EOF

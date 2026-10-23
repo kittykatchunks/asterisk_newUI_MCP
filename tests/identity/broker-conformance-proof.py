@@ -348,7 +348,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         def received(payload):
             vector = VECTORS["cases"][0]
             expected = vector["text"].encode("utf8")
-            assert payload in (expected, expected.ljust(vector["padBytes"], b" "))
+            assert payload in (expected, expected.ljust(vector["padBytes"], b" "),
+                               VECTORS["cases"][1]["text"].encode("utf8"))
             body_received.set()
             event("request-body-received")
 
@@ -363,6 +364,9 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             if admission_only:
                 if counts["reads"] == 1:
                     raise FixtureSourceFailure("Fixture source unavailable")
+                if counts["reads"] == 3:
+                    assert not isinstance(default, list)
+                    raise FixtureSourceFailure("Fixture generation source unavailable")
                 return default
             if counts["reads"] in (1, 5):
                 release.clear()
@@ -414,7 +418,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 remaining(connection, deadline)
                 connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
-                if admission_only:
+                if admission_only and counts["reads"] == 4:
                     stop.set()
         except FixtureSourceFailure as error:
             counts["sourceFailures"] += 1
@@ -422,6 +426,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 print(str(error), file=sys.stderr, flush=True)
                 if admission_only:
                     print(json.dumps({"admissionSourceFailure": {"sourceEntries": counts["reads"],
+                                                                 "generationReads": counts["generationReads"],
                                                                  "timeouts": counts["timeouts"]}}), flush=True)
             event("source-failed")
         except TimeoutError as error:
@@ -477,8 +482,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        expected = ({"reads": 2, "generationReads": 0, "capacity": 2, "timeouts": 2,
-                     "requestTimeouts": 2, "sourceFailures": 1, "cancellations": 0} if admission_only else
+        expected = ({"reads": 4, "generationReads": 2, "capacity": 2, "timeouts": 2,
+                     "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 0} if admission_only else
                     {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1})
         assert counts == expected, counts

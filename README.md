@@ -2727,11 +2727,18 @@ with one source entry and the unchanged two request timeouts. The parent waits
 for slot release before starting the recovery client, which must return exact
 inventory on a fresh authenticated connection. Unexpected log lines fail parsing
 rather than being discarded.
-Final counters require two source entries, one source failure, two capacity
-rejections, two request timeouts and no generation reads/cancellations.
-All six clients have separate PID/mount namespaces from the broker and the
+The same broker then receives a generation request whose source raises an
+exception. That client also requires EOF with zero bytes, so a `missing` response
+cannot satisfy the test. Exactly one `Fixture generation source unavailable`
+diagnostic and a second source-failure event are required. The parent waits for
+slot release, then a fresh generation client must receive the exact `observed`
+response. Failure evidence records three total source entries, one generation
+entry and the unchanged two timeouts before this recovery.
+Final counters require four source entries (two generation entries), two source
+failures, two capacity rejections, two request timeouts and no cancellations.
+All eight clients have separate PID/mount namespaces from the broker and the
 same approved UID/GID maps; every connection records its kernel peer tuple.
-Default mode uses Python; `-NodeClients` uses Node for all six clients with
+Default mode uses Python; `-NodeClients` uses Node for all eight clients with
 checked runtime completion and no fallback. Each finite waiting client runs
 alongside its competitor only for this phase and remains subject to
 ownership-checked cleanup.

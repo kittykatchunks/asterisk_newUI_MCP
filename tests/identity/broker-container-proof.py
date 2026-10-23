@@ -172,7 +172,8 @@ def node_client(index):
 def client(mode):
     if mode.startswith("admission-"):
         index = mode.removeprefix("admission-")
-        assert index in ("idle", "capacity", "no-eof", "capacity-no-eof", "failed-source", "reconnect")
+        assert index in ("idle", "capacity", "no-eof", "capacity-no-eof", "failed-source", "reconnect",
+                         "failed-generation", "generation-reconnect")
         if index == "capacity-no-eof":
             index = "capacity"
         assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
