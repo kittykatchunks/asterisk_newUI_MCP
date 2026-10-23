@@ -979,7 +979,16 @@ Build-time registry/package access is distinct from the network-disabled proof
 runtime; Debian packages are not snapshot-pinned. The launcher requires the
 already-built image, resolves its local immutable ID, and mounts only four
 read-only inputs. Existing privilege/resource/cleanup restrictions remain.
-The earlier admission/failure/cancellation phase still uses Python clients.
-Production Node client lifecycle, separate-container namespace identity mapping,
+The admission/failure/cancellation phase now also substitutes Node clients in
+`-CrossRuntime` mode. The same scenario proves idle and held-source deadlines,
+capacity exclusion after timeout/cancellation until actual source settlement,
+source-exception recovery, and successful fresh approved Node readbacks.
+Lifecycle rejections require EOF with zero bytes; the Node watchdog allows eight
+seconds for the server's five-second deadline, while explicit owner cancellation
+must finish within three seconds. The existing exact counters and expected stderr
+diagnostic remain mandatory. Default `-Conformance` continues using Python
+clients, and cancellation remains on the private parent control pipe.
+Production client lifecycle, peer-disconnect handling during blocked source code,
+separate-container namespace identity mapping,
 supervision and full broker acceptance remain open. See the
 [cross-runtime proof commands](./README.md#cross-runtime-unix-socket-conformance-approved-test-image-only).

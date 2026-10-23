@@ -15,6 +15,9 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
   sourceCases: { kind: string; value: unknown; valid: boolean }[];
 };
 let vector = vectors.cases[index === "reconnect" ? 0 : Number(index)];
+const passive = ["foreign", "idle", "capacity"].includes(index);
+const held = ["held-source", "failed-source"].includes(index);
+if (held) vector = { ...vectors.cases[0], expected: null };
 if (index.startsWith("source:")) {
   const source = vectors.sourceCases[Number(index.split(":")[1])];
   const request = { version: 1, customer: vectors.binding.customer, epoch: vectors.binding.epoch,
@@ -26,14 +29,14 @@ if (index.startsWith("source:")) {
   } : null };
 }
 const socket = createConnection({ path, allowHalfOpen: true });
-socket.setTimeout(5000, () => socket.destroy(new Error("Cross-runtime client timed out")));
+socket.setTimeout(passive || held ? 8000 : 5000, () => socket.destroy(new Error("Cross-runtime client timed out")));
 try {
   await once(socket, "connect");
-  if (index === "foreign" || vector.expected === null) {
+  if (passive || vector.expected === null) {
     const received: Buffer[] = [];
     socket.on("data", (chunk: Buffer) => received.push(chunk));
     const ended = once(socket, "end");
-    if (index !== "foreign") {
+    if (!passive) {
       if (vector.hex !== undefined) socket.end(Buffer.from(vector.hex, "hex"));
       else await writeBrokerFrame(socket, vector.text!, "request");
     }

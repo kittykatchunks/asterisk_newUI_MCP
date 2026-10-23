@@ -239,7 +239,7 @@ def proof(cross_runtime=False):
             print(f"PASS Python/Linux: {len(VECTORS['sourceCases'])} shared source-output vectors, invalid outputs close without a response frame", flush=True)
             if cross_runtime:
                 print("PASS Node/TypeScript client to Python broker: real Unix socket, production frame reader/writer, all shared cases and approved reconnect", flush=True)
-            concurrent_proof(directory)
+            concurrent_proof(directory, cross_runtime=cross_runtime)
         finally:
             if process.poll() is None:
                 process.kill()
@@ -376,7 +376,7 @@ def concurrent_server(path):
         os.unlink(path)
 
 
-def concurrent_proof(directory):
+def concurrent_proof(directory, cross_runtime=False):
     path = os.path.join(directory, "concurrent.sock")
     process = subprocess.Popen(
         [sys.executable, "-I", "-B", __file__, "concurrent-server", path],
@@ -402,7 +402,9 @@ def concurrent_proof(directory):
         assert value == {"event": expected}, (expected, value)
 
     def start(mode):
-        child = subprocess.Popen([sys.executable, "-I", "-B", __file__, "client", path, mode],
+        command = (["node", "/tests/identity/broker-cross-client.ts", path, mode] if cross_runtime
+                   else [sys.executable, "-I", "-B", __file__, "client", path, mode])
+        child = subprocess.Popen(command,
                                  user=UID, group=GID, extra_groups=[],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         clients.append(child)
@@ -479,6 +481,8 @@ def concurrent_proof(directory):
         print("PASS Python/Linux admission: idle deadline, competitors rejected, timed-out source retains slot until release, reconnect succeeds", flush=True)
         print("PASS Python/Linux source failure: explicit diagnostic, no response frame, slot released and approved reconnect succeeds", flush=True)
         print("PASS Python/Linux cancellation: held request closes within three seconds, slot retained until source settles, approved reconnect succeeds", flush=True)
+        if cross_runtime:
+            print("PASS Node/TypeScript lifecycle clients: idle and source deadlines, capacity retention, source exception and owner cancellation recovery", flush=True)
     finally:
         for child in clients:
             if child.poll() is None:

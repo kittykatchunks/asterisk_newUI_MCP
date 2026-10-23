@@ -2506,8 +2506,22 @@ writer, sends valid requests with request EOF, validates complete framed replies
 and requires zero response bytes for rejected requests. Malformed raw frames
 deliberately bypass the writer. All 16 request/framing and 26 source-output cases,
 foreign-UID denial and approved reconnect pass over a real Unix socket against
-the Python server. The original Python admission/failure/cancellation experiment
-then runs too; it is not yet a Node-client lifecycle test.
+the Python server. The admission/failure/cancellation experiment then runs with
+Node clients too: idle connections reach the server deadline; timed-out held
+sources keep capacity occupied; an injected source exception returns no bytes
+and permits recovery; explicit owner cancellation closes the held request within
+three seconds while competitors remain excluded until settlement. Every recovery
+uses a new approved Node connection and the production frame reader/writer.
+Negative/lifecycle clients require EOF with zero response bytes rather than
+treating a locally timed-out client as successful rejection. Their eight-second
+watchdog is longer than the server's five-second deadline.
+
+Both client variants use the same server scenario and exact counters: six source
+invocations (one failed), four capacity denials, two deadline closures and one
+explicit cancellation. Default `-Conformance` retains Python clients; only
+`-CrossRuntime` substitutes Node clients. Cancellation still originates from the
+private parent pipe, not a client action. This does not prove automatic
+peer-disconnect handling during a blocked source or production cancellation races.
 
 Only the fixture, vectors, Node client and frame helper are mounted read-only,
 not the repository or PBX. Runtime networking is disabled; existing resource,
