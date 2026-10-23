@@ -3426,10 +3426,29 @@ must not be retained after callback return
 ([lifetime contract](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/bridge.h#L1180)).
 Any propagated claim therefore needs an independently owned/reference-counted
 representation attached to the channel, and the resulting PJSIP branch must
-inherit or otherwise recover that trusted claim before signaling. The callback
-returns `void`; if claim propagation can fail, the transfer path must still
-fail closed rather than enqueue/execute an unowned transfer. That failure
-behavior is not proven by source inspection.
+inherit or otherwise recover that trusted claim before signaling. On the pinned
+source, `ast_channel_datastore_add()` only links the already-allocated
+datastore under the channel lock and returns success
+([implementation](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L2374)).
+That suggests a callback can avoid allocation by preallocating the refcounted
+claim and datastore before starting the transfer, then attaching it while
+holding the target channel lock. This is a feasibility lead, not yet a proven
+callback implementation or ownership contract.
+
+Do not assume the datastore will then propagate reliably to every child
+channel: `ast_channel_datastore_inherit()` allocates a duplicate datastore and
+silently skips it if allocation fails, while returning success
+([inheritance implementation](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L2357)).
+The selected route must detect missing claim state and deny before target
+signaling, or use another explicitly correlated in-process association. This
+is particularly important for forked `Dial()`/`Queue()` legs and Local-channel
+optimizations.
+
+The callback itself returns `void`, so any callback-side condition that could
+leave the transfer queued/executing without a valid claim must fail closed.
+Whether preallocation plus locked datastore insertion is sufficient for every
+supported path, including teardown races and duplicate datastore prevention,
+remains a proof obligation.
 
 This refines—but does not close—the custom REFER candidate. A purpose-built
 PJSIP supplement could synchronously reserve the operation, validate the

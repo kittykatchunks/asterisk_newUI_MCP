@@ -3392,9 +3392,11 @@ generation-aware handoff and synthetic-call matrix. Pinned Asterisk source
 shows ARI-only REFER publication and transfer success do not constitute a
 synchronous generation claim. Asterisk's bridge transfer callback is a
 potential claim-propagation point for a custom REFER path, but its void callback
-and claim-lifetime/failure semantics need proof; DTMF transfer and parking need
-separate treatment. This remains design work: no module, call path, PBX config
-or call was changed.
+and claim-lifetime/failure semantics need proof. Pinned datastore inheritance
+can silently omit a child copy on allocation failure, so target admission must
+fail closed if trusted state is missing. DTMF transfer and parking need separate
+treatment. This remains design work: no module, call path, PBX config or call
+was changed.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
