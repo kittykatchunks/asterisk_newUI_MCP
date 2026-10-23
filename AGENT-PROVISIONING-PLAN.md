@@ -3723,10 +3723,12 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   In Asterisk's callback, a received 401/407 for REFER increments its own
   per-operation count and, while that count is below `MAX_RX_CHALLENGES`
   (defined as 10), asks the endpoint outbound-auth configuration to create a
-  request from the transaction's `last_tx`. The condition is pre-increment
-  `< 10`, so at most nine callbacks pass this Asterisk retry branch; this is
-  not necessarily a ceiling on all wire attempts because pjproject has its
-  separate challenge handling
+  request from the transaction's `last_tx`. The counter increments before
+  request creation, and the condition is pre-increment `< 10`, so at most nine
+  callbacks enter this Asterisk retry branch; failed request construction
+  still consumes a count, and the number of actually sent authenticated
+  retries may be lower. This is not necessarily a ceiling on all wire attempts
+  because pjproject has its separate challenge handling
   ([limit definition](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L108),
   [Asterisk retry branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
   If creation succeeds, Asterisk calls `ast_sip_send_request()` and exits this

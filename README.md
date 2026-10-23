@@ -3589,12 +3589,14 @@ enter Asterisk's later `ACTIVE`/`TERMINATED` retry branch. If synchronous auth
 fails, the terminal callback can expose the original challenge to Asterisk's
 separate endpoint-auth retry. If configured async auth is abandoned, pjproject
 instead reports a synthetic event, which Asterisk handles as terminal failure.
-Asterisk's counter allows at most nine callback retries, but does not bound
-pjproject's separate attempts. Asterisk ignores the retry send result; at its
-own retry limit, it attempts a zero-expiry `SUBSCRIBE` only if the subscription
-is not already terminated, and ignores that send result too. Capture event
-types, requests actually sent, challenge codes, credentials, subscription
-state, any peer-visible unsubscribe, and cleanup
+Asterisk's counter allows at most nine callback retry attempts; it increments
+before request creation, so failed construction consumes the budget and fewer
+than nine retries may be sent. This does not bound pjproject's separate
+attempts. Asterisk ignores the retry send result; at its own retry limit, it
+attempts a zero-expiry `SUBSCRIBE` only if the subscription is not already
+terminated, and ignores that send result too. Capture event types, requests
+actually sent, challenge codes, credentials, subscription state, any
+peer-visible unsubscribe, and cleanup
 ([Asterisk retry path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1378),
 [pjproject auth path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
 [pjproject callback ordering](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2433-L2455),
