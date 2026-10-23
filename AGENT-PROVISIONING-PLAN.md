@@ -3531,6 +3531,21 @@ claim and datastore before starting the transfer, then attaching it while
 holding the target channel lock. This is a feasibility lead, not yet a proven
 callback implementation or ownership contract.
 
+The pinned implementation sharpens that lead but also exposes an API-contract
+trap. `ast_channel_datastore_add()` performs a list insertion and unconditionally
+returns zero; it does not allocate, reject a duplicate type/UID, or report an
+invalid attachment
+([implementation](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L2374-L2380)).
+The public header says nonzero failure is possible and requires the channel to
+be locked ([API contract](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/channel.h#L1204-L1221)).
+The callback therefore must not treat a zero return as duplicate detection or
+proof that it attached exactly one valid claim. Preallocate all fallible memory,
+then hold the target channel lock while checking for conflicting state and
+linking the uniquely owned datastore; explicitly define ownership if any
+precondition fails. A duplicate-UID collision must be prevented or rejected
+before entering the void callback, since the insertion helper itself accepts
+duplicates.
+
 There is an important failure-semantic limit: `transfer_channel_cb` returns
 `void` ([callback type](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/bridge.h#L1193-L1205)),
 so it cannot report claim-attachment failure to
@@ -3548,13 +3563,15 @@ source call.
 
 The proposed preallocation must therefore establish a stronger invariant than
 "allocation is unlikely": before calling the bridge API, the owner must reserve
-the transfer operation and prove that callback attachment on the eventual
-channel cannot fail (including duplicate-datastore and channel-lifecycle
-cases), or identify a separate interception point that can abort without
-changing the existing call. If the callback cannot establish that invariant,
-the path is not safely supported; fail-closed target dialplan is necessary but
-not sufficient. Also settle the reserved operation idempotently when the bridge
-API returns an enqueue/originate error after the callback has attached state.
+the transfer operation and prove that the callback can always attach exactly
+one valid, preallocated claim to the eventual channel under the required lock,
+including duplicate-state and channel-lifecycle cases, or identify a separate
+interception point that can abort without changing the existing call. The
+helper's unconditional zero return does not supply that proof. If the callback
+cannot establish the invariant, the path is not safely supported; fail-closed
+target dialplan is necessary but not sufficient. Also settle the reserved
+operation idempotently when the bridge API returns an enqueue/originate error
+after the callback has attached state.
 
 For the supported `Dial()` and `Queue()` paths, source confirms that each
 application explicitly calls `ast_channel_datastore_inherit()` on every

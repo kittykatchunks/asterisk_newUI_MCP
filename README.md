@@ -3469,7 +3469,10 @@ each outbound branch. No one stage substitutes for the others. This is not
 implementation approval. The blind-transfer propagation callback returns
 `void`: attachment failure cannot reject the queued/started transfer, so safe
 support requires proving attachment cannot fail or adding an earlier abortable
-interception point while preserving the existing call.
+interception point while preserving the existing call. Preallocation could
+remove allocation failure, but Asterisk's pinned datastore-add helper always
+returns success and does not detect duplicate attachments, so exact-once
+association still needs a locked, serialized proof.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
