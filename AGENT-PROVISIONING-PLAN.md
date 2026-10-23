@@ -3681,19 +3681,21 @@ Repeated callback handling also needs a REFER-progress ownership check. The
 parking-failure fallback reuses the transfer wrapper when it calls the ordinary
 transfer path
 ([fallback reuses wrapper](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4700-L4736)).
-When progress monitoring is active, the pinned PJSIP callback takes an AO2
-reference to that wrapper and assigns it to the single
-`refer_progress->transfer_data` field on each invocation; the progress
-destructor releases that field once
-([callback assignment](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L838-L855),
-[single destructor cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L544-L548)).
-It also replaces the allocated `transferee` string. No prior-field cleanup or
-already-initialized guard is visible in that callback. This is a source-level
-potential retained-reference/string leak if the same REFER progress object is
-initialized by both callback invocations; it needs focused validation and an
-upstream fix or an explicit exclusion before relying on parking fallback.
-This does not establish a runtime leak or change the separate requirement that
-transfer-attempt claims remain independently idempotent and settled.
+When progress monitoring is active, each invocation reassigns the single
+progress object's `transfer_data`, `transferee`, `framehook`, and `bridge_sub`
+fields. The callback takes new AO2 references to the transfer wrapper and
+progress object and creates a framehook and Stasis subscription, but has no
+visible prior-state cleanup or already-initialized guard
+([progress setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L838-L907),
+[single-field destructor cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L522-L548)).
+If parking and ordinary fallback both invoke this callback for one REFER, the
+second setup can overwrite the first target correlation and resource handles;
+the source therefore presents a potential lost-reference/subscription or
+framehook cleanup defect, not merely a stale progress indicator. The exact
+runtime effects require focused validation. Before relying on this parking
+fallback, require an upstream fix or explicitly exclude the path. This is
+separate from making transfer-attempt claims independently idempotent and
+settled.
 
 The ordinary-transfer failure branches provide a bounded source-call
 preservation signal, but only for those branches: multi-party handling hangs
@@ -4110,7 +4112,7 @@ legs still need generation attribution and complete settlement.
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
 | Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
-| Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, parking/fallback attempt plus parent claims settle exactly once, and repeated REFER-progress callback setup does not retain stale wrapper/string state. |
+| Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, parking/fallback attempt plus parent claims settle exactly once, and repeated REFER-progress callback setup preserves the correct target correlation and cleans every framehook, subscription, and retained reference. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

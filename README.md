@@ -3485,10 +3485,11 @@ but before `ast_pbx_start()`; a first-priority dialplan guard alone is too late.
 Pinned `core_local.c` has no callback in that interval, so this appears to
 require a version-pinned Local/core change; a PJSIP supplement alone cannot
 provide it. The parking-failure retry also reuses the REFER transfer wrapper;
-PJSIP progress setup takes a wrapper reference on each callback invocation but
-stores only one reference field for cleanup. This is a source-level potential
-repeat-callback reference/string leak that needs focused validation and an
-upstream fix or explicit path exclusion before relying on parking fallback.
+PJSIP progress setup replaces one set of target, framehook, and subscription
+fields while acquiring new references on each callback invocation, with no
+visible repeated-setup cleanup. This is a potential lost-correlation/resource
+cleanup defect requiring focused validation and an upstream fix or explicit
+path exclusion before relying on parking fallback.
 Fallback needs a separately settled child claim; ordinary multi-party fallback
 fails before bridge insertion if its Local `ast_call()` is rejected, and the
 two-party path does not remove the transferer when action enqueue fails. Built-in
