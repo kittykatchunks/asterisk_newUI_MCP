@@ -3641,9 +3641,13 @@ scenarios
 [cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1796)).
 The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
 deployed value: the counter increments before its `>=` check, so the default
-allows two changed/stale-nonce retries, and a third stale challenge ends
-pjproject's retry path. Test exhaustion and a new request separately before
-concluding that a challenge uses only one retry path
+allows two stale retries, and a third stale challenge ends pjproject's retry
+path. A challenge's `stale=true` flag permits that retry even if its nonce is
+unchanged; only when `stale` is false does pjproject use a changed nonce as an
+alternative stale signal. With `stale=false` and the same nonce, it returns
+`PJSIP_EFAILEDCREDENTIAL` without incrementing the stale counter. Test each
+combination, exhaustion, and a new request separately before concluding that a
+challenge uses only one retry path
 ([auth reinitializer errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1559-L1705),
 [initial request auth initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1270),
 [evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
