@@ -3489,7 +3489,8 @@ parking/Local/target-leg path. Safe support needs validation after inheritance
 but before `ast_pbx_start()`; a first-priority dialplan guard alone is too late.
 Pinned `core_local.c` has no callback in that interval, so this appears to
 require a version-pinned Local/core change; a PJSIP supplement alone cannot
-provide it. The parking-failure retry also reuses the REFER transfer wrapper;
+provide it. If a multi-party parking Local succeeds but bridge insertion fails
+after the parking callback, ordinary fallback reuses the REFER transfer wrapper;
 PJSIP progress setup replaces one set of target, framehook, and subscription
 fields while acquiring new references on each callback invocation, with no
 visible repeated-setup cleanup. This is a potential lost-correlation/resource

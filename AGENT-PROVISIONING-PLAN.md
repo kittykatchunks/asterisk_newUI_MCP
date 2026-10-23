@@ -3689,10 +3689,14 @@ excluded. The source-level sequence suggests a fail-closed fallback may be
 possible; it does not prove source-call preservation, target-PBX race handling,
 or exact claim settlement.
 
-Repeated callback handling also needs a REFER-progress ownership check. The
-parking-failure fallback reuses the transfer wrapper when it calls the ordinary
-transfer path
+Repeated callback handling also needs a REFER-progress ownership check. In the
+multi-party parking path, the Local call succeeds and the parking callback runs
+before `ast_bridge_impart()`; if that bridge insertion then fails, the parking
+provider returns failure and core invokes ordinary transfer with the same
+wrapper
 ([fallback reuses wrapper](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4700-L4736)).
+By contrast, a rejected Local `ast_call()` returns before the parking callback,
+so that specific failure does not initialize progress twice.
 When progress monitoring is active, each invocation reassigns the single
 progress object's `transfer_data`, `transferee`, `framehook`, and `bridge_sub`
 fields. The callback takes new AO2 references to the transfer wrapper and
@@ -4138,7 +4142,8 @@ legs still need generation attribution and complete settlement.
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
 | Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
-| Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, parking/fallback attempt plus parent claims settle exactly once, and repeated REFER-progress callback setup preserves the correct target correlation and cleans every framehook, subscription, and retained reference. |
+| Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |
+| Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback, then confirm the ordinary fallback callback does not overwrite or race progress correlation; exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
