@@ -3644,6 +3644,26 @@ excluded. The source-level sequence suggests a fail-closed fallback may be
 possible; it does not prove source-call preservation, target-PBX race handling,
 or exact claim settlement.
 
+The ordinary-transfer failure branches provide a bounded source-call
+preservation signal, but only for those branches: multi-party handling hangs
+up the attempted Local and returns failure when its `ast_call()` fails, before
+`ast_bridge_impart()` can replace the transferer
+([call-fail branch](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4363-L4371)).
+For a two-party transfer, a failed bridge-action enqueue returns before
+`ast_bridge_remove(bridge, transferer)`
+([queue failure before removal](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4747-L4754)).
+The built-in PJSIP REFER handler maps a core transfer failure to SIP `500` and
+cancels deferred session termination for a non-`200` result
+([result mapping](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L711-L729),
+[deferred termination handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822-L1829)).
+This supports a testable expectation that these specific pre-commit failures
+do not intentionally remove the original transferer from its bridge. It does
+not establish that every parking failure is pre-commit, that no concurrent
+hangup/bridge action races the return, or that the operation/attempt claims
+settle correctly. The synthetic proof must check the original channel and
+bridge state after both parking-Local rejection and normal-fallback rejection,
+along with the response and exact claim counts.
+
 For the supported `Dial()` and `Queue()` paths, source confirms that each
 application explicitly calls `ast_channel_datastore_inherit()` on every
 requested callee before invoking its per-callee `b()` Gosub:
@@ -4039,6 +4059,7 @@ legs still need generation attribution and complete settlement.
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
 | Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
+| Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

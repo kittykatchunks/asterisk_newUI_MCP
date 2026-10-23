@@ -3482,8 +3482,12 @@ before the transfer callback. The callback's later `;1` attachment cannot
 repair `;2`; finite datastore inheritance also needs enough hops for the
 parking/Local/target-leg path. Safe support needs validation after inheritance
 but before `ast_pbx_start()`; a first-priority dialplan guard alone is too late.
-Fallback needs a separately settled child claim; otherwise protected transfers
-must exclude parking.
+Fallback needs a separately settled child claim; ordinary multi-party fallback
+fails before bridge insertion if its Local `ast_call()` is rejected, and the
+two-party path does not remove the transferer when action enqueue fails. Built-in
+PJSIP REFER maps a core transfer failure to `500`; synthetic proof must still
+verify the source bridge and exact claim settlement. Otherwise protected
+transfers must exclude parking.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
