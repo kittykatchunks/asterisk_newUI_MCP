@@ -3627,6 +3627,13 @@ MD5; omitted and explicit `algorithm=MD5` challenges therefore share the same
 realm/MD5 cache and stale counter
 ([algorithm default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L526-L545),
 [cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1790)).
+The cache key also omits the WWW-versus-Proxy challenge class: sequential 401
+and 407 challenges with the same case-insensitive realm and resolved algorithm
+reuse the cached context and stale count, although the Authorization header
+class and authenticating peer differ. Verify this explicitly in multi-hop
+scenarios
+([lookup key](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L814-L840),
+[cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1796)).
 The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
 deployed value: the counter increments before its `>=` check, so the default
 allows two changed/stale-nonce retries, and a third stale challenge ends
