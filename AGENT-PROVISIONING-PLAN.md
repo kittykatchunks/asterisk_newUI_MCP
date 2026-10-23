@@ -3476,7 +3476,14 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Therefore, the admission owner must not key a claim from those PJSIP getter
   results; a retransmission-stable REFER transaction key must be derived from
   clone-safe request data or another proven source and tested against wire
-  retransmissions. The built-in REFER supplement is registered at
+  retransmissions. This warning also intersects the built-in `Refer-Sub: false`
+  branch: after creating a response, it passes
+  `pjsip_rdata_get_tsx(rdata)` to `pjsip_dlg_send_response()`
+  ([no-subscription response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)).
+  Since the session-callback contract says the request clone lacks module data,
+  the transaction value and response/retransmission behavior on this path need
+  explicit verification; source inspection alone does not establish a runtime
+  failure or safe fallback. The built-in REFER supplement is registered at
   [`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2162),
   with `AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL` defined as `1000000`
   ([priority values and ordering](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip.h#L3389-L3398)).
@@ -4342,7 +4349,7 @@ legs still need generation attribution and complete settlement.
 | Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
-| Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`. |
+| Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`; verify the cloned-rdata transaction lookup in the built-in response path and exact response behavior across retransmissions. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |

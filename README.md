@@ -3442,6 +3442,10 @@ Because the session callback receives cloned request data, it cannot safely
 derive dialog or transaction identity from `pjsip_rdata_get_dlg()` /
 `pjsip_rdata_get_tsx()`; its transaction key needs a clone-safe source that is
 stable across retransmissions.
+Keep `Refer-Sub: false` as a distinct proof case: the built-in no-subscription
+response path also uses `pjsip_rdata_get_tsx()` despite that clone warning, so
+verify the transaction and wire-response behavior without assuming a runtime
+failure.
 Asterisk's progress watcher tracks the transferee's frames/bridge re-entry; its
 internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
