@@ -3227,6 +3227,17 @@ service or live readback source: it cannot infer fencing, dialogs, removal or
 authoritative runtime absence. Protected path publication, power-loss durability
 and restored-authority detection remain separate work.
 
+The [dedicated AMI observation assessment](./AGENT-PROVISIONING-PLAN.md#917-dedicated-ami-observation-contract-assessment-design-only)
+checks the repository's pinned Asterisk 22.11.0 upstream source. AMI `write`
+permissions authorize queries as well as mutations; endpoint queries require a
+class that also permits control actions, and even `reporting` is not a strict
+query-only action class. Endpoint details can include authentication material.
+Therefore a dedicated username alone is not an enforced read-only boundary.
+No AMI account or permission has been added. A separately reviewed fixed
+observation authority/enforcement owner must be selected before live source
+implementation; endpoint channel counts still cannot stand in for verified
+generation dialogs or fencing.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

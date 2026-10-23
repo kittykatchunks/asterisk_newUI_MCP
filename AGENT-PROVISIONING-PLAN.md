@@ -2160,3 +2160,122 @@ checks cover portable SQLite behavior but not Unix file permissions.
 Next source-authority decisions remain runtime observation mechanism, protected
 generation-to-object mapping, drain semantics and consistency/restart evidence
 from section 9.15. This ledger does not bypass those gates.
+
+### 9.17 Dedicated AMI observation contract assessment (design only)
+
+The user approved design and verification of a dedicated customer-local
+read-only AMI observation contract. No account, credential, manager permission,
+network connection or deployment is created by this assessment. The existing
+reporting integration stays unchanged.
+
+#### Version and evidence
+
+The repository's `compose.status-proof.yaml` pins Asterisk **22.11.0**. The
+following assessment checks that exact upstream tag, not just current branch
+documentation:
+
+- [AMI action registration and authorization](https://github.com/asterisk/asterisk/blob/22.11.0/main/manager.c):
+  `process_message` checks the account's action permission mask against an
+  action's registered authority, accepting a matching bit. `action_coreshowchannels`
+  emits a channel-cache listing and a completion event.
+- [PJSIP query registration/implementation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_configuration.c):
+  `PJSIPShowEndpoints` and `PJSIPShowEndpoint` require `system` action authority.
+  Endpoint details delegate to associated-object formatters.
+- [Version-pinned manager configuration guidance](https://github.com/asterisk/asterisk/blob/22.11.0/configs/samples/manager.conf.sample):
+  `read` governs asynchronous events in general; `write` permits actions and
+  responses. These names do not divide queries from mutations.
+- [Endpoint-detail action documentation](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Actions/PJSIPShowEndpoint/)
+  and [AuthDetail event documentation](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Events/AuthDetail/):
+  endpoint details include associated authentication events whose schema contains
+  credential-bearing fields. These documentation pages follow branch 22 and are
+  not proof of exact field availability/redaction in every 22.11.0 build.
+- [CoreShowChannel event fields](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Events/CoreShowChannel/):
+  channel identity, linked identity and call metadata are not a generation UUID
+  or SIP-dialog completeness certificate.
+
+This is source/documentation verification, not a running-PBX acceptance test.
+The deployed build, modules and effective permissions would still need separate
+verification before any access is approved.
+
+#### Candidate actions and authority limits
+
+| Candidate | 22.11.0 action authority | Possible evidence | Why it is not the live source contract yet |
+| --- | --- | --- | --- |
+| `CoreStatus` | `system` or `reporting` | Core status/restart hints. | No ledger epoch, generation revision, fence or dialog correlation; a reported start time is not an enrolled runtime-instance identity. |
+| `CoreShowChannels` | `system` or `reporting` | Listed channel IDs, linked IDs and related state. | Channels are not automatically SIP dialogs or generation-owned; the list is not an atomic snapshot across ledger, endpoint configuration and routing. |
+| `PJSIPShowEndpoints` | `system` | Loaded endpoint summary and active-channel indicators. | Whole-PBX enumeration, not protected generation lookup. No generation deadline, complete dialog ownership or verified fence. In the tagged implementation, no endpoints yields an action error, not an authoritative empty managed inventory. |
+| `PJSIPShowEndpoint` | `system` | Endpoint and associated-object details. | May expose authentication material and shared/base objects; cannot be approved as a secret-free read endpoint. Does not verify all routing/authentication fence surfaces. |
+
+No proposed action alone establishes `newCallsBlocked`, authoritative zero
+dialogs, managed-object removal or authoritative missing-generation state.
+Completion event and matching item count establish framing/list accounting, not
+that all relevant runtime state remained unchanged throughout collection.
+The tagged channel-list implementation can skip an item when state-string
+construction fails; its completion count covers emitted items, so count equality
+alone cannot prove a zero-dialog observation is complete.
+
+#### Permission result: direct AMI is not proven read-only
+
+The 22.11.0 registrations grant `system` authority to endpoint queries but also
+to control actions such as `Hangup`, `Reload` and `ModuleLoad`. The matching-bit
+authorization check means these are not all-bits-required privilege combinations.
+Even `reporting` is not an action-level read-only guarantee: `LoggerRotate`
+accepts `system` or `reporting`. A new username with these classes would separate
+credentials from the reporting account, but would not create an enforced
+query-only capability.
+
+Event filters control event selection, not a per-action permission allowlist;
+they must not be offered as a fix for this action-authority gap. Likewise,
+`Events: off` is not action authorization or a guarantee that action-associated
+detail output cannot contain secrets. Restricting our client's code to query
+strings limits normal behavior but does not reduce what compromised code with
+the same AMI credentials could request.
+
+Therefore **do not implement or configure direct AMI access for the broker under
+the current unprivileged read-only approval**. No expansion of the existing
+reporting account is proposed. This assessment does not claim that every AMI
+query is unsafe; it establishes that the needed permission classes are not the
+required least-authority boundary.
+
+#### Proposed boundary requirements, not another approved service
+
+If AMI remains the chosen underlying observer, a separately reviewed
+customer-local enforcement mechanism must:
+
+1. Expose only fixed, bounded generation observations derived from protected
+   ledger mappings, with no raw AMI action, endpoint selector, channel metadata,
+   configuration, credentials or transport access passed to the worker.
+2. Enforce the permitted operation set outside the query client's own code.
+   Any component holding broader AMI authority remains a higher-trust component
+   requiring explicit approval, not a read-only component by naming convention.
+3. Avoid credential-bearing endpoint-detail collection in the initial scope.
+   Redaction after collection does not mean the collector never accessed secrets.
+4. Define complete generation correlation and restart/reload/concurrent-change
+   handling. Until verified, dialogs are unknown or the observation fails; no
+   count or contact/device-state default becomes a verified zero/fence.
+5. Fail closed on authentication failure, unexpected event/action sequence,
+   missing completion, truncated/oversized lists, stale runtime binding,
+   ambiguous ownership and collection deadline. Preserve safe fixed diagnostics
+   and the existing source-slot settlement rule.
+
+This does not select a generic AMI proxy or revive the rejected transport-helper
+experiment. A purpose-built PBX-side fixed observation surface, an existing
+operator-managed authority, or an explicitly approved higher-trust local
+collector are architectural alternatives that require a decision before code.
+Whichever is selected must prove actual fence/dialog evidence; permission
+isolation alone cannot supply missing runtime semantics.
+
+#### Next decision and bounded acceptance
+
+Choose the enforcement/authority owner before implementing a live observer.
+Direct broad-class AMI access is not the default. An operator-managed existing
+fixed observation interface should be identified if one exists; otherwise review
+the cost and trust boundary of a purpose-built PBX-side surface versus a
+higher-trust local collector with enforced downstream fixed operations.
+
+After a choice and access approval, acceptance should use an isolated synthetic
+PBX and synthetic credentials: prove the exact allowed actions, denied
+out-of-contract operations, no credential-bearing collection or output, complete
+generation correlation, uncertain rather than fabricated zero dialogs, and
+explicit restart/incomplete-list failure. No production account or customer
+traffic is needed for that future proof.
