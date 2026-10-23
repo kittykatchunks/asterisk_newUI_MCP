@@ -3316,6 +3316,15 @@ connection to the enrolled process and invalidate stale evidence on restart or
 uncertainty. No supervisor, Docker access, PBX lifecycle control or runtime
 enrollment implementation is added.
 
+The subsequent
+[project-owned lifecycle enrollment design](./AGENT-PROVISIONING-PLAN.md#924-project-owned-lifecycle-enrollment-boundary-design-only)
+uses the recommended project-owned deployment assumption without authorizing
+lifecycle control. It defines starting, association-pending, observation-ready
+and invalidated states, and requires both real child ownership and a proven
+observation-connection association. The existing foreground Asterisk entrypoint
+is unchanged. Authority-session/revision coordination is proposed but is not
+implemented by the current synthetic evidence validator.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

@@ -2742,3 +2742,96 @@ The milestone after that design is one isolated synthetic-PBX feasibility proof
 with separately approved access, not more variations of the closed socket
 fixture. Stop if lifecycle identity cannot be bound to the observation channel
 or if the target deployment cannot supply a trusted continuity owner.
+
+### 9.24 Project-owned lifecycle enrollment boundary (design only)
+
+Proceeding with the recommended deployment-model default, this design targets
+project-owned customer Asterisk lifecycles. The selection is a planning
+assumption, not permission to start/stop a PBX, replace an entrypoint, grant
+Docker access or deploy a supervisor. Externally managed PBXs are not supported
+by automatic fallback; they require the separate authority integration in
+section 9.23.
+
+#### Existing launch path and proposed owner
+
+`local/asterisk/start.sh` currently performs directory/log setup and then
+`exec`s foreground Asterisk. The status fixture runs that entrypoint as
+UID 1000/GID 999 with capabilities dropped. There is no supervisor, child
+lifetime enrollment or authenticated continuity publisher in that path.
+Do not treat the compose service name, image pin or foreground PID as an
+implemented authority.
+
+The proposed lifecycle authority lives inside the customer PBX deployment
+boundary and owns the actual foreground Asterisk child, not a polling view of
+a host Docker service. It would hold an owned child handle and issue a fresh
+opaque runtime UUID for each launch attempt that reaches an enrolled lifetime.
+Readiness remains separate from process existence. A replacement child always
+gets a different UUID even if its PID, container or configuration is reused.
+The runtime and process-handle mechanism are not selected by this design.
+
+The authority must not expose start, stop, restart, shell or container-control
+operations to the broker, collector or network worker. Lifecycle administration
+belongs to a separately approved deployment owner. Observation failure must
+never trigger automatic restart or call termination.
+
+#### Connection association is an explicit unimplemented prerequisite
+
+Prefer a customer-private observation listener established under the same
+protected deployment authority as the child. Before enrollment, prove exclusive
+endpoint ownership, authenticated server identity and that the listener belongs
+to that child lifetime. Binding the client only to a host port or matching an
+AMI-reported start time is insufficient.
+
+The current published status-proof AMI ports and customer networks are existing
+reporting fixtures, not this association proof. No new host publication or
+credential scope is proposed. A specific protected listener/credential lifecycle
+must be reviewed before code: neither private networking alone nor an otherwise
+valid account binds a connection to an enrolled child.
+
+If the chosen Asterisk access mechanism cannot demonstrate this association,
+leave enrollment unavailable. Do not claim success by combining an owned child
+handle with an independently selected AMI address.
+
+#### Enrollment states and invalidation
+
+| State | Permitted observation behavior | Required transition evidence |
+| --- | --- | --- |
+| Unenrolled | No positive runtime evidence. | Explicit protected customer/epoch/namespace configuration and lifecycle ownership. |
+| Child starting | Process existence only; source remains unavailable. | Actual child handle plus fresh runtime UUID, not readiness by timeout/default. |
+| Association pending | No positive generation result. | Proven connection-to-child association and managed mapping/model reconciliation. |
+| Observation ready | Fixed evidence collection under the enrolled binding. | Live child, current association, current mapping and trusted continuity owner. |
+| Invalidated | Reject pending/new positive evidence; retain metadata. | Child exit, authority loss, uncertain reconnect, mapping/model uncertainty or binding change. |
+
+A child restart enters starting/pending with a new identity; a configuration
+reload can invalidate model evidence without changing process identity.
+Reconciliation is observation-only unless separately approved effects are
+introduced. None of these states grants activation, renewal or revocation.
+
+Use a local authority-session identifier and increasing invalidation revision
+to prevent an ABA transition back to the same apparent binding from validating
+an old observation. Capture them with the evidence request and compare them
+again at acceptance under the authority's coordination lock. The current
+`EvidenceRequest` compares `EvidenceBinding` only; it does not implement this
+session/revision boundary. Do not claim that its synthetic tests establish
+restart-race safety.
+
+An authority-session restart invalidates every prior request even if the child
+survives. A stored runtime UUID does not re-establish continuity. Fresh trusted
+enrollment is required unless the eventual mechanism proves recovered child
+ownership and connection association. Revision/session values must not be read
+from an untrusted producer's echo as proof of current state.
+
+#### Next bounded proof and remaining gates
+
+After explicit approval, a synthetic in-process state model could exercise
+starting/pending/ready/invalidation, session replacement and revision comparison.
+It would take trusted lifecycle/association facts as inputs, never discover
+them or grant them itself. No new ledger migration or external wire fields are
+needed for that model.
+
+Only a later, separately approved isolated-PBX proof can demonstrate real child
+exit detection and connection association. Supervisor deployment, signal
+forwarding/reaping policy, startup failure behavior and upgrade operations need
+their own implementation review before replacing the current foreground launch
+path. Independent expiry, collector permissions, effective fencing and complete
+generation-dialog evidence remain open regardless of enrollment progress.
