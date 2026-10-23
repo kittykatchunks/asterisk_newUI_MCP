@@ -3633,6 +3633,22 @@ in the callback cannot repair `;2` or stop its PBX thread. If the deployed
 hook set cannot validate at the post-inheritance/pre-PBX boundary, disable/
 exclude this Local parking path.
 
+The pinned `main/core_local.c` path exposes no existing callback at that
+boundary: `local_call()` invokes `ast_unreal_call_setup()` and then directly
+calls `ast_pbx_start()` for its dialplan action, with no `ast_pre_call()` or
+other admission dispatch in between
+([Local call action](https://github.com/asterisk/asterisk/blob/22.11.0/main/core_local.c#L691-L762)).
+The Local channel-tech initializer does not install a `pre_call` override, and
+`ast_pre_call()` is an explicit helper used by its callers, not an automatic
+part of `ast_call()` or `ast_pbx_start()`. Therefore a synchronous
+post-inheritance/pre-PBX admission check is not available merely by loading a
+PJSIP supplement or configuring a dialplan Gosub. Supporting this route appears
+to require a version-pinned change to the Local/core call path (or another
+demonstrated hook with identical timing); that change must preserve existing
+Local dialplan, bridge, and masquerade actions and be re-audited on every
+Asterisk upgrade. Without such an approved core change, exclude this parking
+Local path from generation-protected transfers.
+
 The failed parking attempt can also invoke the callback before bridge
 insertion, then fall through and invoke it again on a different channel. The
 owner must model the parking Local attempt as its own child of the reserved
