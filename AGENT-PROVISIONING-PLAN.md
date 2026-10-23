@@ -3602,6 +3602,25 @@ replacement-channel admission hook is required. Queue `i` only addresses this
 member-forward path; technology-level redirects and other call-producing
 mechanisms remain distinct coverage obligations.
 
+PJSIP endpoint `redirect_method` is an additional effective-configuration
+boundary. In Asterisk 22.11 it defaults to `user`; its `user` and `uri_core`
+modes set the channel's call-forward target, which re-enters the application
+forwarding behavior above. Its `uri_pjsip` mode instead returns
+`PJSIP_REDIRECT_ACCEPT` from the PJSIP redirect callback; the documented
+behavior is to follow the redirect inside `chan_pjsip`, expose no redirect to
+the core, support multiple potential targets, and make redirection impossible
+to prevent through core handling ([endpoint setting and limitation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_config.xml#L671-L686),
+[callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L5517-L5565),
+[default](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_configuration.c#L2379)).
+That may remain within the same Asterisk channel object, so it is not by itself
+proof of an extra PBX channel or a second destruction callback. It does,
+however, bypass the application admission hook and destination allowlist, and
+one channel-level claim cannot certify each of the multiple potential redirect
+targets. Protected endpoints must therefore reject `uri_pjsip` mode unless a
+PJSIP-level hook validates and individually accounts for every selected target.
+`Dial`/`Queue` option `i` cannot be relied on to stop this mode because it is
+not exposed as a core call-forward request.
+
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
 datastore whose duplicated `data` is NULL if the duplicator fails, while
@@ -3787,8 +3806,11 @@ Include endpoint/member-forwarding attempts in every protected `Dial()` and
 replacement call, or prove a separate replacement-channel gate registers its
 own child claim before `ast_call()`. For `Queue()`, prove option `i` is
 effective and suppresses member forwarding, or prove equivalent replacement
-admission. A passing initial-channel `b()` test alone does not cover either
-bypass.
+admission. Include a PJSIP INVITE 3xx case for each allowed `redirect_method`:
+prove `user`/`uri_core` forwarding is suppressed or separately admitted, and
+prove `uri_pjsip` is rejected for protected endpoints unless every redirected
+target is validated and accounted for in the PJSIP layer. A passing
+initial-channel `b()` test alone does not cover these paths.
 The synthetic proof must distinguish API promise resolution, Asterisk 202
 acceptance, NOTIFY contents/state, progress-monitor health, and PBX
 channel/bridge settlement. Assert that target answer and every forked leg are
