@@ -3649,6 +3649,12 @@ Authorization header. A transmitted retry therefore need not satisfy every
 challenge; test mixed realm/scheme credentials and follow any remaining
 challenge
 ([challenge loop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1736-L1844)).
+For multiple Digest algorithms under the same realm/auth type,
+`PJSIP_AUTH_ALLOW_MULTIPLE_AUTH_HEADER` defaults to 0; a later challenge may
+replace or reject an earlier header depending on nonce/stale values instead of
+retaining both. Verify the deployed compile-time setting and emitted headers
+([header handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1584-L1675),
+[default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1365-L1372)).
 Asterisk then sends it through the stateful dialog helper: pjproject assigns
 the next local CSeq and creates a new UAC transaction. The `auth_retry` txdata
 marker is not read by the PJSIP transaction path, so it does not resume the
