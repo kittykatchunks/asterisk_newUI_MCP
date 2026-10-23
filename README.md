@@ -3238,6 +3238,16 @@ observation authority/enforcement owner must be selected before live source
 implementation; endpoint channel counts still cannot stand in for verified
 generation dialogs or fencing.
 
+The [observation-boundary comparison](./AGENT-PROVISIONING-PLAN.md#918-pbx-side-observation-surface-versus-isolated-collector-recommendation-only)
+recommends an isolated higher-trust collector as the next **synthetic development
+candidate**, rather than immediately adding code inside Asterisk. This is
+conditional: a collector holding AMI credentials still has their broader
+authority, and process isolation does not make that authority read-only.
+If that trust is unacceptable, or required fencing/dialog evidence cannot be
+proved, the design must use another constrained authority or investigate a
+purpose-built PBX-side surface. No collector runtime, credentials, access or
+deployment is approved by the recommendation.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

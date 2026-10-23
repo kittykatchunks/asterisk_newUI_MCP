@@ -2279,3 +2279,105 @@ out-of-contract operations, no credential-bearing collection or output, complete
 generation correlation, uncertain rather than fabricated zero dialogs, and
 explicit restart/incomplete-list failure. No production account or customer
 traffic is needed for that future proof.
+
+### 9.18 PBX-side observation surface versus isolated collector (recommendation only)
+
+The user requested this comparison and recommendation without access approval.
+The runtime facts are those verified in section 9.17; the alternatives below are
+design assessments, not claims that either component already exists or has
+passed acceptance.
+
+#### Alternatives
+
+**A. Purpose-built PBX-side surface.** Add a narrowly defined observation
+interface inside Asterisk, for example a reviewed module exposing only mapped
+generation evidence. It would need explicit runtime hooks and consistency
+semantics, not merely an AMI query wrapper. A new dialplan endpoint or custom
+AMI action is not inherently a complete observation authority.
+
+**B. Isolated higher-trust collector.** A separate customer-local process owns
+any approved PBX observation credentials/access and exports fixed, sanitized,
+generation-bound evidence to the Python broker. The network worker has no route
+or credentials to the collector/PBX. This adds a source-authority boundary behind
+the approved Python broker; it does not replace the broker or revisit the
+closed socket-identity runtime experiment.
+
+| Criterion | PBX-side surface | Isolated collector |
+| --- | --- | --- |
+| Authority exposed to the consumer | Can expose only custom fixed operations without giving the consumer generic AMI authority, if authentication/dispatch are implemented correctly. | Can expose only fixed downstream operations, but its own upstream AMI authority remains broader than read-only. |
+| Compromise/failure impact | In-process faults can affect Asterisk availability; in-process compromise inherits PBX process authority. A custom API is not an Asterisk sandbox. | Process/resource isolation can protect broker/worker and reduce fault coupling, but collector compromise can exercise all authority of its AMI account. Separate containers do not remove that account's control permissions. |
+| Generation ownership | Still requires protected ledger/runtime mapping; Asterisk does not inherently know the application's generation UUID/deadline. | Requires the same mapping and an enrolled runtime identity; cannot infer them from endpoint names or caller input. |
+| Fence/dialog evidence | Could instrument relevant internal state, but endpoint, routing, authentication and dialog consistency must still be designed and proved. Proximity is not atomicity. | Limited by selected upstream observations. Current AMI query candidates do not establish the full fence/dialog contract. Must report uncertainty/failure rather than synthesize missing evidence. |
+| Secret exposure | Can deliberately omit secret-bearing structures, subject to implementation review. | Must avoid credential-bearing detail queries entirely in the initial scope; downstream redaction does not erase upstream secret access. |
+| Deployment/maintenance | Adds Asterisk build/module packaging, compatibility checks, upgrade testing and PBX restart/load policy. Exact ABI/build compatibility needs verification. | Adds one supervised local process, credentials lifecycle and another protected IPC boundary, but can be developed without a custom Asterisk build. |
+| Consistency across state changes | Needs generation/model revision and runtime-instance handling across reload/restart even inside the PBX. | Needs explicit invalidation/reconciliation across disconnect, restart and concurrent reload; a sequence of AMI lists is not a transaction. |
+| Immediate development value | High implementation commitment before mapping/fence semantics are settled. | A synthetic evidence producer can test authority binding and failure semantics without granting PBX access. It must not be presented as live integration. |
+
+Neither alternative currently meets the live source acceptance contract. Neither
+should be selected solely because it can return endpoint counts.
+
+#### Recommendation
+
+Prefer **B, an isolated higher-trust collector, as the next bounded design and
+synthetic implementation candidate**, while keeping A as a contingency if the
+required runtime evidence cannot be obtained through approved existing
+interfaces. This minimizes early coupling to Asterisk internals and preserves
+the already-tested worker-to-broker boundary. It does not establish that AMI
+will ultimately be sufficient or least-authority enough for deployment.
+
+The recommendation is conditional:
+
+- The collector's broader AMI authority must be explicitly approved before any
+  account, connection or synthetic-PBX access is configured. A fixed downstream
+  API protects against broker/worker requests outside that API; it does **not**
+  enforce query-only behavior after collector compromise.
+- If policy requires that no new component hold AMI control-capable credentials,
+  this collector design is unsuitable. Choose an existing constrained authority
+  or investigate the PBX-side surface instead; do not hide a privileged proxy
+  behind the word "read-only".
+- Do not implement a generic AMI proxy, accept caller-chosen actions/object names,
+  or add an upstream fallback. Missing evidence remains unavailable.
+- If a bounded investigation cannot prove generation correlation and fence/
+  dialog semantics, stop the AMI path. Evaluate narrowly scoped PBX-side
+  instrumentation for the missing evidence rather than adding speculative
+  queries or returning default values.
+
+#### Proposed trust and data boundaries
+
+```text
+network worker --fixed reads--> Python broker --fixed evidence--> collector
+                                  |                                |
+                           protected ledger                 approved PBX access
+```
+
+The broker retains its customer/epoch/namespace-pinned ledger. The collector
+receives only broker-derived, validated generation mapping references through
+a separately authenticated local boundary; the wire caller cannot select PBX
+objects. The mapping representation and its authoritative enrollment remain
+design work. Do not copy a writable ledger into the worker or give the collector
+unrestricted ledger mutation merely for convenience.
+
+An internal evidence envelope should distinguish complete observation,
+dialog-uncertain observation and unavailable evidence. It should bind scope,
+generation/mapping revision, runtime instance and collection lifetime. Exact
+fields, authentication, replay handling and cross-process freshness rules need
+review before implementation; none are silently added to protocol v1.
+An unavailable fence or removal fact cannot be filled from ledger intent, even
+when dialog evidence is present. Keep `Source` failure until every required
+returned field is justified. Do not add a cache that turns an old zero into a
+fresh positive result.
+
+#### Bounded next step and stop conditions
+
+If this recommendation is approved, the next increment is a **synthetic internal
+evidence contract only**: define binding/unknown/unavailable semantics and
+exercise valid, mismatched, stale and incomplete evidence with no AMI package,
+account, credentials, PBX connection or service deployment. Do not begin a second
+large transport fixture programme or choose a collector runtime implicitly.
+
+Then review the protected generation-to-object mapping and the precise missing
+PBX evidence. Only after those decisions and separate access approval should a
+small isolated-PBX feasibility proof be considered. Stop if the collector would
+need forbidden secret queries, unapproved permissions, unprovable zero-dialog
+assumptions or caller-selected runtime objects. A full deployment plan is not a
+prerequisite for this comparison, and this recommendation approves no deployment.
