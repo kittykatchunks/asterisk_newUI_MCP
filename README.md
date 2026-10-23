@@ -3487,7 +3487,10 @@ confirmed runtime race or an admission mechanism.
 Terminal NOTIFY allocation failure can also bypass cleanup in both progress
 callbacks: unsubscribe/framehook detach are nested under successful allocation.
 Verify injected failure and cleanup; treat missing progress as unresolved, not
-as transfer settlement. This is a source-level risk, not a confirmed leak.
+as transfer settlement. For voice-derived answer, the framehook sets
+`subclass` before allocation, so later voice frames do not retry the notification;
+verify the hook is still cleaned through another path. This is source-level
+behavior, not a confirmed permanent leak.
 If copying the transferee unique ID fails, the callback still creates a bridge
 subscription; that callback later passes the NULL field to `strcmp()`. Inject
 the failure and prove this cannot reach an unguarded comparison or be mistaken
