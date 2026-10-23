@@ -3581,6 +3581,13 @@ values independently, and do not treat this local behavior as proof of valid
 RFC negotiation
 ([Asterisk state and response check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1161-L1164),
 [RFC 4488](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
+401/407 REFER challenges follow a separate bounded path: with outbound
+credentials, Asterisk creates and sends an authenticated request from the
+challenged transaction; if that fails or the retry limit is reached, the
+response is handled as failure and an active subscription may get a
+zero-expiry `SUBSCRIBE`. Test both challenge codes, credential outcomes,
+repeated challenges, retry headers, subscription state, and cleanup
+([Asterisk retry path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1378)).
 The lookup also uses only the first matching response header, making conflicting
 duplicates order-sensitive; test both orders and reject duplicates as ambiguous.
 Test exact/case-varied values, extension parameters, absent headers, and cleanup
