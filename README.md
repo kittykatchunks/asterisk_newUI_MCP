@@ -3622,6 +3622,11 @@ Each counter is scoped to a cached case-insensitive realm/algorithm pair, so
 multiple supported challenge pairs have independent stale-retry budgets rather
 than sharing one request-wide count
 ([cache key](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L814-L840)).
+When the Digest `algorithm` parameter is omitted, pjproject resolves it to
+MD5; omitted and explicit `algorithm=MD5` challenges therefore share the same
+realm/MD5 cache and stale counter
+([algorithm default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L526-L545),
+[cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1790)).
 The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
 deployed value: the counter increments before its `>=` check, so the default
 allows two changed/stale-nonce retries, and a third stale challenge ends
