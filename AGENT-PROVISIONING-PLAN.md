@@ -3670,6 +3670,20 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Balance the lookup reference with one `pj_grp_lock_dec_ref()` on every path;
   confirm this nested-lock and lifetime behavior on the exact callback path
   before adopting it.
+  A failed stateful send has a separate fail-closed consequence: the UAS
+  proceeding-state handler writes the response status into the transaction
+  before attempting transport send, and returns on send failure before moving
+  the transaction to `COMPLETED`
+  ([status-before-send path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L3177-L3206),
+  [final-state transition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L3315-L3349)).
+  The dialog's unhandled-request fallback only sends `500` if the transaction
+  status remains below `200`
+  ([fallback condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1935-L1950)).
+  Thus a transport-send failure after status assignment can suppress that
+  fallback while no final response was transmitted. The rejecting supplement
+  must still stop built-in transfer handling, report the send error, and keep
+  the no-transfer result; test the peer-visible behavior and transaction
+  cleanup rather than assuming a fallback response.
 
   The PJSIP transaction layer also handles an active request with the same
   transaction key before it reaches the dialog again
@@ -4616,6 +4630,7 @@ legs still need generation attribution and complete settlement.
 | Same REFER transaction retransmitted versus a new REFER with a later CSeq | Confirm the pinned transaction layer recognizes same-branch retransmissions before dialog dispatch; the supplement must not reserve or start duplicate operation work, and the transaction's saved response behavior is captured. A new CSeq creates a distinct request and must follow the one-outstanding-operation policy without overwriting unresolved progress correlation. |
 | Two distinct in-dialog REFER transactions arrive while the first operation is queued but no target leg has reached `b()` admission | Confirm PJSIP's dialog lock serializes session-supplement callbacks but does not serialize the lifetime of separate operations; enforce a bounded per-source-session active-operation latch that accepts at most one and explicitly rejects the other, proving no progress state or operation claim is overwritten and no work is queued twice. |
 | Custom gate sends final rejection through looked-up UAS transaction inside supplement callback | Confirm the supplement runs after the transaction has entered `TRYING`; use `pjsip_tsx_create_key()` on the clone's parsed message and prove it matches the active UAS transaction for both RFC 3261 and legacy RFC 2543 key paths; build with `pjsip_dlg_create_response()`, send through the owning dialog, and release the added reference exactly once. Capture send errors and wire response, prove no final response was already sent, and verify transaction-managed retransmissions and exactly-one-final-response behavior. |
+| Stateful custom rejection response send fails after transaction status is set | Force `pjsip_tsx_send_msg()` failure after the transaction records the final status; prove the built-in REFER supplement is still stopped, no target attempt occurs, and PJSIP's unhandled-request fallback does not send `500` when status is already final. Capture actual peer response/timeout and transaction cleanup; expose the failure operationally. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and

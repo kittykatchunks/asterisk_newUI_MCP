@@ -3504,7 +3504,11 @@ and its RFC 2543 key algorithm otherwise
 ([key selection](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L402-L430)).
 The added transaction reference must be released exactly once with
 `pj_grp_lock_dec_ref()`. This remains a candidate, not an approved response
-mechanism.
+mechanism. Watch send failures: pjproject records the final status before
+transport send, but leaves the transaction short of `COMPLETED` if that send
+fails; the dialog fallback then sees a final status and may not send its own
+`500`. The gate must stop transfer handling even on this error and surface the
+missing-response condition.
 For an allowed request, returning zero continues into Asterisk's built-in
 transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,
