@@ -992,3 +992,32 @@ Production client lifecycle, peer-disconnect handling during blocked source code
 separate-container namespace identity mapping,
 supervision and full broker acceptance remain open. See the
 [cross-runtime proof commands](./README.md#cross-runtime-unix-socket-conformance-approved-test-image-only).
+
+### 9.10 Acceptance-gap review after cross-runtime lifecycle proof
+
+Review recorded 23 October 2026 against the implemented fixtures and TypeScript
+helpers, not against a deployed broker. The first step in section 9.5 has
+substantial subset evidence but is **not signed off as complete**. None of the
+later steps is authorised by passing these tests. Python remains a test runtime,
+and the separate Node/Python image remains an approved experiment only.
+
+| Surface | Evidence now present | Remaining evidence / decision |
+| --- | --- | --- |
+| Read-only request/response subset | Shared 16 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
+| Numeric JSON semantics | Source validators reject booleans/fractions/unsafe integers and accept integral numeric source values. | Request version parity is incomplete: TypeScript accepts JSON `1.0` as version 1, while Python requires `type(version) is int`. Add shared request cases for integral/exponent forms and preserve boolean rejection before claiming parity. |
+| Source accounting | Sequential fixture counters establish accepted/rejected case totals; concurrent scenarios count six actual source invocations, including one failure. | Sequential `reads` increments only after successful readback validation: it is not an independent source-entry counter for rejected outputs. Instrument the source boundary before making a broader no-source-access claim. |
+| Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, one injected inventory failure, private owner cancellation and fresh recovery. | Peer full disconnect during blocked source code, cancellation/deadline/response races, generation-source failures and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
+| Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. | All processes share one container's namespaces. Separate-container UID/GID mapping, user namespaces, socket publication/replacement and same-UID compromise need explicit deployment treatment. PID positivity alone is not process attestation. |
+| Admission/resources | One active slot is retained until source settlement; capacity denial precedes peer lookup/read; fixtures have container limits. | Backlog one is not an end-to-end resource/rate limit. Production listener policy, process supervision, shutdown and crash behaviour are unselected. Fixture threads/control pipe are not that architecture. |
+| Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler, and no production Python broker is selected. Choose a runtime/binding/helper separately; passing test interoperability does not choose one. |
+| Privileged effects | No new evidence is claimed beyond the unprivileged subset. | Control access, managed-file confinement/durability, crash ledger, secrets, runtime truth, routing/dialog fences and independent expiry remain the separate gates in sections 9.3-9.5. |
+
+Recommended next bounded increment is shared request-number parity plus honest
+source-entry accounting, still entirely within the existing unprivileged
+fixtures. Then test peer disconnect/terminal races without confusing request
+half-close with cancellation. A separate-container experiment requires an
+explicit namespace/socket-publication test design; production runtime selection
+and any control-access probe require their own decision and approval.
+
+This review records gaps only: it adds no new runtime behaviour, does not
+retroactively broaden earlier PASS messages and does not approve a later gate.

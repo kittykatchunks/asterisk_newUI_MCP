@@ -2532,6 +2532,14 @@ identity-map proof or completion of the broker acceptance gate.
 
 #### Broker OS identity integration: production option still unselected
 
+The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
+separates tested read-only interoperability from unproved parity/deployment
+behaviour. In particular, integral JSON request-version forms still differ
+between TypeScript and Python, sequential counters are not independent
+source-entry instrumentation, and blocked-source peer disconnect/terminal races
+remain open. The first acceptance gate is not signed off; production runtime
+selection and every privileged probe still require separate approval.
+
 The [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current
