@@ -3421,6 +3421,11 @@ terminal NOTIFY 200 alone as a safe-zero signal. Asterisk's progress watcher
 tracks the transferee's frames/bridge re-entry; its internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
 not an identity-complete record for forked target legs.
+The `completed` field is a plain integer read from both the channel framehook
+and bridge Stasis callback and written by parking/core paths; the separate
+pooled subscriptions do not establish cross-callback synchronization. This is
+an unsynchronized-access candidate requiring concurrency validation, not a
+confirmed runtime race or an admission mechanism.
 
 The multi-party transfer callback receives the Local `;1` channel. Asterisk's
 Local driver then inherits datastores to `;2` before starting its target

@@ -3378,9 +3378,21 @@ the caller-owned `data` pointer safe to retain or dereference later. More
 importantly, `completed` is documented as progress deferral state, not a
 generation claim or drain latch. The source exposes it as a plain `int`
 updated/read by progress and parking callbacks, not as a synchronized admission
-API. The design must keep claim state separate and use its own explicitly
-synchronized, lifetime-managed owner; neither the wrapper reference nor its
-progress flag is a claim-lifecycle mechanism.
+API. The two Stasis callbacks use separate pooled subscription serializers;
+that serializes callbacks within each subscription, not across parking and
+bridge-progress subscriptions. The framehook also reads the flag from channel
+frame processing, while core transfer handling can write it directly
+([per-subscription dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/main/stasis.c#L923-L1004),
+[framehook read](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L326-L342),
+[bridge callback read](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L272-L300),
+[parking callback write](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L140-L157),
+[core write](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4700-L4706)).
+No common synchronization for these accesses is visible in the pinned paths.
+This is an unsynchronized-access/race candidate, not a confirmed runtime race:
+the precise overlap and resulting progress behavior need focused concurrency
+validation. The admission design must keep claim state separate and use its
+own explicitly synchronized, lifetime-managed owner; neither the wrapper
+reference nor its progress flag is a claim-lifecycle mechanism.
 
 The browser may request a transfer, but it is not an authority for target
 allowlisting, generation state, or dialog ownership. Every REFER-created target
