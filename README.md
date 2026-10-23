@@ -3493,8 +3493,10 @@ provide it. The parking-failure retry also reuses the REFER transfer wrapper;
 PJSIP progress setup replaces one set of target, framehook, and subscription
 fields while acquiring new references on each callback invocation, with no
 visible repeated-setup cleanup. This is a potential lost-correlation/resource
-cleanup defect requiring focused validation and an upstream fix or explicit
-path exclusion before relying on parking fallback.
+cleanup defect; the progress fields are also shared by the callback, framehook,
+and bridge subscription without an evident common lock. This potential
+cross-thread state race requires focused validation and an upstream fix or
+explicit path exclusion before relying on parking fallback.
 Fallback needs a separately settled child claim; ordinary multi-party fallback
 fails before bridge insertion if its Local `ast_call()` is rejected, and the
 two-party path does not remove the transferer when action enqueue fails. Built-in

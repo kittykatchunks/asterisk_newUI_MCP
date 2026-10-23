@@ -3709,6 +3709,20 @@ fallback, require an upstream fix or explicitly exclude the path. This is
 separate from making transfer-attempt claims independently idempotent and
 settled.
 
+These progress fields are also shared between the synchronous transfer callback,
+the bridge subscription callback, and the channel framehook. The callback
+assigns `transferee`, `transfer_data`, `framehook`, and `bridge_sub` outside a
+common lock; the bridge callback reads the target and completion fields before
+locking the channel, and framehook execution is serialized by that channel's
+lock only. That per-channel lock does not protect the shared progress object
+from callbacks on a different subscription or from reinitialization on another
+channel. AO2 references preserve object lifetime, not mutual exclusion. This
+makes the repeated-setup concern a potential cross-thread state race as well
+as a lost-resource problem; source inspection alone cannot prove the runtime
+interleaving or impact. The proof/fix must synchronize progress-state
+publication and teardown across all three paths, or exclude the failing-parking
+retry while progress monitoring is active.
+
 The ordinary-transfer failure branches provide a bounded source-call
 preservation signal, but only for those branches: multi-party handling hangs
 up the attempted Local and returns failure when its `ast_call()` fails, before
