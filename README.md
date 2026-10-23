@@ -3496,6 +3496,11 @@ count remains nonzero
 This predicts retained transaction/dialog resources until a termination event
 or endpoint transaction-layer shutdown; it remains a source-derived lifecycle
 risk to verify, not a runtime-confirmed leak.
+If new-branch/higher-CSeq retries repeat the same failed response path, each
+may leave another transaction registered and increase dialog-held resources.
+Measure repeated retries and prove every attempt is bounded or terminated;
+an operation latch prevents duplicate transfer work but does not by itself
+clean up leaked PJSIP transactions.
 The NULL-transaction response-send guard also returns before PJSIP releases
 the created transmit-data reference, while Asterisk ignores the error and
 does not release that buffer; inspect its reference/lifetime on the exact
