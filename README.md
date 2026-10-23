@@ -3666,7 +3666,10 @@ Confirm the peer's challenge-selection result separately; generated headers
 alone do not prove which credential the server accepts.
 Asterisk's endpoint-auth helper prefers an exact realm match even if a
 wildcard auth object appeared earlier; among duplicate exact or wildcard
-matches, the first eligible object wins. For each realm, it takes credentials
+matches, the first eligible object wins. Eligibility depends on the challenge
+algorithm and a usable credential: an exact-realm auth object that cannot
+supply the challenged algorithm does not prevent an eligible wildcard object
+from being selected. For each realm, it takes credentials
 from the first supported challenge that also has a matching endpoint auth
 object; an unsupported challenge or missing credential does not by itself
 prevent a later same-realm challenge from being considered. Challenge-header
