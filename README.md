@@ -3547,6 +3547,12 @@ inherit `Refer-Sub: false`
 [default refresh method](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L585-L600),
 [Asterisk's one-time header insertion](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1473-L1477),
 [RFC 4488 grammar](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
+If that refresh receives 481 or another non-2xx response, pjproject terminates
+the UAC subscription and Asterisk treats it as a failed REFER subscription;
+that is not target-call failure or ownership settlement
+([pjproject handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1975-L2008),
+[Asterisk callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1385)).
+Test refresh responses and cleanup separately from transfer outcome.
 Neither SIP.js 0.21.2 nor Asterisk 22.11 adds `Refer-Sub: false` to its
 outgoing REFER by default. Asterisk's PJSIP transfer builder adds `Refer-To`,
 then its REFER sender copies caller-supplied REFER variables as headers; that
