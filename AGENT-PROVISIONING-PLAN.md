@@ -1766,10 +1766,30 @@ source settlement, distinct Python and actual Node recovery, and socket cleanup.
 The root test supervisor has only fixture setup/identity-switching capabilities;
 the broker itself is not root.
 
+The next implementation-level increment runs three independent real-listener
+lifetimes: deadline, full peer loss and shutdown while a source remains held.
+Each first verifies that mandatory request write half-close does not signal
+source cancellation, then rejects an overlapping approved client. Peer loss uses
+an explicitly killed worker process and requires cancellation in under three
+seconds; deadline must not substitute for that outcome. A second approved client
+remains excluded until source settlement. Both non-shutdown cases independently
+require distinct Python and actual Node recovery reads.
+
+Shutdown signals the broker stop event and must cancel the source and close the
+client within three seconds. While the source still refuses to settle, the
+broker process must remain alive and its socket pathname must remain published.
+Only source release permits clean shutdown and socket removal; the final source
+counter must remain one, proving no replay. Every lifetime captures fixed broker
+diagnostics and requires exactly its intended terminal reason, one rejected
+late result, the expected capacity/identity denials and no additional records.
+The test module does not replace or instrument the runtime's socket/source logic.
+
 This is the first implementation slice, not inherited production certification
-from fixture tests. Separate-container, peer-loss, terminal-schedule, blocked-write,
-shutdown and publication-failure checks must be wired against this implementation
-before deployment. Existing fixture results do not automatically cover the new
+from fixture tests. Separate-container, terminal-schedule, blocked-write and broader
+publication-failure checks still need implementation-specific evidence before
+deployment. The real-process peer-loss and draining-shutdown cases above
+are covered, but are not separate-container or arbitrary-schedule proofs.
+Existing fixture results do not automatically cover the new
 code. Production packaging/supervision and a concrete read-only source adapter
 remain next integration work; real-source authority and privileged gates remain
 separately approved.

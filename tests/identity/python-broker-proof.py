@@ -6,6 +6,7 @@ import json
 import logging
 import multiprocessing
 import os
+import queue
 import socket
 import struct
 import subprocess
@@ -143,12 +144,14 @@ def drop(uid):
     os.setuid(uid)
 
 
-def kernel_proof():
+def kernel_proof(scenario):
     os.setgroups([2100])
     os.setgid(2100)
     context = multiprocessing.get_context("fork")
     stop, ready, entered, release, cancelled = (context.Event() for _ in range(5))
     calls = context.Value("i", 0)
+    half_closed = context.Event()
+    diagnostics = context.Queue()
 
     class HeldSource(FakeSource):
         def inventory(self, cancellation):
@@ -171,7 +174,14 @@ def kernel_proof():
 
         def serve():
             drop(1101)
-            logging.basicConfig(level=logging.WARNING)
+
+            class EvidenceHandler(logging.Handler):
+                def emit(self, record):
+                    diagnostics.put(record.getMessage())
+
+            broker.LOG.handlers = [EvidenceHandler()]
+            broker.LOG.propagate = False
+            broker.LOG.setLevel(logging.WARNING)
             broker.Broker(binding, HeldSource()).serve(path, stop, ready)
 
         server = context.Process(target=serve)
@@ -191,6 +201,7 @@ def kernel_proof():
                     connection.sendall(broker.encode_frame(vectors["cases"][0]["text"], 8192))
                     connection.shutdown(socket.SHUT_WR)
                     if mode == "held":
+                        half_closed.set()
                         assert connection.recv(1) == b""
                         return
                     data = bytearray()
@@ -232,24 +243,59 @@ def kernel_proof():
             assert calls.value == 0
             held = run_client("held")
             assert entered.wait(3)
+            assert half_closed.wait(1)
+            assert not cancelled.wait(0.2), "Required write half-close was mistaken for peer loss"
             finished(run_client("denied"))
             assert calls.value == 1
-            finished(held)
-            assert cancelled.wait(2), "Deadline did not propagate to source"
-            finished(run_client("denied"))
+            if scenario == "peer loss":
+                started = time.monotonic()
+                held.kill()
+                held.join(2)
+                assert held.exitcode == -9
+                assert cancelled.wait(2), "Full peer loss did not cancel the actual source"
+                assert time.monotonic() - started < 3
+            elif scenario == "shutdown":
+                started = time.monotonic()
+                stop.set()
+                assert cancelled.wait(2), "Shutdown did not cancel the actual source"
+                finished(held)
+                assert time.monotonic() - started < 3
+            else:
+                finished(held)
+                assert cancelled.wait(2), "Deadline did not propagate to source"
+            if scenario != "shutdown":
+                finished(run_client("denied"))
+            else:
+                server.join(0.2)
+                assert server.is_alive(), "Shutdown abandoned an unsettled source"
+                assert os.path.exists(path), "Shutdown removed the path before source settlement"
             assert calls.value == 1
             release.set()
-            time.sleep(0.2)
-            finished(run_client("recovery"))
-            assert calls.value == 2
-            result = subprocess.run(["node", "/tests/identity/broker-cross-client.ts", path, "disconnect-reconnect-3"],
-                                    user=1102, group=2100, extra_groups=[], capture_output=True,
-                                    text=True, timeout=10)
-            assert result.returncode == 0 and result.stdout == "" and result.stderr == "", result.stderr
-            assert calls.value == 3
-            stop.set()
+            if scenario != "shutdown":
+                time.sleep(0.2)
+                finished(run_client("recovery"))
+                assert calls.value == 2
+                result = subprocess.run(["node", "/tests/identity/broker-cross-client.ts", path, "disconnect-reconnect-3"],
+                                        user=1102, group=2100, extra_groups=[], capture_output=True,
+                                        text=True, timeout=10)
+                assert result.returncode == 0 and result.stdout == "" and result.stderr == "", result.stderr
+                assert calls.value == 3
+                stop.set()
             finished(server)
             assert not os.path.exists(path)
+            assert calls.value == (1 if scenario == "shutdown" else 3), "Unexpected replay or source entry"
+            records = []
+            while True:
+                try:
+                    records.append(diagnostics.get(timeout=0.1))
+                except queue.Empty:
+                    break
+            outcomes = [record for record in records if record.startswith("Broker connection terminated:")]
+            assert outcomes == [f"Broker connection terminated: {scenario}"], records
+            assert records.count("Broker read-only connection rejected") == 1, records
+            assert records.count("Broker connection denied: capacity") == (1 if scenario == "shutdown" else 2), records
+            assert len([record for record in records if record.startswith("Broker peer denied:")]) == 2, records
+            assert len(records) == (5 if scenario == "shutdown" else 6), records
         finally:
             stop.set()
             release.set()
@@ -259,10 +305,14 @@ def kernel_proof():
                     process.kill()
                     process.join()
             os.chown(directory, 0, 0)
-    print("PASS implementation: live-path preservation, kernel peer denial, deadline cancellation, source-slot retention, Python/Node recovery and cleanup")
+            diagnostics.close()
+            diagnostics.join_thread()
+    print(f"PASS implementation {scenario}: half-close preserved, exact terminal reason, source retained until settlement, cleanup"
+          + (", Python/Node fresh recovery" if scenario != "shutdown" else ", shutdown waits without replay"))
 
 
 if __name__ == "__main__":
     if not unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(ProtocolTests)).wasSuccessful():
         sys.exit(1)
-    kernel_proof()
+    for scenario in ("deadline", "peer loss", "shutdown"):
+        kernel_proof(scenario)

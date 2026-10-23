@@ -3020,6 +3020,17 @@ preservation, deadline EOF, source-slot retention and distinct Python/Node
 recovery before socket cleanup. The test supervisor alone performs fixture
 identity setup. No dependencies or images are implicitly installed.
 
+The implementation proof also runs independent deadline, blocked-source peer-loss
+and draining-shutdown lifetimes. Each verifies that required write half-close is
+nonterminal, and checks the exact terminal diagnostic rather than allowing one
+cause to substitute for another. Full peer loss must cancel the source within
+three seconds and retain capacity until settlement, followed by distinct Python/
+Node recovery. Shutdown must close the client within three seconds while keeping
+the broker process and socket path alive until the held source is released.
+Final shutdown source counts exclude replay; fixed diagnostic counts reject
+unexpected source/monitor failures. These are real Linux process/socket tests,
+not yet separate-container integration coverage of the implementation.
+
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.
 Implementation-specific integration coverage, concrete read-only source wiring
