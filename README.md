@@ -2927,7 +2927,7 @@ This completes the bounded blocked-source disconnect batch for the tested Linux
 Unix-stream/container topology. It does not prove other kernels/transports,
 arbitrary disconnect/response races, leaked duplicate descriptors or remote
 network failure detection. Slow/non-reading clients are the final bounded
-experiment batch below; production integration remains unselected.
+experiment batch below; the subsequent implementation approval is recorded next.
 Broader namespace configurations remain future cases. The earlier framing
 failures alone do not prove the half-close distinction. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
@@ -2976,14 +2976,61 @@ The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acce
 separates tested read-only interoperability from unproved parity/deployment
 behaviour. The request-version forms and independent source-entry accounting
 gaps are now covered by shared tests; broader terminal scheduling and production
-integration remain open. The first acceptance gate is not signed off; production runtime
-selection and every privileged probe still require separate approval.
+integration remain open. The first acceptance gate is not signed off; production
+deployment and every privileged probe still require separate approval.
 
-The [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
+### Dedicated Python read-only broker implementation
+
+After closing the finite experiment, the user approved a dedicated Python broker
+for **unprivileged read-only implementation**, not PBX control or real-secret
+access. [local/broker/readback.py](./local/broker/readback.py) now provides an
+independent `Binding`, explicit `Source` adapter contract and socket-owning
+`Broker.serve(path, stop, ready)` entry point. It imports no test fixtures.
+The caller supplies protected configuration and an adapter; no CLI service,
+Compose listener or concrete PBX source is enabled by this change.
+
+The Linux listener authenticates the exact accepted socket with `SO_PEERCRED`
+before request consumption. Only the configured kernel UID/primary GID is
+authorised; PID is diagnostic. It requires non-root/capability-free execution,
+default namespace maps, a broker-owned 0750 non-symlink directory and matching
+primary socket group. Socket mode is 0660; conflicting paths fail without
+unlinking, and shutdown cleanup verifies the original device/inode/type.
+Customer, epoch and principal never come from peer identity claims.
+
+The module implements the shared read-only schemas and framing limits with one
+admission slot and a five-second deadline starting at accept. Deadline, shutdown
+or full peer hangup signals the adapter's cancellation event. Required request
+write half-close is not treated as full peer loss. An uncooperative source keeps
+its slot until settlement, including during shutdown. Partial writes may occur
+on termination and must fail framing; nothing is replayed.
+For generation reads, only the explicit `MISSING` sentinel means authoritative
+absence. `None`, invalid source output and exceptions are failures, not missing.
+Logs omit request bodies and adapter exception text.
+
+Run the implementation proof using the already-built cross-runtime proof image:
+
+```powershell
+.\scripts\Test-PythonBroker.ps1
+```
+
+This tests the new module against all 36 request/framing and 28 source-output
+vectors, strict bindings and source/cancellation behaviour. The real Unix-socket
+test runs the broker unprivileged and verifies kernel peer denial, live-path
+preservation, deadline EOF, source-slot retention and distinct Python/Node
+recovery before socket cleanup. The test supervisor alone performs fixture
+identity setup. No dependencies or images are implicitly installed.
+
+The runtime choice is now approved; deployment is **not**. Prior experimental
+race/container/writer evidence is not automatically evidence for this new module.
+Implementation-specific integration coverage, concrete read-only source wiring
+and packaging/supervision remain before deployment. See the
+[approved implementation scope](./AGENT-PROVISIONING-PLAN.md#914-dedicated-python-runtime-approved-read-only-implementation).
+
+The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current
-fixture candidate. No native package, helper protocol or production language
-has been selected.
+fixture candidate. The subsequent approval selects the dedicated Python direction
+for read-only implementation; no native package or helper protocol is selected.
 
 The important invariant is connection ownership: credentials must come from the
 exact accepted socket and remain bound to that request/lifetime. A reported UID,

@@ -1010,7 +1010,7 @@ and the separate Node/Python image remains an approved experiment only.
 | Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected source failures, private owner cancellation and fresh recovery. Section 9.12 adds terminal ordering, Linux poll-based blocked-source peer loss and measured backpressure with slow-reader completion/non-reader deadline recovery. | Arbitrary terminal/disconnect scheduling and immediate cancellation during partial writes remain unproved. Required request EOF alone is not proof of peer loss. Production integration and other transports remain separate. |
 | Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. Section 9.12 adds separate-container default-map evidence and publication denial. | Broader user-namespace mappings, restart/conflicting-path publication and same-UID compromise still need explicit deployment treatment. PID positivity alone is not process attestation. |
 | Admission/resources | One active slot is retained until source settlement; capacity denial precedes peer lookup/read; fixtures have container limits. | Backlog one is not an end-to-end resource/rate limit. Production listener policy, process supervision, shutdown and crash behaviour are unselected. Fixture threads/control pipe are not that architecture. |
-| Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler, and no production Python broker is selected. Choose a runtime/binding/helper separately; passing test interoperability does not choose one. |
+| Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. Section 9.14 records the later dedicated-Python approval and first authenticated read-only implementation. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler. The Python implementation still needs implementation-specific deployment coverage, concrete read-only source wiring and packaging/supervision. Fixture interoperability alone is not deployment approval. |
 | Privileged effects | No new evidence is claimed beyond the unprivileged subset. | Control access, managed-file confinement/durability, crash ledger, secrets, runtime truth, routing/dialog fences and independent expiry remain the separate gates in sections 9.3-9.5. |
 
 The shared request-number parity and source-entry accounting increment is now
@@ -1710,9 +1710,66 @@ transports, rootless/remapped namespaces, leaked descriptors and production
 listener/rate-limit/supervision architecture. Unsupported namespace modes may
 remain unsupported rather than expanding the experiment.
 
-The next milestone is a separate production runtime/OS-identity integration
-decision (native Node binding, socket-owning helper or dedicated local runtime),
-followed by implementation-specific validation. No option is selected here.
+The next milestone was a separate production runtime/OS-identity integration
+decision. The subsequent approval and first implementation are recorded in
+section 9.14; this closure review alone selected no runtime.
 PBX access, secret lifecycle, managed-file confinement/durability, mutation ledger,
 live routing/dialog fences and independent expiry retain their separate approval
 and acceptance gates.
+
+### 9.14 Dedicated Python runtime: approved read-only implementation
+
+On 23 October 2026, after experiment closure, the user selected
+**Dedicated Python broker — approve unprivileged read-only implementation**.
+This supersedes the earlier runtime-not-selected status for that scope only.
+It does not approve PBX control, real secrets, mutation, deployment or privileged
+adapters.
+
+The first implementation is [local/broker/readback.py](./local/broker/readback.py),
+independent of the experimental fixtures. `Binding` validates a protected
+customer/epoch/principal and exact mapped worker UID/primary GID. `Broker.serve`
+owns the Unix listener and accepted sockets; it obtains `SO_PEERCRED` before
+reading any frame. PID is diagnostic only. Non-root Linux, zero effective
+capabilities, default UID/GID maps, broker-owned non-symlink parent directory
+mode 0750 and socket group matching the broker primary GID are required.
+The published socket is 0660; existing paths are never removed to permit bind,
+and cleanup checks the published device/inode/type before unlinking.
+
+The implementation supports only inventory and generation readback with shared
+limits, strict UTF-8, request EOF and exact schemas. `Source.inventory(event)` and
+`Source.generation(id, event)` are explicit synchronous adapter boundaries.
+Generation must return the module's `MISSING` sentinel for authoritative absence:
+`None`, malformed data and exceptions must not become a successful missing result.
+No concrete PBX/credential source, CLI service or Compose listener is installed.
+An embedding caller supplies the protected binding, source, stop event and
+readiness event; there is no injected-peer-identity network path.
+
+One admission slot covers decoding, source work and sending. The five-second
+monotonic deadline starts at accept. A bounded monitor observes full Linux
+hangup, deadline or shutdown and signals adapter cancellation, without treating
+mandatory write EOF as peer loss. Source work retains admission until it returns,
+even after the socket is shut down; shutdown deliberately waits for settlement
+rather than abandoning or replaying work. Writes use the remaining socket budget.
+Terminal events can interrupt a send, so a partial frame is a failure, not a
+rollback or successful response. Diagnostics use fixed messages and numeric peer
+credentials, never request text or adapter exception contents.
+
+[scripts/Test-PythonBroker.ps1](./scripts/Test-PythonBroker.ps1) runs the
+implementation tests in the existing locally resolved proof image, with no
+network, read-only mounts, resource limits and ownership-checked cleanup.
+It runs all 36 shared request/framing and 28 source-output vectors against the
+new module, plus binding, cancellation and source-failure tests. A real Linux
+listener runs as UID 1101/GID 2100 with zero effective capabilities. Tests prove
+foreign UID denial before source entry, duplicate-bind/live-path preservation,
+deadline cancellation, capacity rejection before and after a held-source timeout,
+source settlement, distinct Python and actual Node recovery, and socket cleanup.
+The root test supervisor has only fixture setup/identity-switching capabilities;
+the broker itself is not root.
+
+This is the first implementation slice, not inherited production certification
+from fixture tests. Separate-container, peer-loss, terminal-schedule, blocked-write,
+shutdown and publication-failure checks must be wired against this implementation
+before deployment. Existing fixture results do not automatically cover the new
+code. Production packaging/supervision and a concrete read-only source adapter
+remain next integration work; real-source authority and privileged gates remain
+separately approved.
