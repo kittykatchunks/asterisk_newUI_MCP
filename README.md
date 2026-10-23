@@ -3487,6 +3487,15 @@ verify cleanup/lifetime of the unanswered transaction. Source inspection
 shows the UAS `TRYING` path does not arm the normal final-response timeout;
 exact retransmissions are ignored without scheduling a response. Test whether
 the transaction remains registered beyond 64*T1 with the dialog still open.
+The transaction layer unregisters only after `DESTROYED`, while the dialog
+counts the transaction until `TERMINATED` and cannot destroy itself while that
+count remains nonzero
+([transaction destroy/unregister](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L1556-L1563),
+[dialog count and destroy guard](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1035-L1059),
+[transaction count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L2342-L2379)).
+This predicts retained transaction/dialog resources until a termination event
+or endpoint transaction-layer shutdown; it remains a source-derived lifecycle
+risk to verify, not a runtime-confirmed leak.
 The NULL-transaction response-send guard also returns before PJSIP releases
 the created transmit-data reference, while Asterisk ignores the error and
 does not release that buffer; inspect its reference/lifetime on the exact
