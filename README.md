@@ -3472,7 +3472,11 @@ support requires proving attachment cannot fail or adding an earlier abortable
 interception point while preserving the existing call. Preallocation could
 remove allocation failure, but Asterisk's pinned datastore-add helper always
 returns success and does not detect duplicate attachments, so exact-once
-association still needs a locked, serialized proof.
+association still needs a locked, serialized proof. Parking is an additional
+bypass: its multi-party path can call a Local channel before the supplied
+transfer callback and can retry that callback after bridge-insertion failure;
+protected transfers need an earlier claim gate and retry-safe ownership, or
+must exclude parking.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning

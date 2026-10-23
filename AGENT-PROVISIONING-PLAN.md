@@ -3573,6 +3573,22 @@ target dialplan is necessary but not sufficient. Also settle the reserved
 operation idempotently when the bridge API returns an enqueue/originate error
 after the callback has attached state.
 
+There is also a callback-ordering bypass before the ordinary bridge-transfer
+branches: `ast_bridge_transfer_blind()` tries the parking provider first
+([parking attempt before normal transfer](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4697-L4706)).
+For a multi-party parking transfer, `park_local_transfer()` creates and calls
+a Local channel before the parking provider invokes the supplied callback
+([Local call before callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L247-L293),
+[callback and bridge insertion](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L377-L402)).
+Therefore that callback cannot be the first admission boundary for this
+parking-created Local call. A transfer claim must already be discoverable by
+the Local/core call gate, or parking must be excluded for protected transfers.
+If bridge insertion fails after the callback, parking returns failure and
+core falls through to ordinary transfer handling, which can invoke the same
+callback again on a different target channel. The operation owner must support
+that retry without reusing one datastore node across channels or duplicating
+the logical operation claim; otherwise this fallback path must be disabled.
+
 For the supported `Dial()` and `Queue()` paths, source confirms that each
 application explicitly calls `ast_channel_datastore_inherit()` on every
 requested callee before invoking its per-callee `b()` Gosub:
@@ -3967,6 +3983,7 @@ legs still need generation attribution and complete settlement.
 | Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
+| Multi-party blind transfer through parking whose Local bridge insertion fails | A generation claim gates the parking Local before its initial `ast_call()`; callback retry on ordinary-transfer fallback creates no duplicate or missing operation/child claim; otherwise the path is unavailable. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
