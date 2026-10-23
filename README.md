@@ -3582,17 +3582,23 @@ RFC negotiation
 ([Asterisk state and response check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1161-L1164),
 [RFC 4488](https://www.rfc-editor.org/rfc/rfc4488.html#section-4)).
 401/407 REFER challenges have two source-level handlers. pjproject may retry
-using dialog auth; if that fails synchronously, Asterisk may take its separate
-endpoint-auth retry. Async-auth abandonment instead reports a synthetic event,
-so Asterisk does not enter its response-based retry branch and handles it as
-terminal failure. Asterisk's counter allows at most nine callback retries,
-but does not bound pjproject's separate attempts. Asterisk ignores the retry
-send result; at its own retry limit, it attempts a zero-expiry `SUBSCRIBE`
-only if the subscription is not already terminated, and ignores that send
-result too. Capture event types, requests actually sent, challenge codes,
-credentials, subscription state, any peer-visible unsubscribe, and cleanup
+using dialog auth; async handling is opt-in and must be confirmed in the
+deployed configuration. Its transaction callback runs before the internal
+challenge handler, but Asterisk's initial `SENT` subscription state does not
+enter Asterisk's later `ACTIVE`/`TERMINATED` retry branch. If synchronous auth
+fails, the terminal callback can expose the original challenge to Asterisk's
+separate endpoint-auth retry. If configured async auth is abandoned, pjproject
+instead reports a synthetic event, which Asterisk handles as terminal failure.
+Asterisk's counter allows at most nine callback retries, but does not bound
+pjproject's separate attempts. Asterisk ignores the retry send result; at its
+own retry limit, it attempts a zero-expiry `SUBSCRIBE` only if the subscription
+is not already terminated, and ignores that send result too. Capture event
+types, requests actually sent, challenge codes, credentials, subscription
+state, any peer-visible unsubscribe, and cleanup
 ([Asterisk retry path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1378),
 [pjproject auth path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
+[pjproject callback ordering](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2433-L2455),
+[Asterisk state gate](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1281-L1310),
 [pjproject async abandonment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L605-L684),
 [pjproject send result](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1441-L1493),
 [send result](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495)).

@@ -3703,12 +3703,23 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Authentication challenges are a separate response path with two source
   layers. pjproject's event-subscription transaction handler itself processes
   401/407 using the dialog authentication session and may send a reinitialized
-  request. If its synchronous fallback fails, it terminates the subscription
-  with the original transaction event; if the async auth handler abandons,
+  request. Its async handler is opt-in through
+  `pjsip_auth_clt_async_configure()`; do not assume that path is active merely
+  because the pinned library supports it
+  ([async API setup contract](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_auth.h#L637-L755)).
+  If its synchronous fallback fails, pjproject terminates the subscription
+  with the original transaction event; if configured async auth is abandoned,
   pjproject terminates it with a synthetic user event instead
   ([pjproject challenge handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
   [async abandonment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L605-L626),
   [state callback event substitution](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L632-L684)).
+  pjproject invokes the transaction callback before its own UAC challenge
+  handler. On the initial REFER challenge the subscription is still `SENT`,
+  so Asterisk's state callback does not take its `ACTIVE`/`TERMINATED` branch;
+  only a later terminal state callback after synchronous auth failure can
+  expose the original 401/407 to Asterisk's retry logic
+  ([transaction callback ordering](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2433-L2455),
+  [Asterisk state gate](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1281-L1310)).
   In Asterisk's callback, a received 401/407 for REFER increments its own
   per-operation count and, while that count is below `MAX_RX_CHALLENGES`
   (defined as 10), asks the endpoint outbound-auth configuration to create a
@@ -4949,7 +4960,7 @@ legs still need generation attribution and complete settlement.
 
 | Case | Required result |
 | --- | --- |
-| Outgoing REFER authentication challenge and abandonment | Exercise 401/407 with credentials that succeed, fail synchronously, and abandon asynchronously. Distinguish pjproject's event-subscription auth handling from Asterisk's endpoint-auth callback retry; capture the callback event type, retry count, each REFER actually sent, and any zero-expiry `SUBSCRIBE`. Async abandonment produces a synthetic event, so verify that Asterisk does not re-enter the response-based retry branch and that terminal state/ref cleanup completes without assuming an unsubscribe was sent. |
+| Outgoing REFER authentication challenge and abandonment | Exercise 401/407 with credentials that succeed and fail synchronously; exercise asynchronous abandonment only if `pjsip_auth_clt_async_configure()` is enabled in the deployed configuration. Distinguish pjproject's event-subscription auth handling from Asterisk's endpoint-auth callback retry; capture initial `SENT` state, callback event type, retry count, each REFER actually sent, and any zero-expiry `SUBSCRIBE`. If async mode is enabled, abandonment produces a synthetic event, so verify that Asterisk does not re-enter the response-based retry branch and that terminal state/ref cleanup completes without assuming an unsubscribe was sent. |
 | Inbound test route to queue to browser agent | New work is admitted only for the exact generation; queue waiting and each outbound member branch are accounted for. |
 | Blind transfer to an allowed same-customer internal destination while open | Target admission is generation-bound before signaling; source/target ownership is continuous through success, rejection, cancellation, and timeout. |
 | Blind transfer racing the irreversible fence | Admission and fence serialize; either the new leg is claimed before the fence and remains counted, or it is rejected after the fence. |
