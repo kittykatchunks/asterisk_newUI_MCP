@@ -3558,6 +3558,31 @@ This makes a pre-fence claim remain visible as pending even if signaling starts
 after the fence; the fence must wait for that claim to settle. It does not make
 the target leg disappear or cancel an already claimed attempt.
 
+There is a confirmed forwarding bypass in the pinned `Dial()` implementation.
+The per-callee `b()` Gosub runs for the initially requested channels before
+their first `ast_call()` ([hook then call](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_dial.c#L2904-L2918)).
+If a called channel requests forwarding later, `do_forward()` requests a
+replacement and inherits datastores from the inbound channel, then calls
+`ast_call()` on that replacement directly ([replacement inheritance and call](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_dial.c#L1000-L1012),
+[direct call](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_dial.c#L1122-L1138)).
+That new channel does not pass through the earlier `ast_pre_call()`/`b()` gate.
+It may inherit the parent operation marker, but it has no newly registered
+unique child-leg claim before signaling. The original child claim is not a
+substitute: it is associated with another channel and may settle independently
+of the forwarded target. Consequently, the current per-callee hook proposal
+does not cover forwarded calls and cannot certify a safe count for that path.
+
+Asterisk documents Dial option `i` as ignoring forwarding requests for that
+dial attempt ([option definition](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_dial.c#L245-L247)).
+For a closed route, forcing and validating `i` on every protected `Dial()` is
+one possible containment, but it changes forwarding behavior and is not yet
+approved as the product policy. Otherwise forwarding needs a separately proven
+pre-signal admission hook on every replacement channel. A generated route
+guard alone is insufficient because the forwarding replacement is made inside
+`Dial()` and is signaled without re-entering that route's `b()` Gosub. Queues,
+technology-level redirects, and other forwarding mechanisms remain separate
+coverage obligations.
+
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
 datastore whose duplicated `data` is NULL if the duplicator fails, while
@@ -3738,6 +3763,10 @@ incoming REFER delegate installation order and demonstrate rejection of an
 unapproved target without originating a new INVITE. Verify that a second
 transfer on the same session cannot overwrite progress correlation; the
 baseline design should permit at most one outstanding REFER per source session.
+Include an endpoint-forwarding attempt in every protected `Dial()` test: prove
+the fixed route applies `i` and receives no replacement call, or prove a
+separate replacement-channel gate registers its own child claim before
+`ast_call()`. A passing initial-channel `b()` test alone does not cover it.
 The synthetic proof must distinguish API promise resolution, Asterisk 202
 acceptance, NOTIFY contents/state, progress-monitor health, and PBX
 channel/bridge settlement. Assert that target answer and every forked leg are

@@ -3433,7 +3433,10 @@ operation while any per-target child claim remains unsettled. Local-channel
 hangup or optimization completion alone cannot settle active target work. A
 child datastore's destroy callback may provide conservative final settlement
 when the actual callee channel is destroyed, but that may lag hangup and must
-not lose or deadlock the claim-owner handoff.
+not lose or deadlock the claim-owner handoff. Asterisk 22.11's `Dial()` also
+has a forwarding bypass: replacement channels are signaled without rerunning
+the per-callee `b()` hook. Forwarding must be intercepted or explicitly
+disabled on every protected route before the admission design can be complete.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
