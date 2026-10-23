@@ -3463,13 +3463,21 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   outgoing PJSIP legs if every generation-owned endpoint is broker-generated,
   resolvable to exactly one generation, and unknown identities fail closed.
 - [`incoming_request`](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip_session.h#L319)
-  can stop later session supplements. On failure the callback must send a SIP
-  response, it runs on a SIP servant thread, and a channel is not guaranteed to
-  exist. The built-in REFER supplement is registered at
+  can stop later session supplements: the dispatcher breaks out when the
+  callback returns nonzero, but sends no response on its own
+  ([dispatch break](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4462-L4476)).
+  The supplement contract therefore requires the rejecting callback itself to
+  send a SIP response; it runs on a SIP servant thread, and a channel is not
+  guaranteed to exist. The built-in REFER supplement is registered at
   [`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2162),
-  so a lower-numbered-priority supplement could run before REFER handling; if
-  it stops the built-in handler, it must deliberately own the response and
-  transfer result rather than merely observe and continue.
+  with `AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL` defined as `1000000`
+  ([priority values and ordering](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip.h#L3389-L3398)).
+  A narrowly scoped REFER gate must use a strictly earlier priority, claim the
+  reservation before returning zero to continue, or send its explicit final
+  response and return nonzero to stop the built-in handler. Merely returning
+  nonzero without responding is not a reject implementation; returning zero
+  after detecting a policy failure allows the built-in path to run, including
+  its implicit-subscription `202` behavior.
 
 The built-in blind REFER handler checks the target extension and then calls
 [`ast_bridge_transfer_blind()`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822).

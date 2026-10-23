@@ -3433,8 +3433,11 @@ The built-in handler creates the implicit REFER subscription and sends `202`
 before its blind-transfer handler checks target-extension existence. An
 unknown target can therefore receive 202 followed by a failure NOTIFY; a
 generation/allowlist rejection that must precede accepted-transfer signaling
-needs an earlier supplement that reserves the operation and sends its own
-final response.
+needs an earlier REFER supplement at a strictly lower priority than the
+built-in handler (`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`). A nonzero
+supplement result only stops later handlers; the rejecting callback must send
+its own SIP response. The gate must reserve before returning zero to continue
+into built-in handling, or send the final response itself and stop dispatch.
 Asterisk's progress watcher tracks the transferee's frames/bridge re-entry; its
 internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
