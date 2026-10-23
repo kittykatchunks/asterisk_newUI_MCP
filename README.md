@@ -2403,7 +2403,42 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
-#### Broker OS identity integration: options still unselected
+#### Python read-only conformance experiment (approved fixture only)
+
+`.\scripts\Test-BrokerPeerProof.ps1 -Conformance` now runs the shared
+TypeScript vector test followed by an isolated Linux Python experiment.
+Both consume `tests/identity/broker-conformance.json`: the same 16 cases cover
+inventory at the exact 8 KiB request limit, observed unknown dialogs, missing
+generation, invalid JSON/version/UUID/scope, forbidden mutation/secret fields,
+BOM, invalid UTF-8, zero/oversized length, truncation and trailing bytes.
+Frames are sent in fragments. Successful replies must equal the same
+language-neutral expected objects.
+
+The Python server owns the actual accepted Unix socket, obtains kernel
+`SO_PEERCRED`, checks the approved UID/primary GID before frame reads, enforces
+length/UTF-8/EOF and returns only static fake inventory/observations. The client
+checks that valid requests receive no response before request EOF. Rejected
+requests produce no success frame; final source-read/rejection counters are
+checked by the parent. A foreign UID receives no source access, and the approved
+identity reconnects after all cases. Server/clients run non-root without effective
+capabilities in the same restricted owned-container setup as the original peer
+proof. Both original and conformance proofs have passed.
+
+This is the approved **experiment**, not a production Python runtime decision,
+full protocol equivalence or a privileged broker. There is no dynamic source
+adapter/validation, durable operation ledger, apply method, TypeScript-to-Python
+client integration or production service. The Python fixture processes clients
+sequentially; listener backlog/concurrent rejection and cancellation under an
+uncooperative source have not been ported or proved. Its socket deadline covers
+bounded I/O, not preemption of blocked Python source code. Other TypeScript tests
+still supply broader source/response/timeout/cancellation coverage; the shared
+vector set is a tested subset, not proof of those features in Python.
+
+Next acceptance work must address concurrent admission, dynamic fake-source
+validation and lifetime/error parity, then container/namespace identity mapping.
+No PBX probe or secret issuance is authorised by this experiment.
+
+#### Broker OS identity integration: production option still unselected
 
 The [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
@@ -2418,12 +2453,11 @@ another connection. A helper adds a trusted IPC/proxy boundary; a separate
 runtime adds protocol-conformance and operational responsibilities; a native
 binding adds native dependency and compatibility requirements.
 
-The recommended next experiment is a dedicated Python **read-only conformance
-fixture**, subject to approval, joining real Linux credentials and the fixed
-framing/readback contract on one socket. This is not a runtime selection or
-permission to implement PBX operations. The current TypeScript handler remains
-an internal primitive with injected identity, and the Linux probe remains a
-separate experiment.
+The user approved the dedicated Python **read-only conformance fixture** described
+above, joining real Linux credentials and a tested subset of the fixed
+framing/readback contract on one socket. This is not a production runtime selection
+or permission to implement PBX operations. The current TypeScript handler remains
+an internal primitive with injected identity.
 
 #### Linux Unix-socket peer-identity experiment (test only)
 

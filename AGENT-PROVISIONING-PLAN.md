@@ -898,3 +898,29 @@ source. Prove failure cleanup and namespace mapping in the intended container
 layout before any PBX control-access experiment. Secret/key management,
 independent expiry protection and mutation/recovery policies remain unchanged
 approval gates.
+
+### 9.9 Approved Python read-only conformance experiment
+
+The user approved a dedicated unprivileged Python fixture, not a production
+runtime selection. The existing owned-container launcher now has `-Conformance`:
+it first runs the TypeScript shared-vector test, then the Linux Python socket
+fixture with the same language-neutral JSON cases mounted read-only.
+
+Sixteen shared cases verify exact expected replies for static inventory,
+unknown dialogs and missing generation; reject foreign scope, mutation/secret
+fields, invalid JSON/version/UUID/BOM and malformed/oversized/trailing frames;
+and cover fragmented framing at the exact 8 KiB request boundary. The Linux
+fixture checks kernel UID/primary GID before reading and confirms no valid reply
+before request EOF. Final source counters prove rejected/foreign requests did
+not invoke the fake source, and an approved client reconnects afterward.
+The original filesystem/credential proof and the new conformance run pass with
+non-root capability-free server/client identities; owned containers are removed.
+
+This is deliberately not full runtime parity. Python uses static fake source
+data and a sequential test server; dynamic source validation, concurrent
+admission/rejection, uncooperative cancellation and broader response/error
+conformance remain unfinished. No TypeScript cross-process client, production
+service, ledger, mutation or PBX authority was introduced. The next experiment
+must close those protocol/lifetime gaps before the first broker acceptance gate
+can be considered complete. See the
+[Python fixture contract](./README.md#python-read-only-conformance-experiment-approved-fixture-only).

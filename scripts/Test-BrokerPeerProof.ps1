@@ -1,8 +1,14 @@
 [CmdletBinding()]
-param()
+param([switch]$Conformance)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $fixture = Join-Path $root 'tests\identity\broker-peer-proof.py'
+if ($Conformance) { $fixture = Join-Path $root 'tests\identity\broker-conformance-proof.py' }
+$vectors = Join-Path $root 'tests\identity\broker-conformance.json'
+if ($Conformance) {
+    & node --test (Join-Path $root 'tests\agent-broker-conformance.test.ts')
+    if ($LASTEXITCODE -ne 0) { throw 'TypeScript shared broker conformance vectors failed.' }
+}
 $image = & docker image inspect --format '{{.Id}}' 'asterisk-local-diagnostics:proof'
 if ($LASTEXITCODE -ne 0 -or -not $image) {
     throw 'Build the existing local diagnostics proof image before running the broker peer fixture.'
@@ -15,6 +21,7 @@ try {
         --security-opt no-new-privileges:true --pids-limit 32 --memory 96m --cpus 1 `
         --user '0:0' --tmpfs '/proof:rw,noexec,nosuid,size=1m,mode=1777' `
         --mount "type=bind,source=$fixture,target=/fixture.py,readonly" `
+        --mount "type=bind,source=$vectors,target=/vectors.json,readonly" `
         --entrypoint python3 $image -I -B /fixture.py
     if ($LASTEXITCODE -ne 0) { throw 'Linux broker peer-credential proof failed.' }
 } finally {

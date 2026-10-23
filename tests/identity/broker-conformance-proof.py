@@ -1,0 +1,187 @@
+"""Test-only readback conformance on an authenticated Linux Unix socket."""
+
+import json
+import os
+import re
+import select
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+
+
+with open("/vectors.json", encoding="utf8") as file:
+    VECTORS = json.load(file)
+UID = 1102
+GID = 2100
+BROKER_UID = 1101
+
+
+def unprivileged():
+    assert os.getuid() != 0
+    with open("/proc/self/status", encoding="utf8") as file:
+        assert "CapEff:\t0000000000000000" in file.read()
+
+
+def remaining(connection, deadline):
+    seconds = deadline - time.monotonic()
+    if seconds <= 0:
+        raise TimeoutError("Fixture connection deadline")
+    connection.settimeout(seconds)
+
+
+def read_frame(connection, maximum, deadline):
+    def exact(count):
+        data = bytearray()
+        while len(data) < count:
+            remaining(connection, deadline)
+            chunk = connection.recv(count - len(data))
+            if not chunk:
+                raise ValueError("Truncated frame")
+            data.extend(chunk)
+        return bytes(data)
+
+    length = struct.unpack("!I", exact(4))[0]
+    if not 1 <= length <= maximum:
+        raise ValueError("Invalid frame length")
+    payload = exact(length)
+    remaining(connection, deadline)
+    if connection.recv(1):
+        raise ValueError("Trailing frame bytes")
+    return payload.decode("utf8", errors="strict")
+
+
+def frame(text, maximum):
+    payload = text.encode("utf8")
+    if not 1 <= len(payload) <= maximum:
+        raise ValueError("Invalid frame length")
+    return struct.pack("!I", len(payload)) + payload
+
+
+def readback(text):
+    request = json.loads(text)
+    binding = VECTORS["binding"]
+    if not isinstance(request, dict) or type(request.get("version")) is not int or request["version"] != 1:
+        raise ValueError("Invalid request")
+    if request.get("customer") != binding["customer"] or request.get("epoch") != binding["epoch"]:
+        raise ValueError("Foreign scope")
+    base = {"version": 1, "customer": binding["customer"], "epoch": binding["epoch"]}
+    if request.get("action") == "inventory" and set(request) == {"version", "customer", "epoch", "action"}:
+        return {**base, "action": "inventory", "generations": [VECTORS["generation"]]}
+    if request.get("action") == "generation" and set(request) == {"version", "customer", "epoch", "action", "generationId"}:
+        generation = request["generationId"]
+        if not isinstance(generation, str) or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", generation):
+            raise ValueError("Invalid generation")
+        result = {**base, "action": "generation", "generationId": generation}
+        return {**result, "state": "observed", "observation": {
+            "newCallsBlocked": True, "dialogs": "unknown", "removed": False,
+        }} if generation == VECTORS["generation"]["generationId"] else {**result, "state": "missing"}
+    raise ValueError("Unsupported fields/action")
+
+
+def server(path):
+    unprivileged()
+    assert os.getuid() == BROKER_UID
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    reads = 0
+    rejected = 0
+    denied = 0
+    try:
+        listener.bind(path)
+        os.chmod(path, 0o660)
+        listener.listen(1)
+        listener.settimeout(10)
+        print(json.dumps({"ready": True}), flush=True)
+        for _ in range(len(VECTORS["cases"]) + 2):
+            connection, _ = listener.accept()
+            with connection:
+                deadline = time.monotonic() + 5
+                pid, uid, gid = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+                if uid != UID or gid != GID or pid <= 0:
+                    denied += 1
+                    continue
+                try:
+                    response = readback(read_frame(connection, 8192, deadline))
+                except (ValueError, UnicodeError, TimeoutError):
+                    rejected += 1
+                    continue
+                reads += 1
+                remaining(connection, deadline)
+                connection.sendall(frame(json.dumps(response, separators=(",", ":")), 32768))
+                connection.shutdown(socket.SHUT_WR)
+        print(json.dumps({"reads": reads, "rejected": rejected, "denied": denied}), flush=True)
+    finally:
+        listener.close()
+        os.unlink(path)
+
+
+def client(path, index):
+    unprivileged()
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    connection.settimeout(5)
+    try:
+        connection.connect(path)
+        if index == "foreign":
+            assert connection.recv(1) == b""
+            return
+        vector = VECTORS["cases"][int(index)] if index != "reconnect" else VECTORS["cases"][0]
+        text = vector.get("text", "")
+        if "padBytes" in vector:
+            text += " " * (vector["padBytes"] - len(text.encode("utf8")))
+        data = bytes.fromhex(vector["hex"]) if "hex" in vector else frame(text, 8192)
+        for chunk in [data[:1], data[1:3], data[3:]]:
+            connection.sendall(chunk)
+        if vector["expected"] is not None:
+            assert not select.select([connection], [], [], 0.02)[0], "Response arrived before request EOF"
+        connection.shutdown(socket.SHUT_WR)
+        if vector["expected"] is None:
+            assert connection.recv(1) == b""
+        else:
+            assert json.loads(read_frame(connection, 32768, time.monotonic() + 5)) == vector["expected"]
+    finally:
+        connection.close()
+
+
+def proof():
+    assert sys.platform == "linux" and os.getuid() == 0
+    os.setgroups([GID])
+    with tempfile.TemporaryDirectory(prefix="broker-conformance-", dir="/proof") as directory:
+        os.chmod(directory, 0o750)
+        os.chown(directory, BROKER_UID, GID)
+        path = os.path.join(directory, "readback.sock")
+        process = subprocess.Popen([sys.executable, "-I", "-B", __file__, "server", path],
+                                   user=BROKER_UID, group=GID, extra_groups=[],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            assert select.select([process.stdout], [], [], 10)[0]
+            assert json.loads(process.stdout.readline()) == {"ready": True}
+            for index in ["foreign", *map(str, range(len(VECTORS["cases"]))), "reconnect"]:
+                result = subprocess.run([sys.executable, "-I", "-B", __file__, "client", path, index],
+                                        user=1103 if index == "foreign" else UID, group=GID, extra_groups=[],
+                                        capture_output=True, text=True, timeout=10)
+                assert result.returncode == 0, f"{index}: {result.stderr}"
+            output, error = process.communicate(timeout=10)
+            assert process.returncode == 0, error
+            rejected = sum(case["expected"] is None for case in VECTORS["cases"])
+            assert json.loads(output) == {"reads": len(VECTORS["cases"]) - rejected + 1, "rejected": rejected, "denied": 1}
+            assert not os.path.exists(path)
+            print(f"PASS Python/Linux: {len(VECTORS['cases'])} shared framing/readback vectors, foreign peer denied before read, approved reconnect", flush=True)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=5)
+            os.chown(directory, 0, 0)
+
+
+signal.alarm(45)
+if len(sys.argv) == 1:
+    proof()
+elif sys.argv[1] == "server":
+    server(sys.argv[2])
+elif sys.argv[1] == "client":
+    client(sys.argv[2], sys.argv[3])
+else:
+    raise ValueError("Unknown fixture mode")
