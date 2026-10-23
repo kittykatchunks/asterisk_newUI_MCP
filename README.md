@@ -3627,6 +3627,13 @@ concluding that a challenge uses only one retry path
 [initial request auth initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1270),
 [evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
 [default stale retry count](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1244-L1249)).
+This stale counter belongs to pjproject's persistent dialog-auth session.
+Asterisk's endpoint-auth fallback initializes a fresh stack-local auth session
+per helper invocation, so repeated fallback callbacks (if observed) do not
+inherit that counter; track them against Asterisk's separate
+`MAX_RX_CHALLENGES` branch limit
+([Asterisk auth helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L555),
+[REFER callback limit](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
 If configured async auth is abandoned, pjproject instead reports a synthetic
 event, which Asterisk handles as terminal failure.
 Asterisk's counter allows at most nine callback retry attempts; it increments
