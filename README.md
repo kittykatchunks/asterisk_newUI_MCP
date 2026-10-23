@@ -3533,8 +3533,10 @@ local state without sending a SIP request
 ([pjproject implementation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1077-L1097)).
 That callback does not report transfer completion. The initial REFER 2xx is
 acceptance only, not proof of target-call completion or ownership settlement.
-Test exact/case-varied values, extension parameters, absent headers, and
-cleanup without inferring success from the suppressed-subscription path.
+The lookup also uses only the first matching response header, making conflicting
+duplicates order-sensitive; test both orders and reject duplicates as ambiguous.
+Test exact/case-varied values, extension parameters, absent headers, and cleanup
+without inferring success from the suppressed-subscription path.
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or
