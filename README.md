@@ -3341,6 +3341,16 @@ effective capabilities. This is not a supervisor or process attestation: real
 child ownership, connection association, callback ordering and cross-process
 invalidation remain unimplemented. No PBX access or lifecycle control is added.
 
+The next milestone is the
+[isolated-PBX feasibility plan](./AGENT-PROVISIONING-PLAN.md#926-isolated-pbx-lifecycleconnection-feasibility-plan-not-execution-approval).
+It proposes one finite batch binding a real owned Asterisk child to an exact
+loopback AMI connection using kernel socket/descriptor evidence, then checking
+exit, replacement and reconnect invalidation. This mechanism is unverified;
+permission failures or ambiguous ownership stop the proof rather than trigger
+privilege escalation. The plan requires separate approval for a disposable
+PBX, synthetic account and exact child lifecycle operations. Nothing has been
+started, and the existing status fixture and Asterisk entrypoint are unchanged.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

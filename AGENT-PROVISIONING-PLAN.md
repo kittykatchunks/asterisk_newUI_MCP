@@ -2882,3 +2882,109 @@ owner must invalidate every affected generation and supply the verified
 connection association; this model does not create that owner. The next
 meaningful gate is the separately approved isolated-PBX feasibility design and
 access decision, not additional synthetic transition permutations.
+
+### 9.26 Isolated-PBX lifecycle/connection feasibility plan (not execution approval)
+
+The user accepted planning only for the next real-process feasibility question:
+can an owned Asterisk child be associated with the exact observation connection,
+and can its exit invalidate that association? No fixture is implemented or run
+by this plan. No PBX access, credentials, lifecycle operations or accounts are
+approved yet.
+
+#### Reuse boundaries and concrete candidate
+
+Reuse the pinned Asterisk 22.11.0 image reference and existing foreground launch
+knowledge, not the running status fixture. `Test-PbxStatusProof.ps1` creates
+reporting/system accounts, fixed host port publications and persistent customer
+state; invoking it would exceed this plan. Do not modify its configurations,
+accounts, compose resources or the ordinary `start.sh`.
+
+Candidate: a disposable Linux container with a test-owned supervisor and
+foreground Asterisk child in the same PID/network namespace, under the same
+non-root UID and with capabilities dropped. The supervisor retains the actual
+child process object and, if supported, a Linux pidfd for exit observation.
+The pidfd is a lifetime handle, not proof of socket ownership or configuration.
+Its acquisition/exit races must fail closed if the child has already exited.
+
+Bind a synthetic AMI listener to literal loopback **inside** this private
+namespace, with no host publication and no external network. A dedicated
+ephemeral account would permit only the reviewed minimum class for `CoreStatus`,
+with events disabled in the client. As section 9.17 establishes, even that class
+is not an enforced read-only capability. Future approval must acknowledge the
+test collector's broader account authority; the test will not exercise it.
+No endpoint-detail query or SIP credential is needed for this question.
+
+Proposed association check, to be verified rather than assumed available:
+
+1. Retain the connected client's actual local/remote TCP tuple and socket
+   lifetime. Do not reconnect inside an association attempt.
+2. Locate the reverse **established connection**, not merely the listening port,
+   in the namespace's kernel socket table. Require an unambiguous matching
+   server socket inode.
+3. Verify that inode among the owned Asterisk child's open socket descriptors,
+   while checking the retained child lifetime handle before and after
+   inspection. Do not accept a parent proxy's socket or another same-UID
+   process's descriptor as equivalent.
+4. Associate only that connection with the fresh runtime UUID, then repeat the
+   association/lifetime checks around one bounded `CoreStatus` collection.
+   Commit acceptance through the local authority coordination boundary only
+   while no observed invalidation has intervened.
+
+Kernel table/descriptor inspection is a candidate feasibility mechanism, not
+an atomic socket-owner API or continuous attestation. Descriptor closure, tuple
+reuse and process exit can race inspection; ambiguous or changing evidence must
+fail. A returned observation remains point-in-time. If the mechanism cannot
+reliably reject a wrong process/connection under the bounded tests, reject the
+design rather than declare a listener-port match sufficient.
+
+#### Proposed bounded execution scope requiring separate approval
+
+- Resolve existing local images to immutable IDs; no implicit image pull,
+  package installation or custom Asterisk build. First inspect whether a
+  suitable local image contains both the required test runtime and Asterisk.
+  If it does not, propose the explicit build/dependency change before execution.
+- Use unique ownership-labelled containers and disposable tmpfs state/config;
+  no production/customer volumes, host PID namespace, Docker socket, credentials
+  mounts or writable repository. No SIP registration, calls, trunks or routing.
+- Keep root filesystem read-only, capabilities dropped, no-new-privileges,
+  network disabled except namespace loopback, and explicit memory/task/time
+  limits. Parent launch/cleanup runs only against exact owned resources.
+- Create only random synthetic AMI credentials in disposable memory/files,
+  never logs or repository. A test-specific minimal configuration must disable
+  unnecessary listeners/modules; do not copy real accounts or endpoint auth.
+- Approved wire operations would be AMI login, `CoreStatus`, optional logoff
+  and connection close only. Child start, graceful stop and bounded termination
+  of that exact disposable child are fixture lifecycle operations requiring
+  explicit approval, not broker protocol actions.
+- Use no `Command`, `Originate`, `Hangup`, reload, endpoint-detail collection,
+  configuration mutation or access to existing services.
+
+#### Finite acceptance batch
+
+| Case | Required measurable outcome |
+| --- | --- |
+| Owned child, exact connection | Live retained child handle, established server socket inode found in that child's descriptors, exact connection tuple and successful bounded `CoreStatus`; no ready state before association. |
+| Wrong process/connection | A second test-owned process or mismatched tuple cannot satisfy association with the Asterisk child; reject before accepting status as enrolled evidence. |
+| Child exit during held collection | Detect owned child exit, invalidate pending collection and reject its late result; report the actual exit rather than substituting a generic timeout. |
+| Replacement child | A distinct runtime UUID and complete fresh association are required; the old collection remains rejected even if port/PID values are reused. Do not force PID reuse to claim this case. |
+| Connection loss without known restart | Invalidate the old connection; do not assert either restart or continuity. New observation requires fresh association to the retained live child. |
+| Cleanup | Stop/reap only owned children, remove exact owned resources, retain no synthetic secrets and leave existing PBXs untouched on success or failure. |
+
+One bounded run of these cases is the intended batch, not an open-ended new
+transport programme. It proves neither live generation observations nor
+deadline/fence/dialog semantics.
+
+#### Stop and decision rules
+
+Stop if the chosen image/runtime is absent, pidfd/descriptor/kernel-table access
+is unsupported or denied, a second process can satisfy the ownership check,
+the exact connection cannot be distinguished, or clean owned-child reaping
+cannot be established. Do not add root, ptrace capability, host namespace access
+or a Docker socket to make the proof pass. Report the limitation and revisit the
+mechanism or explicitly request a different trust boundary.
+
+Before implementation/execution, obtain approval for this disposable PBX,
+synthetic AMI account and child lifecycle scope. Even a passing proof is not
+approval to replace the production entrypoint or deploy the collector.
+Next live-source gates remain effective fence verification, complete
+generation-dialog correlation and independently reviewed collector authority.
