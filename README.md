@@ -3044,6 +3044,16 @@ the same broker instance must start and stop cleanly with no source calls.
 These controlled publication checks do not prove arbitrary filesystem-race
 resistance, stale-socket recovery policy or general managed-file confinement.
 
+Real-socket source-failure tests run inventory and generation failure/recovery
+pairs with both Python and actual Node clients. Each injected adapter exception
+must yield zero-byte EOF, never an error-shaped success or `missing` generation.
+The immediately following fresh client must receive the exact expected inventory
+or `observed` generation. Per-request counters require one source call and exclude
+automatic replay; final counts are four calls per operation across eight clients.
+Captured broker diagnostics must be exactly four fixed
+`Broker read-only source failed` messages, with no adapter exception detail,
+additional terminal outcome or hidden recovery error.
+
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.
 Implementation-specific integration coverage, concrete read-only source wiring

@@ -146,6 +146,16 @@ def drop(uid):
     os.setuid(uid)
 
 
+def capture_diagnostics(diagnostics):
+    class EvidenceHandler(logging.Handler):
+        def emit(self, record):
+            diagnostics.put(record.getMessage())
+
+    broker.LOG.handlers = [EvidenceHandler()]
+    broker.LOG.propagate = False
+    broker.LOG.setLevel(logging.WARNING)
+
+
 def kernel_proof(scenario):
     os.setgroups([2100])
     os.setgid(2100)
@@ -176,14 +186,7 @@ def kernel_proof(scenario):
 
         def serve():
             drop(1101)
-
-            class EvidenceHandler(logging.Handler):
-                def emit(self, record):
-                    diagnostics.put(record.getMessage())
-
-            broker.LOG.handlers = [EvidenceHandler()]
-            broker.LOG.propagate = False
-            broker.LOG.setLevel(logging.WARNING)
+            capture_diagnostics(diagnostics)
             broker.Broker(binding, HeldSource()).serve(path, stop, ready)
 
         server = context.Process(target=serve)
@@ -313,6 +316,106 @@ def kernel_proof(scenario):
           + (", Python/Node fresh recovery" if scenario != "shutdown" else ", shutdown waits without replay"))
 
 
+def source_failure_proof():
+    context = multiprocessing.get_context("fork")
+    stop, ready = context.Event(), context.Event()
+    calls = context.Array("i", [0, 0])
+    diagnostics = context.Queue()
+    sentinel = "fixture-only exception detail must not reach broker diagnostics"
+
+    class FailingSource(FakeSource):
+        def inventory(self, cancellation):
+            with calls.get_lock():
+                calls[0] += 1
+                entry = calls[0]
+            if entry % 2:
+                raise RuntimeError(sentinel)
+            return super().inventory(cancellation)
+
+        def generation(self, generation_id, cancellation):
+            with calls.get_lock():
+                calls[1] += 1
+                entry = calls[1]
+            if entry % 2:
+                raise RuntimeError(sentinel)
+            return super().generation(generation_id, cancellation)
+
+    with tempfile.TemporaryDirectory(dir="/proof") as directory:
+        os.chmod(directory, 0o750)
+        os.chown(directory, 1101, 2100)
+        path = os.path.join(directory, "broker.sock")
+
+        def serve():
+            drop(1101)
+            capture_diagnostics(diagnostics)
+            broker.Broker(binding, FailingSource()).serve(path, stop, ready)
+
+        server = context.Process(target=serve)
+        clients = []
+        server.start()
+        try:
+            assert ready.wait(3), "Source-failure broker did not become ready"
+            for index, action in enumerate(("inventory", "generation")):
+                vector = vectors["cases"][index]
+                for runtime in ("python", "node"):
+                    for fails in (True, False):
+                        expected_calls = list(calls)
+                        expected_calls[index] += 1
+                        if runtime == "node":
+                            mode = (("failed-source" if action == "inventory" else "failed-generation") if fails else
+                                    "reconnect" if action == "inventory" else "generation-reconnect")
+                            result = subprocess.run(
+                                ["node", "/tests/identity/broker-cross-client.ts", path, mode],
+                                user=1102, group=2100, extra_groups=[], capture_output=True, text=True, timeout=10)
+                            assert result.returncode == 0 and result.stdout == "" and result.stderr == "", result.stderr
+                        else:
+                            def execute():
+                                drop(1102)
+                                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                                    connection.settimeout(3)
+                                    connection.connect(path)
+                                    connection.sendall(broker.encode_frame(vector["text"], 8192))
+                                    connection.shutdown(socket.SHUT_WR)
+                                    data = bytearray()
+                                    while chunk := connection.recv(4096):
+                                        data.extend(chunk)
+                                    if fails:
+                                        assert not data, "Source failure returned response bytes"
+                                    else:
+                                        assert decode(data) == vector["expected"]
+
+                            process = context.Process(target=execute)
+                            clients.append(process)
+                            process.start()
+                            process.join(4)
+                            assert not process.is_alive() and process.exitcode == 0, process.exitcode
+                        assert list(calls) == expected_calls, "Unexpected source entry or replay"
+            stop.set()
+            server.join(3)
+            assert not server.is_alive() and server.exitcode == 0, server.exitcode
+            assert not os.path.exists(path)
+            records = []
+            while True:
+                try:
+                    records.append(diagnostics.get(timeout=0.1))
+                except queue.Empty:
+                    break
+            assert records == ["Broker read-only source failed"] * 4, records
+            assert all(sentinel not in record for record in records)
+            assert list(calls) == [4, 4]
+        finally:
+            stop.set()
+            for process in [*clients, server]:
+                process.join(2)
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+            os.chown(directory, 0, 0)
+            diagnostics.close()
+            diagnostics.join_thread()
+    print("PASS implementation source failures: Python/Node inventory and generation zero-byte EOF, exact safe diagnostics, fresh observed recovery, no replay")
+
+
 def publication_proof():
     context = multiprocessing.get_context("fork")
     for scenario in ("conflict-file", "conflict-symlink", "replacement-file", "replacement-socket"):
@@ -437,3 +540,4 @@ if __name__ == "__main__":
     for scenario in ("deadline", "peer loss", "shutdown"):
         kernel_proof(scenario)
     publication_proof()
+    source_failure_proof()

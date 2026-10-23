@@ -1800,6 +1800,24 @@ startup and cleanup failure release its serving guard. Every case requires zero
 source entries. This is controlled publication evidence, not an arbitrary
 filesystem-race, stale-socket recovery or managed-file-confinement proof.
 
+The implementation source-failure follow-up uses one real authenticated listener
+and eight fresh clients: inventory failure/recovery and generation
+failure/recovery, each repeated with Python and the actual TypeScript client.
+The adapter raises a fixture-only exception containing a sentinel detail on odd
+calls, then returns valid output on the following even call. Failed reads must
+end in zero-byte EOF; generation failure cannot be converted to `missing`.
+Each recovery must return the exact expected inventory or `observed` generation.
+The parent checks source counters after every request, requiring one new call
+only to the selected operation, with final inventory/generation totals of four
+each. No implicit retry or replay is permitted.
+
+The test captures the implementation logger, not an emulated connection path.
+All captured diagnostics must be exactly four fixed
+`Broker read-only source failed` records. Exception details, tracebacks,
+unexpected terminal outcomes and capacity failures cannot pass as source-failure
+evidence. The socket must be removed on clean stop. This adds implementation
+coverage without changing runtime behaviour or wiring a real source adapter.
+
 This is the first implementation slice, not inherited production certification
 from fixture tests. Separate-container, terminal-schedule, blocked-write and broader
 filesystem-race checks still need implementation-specific evidence before
