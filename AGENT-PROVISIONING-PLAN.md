@@ -2988,3 +2988,72 @@ synthetic AMI account and child lifecycle scope. Even a passing proof is not
 approval to replace the production entrypoint or deploy the collector.
 Next live-source gates remain effective fence verification, complete
 generation-dialog correlation and independently reviewed collector authority.
+
+### 9.27 Disposable Asterisk lifecycle association feasibility result
+
+The user explicitly approved implementation and execution of the bounded
+disposable PBX proof, including random synthetic AMI credentials and lifecycle
+operations on its exact owned children. This is not production access or
+deployment approval. `scripts/Test-PbxEnrollmentProof.ps1` and
+`tests/identity/pbx-enrollment-proof.py` implement the finite batch in section
+9.26 without changing any broker runtime module or existing PBX fixture.
+
+The existing local diagnostics image was inspected before execution: it already
+contained Python and Asterisk, so no pull, build or dependency installation was
+needed. The launcher resolves it to an immutable image ID; the script requires
+the Asterisk binary to report 22.11.0. The successful run used image ID
+`sha256:357ca0da95eb7015eb7f8232d77ad1d6ea5038822ec8b46037bdd59d3fdb5e15`.
+
+The entire test runs as UID 1000/GID 999, with zero effective capabilities,
+read-only root, no-new-privileges and network disabled except namespace loopback.
+It uses a 16 MiB owned tmpfs, 192 MiB memory, one CPU and 64-task limit, plus a
+60-second test alarm. Only code is bind-mounted read-only. No ports, SIP objects,
+calls, production volumes, Docker socket or host PID namespace are used.
+
+A test-specific minimal configuration disables module autoload and binds AMI
+only to namespace loopback. A random synthetic account has `read=none` and
+`write=reporting`; its broader action authority is acknowledged, not called an
+enforced read-only account. The fixture's allowed actions are Login,
+CoreStatus and Logoff only, with total action time/byte bounds. Account material
+exists only in disposable memory/configuration, not repository/log output.
+The existing image's documentation data remains read-only at its original
+path; writable state, logs and configuration are confined to tmpfs.
+
+The passing batch establishes:
+
+- The retained Asterisk child and its pidfd are live; the exact reverse
+  established TCP tuple has one server inode present among that child's open
+  descriptors. The same check succeeds before and after bounded CoreStatus.
+  Zero calls is checked only as synthetic fixture state, not generation-dialog
+  completeness.
+- An established connection owned by the test supervisor instead of Asterisk
+  cannot satisfy the child-descriptor ownership check.
+- Closing the original AMI connection invalidates its authority. A new
+  connection must be associated with the retained child before becoming ready;
+  it does not silently inherit continuity.
+- While a local evidence collection is held, graceful termination of the exact
+  child produces pidfd readability and authority invalidation within three
+  seconds. The child exits cleanly, its AMI connection reaches EOF, and a late
+  result is rejected with the exact changed-authority error. This is a held
+  **local collection**, not a claim of cancelling a blocked AMI server action.
+- A replacement Asterisk child gets a distinct runtime UUID and a complete fresh
+  socket association. The original collection remains rejected. The test does
+  not force or claim actual PID reuse.
+- Both children are reaped, handles/connections are closed, synthetic files are
+  removed and the uniquely named/labelled container is cleaned on success or
+  failure. No unrelated PBX/container is inspected or modified.
+
+Initial fixture runs exposed missing runtime documentation data when all
+data paths were redirected, and the Logoff `Goodbye` response distinction.
+Those fixture assumptions were corrected without adding privileges, modules,
+accounts to existing services or broader actions.
+
+This is feasibility evidence for same-namespace, same-UID child/socket
+inspection, not a deployed supervisor, an atomic kernel ownership API or
+continuous attestation. Socket-table/descriptor races, peer compromise,
+supervisor crash recovery, multi-generation invalidation and real protected
+publication remain unproven. No fabricated generation observation is accepted:
+CoreStatus is not a fence/dialog/removal result. The existing runtime entrypoint
+is unchanged. Before production integration, design the actual supervised
+deployment and connection-publication lifecycle, and resolve effective fencing,
+generation-dialog completeness and independent expiry under separate approvals.

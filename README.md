@@ -3351,6 +3351,28 @@ privilege escalation. The plan requires separate approval for a disposable
 PBX, synthetic account and exact child lifecycle operations. Nothing has been
 started, and the existing status fixture and Asterisk entrypoint are unchanged.
 
+After explicit approval, the
+[disposable lifecycle association proof](./AGENT-PROVISIONING-PLAN.md#927-disposable-asterisk-lifecycle-association-feasibility-result)
+was implemented and passed:
+
+```powershell
+.\scripts\Test-PbxEnrollmentProof.ps1
+```
+
+It uses the existing local diagnostics image, requires Asterisk 22.11.0 and runs
+as non-root with no capabilities or published ports. An exact established AMI
+connection must map to a socket descriptor of the owned Asterisk child, checked
+alongside its pidfd lifetime. Wrong-process connections fail; reconnect requires
+fresh association; child exit invalidates held local evidence; replacement gets
+a new runtime identity. Only synthetic Login/CoreStatus/Logoff and exact
+disposable-child lifecycle operations are performed. Owned children, container
+and temporary credentials/state are cleaned.
+
+This proves the bounded inspection mechanism works in that isolated topology,
+not an installed supervisor or authoritative generation fence/dialog evidence.
+The test does not accept CoreStatus as a generation observation, and no existing
+PBX service, account or entrypoint is changed.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current
