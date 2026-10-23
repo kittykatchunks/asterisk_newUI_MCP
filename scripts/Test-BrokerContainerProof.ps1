@@ -31,6 +31,23 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
     $identities.Add($events[0].identity)
     Write-Output $output
 }
+function Start-TestBroker([string]$Mode) {
+    $name = "$owner-$Mode"
+    $names.Add($name)
+    $id = & docker run -d --name $name --label $label @common --user '1101:2100' `
+        --mount "type=volume,source=$volume,target=/socket" @mounts `
+        --entrypoint python3 $image -I -B /container-proof.py $Mode
+    if ($LASTEXITCODE -ne 0) { throw "Could not start broker: $Mode" }
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        $logs = @(& docker logs $id 2>&1)
+        if ($LASTEXITCODE -ne 0) { throw "Could not read broker logs: $Mode" }
+        if ($logs -contains '{"ready": true}') { return $id }
+        $running = & docker inspect --format '{{.State.Running}}' $id
+        if ($LASTEXITCODE -ne 0 -or $running -ne 'true') { throw "Broker stopped before readiness: $logs" }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "Broker readiness deadline exceeded: $Mode"
+}
 try {
     & docker volume create --label $label $volume
     if ($LASTEXITCODE -ne 0) { throw 'Could not create owned socket volume.' }
@@ -110,6 +127,63 @@ try {
         Write-Output $output
     }
     Write-Output 'PASS conflicting publication: regular file and symlink block startup without readiness, path replacement or target changes.'
+    $crashed = Start-TestBroker 'server-crash'
+    $crashEvents = @((& docker logs $crashed) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0) { throw 'Could not capture published crash socket identity.' }
+    $published = @($crashEvents | Where-Object { $_.published })
+    if ($published.Count -ne 1) { throw 'Expected exactly one recorded socket identity.' }
+    Invoke-Client 'crash-wait' '1102:2100'
+    $crashExit = & docker wait $crashed
+    if ($LASTEXITCODE -ne 0 -or "$crashExit" -ne '23') { throw 'Expected controlled broker exit 23.' }
+    $state = & docker inspect --format '{{json .State}}' $crashed
+    if ($LASTEXITCODE -ne 0 -or ($state | ConvertFrom-Json).Running) { throw 'Old broker must be stopped before cleanup.' }
+    $crashEvents = @((& docker logs $crashed) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or -not $crashEvents[-1].crashingBeforeSource -or $crashEvents[-1].sourceEntries -ne 0) {
+        throw 'Crash did not occur before source entry.'
+    }
+    $crashPeers = @($crashEvents | Where-Object { $_.peer })
+    if ($crashPeers.Count -ne 1 -or -not $crashPeers[0].allowed) { throw 'Missing original authenticated crash connection.' }
+    Invoke-Client 'stale-refused' '1102:2100'
+    $blocked = "$owner-stale-startup"
+    $names.Add($blocked)
+    $blockedOutput = @(& docker run --name $blocked --label $label @common --user '1101:2100' `
+        --mount "type=volume,source=$volume,target=/socket" @mounts `
+        --entrypoint python3 $image -I -B /container-proof.py server 2>&1)
+    if ($LASTEXITCODE -eq 0 -or "$blockedOutput" -notmatch 'Address already in use' -or
+        $blockedOutput -contains '{"ready": true}') { throw "Stale startup did not fail closed: $blockedOutput" }
+    $wrongCleanup = "$owner-wrong-inode"
+    $names.Add($wrongCleanup)
+    $wrongOutput = @(& docker run --name $wrongCleanup --label $label @common --user '1101:2100' `
+        --mount "type=volume,source=$volume,target=/socket" @mounts `
+        --entrypoint python3 $image -I -B /container-proof.py remove-stale `
+        $published[0].published.device 0 2>&1)
+    if ($LASTEXITCODE -eq 0 -or "$wrongOutput" -notmatch 'Stale socket identity mismatch' -or
+        "$wrongOutput" -match '"staleRemoved": true') { throw 'Wrong-inode cleanup was not rejected.' }
+    $cleanup = "$owner-stale-cleanup"
+    $names.Add($cleanup)
+    $removed = @(& docker run --name $cleanup --label $label @common --user '1101:2100' `
+        --mount "type=volume,source=$volume,target=/socket" @mounts `
+        --entrypoint python3 $image -I -B /container-proof.py remove-stale `
+        $published[0].published.device $published[0].published.inode)
+    if ($LASTEXITCODE -ne 0 -or -not ($removed[-1] | ConvertFrom-Json).staleRemoved) {
+        throw 'Verified parent-authorised stale cleanup failed.'
+    }
+    Write-Output $removed
+    $restarted = Start-TestBroker 'server-restarted'
+    Invoke-Client 'restart-read' '1102:2100'
+    $restartExit = & docker wait $restarted
+    if ($LASTEXITCODE -ne 0 -or "$restartExit" -ne '0') { throw 'Explicitly restarted broker failed.' }
+    $restartEvents = @((& docker logs $restarted) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or -not $restartEvents[-1].complete -or
+        $restartEvents[-1].sourceEntries -ne 1 -or $restartEvents[-1].deniedBeforeRead -ne 0) {
+        throw 'Restarted broker did not serve exactly one fresh read.'
+    }
+    $restartPeers = @($restartEvents | Where-Object { $_.peer })
+    if ($restartPeers.Count -ne 1 -or -not $restartPeers[0].allowed -or
+        $restartPeers[0].peer.uid -ne 1102 -or $restartPeers[0].peer.gid -ne 2100) {
+        throw 'Fresh connection was not reauthenticated after restart.'
+    }
+    Write-Output 'PASS explicit crash/restart: old connection closes without response, stale connect/startup fail, recorded inode removed only after exit, fresh authenticated read succeeds without replay.'
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

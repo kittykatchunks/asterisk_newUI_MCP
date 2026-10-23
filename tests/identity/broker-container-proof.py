@@ -36,7 +36,7 @@ def identity():
         assert result[name].split() == ["0", "0", "4294967295"], "Unsupported remapped user namespace"
 
 
-def server():
+def server(mode="server"):
     assert os.getuid() == 1101 and os.getgid() == 2100 and set(os.getgroups()) <= {2100}
     directory = os.stat("/socket/broker", follow_symlinks=False)
     assert stat.S_ISDIR(directory.st_mode) and stat.S_IMODE(directory.st_mode) == 0o750
@@ -59,13 +59,14 @@ def server():
         assert (published.st_uid, published.st_gid) == (1101, 2100)
         listener.listen(1)
         listener.settimeout(20)
+        emit({"published": {"device": published.st_dev, "inode": published.st_ino}})
         emit({"ready": True})
 
         def entered():
             nonlocal entries
             entries += 1
 
-        for _ in range(5):
+        for _ in range(5 if mode == "server" else 1):
             connection, _ = listener.accept()
             with connection:
                 peer = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
@@ -75,11 +76,15 @@ def server():
                     denied += 1
                     continue
                 deadline = time.monotonic() + 5
-                response = protocol.readback(protocol.read_frame(connection, 8192, deadline), on_source=entered)
+                text = protocol.read_frame(connection, 8192, deadline)
+                if mode == "server-crash":
+                    emit({"crashingBeforeSource": True, "sourceEntries": entries})
+                    os._exit(23)
+                response = protocol.readback(text, on_source=entered)
                 protocol.remaining(connection, deadline)
                 connection.sendall(protocol.frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
-        assert entries == 3 and denied == 2, (entries, denied)
+        assert (entries, denied) == ((3, 2) if mode == "server" else (1, 0)), (entries, denied)
         emit({"complete": True, "sourceEntries": entries, "deniedBeforeRead": denied})
     finally:
         listener.close()
@@ -134,12 +139,36 @@ def conflict(mode):
             os.unlink(target)
 
 
+def remove_stale():
+    assert (os.getuid(), os.getgid()) == (1101, 2100)
+    original = os.lstat(PATH)
+    assert stat.S_ISSOCK(original.st_mode) and stat.S_IMODE(original.st_mode) == 0o660
+    assert (original.st_uid, original.st_gid) == (1101, 2100)
+    assert (original.st_dev, original.st_ino) == (int(sys.argv[2]), int(sys.argv[3])), "Stale socket identity mismatch"
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    connection.settimeout(2)
+    try:
+        try:
+            connection.connect(PATH)
+        except ConnectionRefusedError:
+            pass
+        else:
+            raise AssertionError("Refusing to remove a reachable socket")
+    finally:
+        connection.close()
+    current = os.lstat(PATH)
+    assert (current.st_dev, current.st_ino) == (original.st_dev, original.st_ino)
+    os.unlink(PATH)
+    emit({"staleRemoved": True, "device": original.st_dev, "inode": original.st_ino})
+
+
 def client(mode):
     expected = {
         "foreign": (1103, 2100), "wrong-gid": (1102, 2101),
         "filesystem-denied": (1104, 2101),
         "publish-ro": (1102, 2100), "publish-rw": (1102, 2100),
         "inventory": (1102, 2100), "generation": (1102, 2100), "reconnect": (1102, 2100),
+        "crash-wait": (1102, 2100), "stale-refused": (1102, 2100), "restart-read": (1102, 2100),
     }
     assert mode in expected and (os.getuid(), os.getgid()) == expected[mode]
     assert set(os.getgroups()) == ({2100, 2101} if mode == "wrong-gid" else {os.getgid()})
@@ -178,6 +207,13 @@ def client(mode):
                 emit({"filesystemDenied": True})
                 return
             raise AssertionError("Unrelated filesystem identity connected")
+        if mode == "stale-refused":
+            try:
+                connection.connect(PATH)
+            except ConnectionRefusedError:
+                emit({"staleConnectRefused": True})
+                return
+            raise AssertionError("Stale socket unexpectedly accepted connection")
         connection.connect(PATH)
         if mode in ("foreign", "wrong-gid"):
             assert connection.recv(1) == b""
@@ -185,18 +221,25 @@ def client(mode):
             return
         vector = protocol.VECTORS["cases"][1 if mode == "generation" else 0]
         connection.sendall(protocol.frame(vector["text"], 8192))
-        assert not protocol.select.select([connection], [], [], 0.02)[0]
+        if mode != "crash-wait":
+            assert not protocol.select.select([connection], [], [], 0.02)[0]
         connection.shutdown(socket.SHUT_WR)
+        if mode == "crash-wait":
+            assert connection.recv(1) == b""
+            emit({"crashClosedWithoutResponse": True})
+            return
         assert json.loads(protocol.read_frame(connection, 32768, time.monotonic() + 5)) == vector["expected"]
         emit({"readback": mode})
     finally:
         connection.close()
 
 
-signal.alarm(60 if sys.argv[1] == "server" else 15)
+signal.alarm(60 if sys.argv[1].startswith("server") else 15)
 identity()
-if sys.argv[1] == "server":
-    server()
+if sys.argv[1] in ("server", "server-crash", "server-restarted"):
+    server(sys.argv[1])
+elif sys.argv[1] == "remove-stale":
+    remove_stale()
 elif sys.argv[1] in ("conflict-file", "conflict-symlink"):
     conflict(sys.argv[1])
 else:

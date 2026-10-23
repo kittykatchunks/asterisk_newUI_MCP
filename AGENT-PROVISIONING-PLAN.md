@@ -1239,9 +1239,9 @@ containers exit; only client-versus-live-broker separation is asserted. The
 observed rootful/default-map topology does not establish rootless/remapped user
 namespace support. Same-UID compromise remains outside this identity policy.
 
-Still open from section 9.11: explicit broker death/restart and stale-socket
-ownership, broader namespace
-configurations, and separate-container full conformance/lifecycle coverage.
+Still open from section 9.11: broader namespace configurations and
+separate-container full conformance/lifecycle coverage. The bounded explicit
+crash/restart case is recorded below, not a general recovery policy.
 No automatic restart, production listener, control access or later acceptance
 gate is implemented or approved by these results.
 
@@ -1261,3 +1261,28 @@ fixture-created entries after child settlement; containers and volume retain
 the launcher's existing ownership-checked cleanup. This proves preservation for
 these fixed conflicting-path cases, not general symlink confinement of managed
 configuration, stale-socket recovery or a production publication implementation.
+
+The explicit crash/restart follow-up records the published socket's device/inode,
+then authenticates and fully reads one approved request before `os._exit(23)`
+deliberately bypasses cleanup. Zero source entries at that crash point and EOF
+without response bytes are required. The host launcher waits for exit 23 and
+inspects stopped state before authorising any stale cleanup; all involved
+containers remain newly recorded and ownership-labelled.
+
+A separate approved client must receive connection-refused at the stale path.
+Starting another broker must fail address-in-use without readiness or implicit
+unlink. A broker-user cleanup process first rejects a deliberately wrong inode;
+the subsequent successful cleanup proves that rejection preserved the original
+entry. Actual removal requires the recorded device/inode, socket type,
+owner/mode, connection-refused and unchanged inode immediately before unlink.
+It operates only on the fixed path in the isolated new fixture volume.
+
+Only explicit parent sequencing then starts a new broker and a fresh approved
+client. The new accepted socket's UID/primary GID is checked again, exact
+inventory readback succeeds and its server records exactly one source entry and
+no denials. This proves no automatic replay in this before-source crash scenario,
+not response-loss recovery after an effect, automatic supervision, active-call
+safety or a production stale-path policy. The protected fixture directory and
+stopped owned containers exclude concurrent writers during cleanup; the
+stat/connect/stat/unlink sequence is not claimed atomic against a hostile broker
+UID or host administrator.

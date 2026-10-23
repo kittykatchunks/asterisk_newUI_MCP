@@ -2648,8 +2648,24 @@ path inode/mode/ownership and sentinel contents remain unchanged, including
 symlink text and target identity/contents. Child execution is bounded, and only
 the verified fixture-created entries are removed afterward.
 
-Explicit restart/stale-socket handling and broader namespace configurations
-remain future cases. Conflicting-path preservation is not proof of general
+An explicit crash/restart phase now publishes and records a socket's device/inode,
+authenticates one approved client, reads its complete request and exits with
+fixture-only code 23 before source entry, bypassing normal socket cleanup. The
+client receives EOF with zero response bytes. After Docker confirms the original
+container has stopped, an approved client must get connection-refused at the
+stale pathname and a new broker must fail startup without deleting it.
+
+Parent-authorised cleanup first tests a wrong inode (which must fail without
+removal), then requires the recorded device/inode, socket type, broker owner and
+mode plus a refused connection before unlinking the exact path. Only then does
+the launcher explicitly start a fresh broker and approved client. Its peer is
+reauthenticated, exact inventory readback succeeds and exactly one source entry
+is recorded. No request is automatically replayed. This is an isolated,
+before-source crash case, not general crash recovery, atomic hostile-writer
+protection, automatic restart or production stale-socket removal policy.
+
+Broader namespace configurations and separate-container full conformance/lifecycle
+coverage remain future cases. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
