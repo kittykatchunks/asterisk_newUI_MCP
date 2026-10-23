@@ -3374,6 +3374,36 @@ before authorizing or reserving a target. Therefore `ari-only` may be useful
 for a future application-owned transfer protocol, but it does not close the
 pre-target claim gap without additional PBX-side interposition.
 
+#### Resulting design gate
+
+Do not treat either the SIP.js REFER response, an ARI transfer-request event,
+the bridge transfer result, or the outgoing PJSIP `session_create` callback as
+the transfer-start ownership claim. They represent distinct points: request
+acceptance/notification, queued bridge work, and later per-leg creation. A
+generation-aware transfer mechanism must reserve the operation before any
+asynchronous queue/Local-channel step, bind its obligation to each target
+branch, and release it only after failure/cancellation/settlement is complete.
+The existing source review has not found a supported generic veto callback for
+every `ast_bridge_transfer_blind()` caller. Keeping browser blind transfer in
+Milestone 1 therefore remains a requirement to solve, not a safe implementation
+assumption.
+
+The next design task is to compare two bounded candidates without making calls:
+
+1. Intercept supported SIP REFER in a version-pinned PJSIP supplement, make a
+   synchronous generation claim, own the decision/response, and prove how the
+   accepted claim follows the later bridge and target legs. Separately disable
+   or interpose DTMF blind transfer and parking.
+2. Replace browser-originated REFER with an authenticated application-mediated
+   transfer operation whose PBX-side implementation can atomically claim and
+   create the generation-bound target. This still needs a PBX hook and must
+   preserve the existing call on rejection.
+
+For either candidate, define claim identity, duplicate/retransmission behavior,
+pre-fence versus post-fence ordering, every failure/cancellation release, and
+restart reconciliation before an isolated call proof. Do not build a module or
+send synthetic calls until that design is reviewed and separately approved.
+
 These APIs make an in-process PJSIP gate technically plausible, but do not
 prove coverage of every queue, transfer, redirect, channel technology, or call
 direction. `incoming_request` runs on a SIP servant thread, so it must not wait

@@ -3388,8 +3388,11 @@ owner—not dialplan Gosubs alone. Native transfer paths can be independent of
 core feature-code options, and queue/parallel legs create pending work that a
 pre-dial check alone does not serialize. Milestone 1 already includes browser
 blind transfer, so section 9.30 reconciles that scope with the required
-generation-aware handoff and synthetic-call matrix. This remains design work:
-no module, call path, PBX config or call was changed.
+generation-aware handoff and synthetic-call matrix. Pinned Asterisk source
+shows ARI-only REFER publication and transfer success do not constitute a
+synchronous generation claim; the design now compares interception with an
+application-mediated transfer. This remains design work: no module, call path,
+PBX config or call was changed.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
