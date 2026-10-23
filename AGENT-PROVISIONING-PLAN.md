@@ -757,3 +757,16 @@ peer authentication, connection admission and bounded writes. No listener or OS
 peer-credential proof is included. The first acceptance gate remains incomplete;
 PBX/control probes remain unauthorised. See the
 [framing contract](./README.md#bounded-broker-stream-framing-no-listener).
+
+The complementary bounded writer now ends one frame's writable direction and
+awaits local finish, with explicit timeout/cancellation/source-error handling.
+Unresolved backpressure destroys only that owned stream after the write budget;
+completion does not assert remote receipt or processing. The writer is single-use
+and requires an unused byte-mode direction.
+
+A test-only ephemeral TCP loopback fixture proves request half-close, mandatory
+EOF before readback, framed response completion and trailing-data rejection
+before source access. It closes all owned sockets/listeners. This narrows the
+remaining transport uncertainty but still injects peer metadata: it does not
+prove Linux Unix-domain identity, permissions, connection admission or a deployed
+broker. No privileged apply/observation access or PBX effects were introduced.

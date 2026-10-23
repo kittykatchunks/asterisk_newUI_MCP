@@ -1,4 +1,4 @@
-import type { Readable } from "node:stream";
+import type { Readable, Writable } from "node:stream";
 import { TextDecoder } from "node:util";
 
 export type BrokerFrameKind = "request" | "response";
@@ -20,6 +20,53 @@ export function encodeBrokerFrame(text: string, kind: BrokerFrameKind): Buffer {
 }
 
 const consumed = new WeakSet<Readable>();
+const written = new WeakSet<Writable>();
+
+// Completion means local writable finish, not peer acceptance or processing.
+export async function writeBrokerFrame(stream: Writable, text: string, kind: BrokerFrameKind,
+  signal?: AbortSignal): Promise<void> {
+  if (written.has(stream)) throw new Error("Broker frame writer is single-use");
+  written.add(stream);
+  let frame: Buffer;
+  try {
+    signal?.throwIfAborted();
+    if (stream.writableObjectMode || !stream.writable || stream.writableEnded || stream.destroyed ||
+        stream.writableLength !== 0) throw new Error("Broker frame requires an unused byte-mode writer");
+    frame = encodeBrokerFrame(text, kind);
+  } catch (error) { stream.destroy(); throw error; }
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", aborted);
+      stream.off("finish", finish);
+      stream.off("error", failed);
+      stream.off("close", closed);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      stream.destroy();
+      reject(error);
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const failed = (error: Error) => fail(error);
+    const closed = () => fail(new Error("Broker frame writer closed before finish"));
+    const aborted = () => fail(signal!.reason);
+    const timer = setTimeout(() => fail(new Error("Broker frame write timed out")), 5000);
+    stream.once("finish", finish).once("error", failed).once("close", closed);
+    signal?.addEventListener("abort", aborted, { once: true });
+    if (signal?.aborted) { aborted(); return; }
+    try { stream.end(frame); }
+    catch (error) { fail(error); }
+  });
+}
 
 // One frame per byte-mode stream; EOF is mandatory before the payload is returned.
 export async function readBrokerFrame(stream: Readable, kind: BrokerFrameKind, signal?: AbortSignal): Promise<string> {

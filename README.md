@@ -2432,16 +2432,41 @@ half-close: the client ends its request-writing direction, the server reads EOF,
 then writes/ends its response direction. The connection owner must configure
 that lifecycle explicitly, authenticate the peer before reading, bound connection
 admission and outgoing writes, and handle/log failures. These codecs start no
-listener and provide no socket authentication or write/backpressure supervision.
-Their bounded payload copy cannot prevent allocations already performed by an
+listener and provide no socket authentication. The complementary bounded writer
+and loopback lifecycle evidence are described below.
+The bounded payload copy cannot prevent allocations already performed by an
 upstream stream producer or operating-system buffering.
 
 Tests use byte-mode streams to prove fragmented multibyte roundtrips, exact size
 limits, early oversized-header rejection, late trailing bytes, EOF/deadline,
 source errors, cancellation and listener cleanup. A framed request/response also
 exercises the fixed readback handler; malformed framing never invokes its source.
-Linux peer credentials, socket permissions and actual half-close transport still
-require a separate fixture before any privileged broker work.
+Linux peer credentials and socket permissions still require separate
+local-transport evidence before any privileged broker work.
+
+`writeBrokerFrame(stream, text, kind, signal?)` now provides the complementary
+bounded write/end primitive. It writes one validated frame, ends the owned
+byte-mode writable direction and waits for local `finish`, with a five-second
+deadline and optional cancellation. A writer is single-use, including after
+failure; malformed size, invalid writable state, source error, premature close,
+timeout or cancellation rejects and destroys that stream. Callers must provide
+an unused direction and must not interleave their own writes. No connection
+listener, retry or peer identity is created. Local `finish` is not evidence that
+the peer received, parsed or accepted the frame.
+
+The test-only loopback socket fixture now proves the actual half-close lifecycle
+with `allowHalfOpen: true`: the client ends its request direction, the server
+reads EOF, the fixed readback handler runs, and the response is framed/written
+before that direction ends. A complete request without EOF does not invoke
+readback; trailing bytes are rejected before source access. All owned sockets
+and the ephemeral listener are closed after the test. Writable tests also prove
+timeout under unresolved backpressure, cancellation/error propagation and
+listener cleanup.
+
+This TCP loopback fixture injects trusted test peer metadata. It is **not** a
+production network endpoint, Linux Unix-domain peer-credential proof or deployed
+broker. Connection admission, actual local identity/permissions and the
+deployment lifecycle remain unimplemented; no privileged PBX probe is enabled.
 
 #### Unprivileged broker readback protocol fixture
 
