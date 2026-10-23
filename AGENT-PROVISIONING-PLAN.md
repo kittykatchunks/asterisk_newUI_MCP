@@ -906,7 +906,7 @@ runtime selection. The existing owned-container launcher now has `-Conformance`:
 it first runs the TypeScript shared-vector test, then the Linux Python socket
 fixture with the same language-neutral JSON cases mounted read-only.
 
-Twenty-two shared cases verify exact expected replies for static inventory,
+Twenty-four shared cases verify exact expected replies for static inventory,
 unknown dialogs and missing generation; reject foreign scope, mutation/secret
 fields, invalid JSON/version/UUID/BOM and malformed/oversized/trailing frames;
 and cover fragmented framing at the exact 8 KiB request boundary. The Linux
@@ -970,7 +970,7 @@ complete source failure handling or a production runtime choice.
 The user additionally approved a separate test-only Node/Python Linux image.
 `Test-BrokerPeerProof.ps1 -CrossRuntime` now launches non-root Node clients
 against the Python server's actual Unix socket. The client imports the production
-TypeScript framing helper; all 22 request/framing vectors and 26 source-output
+TypeScript framing helper; all 24 request/framing vectors and 26 source-output
 vectors, foreign-UID denial and approved reconnect pass across the language
 boundary. Invalid raw frames intentionally bypass the writer; valid replies
 must decode and equal the expected object, and rejections must return zero bytes.
@@ -1004,7 +1004,7 @@ and the separate Node/Python image remains an approved experiment only.
 
 | Surface | Evidence now present | Remaining evidence / decision |
 | --- | --- | --- |
-| Read-only request/response subset | Shared 22 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
+| Read-only request/response subset | Shared 24 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets, including delayed EOF and late trailing-byte rejection. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
 | Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
 | Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios count eight actual source invocations, including two failures and exactly two generation entries. |
 | Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. | Peer full disconnect during blocked source code, cancellation/deadline/response races and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
@@ -1036,3 +1036,13 @@ connection. TypeScript separately asserts unchanged exception identity and no
 inventory-source invocation. The fake source receives a validated-operation
 default, and its failure schedule remains private to the fixture. No production
 error policy, retry, repair or mutation is introduced.
+
+Two timing vectors now hold a complete valid inventory payload open for 50 ms:
+both real client variants require no response bytes or server EOF before request
+EOF. Clean half-close then returns exact inventory; a trailing byte sent after
+the wait rejects with zero source entries. The TypeScript stream variant also
+asserts no source invocation at the end of the delay. Node uses the production
+encoder with explicit writes/half-close for these two cases only; normal valid
+requests retain the production writer. These are timing fixtures, not new wire
+fields: `delayEofMs` and `trailingHex` never become JSON request properties.
+The result does not complete peer-disconnect or general terminal-race evidence.

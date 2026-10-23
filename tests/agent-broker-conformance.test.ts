@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Readable } from "node:stream";
+import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 import { createAgentBrokerReadback } from "../src/agent-broker-readback.ts";
 import { encodeBrokerFrame, readBrokerFrame } from "../src/agent-broker-frame.ts";
@@ -10,7 +11,8 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
   const vectors = JSON.parse(await readFile(new URL("./identity/broker-conformance.json", import.meta.url), "utf8")) as {
     binding: { customer: string; epoch: string; principal: string };
     generation: { generationId: string; notAfter: number; draining: boolean };
-    cases: { name: string; text?: string; hex?: string; padBytes?: number; expected: unknown }[];
+    cases: { name: string; text?: string; hex?: string; padBytes?: number;
+      delayEofMs?: number; trailingHex?: string; expected: unknown }[];
   };
   let reads = 0;
   const broker = createAgentBrokerReadback(vectors.binding, {
@@ -25,8 +27,20 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
     const before = reads;
     const text = vector.padBytes ? vector.text!.padEnd(vector.padBytes, " ") : vector.text!;
     const bytes = vector.hex !== undefined ? Buffer.from(vector.hex, "hex") : encodeBrokerFrame(text, "request");
+    let waited = false;
+    async function* chunks() {
+      yield bytes.subarray(0, 1);
+      yield bytes.subarray(1, 3);
+      yield bytes.subarray(3);
+      if (vector.delayEofMs) {
+        await delay(vector.delayEofMs);
+        assert.equal(reads, before, `${vector.name}: source entered before EOF`);
+        waited = true;
+      }
+      if (vector.trailingHex) yield Buffer.from(vector.trailingHex, "hex");
+    }
     const run = async () => broker.read(await readBrokerFrame(Readable.from(
-      [bytes.subarray(0, 1), bytes.subarray(1, 3), bytes.subarray(3)], { objectMode: false }), "request"), vectors.binding);
+      chunks(), { objectMode: false }), "request"), vectors.binding);
     if (vector.expected === null) {
       await assert.rejects(run(), vector.name);
       assert.equal(reads, before, vector.name);
@@ -34,6 +48,7 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
       assert.deepEqual(await run(), vector.expected, vector.name);
       assert.equal(reads, before + 1, vector.name);
     }
+    assert.equal(waited, Boolean(vector.delayEofMs), vector.name);
   }
   assert.equal(reads, vectors.cases.filter((vector) => vector.expected !== null).length);
 });

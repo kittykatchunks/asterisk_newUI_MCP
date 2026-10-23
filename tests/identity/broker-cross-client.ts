@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { createConnection } from "node:net";
-import { readBrokerFrame, writeBrokerFrame } from "../../src/agent-broker-frame.ts";
+import { setTimeout as delay } from "node:timers/promises";
+import { encodeBrokerFrame, readBrokerFrame, writeBrokerFrame } from "../../src/agent-broker-frame.ts";
 
 const [path, index] = process.argv.slice(2);
 assert.equal(process.getuid?.(), index === "foreign" ? 1103 : 1102);
@@ -11,7 +12,8 @@ assert.match(await readFile("/proc/self/status", "utf8"), /^CapEff:\s+0000000000
 const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
   binding: { customer: string; epoch: string };
   generation: { generationId: string };
-  cases: { text?: string; hex?: string; padBytes?: number; expected: unknown }[];
+  cases: { text?: string; hex?: string; padBytes?: number;
+    delayEofMs?: number; trailingHex?: string; expected: unknown }[];
   sourceCases: { kind: string; value: unknown; valid: boolean }[];
 };
 let vector = vectors.cases[index === "reconnect" ? 0 : Number(index)];
@@ -31,23 +33,30 @@ if (index.startsWith("source:")) {
 }
 const socket = createConnection({ path, allowHalfOpen: true });
 socket.setTimeout(passive || held ? 8000 : 5000, () => socket.destroy(new Error("Cross-runtime client timed out")));
+async function send() {
+  if (vector.delayEofMs) {
+    socket.write(encodeBrokerFrame(vector.text!, "request"));
+    await delay(vector.delayEofMs);
+    assert.equal(socket.bytesRead, 0, "Response arrived before request EOF");
+    assert.equal(socket.readableEnded, false, "Server closed before request EOF");
+    if (vector.trailingHex) socket.end(Buffer.from(vector.trailingHex, "hex"));
+    else socket.end();
+  } else if (vector.hex !== undefined) socket.end(Buffer.from(vector.hex, "hex"));
+  else await writeBrokerFrame(socket, vector.text!.padEnd(vector.padBytes ?? 0, " "), "request");
+}
 try {
   await once(socket, "connect");
   if (passive || vector.expected === null) {
-    const received: Buffer[] = [];
-    socket.on("data", (chunk: Buffer) => received.push(chunk));
+    let responseBytes = 0;
+    socket.on("data", (chunk: Buffer) => { responseBytes += chunk.length; });
     const ended = once(socket, "end");
-    if (!passive) {
-      if (vector.hex !== undefined) socket.end(Buffer.from(vector.hex, "hex"));
-      else await writeBrokerFrame(socket, vector.text!, "request");
-    }
-    await ended;
-    assert.equal(Buffer.concat(received).length, 0);
+    await Promise.all([ended, passive ? Promise.resolve() : send()]);
+    assert.equal(responseBytes, 0);
   } else {
     const response = readBrokerFrame(socket, "response");
     const results = await Promise.all([
       response,
-      writeBrokerFrame(socket, vector.text!.padEnd(vector.padBytes ?? 0, " "), "request"),
+      send(),
     ]);
     assert.deepEqual(JSON.parse(results[0]), vector.expected);
   }

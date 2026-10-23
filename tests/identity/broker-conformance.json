@@ -64,6 +64,19 @@
     { "name": "fractional-version", "text": "{\"version\":1.5,\"customer\":\"customer-a\",\"epoch\":\"11111111-1111-1111-1111-111111111111\",\"action\":\"inventory\"}", "expected": null },
     { "name": "string-version", "text": "{\"version\":\"1\",\"customer\":\"customer-a\",\"epoch\":\"11111111-1111-1111-1111-111111111111\",\"action\":\"inventory\"}", "expected": null },
     { "name": "overflow-version", "text": "{\"version\":1e400,\"customer\":\"customer-a\",\"epoch\":\"11111111-1111-1111-1111-111111111111\",\"action\":\"inventory\"}", "expected": null },
+    {
+      "name": "delayed-eof",
+      "delayEofMs": 50,
+      "text": "{\"version\":1,\"customer\":\"customer-a\",\"epoch\":\"11111111-1111-1111-1111-111111111111\",\"action\":\"inventory\"}",
+      "expected": { "version": 1, "customer": "customer-a", "epoch": "11111111-1111-1111-1111-111111111111", "action": "inventory", "generations": [{ "generationId": "22222222-2222-2222-2222-222222222222", "notAfter": 160000, "draining": true }] }
+    },
+    {
+      "name": "delayed-trailing-byte",
+      "delayEofMs": 50,
+      "trailingHex": "78",
+      "text": "{\"version\":1,\"customer\":\"customer-a\",\"epoch\":\"11111111-1111-1111-1111-111111111111\",\"action\":\"inventory\"}",
+      "expected": null
+    },
     { "name": "null", "text": "null", "expected": null },
     { "name": "bad-json", "text": "{", "expected": null },
     { "name": "foreign", "text": "{\"version\":1,\"customer\":\"customer-b\",\"epoch\":\"11111111-1111-1111-1111-111111111111\",\"action\":\"inventory\"}", "expected": null },

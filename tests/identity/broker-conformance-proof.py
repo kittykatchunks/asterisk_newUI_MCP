@@ -216,8 +216,10 @@ def client(path, index):
         data = bytes.fromhex(vector["hex"]) if "hex" in vector else frame(text, 8192)
         for chunk in [data[:1], data[1:3], data[3:]]:
             connection.sendall(chunk)
-        if vector["expected"] is not None:
-            assert not select.select([connection], [], [], 0.02)[0], "Response arrived before request EOF"
+        if vector["expected"] is not None or "delayEofMs" in vector:
+            assert not select.select([connection], [], [], vector.get("delayEofMs", 20) / 1000)[0], "Response arrived before request EOF"
+        if "trailingHex" in vector:
+            connection.sendall(bytes.fromhex(vector["trailingHex"]))
         connection.shutdown(socket.SHUT_WR)
         if vector["expected"] is None:
             assert connection.recv(1) == b""
