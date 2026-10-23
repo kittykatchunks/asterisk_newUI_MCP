@@ -3657,10 +3657,16 @@ retaining both. Verify the deployed compile-time setting and emitted headers
 [default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1365-L1372)).
 Confirm the peer's challenge-selection result separately; generated headers
 alone do not prove which credential the server accepts.
-pjproject prefers exact realm credentials but can fall back to a wildcard
-realm credential; with multiple eligible entries, test ordering and capture
-the selected identity
-([credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901)).
+Asterisk's endpoint-auth helper prefers an exact realm match even if a
+wildcard auth object appeared earlier; among duplicate exact or wildcard
+matches, the first eligible object wins. It also takes credentials for only
+the first supported challenge per realm, so challenge-header order can decide
+which Digest algorithm is used. Test these selections separately from
+pjproject's generic exact-then-wildcard lookup and confirm the peer's chosen
+Authorization header
+([Asterisk selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L91-L248),
+[per-realm challenge handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L303-L426),
+[pjproject credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901)).
 Asterisk then sends it through the stateful dialog helper: pjproject assigns
 the next local CSeq and creates a new UAC transaction. The `auth_retry` txdata
 marker is not read by the PJSIP transaction path, so it does not resume the
