@@ -3307,6 +3307,15 @@ missing/corrupt mappings, binding/lock failures and reopen persistence. This is
 metadata-only integration, not PBX ownership proof, runtime enrollment or
 production upgrade/crash-durability certification.
 
+The [runtime enrollment comparison](./AGENT-PROVISIONING-PLAN.md#923-runtime-enrollment-and-continuity-comparison-design-only)
+recommends a trusted lifecycle supervisor only where the project is explicitly
+allowed to own the real Asterisk process lifetime. Externally managed PBXs need
+operator enrollment plus an approved continuity source; manual approval alone
+is not continuous identity evidence. Either design must bind the observation
+connection to the enrolled process and invalidate stale evidence on restart or
+uncertainty. No supervisor, Docker access, PBX lifecycle control or runtime
+enrollment implementation is added.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

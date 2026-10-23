@@ -2647,3 +2647,98 @@ being upgraded. Production backup/upgrade policy remains a deployment gate.
 Mapping persistence proves only the intended associations. Runtime enrollment,
 actual object ownership/compatibility, fence/dialog evidence, collector access
 and all PBX effects remain separately gated.
+
+### 9.23 Runtime enrollment and continuity comparison (design only)
+
+The user requested comparison and recommendation before implementation.
+Schema-2 mappings establish intended names, not the identity of the running
+Asterisk process. `EvidenceBinding.runtime_instance` remains a validated UUID
+placeholder, not an implemented enrollment mechanism. No supervisor, lifecycle
+control, PBX connection or new schema is introduced here.
+
+| Option | Useful guarantee if correctly implemented | Limitations |
+| --- | --- | --- |
+| Operator-managed enrollment | Explicit approval of customer, namespace, runtime and managed model; suitable for an externally operated PBX. | A manual approval is not continuous process-lifetime evidence. Restart or uncertain continuity must invalidate it; automatic reconnection cannot silently reuse approval. |
+| Trusted local lifecycle supervisor | Can associate an opaque runtime UUID with the actual child lifetime it owns and revoke that association when the child exits. | Requires ownership of the real PBX lifecycle, protected publication and binding of the collector's connection to that child. A watcher of a PID file/container name does not provide this guarantee. |
+| AMI connection plus reported start time | Useful diagnostic/restart hint using existing status observations. | Insufficient as authority: login authenticates account access, not the enrolled process lifetime; timestamps do not establish continuity, anti-rollback or observation consistency. Not recommended as enrollment. |
+
+**Recommendation:** use a trusted local lifecycle supervisor as the eventual
+runtime identity authority **only for deployments in which this project is
+explicitly approved to own the customer PBX lifecycle**. Use operator-managed
+enrollment with explicit invalidation/reapproval for externally managed PBXs;
+do not install a privileged watcher to simulate ownership. Neither option is
+approved for implementation or deployment by this comparison.
+
+The supervisor is a different responsibility from the proposed collector:
+the former attests lifecycle/connection association, the latter collects runtime
+facts under its approved access. They may eventually share a deployment owner,
+but merging their privileges/processes is not assumed. The network worker and
+read-only broker must not receive a Docker socket or lifecycle-control API.
+The current compose fixtures have customer-separated services but are not an
+enrollment authority or proof of production lifecycle ownership.
+
+#### Minimum supervisor-backed contract
+
+1. Establish a protected customer/epoch/namespace enrollment before starting
+   observation. Issue an opaque UUID for each actual PBX process lifetime,
+   not for each collector connection or container recreation alone. Do not
+   reuse an identifier across child exits or uncertain supervisor recovery.
+2. Track the real process through an owned process handle/lifetime mechanism
+   supported by the eventual deployment. PID, PID-file contents, container
+   name/ID, image digest and host start-time diagnostics alone are insufficient.
+   A restart inside a container must invalidate the old association too.
+3. Bind the collector's authenticated PBX connection to that enrolled child.
+   A supervisor's observation of process A plus an AMI connection to process B
+   is invalid even if both report the same customer/start time. Protected
+   endpoint publication, connection handoff or equivalent association must be
+   designed and proved; this comparison does not select one.
+4. Supply an authenticated, fresh local continuity assertion for the observation
+   interval. A readable file containing a UUID is not a liveness assertion.
+   Missing authority, disconnect, child exit or uncertain connection association
+   invalidates outstanding observations. Never return prior cached positives.
+5. Coordinate validation with a monotonic local invalidation revision so a
+   restart during collection cannot pass an old request against a reused
+   binding. Bind both the initial and acceptance checks to the same authority
+   lifecycle. A newly returned result is still only point-in-time evidence,
+   never a mutation lease or a guarantee against a later process exit.
+
+An AMI reconnect may retain the runtime identity only after the authority proves
+the same child and the new connection's association. Otherwise enter invalidated
+state and require reconciliation. A configuration reload may leave process
+identity unchanged while invalidating mapping/model evidence; lifecycle
+continuity cannot stand in for model consistency.
+
+#### Recovery and external management
+
+- Broker or collector restart discards requests/observations. Reload persisted
+  mappings, then obtain fresh trusted runtime association before collection.
+- Supervisor restart loses continuity unless the chosen lifecycle mechanism can
+  prove ownership of the existing child and connection association. Otherwise
+  mark unavailable; do not kill/restart the PBX as an observation-side repair.
+- Host restart invalidates process association. A restored database with matching
+  scope still requires independently verified authority enrollment/restore
+  reconciliation. A fresh UUID does not detect restored authorization state.
+- With operator-managed enrollment, require an explicit trusted enrollment
+  record and an approved continuity source. If no such source exists, the
+  current system cannot offer continuous authoritative runtime observations.
+  Do not manufacture a time-to-live that turns manual approval into proof of
+  current process identity.
+
+No identity mechanism resolves complete generation dialogs, effective fencing
+or removal evidence by itself. Those remain separate source requirements.
+Independent expiry remains open; losing observation does not safely revoke PBX
+access or authorize forced call termination.
+
+#### Next decision, not another automatic implementation increment
+
+Confirm whether the target deployment permits ownership of the actual Asterisk
+lifecycle or must integrate with an externally managed PBX. That determines the
+authority owner before a transport, supervisor runtime or persistence schema is
+selected. Then specify the connection-to-process association and invalidation
+boundary. A small synthetic lifecycle-state model can follow explicit approval,
+but it must not be advertised as supervisor/PBX enrollment proof.
+
+The milestone after that design is one isolated synthetic-PBX feasibility proof
+with separately approved access, not more variations of the closed socket
+fixture. Stop if lifecycle identity cannot be bound to the observation channel
+or if the target deployment cannot supply a trusted continuity owner.
