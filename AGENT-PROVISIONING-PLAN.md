@@ -1956,3 +1956,29 @@ rollback journal. Only the explicit reserved/exclusive writer schedules above
 are established; concurrent commits inside a read snapshot, WAL/shared-memory behavior, source-path
 deployment policy and production packaging are not certified. Those remain
 separate integration decisions, not permission to access real PBX state.
+
+The read-only consumer boundary now has a reusable TypeScript implementation,
+`src/agent-broker-client.ts`, returning the existing `BrokerReadbackSource`
+interface. It pins a detached validated customer/epoch/principal binding and an
+absolute local socket path; principal is never put on the wire. Each operation
+owns one fresh half-open socket with a single five-second connect/write/read/EOF
+budget and caller cancellation. One client rejects overlapping calls, propagates
+errors explicitly and never retries, replays or substitutes an empty inventory.
+It validates exact response keys, scope, action and generation ID before using
+the shared expiry validators. Only exact authoritative missing responses map to
+`undefined`; EOF, truncation and source failure remain errors.
+
+Binding validation is shared with the existing TypeScript server readback rather
+than copied. The synthetic source integration now uses this typed client for
+Node inventory/generation requests, including expected rejections, writer locks
+and fresh recovery. Dedicated Linux Unix-socket tests cover malformed and
+mis-correlated responses, absent generations, connect failure, cancellation,
+overlap, detached binding and a real five-second deadline when a valid response
+frame lacks EOF. The existing implementation launcher runs those tests; the
+Unix-socket behavior cases explicitly skip non-Linux hosts because Windows
+named pipes do not preserve mandatory write-half-close semantics.
+
+This client adds no worker/application wiring or privileged operation. Protected
+socket publication and server authority are caller prerequisites, not proved by
+an echoed customer/epoch. Production source installation, deployment supervision
+and live-source authority remain gated.

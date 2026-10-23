@@ -37,16 +37,21 @@ function parseRequest(text: string): ReadbackRequest {
   throw new Error("Invalid broker request fields or action");
 }
 
-// The connection owner must derive peer identity from authenticated transport, never JSON.
-export function createAgentBrokerReadback(input: BrokerReadbackPeer, source: BrokerReadbackSource) {
-  const binding = { customer: input.customer, epoch: input.epoch };
-  const principal = input.principal;
-  if (Object.keys(input).length !== 3 || typeof binding.customer !== "string" ||
-      !/^[a-z0-9][a-z0-9-]{0,63}$/.test(binding.customer) || typeof binding.epoch !== "string" ||
-      !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(binding.epoch) ||
-      typeof principal !== "string" || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(principal)) {
+export function parseBrokerReadbackPeer(input: BrokerReadbackPeer): BrokerReadbackPeer {
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+      Object.keys(input).length !== 3 || typeof input.customer !== "string" ||
+      !/^[a-z0-9][a-z0-9-]{0,63}$/.test(input.customer) || typeof input.epoch !== "string" ||
+      !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(input.epoch) ||
+      typeof input.principal !== "string" || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(input.principal)) {
     throw new Error("Invalid broker readback binding");
   }
+  return { customer: input.customer, epoch: input.epoch, principal: input.principal };
+}
+
+// The connection owner must derive peer identity from authenticated transport, never JSON.
+export function createAgentBrokerReadback(input: BrokerReadbackPeer, source: BrokerReadbackSource) {
+  const { customer, epoch, principal } = parseBrokerReadbackPeer(input);
+  const binding = { customer, epoch };
   let busy = false;
   const authorize = (peer: BrokerReadbackPeer | undefined) => {
     if (!peer || peer.principal !== principal || peer.customer !== binding.customer || peer.epoch !== binding.epoch) {

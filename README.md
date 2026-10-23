@@ -3167,6 +3167,29 @@ Implementation-specific integration coverage, concrete read-only source wiring
 and packaging/supervision remain before deployment. See the
 [approved implementation scope](./AGENT-PROVISIONING-PLAN.md#914-dedicated-python-runtime-approved-read-only-implementation).
 
+The reusable TypeScript [`createAgentBrokerClient`](./src/agent-broker-client.ts)
+now exposes only the `BrokerReadbackSource` inventory/generation methods. It
+copies and validates the configured customer/epoch/principal, accepts an absolute
+local socket path, and opens a fresh half-open connection per read. A single
+five-second budget covers connect, request write, response read and required EOF;
+caller cancellation closes the socket and propagates its reason. Calls on the
+same client cannot overlap. Failures are propagated without retry or cached
+fallback; only an exact, validated `state: "missing"` response returns
+`undefined`. Scope/action/generation correlation, exact response fields and
+existing expiry validators are checked before returning data. The principal
+remains out-of-band, never sent as a claimed transport identity.
+
+The caller must supply a trusted socket publication/path policy: echoed scope is
+not authentication of the server. This client is not automatically wired into
+the worker, expiry mutation adapter or any application route, and does not grant
+PBX access. The synthetic integration's approved/rejected Node reads now use this
+client against the actual Python listener. Separate Linux Unix-socket tests
+cover malformed responses, missing state, cancellation/recovery, no retries and
+the client deadline even when a complete frame arrives without EOF.
+`Test-PythonBroker.ps1` runs these tests in the existing Linux image. Socket
+behavior tests are explicitly skipped on non-Linux hosts; Windows named pipes
+do not supply the required Unix half-close semantics.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

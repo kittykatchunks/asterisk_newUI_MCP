@@ -23,8 +23,12 @@ try {
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'src\agent-broker-frame.ts'),target=/src/agent-broker-frame.ts,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'src\agent-broker-client.ts'),target=/src/agent-broker-client.ts,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'src\agent-broker-readback.ts'),target=/src/agent-broker-readback.ts,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'src\agent-provisioning-expiry.ts'),target=/src/agent-provisioning-expiry.ts,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'tests\agent-broker-client.test.ts'),target=/tests/agent-broker-client.test.ts,readonly" `
         --env TMPDIR=/proof --env ASTERISK_SYNTHETIC_LISTENER_PROOF=1 `
-        --entrypoint sh $image -c 'node --test /tests/python-broker-source.test.ts && exec python3 -I -B /proof-test.py'
+        --entrypoint sh $image -c 'node --test /tests/agent-broker-client.test.ts /tests/python-broker-source.test.ts && exec python3 -I -B /proof-test.py'
     if ($LASTEXITCODE -ne 0) { throw 'Python broker implementation proof failed.' }
 } finally {
     $owned = & docker container ls -aq --filter "name=^/$name$" --filter "label=$label"
