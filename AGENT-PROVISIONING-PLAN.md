@@ -3599,11 +3599,25 @@ That thread may execute the destination context before the parking function
 returns and invokes the transfer callback. Thus the parking Local path cannot
 depend on callback-attached state for its initial target-context guard or any
 subsequent per-callee `b()` admission. The transfer operation must already be
-bound to the source channel, the core Local-call gate must validate it and
-reserve a Local-attempt child before calling the Local driver, and `;1` to
-`;2` inheritance plus the first target-context guard must be validated before
-any route can reach call-producing logic. Callback state added afterward is
-too late to be trusted as the source of that lineage.
+bound to the source channel, and the core Local-call gate must validate it and
+reserve a Local-attempt child before calling the Local driver. However, a gate
+at core `ast_call()` sees the Local owner (`;1`) before
+`ast_unreal_call_setup()` copies datastores to `;2`. That setup calls
+`ast_channel_datastore_inherit()` and ignores its return value before
+`ast_pbx_start()` ([inherit then PBX start](https://github.com/asterisk/asterisk/blob/22.11.0/main/core_unreal.c#L870-L929)).
+Because inheritance can omit the datastore or leave a NULL duplicate payload,
+the `;1` gate does not prove that the detached PBX thread's `;2` channel has a
+usable claim.
+
+To admit this path safely, a synchronous validation/claim gate is required
+after `ast_unreal_call_setup()` and before `ast_pbx_start()`; it must reject
+the Local call if `;2` lacks a valid generation-bound claim, without starting
+PBX work. A guard as the first dialplan priority is useful defense in depth,
+but is later than the Local driver's PBX-thread creation and does not by itself
+preserve the parking/transfer source call on rejection. Callback state added
+after the parking Local call is too late to establish that lineage. If the
+deployed hook set cannot validate at the post-inheritance/pre-PBX boundary,
+disable/exclude this Local parking path.
 
 The failed parking attempt can also invoke the callback before bridge
 insertion, then fall through and invoke it again on a different channel. The
@@ -4010,7 +4024,7 @@ legs still need generation attribution and complete settlement.
 | Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
-| Multi-party blind transfer through parking where the Local PBX starts before callback or bridge insertion fails | A source-bound operation claim and core Local gate exist before the detached PBX thread starts; the target guard and every child hook do not depend on the later callback; fallback creates and settles a distinct attempt claim; otherwise the path is unavailable. |
+| Multi-party blind transfer through parking where Local inheritance fails or bridge insertion fails | Gate the source-bound operation at the Local owner, validate a usable `;2` claim after `ast_unreal_call_setup()` but before `ast_pbx_start()`, and make fallback create/settle a distinct attempt claim; a first-priority dialplan guard alone is insufficient. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

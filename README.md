@@ -3476,10 +3476,11 @@ association still needs a locked, serialized proof. Parking is an additional
 bypass: its multi-party path inherits datastore state and calls a Local channel
 before the supplied transfer callback, and can retry the callback after
 bridge-insertion failure. A source-channel operation claim plus a synchronous
-Local `ast_call()` gate may cover the first attempt, but the Local driver
-starts the paired PBX thread before the transfer callback, so the target guard
-cannot depend on callback-attached state. Inheritance is fallible, and
-fallback needs a separately settled child claim; otherwise protected transfers
+Local `ast_call()` gate is not enough: Local copies datastores from `;1` to
+`;2` after that gate, ignores inheritance failure, and starts the PBX thread
+before the transfer callback. Safe support needs validation after inheritance
+but before `ast_pbx_start()`; a first-priority dialplan guard alone is too late.
+Fallback needs a separately settled child claim; otherwise protected transfers
 must exclude parking.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
