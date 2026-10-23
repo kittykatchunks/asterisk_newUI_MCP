@@ -3365,6 +3365,23 @@ target correlation, or complete dialog ownership tracking. Source: pinned
 [multi-party callback before Local call](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4336),
 [frame and bridge answer signals](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L272).
 
+The transfer wrapper has two different lifetime rules. `transfer_channel_cb`
+may read its `data` pointer only during the callback; the pinned PJSIP callback
+dereferences it there
+([callback data access](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L805-L818)).
+For progress, PJSIP takes an AO2 reference to the wrapper, and parking
+subscriptions can retain another reference until their final Stasis message
+([PJSIP retain/release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L853-L855),
+[parking retain/release](https://github.com/asterisk/asterisk/blob/22.11.0/res/parking/parking_bridge_features.c#L161-L168)).
+Those asynchronous paths use the wrapper's `completed` flag; they do not make
+the caller-owned `data` pointer safe to retain or dereference later. More
+importantly, `completed` is documented as progress deferral state, not a
+generation claim or drain latch. The source exposes it as a plain `int`
+updated/read by progress and parking callbacks, not as a synchronized admission
+API. The design must keep claim state separate and use its own explicitly
+synchronized, lifetime-managed owner; neither the wrapper reference nor its
+progress flag is a claim-lifecycle mechanism.
+
 The browser may request a transfer, but it is not an authority for target
 allowlisting, generation state, or dialog ownership. Every REFER-created target
 leg must pass the PBX-side final admission boundary. The browser must install
