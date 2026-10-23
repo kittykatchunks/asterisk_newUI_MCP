@@ -3401,6 +3401,13 @@ target admission must validate usable trusted state and fail closed. DTMF
 transfer and parking need separate treatment. This remains design work: no
 module, call path, PBX config or call was changed.
 
+The repository's pinned SIP.js version is 0.21.2. Its `SessionManager` installs
+an incoming `onRefer` handler that accepts referrals and sends an INVITE to the
+referral target, replacing any existing session handler. Low-level Session and
+UserAgent defaults instead reject incoming REFER when no delegate is present.
+The existing WebRTC proof uses the low-level API and does not exercise REFER;
+the chosen production API surface must explicitly gate referrals.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

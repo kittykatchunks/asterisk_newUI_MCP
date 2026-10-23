@@ -3269,12 +3269,25 @@ approved and designed.
 
 Use only the existing Milestone 1 synthetic topology: one customer, one simple
 inbound test route, one queue, browser-agent endpoints, and internal synthetic
-transfer destinations. Component evaluation recommends SIP.js full API but has
-not pinned an exact version or finalized the implementation. The SIP.js transfer
-guide documents `session.refer(targetUri)` for blind transfer, which sends SIP
-REFER; it also says incoming REFER is followed automatically by default unless
-the session delegate supplies `onRefer`. Verify these behaviors against the
-exact selected package version. Do not infer the path from the UI label.
+transfer destinations. The repository pins `sip.js` 0.21.2 in both
+`package.json` and `package-lock.json`; the installed package source was checked
+for these REFER behaviors. The web `SessionManager.transfer(session, target)`
+uses blind REFER for a string target, but its `setupSessionDelegate()` assigns
+an `onRefer` handler that accepts an incoming referral and sends a new INVITE
+to the referral target. It also overwrites any existing per-session `onRefer`
+handler (the implementation has an explicit TODO about clobbering it). Thus,
+using this higher-level manager without replacing or wrapping that behavior
+can auto-follow incoming in-dialog referrals.
+
+That is not the low-level library's universal default. In SIP.js 0.21.2, an
+in-dialog REFER received by a core `SessionDialog` with no session `onRefer`
+delegate is rejected by `ReferUserAgentServer.reject()` using its default
+status 480. An out-of-dialog REFER with no UserAgent-level delegate is rejected
+with 405. The existing `tests/webrtc/client.ts` uses `UserAgent` and `Inviter`,
+not `SessionManager`, and exercises no REFER path. Milestone implementation
+must choose its SIP.js surface explicitly, install its admission policy after
+any manager delegate setup, and prove that no library-managed `onRefer`
+silently follows an unapproved target. Do not infer the path from the UI label.
 
 The browser may request a transfer, but it is not an authority for target
 allowlisting, generation state, or dialog ownership. Every REFER-created target
@@ -3551,17 +3564,21 @@ event alone does not establish the ownership or serialization assertions above.
 
 #### Next gate
 
-Pin the SIP.js version and verify its blind- and incoming-REFER behavior. Then
-specify the transfer-operation claim created before the two-party transfer is
+Keep the checked SIP.js 0.21.2 version pinned and verify the chosen browser API
+surface's blind- and incoming-REFER behavior in an isolated test. Then specify
+the transfer-operation claim created before the two-party transfer is
 queued or a multi-party `Local` channel is started, and how per-callee `b()`
 admission creates and settles a unique child claim before each supported
 `Dial()`/`Queue()` leg can be signaled. `session_create` alone is too early to
 inspect the requestor's claim and too late to represent the transfer-start
 obligation; the per-callee hook is a candidate final boundary, subject to
 proving queue-wait accounting, fail-closed denial, inheritance, and every
-channel/redirect path. The design must also prove that DTMF blind transfer and
-parking are either interposed or disabled. Only then design the finite
-synthetic proof around the matrix above. If the chosen path cannot be
+channel/redirect path. The isolated test must include the selected API's
+incoming REFER delegate installation order and demonstrate rejection of an
+unapproved target without originating a new INVITE. The design must also prove
+that DTMF blind transfer and parking are either interposed or disabled. Only
+then design the finite synthetic proof around the matrix above. If the chosen
+path cannot be
 interposed without a zero-count gap or bypass, stop and return to the product
 scope rather than claim the existing Milestone 1 behavior is safely
 generation-managed.
