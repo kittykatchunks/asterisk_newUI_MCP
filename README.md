@@ -3277,6 +3277,22 @@ unresolved rather than being inferred from an AMI login or start-time string.
 This is documentation only: no schema migration, object creation, collector,
 credentials or PBX access is introduced.
 
+The [pure mapping helper](./AGENT-PROVISIONING-PLAN.md#921-pure-generation-mapping-helper-synthetic-implementation)
+now implements that deterministic derivation in
+[`local/broker/mapping.py`](./local/broker/mapping.py), with exact-record
+validation and synthetic ownership/conflict checks. Five tests cover an
+independent Node reference digest, scope separation, 70-byte role names,
+unverified ownership and forced collisions:
+
+```powershell
+python -I -B .\tests\identity\broker-mapping-proof.py
+```
+
+The existing Linux launcher also runs these checks as non-root with no effective
+capabilities. A supplied ownership snapshot is not authenticated by this helper;
+matching a derived name does not prove ownership of a live PBX object. No ledger
+schema, collector, runtime enrollment or PBX configuration has changed.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

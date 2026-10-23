@@ -2570,3 +2570,35 @@ The live integration blockers remain concrete: runtime enrollment/continuity,
 generation-correlated complete dialog evidence, effective fence semantics,
 collector authority/access approval and protected publication/supervision.
 Finishing deterministic naming will not close any of those gates by itself.
+
+### 9.21 Pure generation mapping helper (synthetic implementation)
+
+The bounded implementation follows the version-1 derivation in section 9.20.
+`local/broker/mapping.py` derives the exact endpoint/auth/AOR triple, validates
+an exact mapping record by recomputing it, and returns a detached result.
+Version must be integer 1, not a boolean or float. Unknown fields, malformed
+identity and modified role names are rejected rather than normalized.
+
+`check_mapping_ownership` checks a supplied synthetic ownership-record list
+and occupied-name set. Existing records must themselves match their derivation;
+an occupied candidate name without an exact ownership record fails unverified.
+Conflicting tuples sharing a name fail even in a forced digest-collision test.
+An exact ownership record permits idempotent validation, not adoption or mutation
+of a runtime object. Inputs are not modified, and unrelated names are not
+returned as targets.
+
+The caller must eventually supply complete, trusted, consistently captured
+ownership evidence. This helper cannot authenticate records, enumerate a PBX,
+detect omitted objects, establish model compatibility or prevent a race after
+checking a snapshot. An empty synthetic set is not proof that a live namespace
+is empty. Prefix or deterministic-name agreement is not ownership proof.
+There is no ledger schema change, persistence, object creation, mapping
+revision management, runtime enrollment, collector or PBX access.
+
+`tests/identity/broker-mapping-proof.py` checks a fixed digest independently
+computed with Node's SHA-256 over the specified compact JSON bytes, all identity
+components, exact 70-byte role names, strict record validation, unverified
+ownership rejection and forced digest collisions. The ordinary Linux launcher
+runs the five tests as non-root with zero effective capabilities before the
+existing broker regression; portable Windows checks cover the same pure logic.
+Actual Asterisk object-name compatibility remains unverified.
