@@ -3588,11 +3588,14 @@ Asterisk's counter allows at most nine callback retries, but does not bound
 pjproject's separate attempts. Asterisk also ignores the in-dialog send
 result, so trace which requests were actually submitted. When the callback
 retry cannot be created or reaches its threshold, the response is treated as
-failure and an active subscription may get a zero-expiry `SUBSCRIBE`. Capture
+failure and an active subscription may get a zero-expiry `SUBSCRIBE`. Asterisk
+ignores that send result too, so confirm the peer-visible unsubscribe and
+subscription cleanup instead of inferring either from the attempt. Capture
 challenge codes, credentials, retry headers, both handlers' outcomes,
 subscription state, and cleanup
 ([Asterisk retry path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1378),
 [pjproject auth path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
+[pjproject send result](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1441-L1493),
 [send result](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495)).
 The lookup also uses only the first matching response header, making conflicting
 duplicates order-sensitive; test both orders and reject duplicates as ambiguous.
