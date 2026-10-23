@@ -3713,17 +3713,29 @@ for a core-level admission hook, not evidence that such a hook already exists.
 It also means dialplan Gosubs alone cannot establish complete coverage of the
 enumerated source-tree callers.
 
-If that boundary is explored, its contract must distinguish a Local/control
-channel call (which can start dialplan, join a bridge, or perform a
-masquerade) from the eventual customer-facing channel-driver call. It must
-avoid both an unclaimed route through a Local channel and double-counting the
-same logical leg at Local and terminal channels. It must also define behavior
-for calls with no trusted parent claim, the current channel-lock ordering,
-claim settlement on failed calls, and non-customer maintenance/diagnostic
-calls. A core `ast_call()` hook would still not observe a PJSIP 3xx target
-followed internally by `chan_pjsip`; that technology-level redirect needs its
-own gate or exclusion. Treat a central hook as a feasibility/design candidate
-only; no core patch or implementation is selected.
+The channel-tech contract confirms this is not synonymous with "external
+INVITE": the Local driver's `call` method can inherit state to its paired
+channel and start dialplan, join a bridge, or perform a masquerade
+([Local setup and action dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/main/core_local.c#L691-L785)).
+The PJSIP driver's `call` method releases the channel lock and synchronously
+pushes call setup through the session serializer before reacquiring it
+([PJSIP call method](https://github.com/asterisk/asterisk/blob/22.11.0/channels/chan_pjsip.c#L2524-L2547)).
+Accordingly, a central gate inserted at the current `ast_call()` dispatch
+would run with the channel lock held, before technology-specific lock handoff
+and work. The gate must not wait on network/broker operations; any owner lock
+or cross-channel acquisition needs an explicit lock-order/deadlock proof.
+
+If that boundary is explored, its contract must distinguish an admitted
+Local/control operation from the eventual customer-facing channel-driver leg.
+It must avoid both an unclaimed route through a Local channel and
+double-counting the same logical leg at Local and terminal channels. It must
+also define behavior for calls with no trusted parent claim, re-entrant or
+repeated calls on one channel, claim settlement on failed calls, and
+non-customer maintenance/diagnostic calls. A core `ast_call()` hook would
+still not observe a PJSIP 3xx target followed internally by `chan_pjsip`; that
+technology-level redirect needs its own gate or exclusion. Treat a central
+hook as a feasibility/design candidate only; no core patch or implementation
+is selected.
 
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a

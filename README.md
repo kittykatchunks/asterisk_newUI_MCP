@@ -3460,8 +3460,10 @@ Attended-transfer targets/recalls and parking remain outside the initial
 supported set unless separately integrated or disabled. A source-wide scan
 found channel technology `->call()` dispatch only inside core `ast_call()`,
 which has no admission callback; this is a possible core interception point,
-but Local/control channels, child-claim accounting, lock ordering, and internal
-PJSIP redirects remain unresolved design constraints—not implementation approval.
+but Local calls can start dialplan/bridge/masquerade work, and `ast_call()`
+holds the channel lock at dispatch. A safe gate must account for that lifecycle
+and prove bounded execution and lock ordering; internal PJSIP redirects remain
+a separate gap. This is not implementation approval.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
