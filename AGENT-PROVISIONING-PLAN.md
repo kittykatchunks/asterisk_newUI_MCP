@@ -4052,6 +4052,13 @@ The serialized owner needs two identities, not one reusable transfer token:
   distinguish a retransmission of that request from a new REFER. The
   normalized destination/context is immutable operation data and must be
   validated against policy; it is not a replacement for transaction identity.
+  The pinned REFER handler allocates progress state and dispatches each time it
+  enters `refer_incoming_refer_request()`; it does not itself record or compare
+  a CSeq/transaction key
+  ([fresh progress allocation and dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1982-L2067)).
+  PJSIP's transaction layer may handle wire retransmissions before this point,
+  but that behavior must be verified; a custom owner must not assume either
+  transaction-level deduplication or safe application-level replay.
 - An **attempt identity** is created for each distinct channel execution that
   can start transfer work. Re-entry on the same operation/channel/transfer
   type is idempotent, but parking's failed-insertion fallback uses a different
@@ -4270,6 +4277,7 @@ legs still need generation attribution and complete settlement.
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
 | SIP.js REFER promise resolves without waiting for response; Asterisk 202 followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
+| Same REFER transaction retransmitted versus a new REFER with a later CSeq | Verify which retransmissions reach the pinned supplement; the same transaction must not reserve or start duplicate operation work, while a new transaction must follow the one-outstanding-operation policy and cannot overwrite unresolved progress correlation. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and
