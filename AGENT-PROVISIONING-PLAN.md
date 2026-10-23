@@ -933,19 +933,28 @@ but the slot remains occupied until the source actually settles. An approved
 reconnect then succeeds. A further approved request invokes a fake source that
 raises a typed exception: the client receives no response bytes, the server emits
 the expected fixed stderr diagnostic and releases the slot, and the next approved
-request succeeds. Exact counters require four source invocations (one failed),
-three capacity denials and two timeouts; accepted clients still use real kernel
+request succeeds. Exact counters require six source invocations (one failed),
+four capacity denials, two timeouts and one explicit cancellation; accepted clients still use real kernel
 UID/primary GID. The parent requires exactly the expected diagnostic, rejecting
 unexpected thread/timer tracebacks too. Source hooks/failure sequencing remain
 fixture-only, not wire actions or a production exception policy.
 
 The test uses source/deadline threads and a private parent control pipe solely
-to release the fake source deterministically. It selects no production
+to cancel a connection or release the fake source deterministically. It selects no production
 threading/control architecture, creates no remote release action and adds no PBX
 authority. All owned children/socket entries/containers are removed. Broader
 source/error/cancellation parity, actual container identity
 mapping and deployment supervision remain incomplete. The first broker gate
 is still not approved as complete.
+
+The explicit owner-cancellation case closes a held-source connection through
+that private pipe. EOF with no response bytes is required within three seconds,
+before the five-second deadline. A competitor remains capacity-denied until
+source settlement, then an approved reconnect succeeds. A synchronised,
+connection-bound terminal callback prevents a second cancellation/deadline close
+and is removed before slot release. No wire-level cancellation operation is
+added. Peer-disconnect detection while source code blocks, general cancellation
+races and production supervision remain unproved.
 
 Twenty-six additional shared source-output vectors now exercise exact inventory
 and observation validation in TypeScript readback and over authenticated Python

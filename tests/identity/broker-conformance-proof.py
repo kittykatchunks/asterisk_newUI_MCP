@@ -250,7 +250,9 @@ def concurrent_server(path):
     release = threading.Event()
     stop = threading.Event()
     output_lock = threading.Lock()
-    counts = {"reads": 0, "capacity": 0, "timeouts": 0, "sourceFailures": 0}
+    lifetime_lock = threading.RLock()
+    active = {}
+    counts = {"reads": 0, "capacity": 0, "timeouts": 0, "sourceFailures": 0, "cancellations": 0}
     errors = []
     tasks = []
 
@@ -262,6 +264,13 @@ def concurrent_server(path):
         for line in sys.stdin:
             if line.strip() == "release":
                 release.set()
+            elif line.strip() == "cancel":
+                with lifetime_lock:
+                    if "cancel" not in active:
+                        errors.append("Cancellation without an active connection")
+                        stop.set()
+                        return
+                    active["cancel"]("cancelled")
             elif line.strip() == "stop":
                 stop.set()
                 return
@@ -276,7 +285,8 @@ def concurrent_server(path):
 
         def source():
             counts["reads"] += 1
-            if counts["reads"] == 1:
+            if counts["reads"] in (1, 5):
+                release.clear()
                 event("source-entered")
                 if not release.wait(15):
                     raise TimeoutError("Fixture source was not released")
@@ -284,15 +294,20 @@ def concurrent_server(path):
                 raise FixtureSourceFailure("Fixture source unavailable")
             return [VECTORS["generation"]]
 
-        def timeout():
-            expired.set()
-            counts["timeouts"] += 1
-            connection.shutdown(socket.SHUT_RDWR)
-            connection.close()
-            event("timeout")
+        def terminate(reason):
+            with lifetime_lock:
+                if active.get("cancel") is not terminate or expired.is_set():
+                    return
+                expired.set()
+                counts["timeouts" if reason == "timeout" else "cancellations"] += 1
+                connection.shutdown(socket.SHUT_RDWR)
+                connection.close()
+                event(reason)
 
-        timer = threading.Timer(5, timeout)
+        timer = threading.Timer(5, terminate, args=("timeout",))
         try:
+            with lifetime_lock:
+                active["cancel"] = terminate
             timer.start()
             deadline = time.monotonic() + 5
             text = read_frame(connection, 8192, deadline)
@@ -310,6 +325,9 @@ def concurrent_server(path):
             if not expired.is_set():
                 errors.append(repr(error))
         finally:
+            with lifetime_lock:
+                if active.get("cancel") is terminate:
+                    active.clear()
             timer.cancel()
             timer.join()
             connection.close()
@@ -346,7 +364,7 @@ def concurrent_server(path):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        assert counts == {"reads": 4, "capacity": 3, "timeouts": 2, "sourceFailures": 1}, counts
+        assert counts == {"reads": 6, "capacity": 4, "timeouts": 2, "sourceFailures": 1, "cancellations": 1}, counts
         event("complete")
     finally:
         release.set()
@@ -386,8 +404,8 @@ def concurrent_proof(directory):
         clients.append(child)
         return child
 
-    def done(child):
-        _, error = child.communicate(timeout=10)
+    def done(child, timeout=10):
+        _, error = child.communicate(timeout=timeout)
         assert child.returncode == 0, error
 
     try:
@@ -430,6 +448,23 @@ def concurrent_proof(directory):
         done(recovered)
         observed = [receive()["event"] for _ in range(2)]
         assert sorted(observed) == ["admitted", "released"]
+        held = start("held-source")
+        observed = [receive()["event"] for _ in range(2)]
+        assert sorted(observed) == ["admitted", "source-entered"]
+        process.stdin.write("cancel\n")
+        process.stdin.flush()
+        done(held, timeout=3)
+        event("cancelled")
+        competitor = start("capacity")
+        event("capacity")
+        done(competitor)
+        process.stdin.write("release\n")
+        process.stdin.flush()
+        event("released")
+        recovered = start("reconnect")
+        done(recovered)
+        observed = [receive()["event"] for _ in range(2)]
+        assert sorted(observed) == ["admitted", "released"]
         process.stdin.write("stop\n")
         process.stdin.flush()
         event("complete")
@@ -439,6 +474,7 @@ def concurrent_proof(directory):
         assert not os.path.exists(path)
         print("PASS Python/Linux admission: idle deadline, competitors rejected, timed-out source retains slot until release, reconnect succeeds", flush=True)
         print("PASS Python/Linux source failure: explicit diagnostic, no response frame, slot released and approved reconnect succeeds", flush=True)
+        print("PASS Python/Linux cancellation: held request closes within three seconds, slot retained until source settles, approved reconnect succeeds", flush=True)
     finally:
         for child in clients:
             if child.poll() is None:

@@ -2458,12 +2458,13 @@ released. A later approved readback succeeds. The experiment then injects a
 typed fake-source exception during another approved request: no response bytes
 are returned, the expected fixed diagnostic appears on server stderr, and the
 slot is released so a fresh approved readback succeeds. Exact counters verify
-four source invocations (including one failure), three capacity denials and two
-deadline closures. Capacity is checked
+six source invocations (including one failure), four capacity denials, two
+deadline closures and one explicit cancellation. Capacity is checked
 before peer lookup/read, and accepted requests still require real kernel UID/GID.
 
 This experiment uses a source thread, an independent connection deadline timer,
-and a test-only parent control pipe to release the fake source. The pipe is not
+and a test-only parent control pipe to cancel a connection or release the fake
+source. The pipe is not
 a broker request/action or an operator API. Child processes, socket entries and
 the container are cleaned up. A backlog of one is not a total kernel-resource
 or connection-rate bound; threads/timers and the control harness are not a
@@ -2473,7 +2474,17 @@ The parent requires stderr to contain exactly the one expected source diagnostic
 so unexpected thread/timer tracebacks also fail the experiment. The source hook
 and deterministic failure schedule are fixture-only; no client can select a
 failure mode. This proves the injected inventory-failure/recovery case, not all
-source errors, disconnect races or cancellation behaviour.
+source errors or disconnect races.
+
+The cancellation case holds a new fake source and uses the private parent pipe
+to close its connection. The client must receive EOF without response bytes
+within three seconds (before the five-second deadline); another approved client
+is still denied capacity until the source is explicitly released. A subsequent
+approved readback succeeds. Cancellation and deadline closure share a
+connection-bound, synchronised terminal callback so only the first closes/counts
+the lifetime, and settled connections cannot be cancelled later. This proves
+the tested owner-cancellation path, not automatic detection of peer disconnect
+while source code is blocked, process supervision or production cancellation.
 
 #### Broker OS identity integration: production option still unselected
 
