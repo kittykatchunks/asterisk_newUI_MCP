@@ -3634,9 +3634,15 @@ concluding that a challenge uses only one retry path
 This stale counter belongs to pjproject's persistent dialog-auth session.
 Asterisk's endpoint-auth fallback initializes a fresh stack-local auth session
 per helper invocation, so repeated fallback callbacks (if observed) do not
-inherit that counter; track them against Asterisk's separate
+inherit that counter. The helper returns the authenticated txdata, not its
+temporary auth session (and deinitializes that session before returning where
+the API is available), so it does not install endpoint credentials into the
+dialog's persistent auth session. A later fallback must reconstruct credentials
+from endpoint configuration rather than inherit that auth cache; track
+repeated callbacks against Asterisk's separate
 `MAX_RX_CHALLENGES` branch limit
-([Asterisk auth helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L555),
+([Asterisk auth helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L598),
+[temporary auth session cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L644-L649),
 [REFER callback limit](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
 If configured async auth is abandoned, pjproject instead reports a synthetic
 event, which Asterisk handles as terminal failure.
