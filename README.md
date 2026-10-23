@@ -3473,6 +3473,17 @@ sending; the matching REFER supplement also suppresses the generic dialog
 `500` fallback. Verify the clone, transfer enqueue, actual wire response or
 timeout, and retry behavior separately. A missing REFER response must not be
 mistaken for rejection or trigger an uncorrelated retry.
+An exact retransmission of the same branch/CSeq is handled by the existing UAS
+transaction; while it remains in `TRYING` without a saved response, pjproject
+ignores the retransmitted request rather than rerunning the supplement or
+resending a response
+([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L937-L1017),
+[TRYING handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L3104-L3143)).
+A retry with a new Via branch and higher CSeq is a distinct REFER and can
+reach the gate while the original bridge action is pending, so transaction
+deduplication alone does not prevent duplicate work. The operation owner needs
+an idempotency key or must reject a second unresolved operation; separately
+verify cleanup/lifetime of the unanswered transaction.
 The same clone constraint applies to `pjsip_dlg_respond()`: it needs a dialog
 transaction and returns `PJ_EINVALIDOP` before response creation when the
 transaction is unavailable or belongs to a different dialog
