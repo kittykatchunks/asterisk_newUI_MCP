@@ -1506,7 +1506,7 @@ simultaneous cancellation delivery or cancellation after successful completion.
 
 The early-disconnect follow-up uses a separate finite broker instance on the
 same isolated socket volume after the admission broker has exited and removed
-its path. Sixteen fresh approved clients run in eight rejection/recovery pairs.
+its path. Thirty-two fresh approved clients run in sixteen rejection/recovery pairs.
 The rejected prefixes are: close without a
 request, close after one/two/three bytes of a valid four-byte length header,
 close after the full header without any body, close after that header plus
@@ -1514,7 +1514,7 @@ three body bytes, close one byte short of the ordinary body, close one byte
 short of an 8,192-byte padded body. Each rejection is immediately followed by a
 new complete inventory read that must succeed before the next prefix. Each prefix
 comes from a valid inventory frame, so invalid length is not substituted for
-truncation. The final two clients assert that their full encoded frame is
+truncation. The two final-byte boundary clients assert that their full encoded frame is
 exactly one byte longer than the selected prefix. The maximum case uses the
 permitted length, not an oversized declaration, and withholds trailing JSON
 whitespace: parseable partial JSON must not bypass the exact frame-length check.
@@ -1529,10 +1529,16 @@ in order, and the specific `Truncated frame` exception for each rejected
 connection. Each rejection must leave cumulative source-entry/send-attempt
 counts unchanged at its pair index; the following recovery must increment
 both exactly once and return exact inventory. The launcher independently checks
-all eight recovery records and the alternating rejection/recovery event order.
+all sixteen recovery records and the alternating rejection/recovery event order.
 Other errors or unexpected complete frames fail.
-Final evidence requires eight expected disconnects, eight source entries and
-eight response attempts, sixteen authenticated kernel peers,
+After the eight full-close boundaries, the same prefixes run in write-half-close
+mode: Python uses write shutdown and Node ends its writable side while retaining
+the readable side. Both require zero-byte EOF before local close, without accepting
+a timeout, transport reset or response bytes. Every half-close rejection also
+requires immediate exact-inventory recovery. The expected byte-count sequence
+therefore repeats once.
+Final evidence requires sixteen expected rejections, sixteen source entries and
+sixteen response attempts, thirty-two authenticated kernel peers,
 explicit Python/Node completion and approved maps with distinct broker/client
 PID/mount namespaces. Runtime restrictions and ownership-checked cleanup are
 unchanged; no extra mount, signal or wire action is added.

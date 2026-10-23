@@ -25,7 +25,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
     $clientArguments = @()
-    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
+    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
     if ($NodeClients -and ($Mode.StartsWith('corpus-') -or $nodeLifecycle)) {
         $clientMounts = @(
             '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
@@ -45,7 +45,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
         if ($events[-1].clientRuntime -ne $expectedRuntime -or
             $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
     }
-    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-')) {
+    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-')) {
         $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
         if ($events[-1].clientRuntime -ne $expectedRuntime -or $events[-1].lifecycleCase -ne $Mode) {
             throw "Unexpected lifecycle completion: $Mode"
@@ -489,6 +489,8 @@ try {
         'disconnect-body-last', 'disconnect-limit-last')
     $expectedDisconnectBytes = @(0, 1, 2, 3, 4, 7,
         ([System.Text.Encoding]::UTF8.GetByteCount($vectors.cases[0].text) + 3), 8195)
+    $disconnectModes += @($disconnectModes | ForEach-Object { $_.Replace('disconnect-', 'half-close-') })
+    $expectedDisconnectBytes += $expectedDisconnectBytes
     for ($index = 0; $index -lt $disconnectModes.Count; $index++) {
         Invoke-Client $disconnectModes[$index] '1102:2100'
         Invoke-Client 'disconnect-reconnect' '1102:2100' -Instance "-$index"
@@ -537,7 +539,7 @@ try {
         $disconnectResult[0].responseAttempts -ne $disconnectModes.Count -or
         $disconnectResult[0].sourceEntries -ne $disconnectModes.Count -or
         $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
-    Write-Output "PASS request disconnect ($runtime clients): each of eight exact truncation boundaries adds no source/send entry and is immediately followed by fresh authenticated inventory recovery."
+    Write-Output "PASS request disconnect ($runtime clients): eight exact truncation boundaries in full-close and write-half-close modes add no source/send entry; half-closed clients require zero-byte EOF and every rejection has immediate authenticated inventory recovery."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

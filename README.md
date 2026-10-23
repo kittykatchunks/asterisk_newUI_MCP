@@ -2822,8 +2822,8 @@ the ordinary UTF-8 body length plus three, then 8,195 bytes, in that order.
 It must reject specifically as a truncated frame, with no source entry or
 response attempt. The partial headers and header-only case are prefixes of the
 same valid inventory frame, not malformed-length proxies. Only this mode
-accepts those eight expected framing failures; other failures remain fatal.
-The last two clients construct valid frames and assert that exactly one byte
+accepts these expected framing failures; other failures remain fatal.
+The two final-byte boundary clients construct valid frames and assert that exactly one byte
 is withheld. The maximum case declares the permitted 8,192-byte body, not an
 oversized length; its missing byte is trailing JSON whitespace, so a parser
 accepting available JSON before checking declared length would fail this test.
@@ -2832,8 +2832,13 @@ must receive exact inventory before the next prefix is tested. Rejection evidenc
 must leave the cumulative source/send counts unchanged; recovery evidence must
 increment each exactly once. The launcher checks the alternating rejection/
 recovery outcome order, not just the final totals.
-Final counters require eight request disconnects, eight source entries and eight
-response attempts. All sixteen clients require explicit runtime
+The same eight boundaries are then repeated with write half-close instead of
+full local close. Python shuts down only its write side; Node ends its write side
+and keeps reading. Each must receive zero-byte EOF, not a timeout, reset or
+response byte, before closing locally. Each half-close rejection also has an
+immediate exact-inventory recovery.
+Final counters require sixteen request rejections, sixteen source entries and
+sixteen response attempts. All thirty-two clients require explicit runtime
 completion, kernel peer authentication and separate PID/mount namespace evidence.
 The optional byte-count observation hook does not alter frame parsing and is
 disabled for existing callers. This adds no wire operation, mount or privilege.

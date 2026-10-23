@@ -23,6 +23,10 @@ DISCONNECT_BYTES = {
     "disconnect-body-last": len(protocol.VECTORS["cases"][0]["text"].encode("utf8")) + 3,
     "disconnect-limit-last": 8195,
 }
+DISCONNECT_BYTES.update({
+    name.replace("disconnect-", "half-close-", 1): count
+    for name, count in list(DISCONNECT_BYTES.items())
+})
 
 
 def emit(value):
@@ -221,12 +225,15 @@ def client(mode):
                     count = DISCONNECT_BYTES[mode]
                     if count:
                         text = protocol.VECTORS["cases"][0]["text"]
-                        if mode == "disconnect-limit-last":
+                        if mode.endswith("limit-last"):
                             text = text.ljust(8192, " ")
                         data = protocol.frame(text, 8192)
-                        if mode in ("disconnect-body-last", "disconnect-limit-last"):
+                        if mode.endswith(("body-last", "limit-last")):
                             assert len(data) == count + 1
                         connection.sendall(data[:count])
+                    if mode.startswith("half-close-"):
+                        connection.shutdown(socket.SHUT_WR)
+                        assert connection.recv(1) == b"", "Truncated request received response bytes"
             runtime = "python"
         emit({"lifecycleCase": mode, "clientRuntime": runtime})
         return
