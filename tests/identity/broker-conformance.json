@@ -89,6 +89,14 @@
     { "name": "oversized-header", "hex": "00002001", "expected": null },
     { "name": "truncated", "hex": "000000027b", "expected": null },
     { "name": "trailing", "hex": "000000027b7d78", "expected": null },
-    { "name": "bom", "text": "\ufeff{}", "expected": null }
+    { "name": "bom", "text": "\ufeff{}", "expected": null },
+    { "name": "one-byte-header", "hex": "00", "failure": "truncated", "expected": null },
+    { "name": "two-byte-header", "hex": "0000", "failure": "truncated", "expected": null },
+    { "name": "three-byte-header", "hex": "000000", "failure": "truncated", "expected": null },
+    { "name": "truncated-valid-request", "hex": "000000697b2276657273696f6e223a312c22637573746f6d6572223a22637573746f6d65722d61222c2265706f6368223a2231313131313131312d313131312d313131312d313131312d313131313131313131313131222c22616374696f6e223a22696e76656e746f727922", "failure": "truncated", "expected": null },
+    { "name": "concatenated-valid-requests", "hex": "000000697b2276657273696f6e223a312c22637573746f6d6572223a22637573746f6d65722d61222c2265706f6368223a2231313131313131312d313131312d313131312d313131312d313131313131313131313131222c22616374696f6e223a22696e76656e746f7279227d000000697b2276657273696f6e223a312c22637573746f6d6572223a22637573746f6d65722d61222c2265706f6368223a2231313131313131312d313131312d313131312d313131312d313131313131313131313131222c22616374696f6e223a22696e76656e746f7279227d", "failure": "trailing", "expected": null },
+    { "name": "overlong-utf8", "hex": "00000002c080", "failure": "utf8", "expected": null },
+    { "name": "surrogate-utf8", "hex": "00000003eda080", "failure": "utf8", "expected": null },
+    { "name": "incomplete-utf8", "hex": "00000002e282", "failure": "utf8", "expected": null }
   ]
 }

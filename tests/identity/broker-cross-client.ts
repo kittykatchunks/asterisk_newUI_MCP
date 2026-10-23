@@ -12,7 +12,7 @@ assert.match(await readFile("/proc/self/status", "utf8"), /^CapEff:\s+0000000000
 const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
   binding: { customer: string; epoch: string };
   generation: { generationId: string };
-  cases: { text?: string; hex?: string; padBytes?: number;
+  cases: { name?: string; text?: string; hex?: string; padBytes?: number;
     delayEofMs?: number; trailingHex?: string; expected: unknown }[];
   sourceCases: { kind: string; value: unknown; valid: boolean }[];
 };
@@ -52,7 +52,13 @@ try {
     let responseBytes = 0;
     socket.on("data", (chunk: Buffer) => { responseBytes += chunk.length; });
     const ended = once(socket, "end");
-    await Promise.all([ended, passive ? Promise.resolve() : send()]);
+    try {
+      await Promise.all([ended, passive ? Promise.resolve() : send()]);
+    } catch (error) {
+      assert.ok(vector?.name === "concatenated-valid-requests" && error instanceof Error &&
+        "code" in error && error.code === "ECONNRESET" && "syscall" in error && error.syscall === "read",
+      `Unexpected rejection transport error: ${String(error)}`);
+    }
     assert.equal(responseBytes, 0);
   } else {
     const response = readBrokerFrame(socket, "response");

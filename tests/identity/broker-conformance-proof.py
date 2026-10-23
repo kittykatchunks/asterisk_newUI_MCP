@@ -158,15 +158,21 @@ def server(path):
                 source_index = index - len(VECTORS["cases"]) - 1
                 expected_entries = (1 if index > len(VECTORS["cases"]) else
                                     int(VECTORS["cases"][index - 1]["expected"] is not None))
+                failure = VECTORS["cases"][index - 1].get("failure") if index <= len(VECTORS["cases"]) else None
                 try:
                     source = VECTORS["sourceCases"][source_index] if 0 <= source_index < len(VECTORS["sourceCases"]) else None
                     response = readback(read_frame(connection, 8192, deadline), source, entered)
-                except (ValueError, UnicodeError, TimeoutError):
+                except (ValueError, UnicodeError, TimeoutError) as error:
+                    if failure == "utf8":
+                        assert isinstance(error, UnicodeDecodeError), (index, repr(error))
+                    elif failure:
+                        assert type(error) is ValueError and failure in str(error).lower(), (index, repr(error))
                     rejected += 1
                     continue
                 finally:
                     assert source_entries - before == expected_entries, (index, source_entries - before, expected_entries)
                 reads += 1
+                assert failure is None, (index, "Expected framing failure")
                 remaining(connection, deadline)
                 connection.sendall(frame(json.dumps(response, separators=(",", ":")), 32768))
                 connection.shutdown(socket.SHUT_WR)
@@ -224,7 +230,10 @@ def client(path, index):
             connection.sendall(bytes.fromhex(vector["trailingHex"]))
         connection.shutdown(socket.SHUT_WR)
         if vector["expected"] is None:
-            assert connection.recv(1) == b""
+            try:
+                assert connection.recv(1) == b""
+            except ConnectionResetError:
+                assert vector.get("failure") == "trailing" and vector["name"] == "concatenated-valid-requests"
         else:
             assert json.loads(read_frame(connection, 32768, time.monotonic() + 5)) == vector["expected"]
     finally:

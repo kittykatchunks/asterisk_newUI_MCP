@@ -906,7 +906,7 @@ runtime selection. The existing owned-container launcher now has `-Conformance`:
 it first runs the TypeScript shared-vector test, then the Linux Python socket
 fixture with the same language-neutral JSON cases mounted read-only.
 
-Twenty-four shared cases verify exact expected replies for static inventory,
+Thirty-two shared cases verify exact expected replies for static inventory,
 unknown dialogs and missing generation; reject foreign scope, mutation/secret
 fields, invalid JSON/version/UUID/BOM and malformed/oversized/trailing frames;
 and cover fragmented framing at the exact 8 KiB request boundary. The Linux
@@ -970,7 +970,7 @@ complete source failure handling or a production runtime choice.
 The user additionally approved a separate test-only Node/Python Linux image.
 `Test-BrokerPeerProof.ps1 -CrossRuntime` now launches non-root Node clients
 against the Python server's actual Unix socket. The client imports the production
-TypeScript framing helper; all 24 request/framing vectors and 26 source-output
+TypeScript framing helper; all 32 request/framing vectors and 26 source-output
 vectors, foreign-UID denial and approved reconnect pass across the language
 boundary. Invalid raw frames intentionally bypass the writer; valid replies
 must decode and equal the expected object, and rejections must return zero bytes.
@@ -1004,7 +1004,7 @@ and the separate Node/Python image remains an approved experiment only.
 
 | Surface | Evidence now present | Remaining evidence / decision |
 | --- | --- | --- |
-| Read-only request/response subset | Shared 24 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets, including delayed EOF and late trailing-byte rejection. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
+| Read-only request/response subset | Shared 32 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets, including delayed EOF, truncation, concatenated-frame and strict UTF-8 rejection. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
 | Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
 | Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. Idle and complete-without-EOF deadlines leave source counts unchanged. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios count nine actual source invocations, including two failures and exactly two generation entries. |
 | Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. | Peer full disconnect during blocked source code, cancellation/deadline/response races and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
@@ -1056,3 +1056,17 @@ the production encoder and intentionally leaves its writable direction open.
 An eight-second client watchdog is a failure bound, not a substitute for server
 closure. This does not detect full peer loss during blocked source execution
 or approve production listener behaviour.
+
+The malformed-frame follow-up adds eight shared cases: partial headers at each
+nonzero short length, a valid request missing its final payload byte, two complete
+valid frames concatenated, and overlong/surrogate/incomplete UTF-8. Independent
+source-entry checks remain zero; framing/decode error categories are asserted in
+both implementations so a later JSON error cannot stand in for UTF-8 rejection.
+These cases still permit a fresh approved readback after rejection.
+
+The concatenated-frame case exposes a real Unix-socket closure distinction:
+unread trailing data can produce a read-side connection reset, even with an
+explicit shutdown before close. That named case alone accepts EOF or the exact
+read-reset error with zero bytes; timeouts, write errors and unrelated errors
+fail. Other rejection cases continue to require zero-byte EOF. No unbounded drain
+or production transport-policy change is added to hide this distinction.

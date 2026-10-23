@@ -12,7 +12,7 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
     binding: { customer: string; epoch: string; principal: string };
     generation: { generationId: string; notAfter: number; draining: boolean };
     cases: { name: string; text?: string; hex?: string; padBytes?: number;
-      delayEofMs?: number; trailingHex?: string; expected: unknown }[];
+      delayEofMs?: number; trailingHex?: string; failure?: "truncated" | "trailing" | "utf8"; expected: unknown }[];
   };
   let reads = 0;
   const broker = createAgentBrokerReadback(vectors.binding, {
@@ -42,7 +42,11 @@ test("shared language-neutral broker vectors conform through TypeScript framing 
     const run = async () => broker.read(await readBrokerFrame(Readable.from(
       chunks(), { objectMode: false }), "request"), vectors.binding);
     if (vector.expected === null) {
-      await assert.rejects(run(), vector.name);
+      await assert.rejects(run(), (error: unknown) => {
+        if (vector.failure === "utf8") assert.ok(error instanceof TypeError, vector.name);
+        else if (vector.failure) assert.match(String(error), new RegExp(vector.failure, "i"), vector.name);
+        return true;
+      }, vector.name);
       assert.equal(reads, before, vector.name);
     } else {
       assert.deepEqual(await run(), vector.expected, vector.name);

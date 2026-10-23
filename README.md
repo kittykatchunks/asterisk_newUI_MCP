@@ -2407,7 +2407,7 @@ signed-token regression, not this Keycloak run.
 
 `.\scripts\Test-BrokerPeerProof.ps1 -Conformance` now runs the shared
 TypeScript vector test followed by an isolated Linux Python experiment.
-Both consume `tests/identity/broker-conformance.json`: the same 24 cases cover
+Both consume `tests/identity/broker-conformance.json`: the same 32 cases cover
 inventory at the exact 8 KiB request limit, observed unknown dialogs, missing
 generation, invalid JSON/version/UUID/scope, forbidden mutation/secret fields,
 BOM, invalid UTF-8, zero/oversized length, truncation and trailing bytes.
@@ -2442,6 +2442,17 @@ source entries. Both real Python and Node clients exercise these cases. The
 TypeScript stream test additionally checks that the source has not been entered
 at the end of the wait. This is a measured delayed-EOF subset, not proof of every
 transport race or peer-disconnect behaviour.
+
+Eight additional framing cases cover one-/two-/three-byte headers followed by
+EOF, a valid inventory payload truncated by one byte, two concatenated complete
+valid requests, and overlong/surrogate/incomplete UTF-8 payloads. TypeScript and
+Python assert the relevant framing/decode failure category, not merely any JSON
+rejection, and require zero source entries per case. A fresh approved readback
+still succeeds after the corpus. The concatenated-frame case can close with a
+read-side connection reset because the rejected connection contains unread
+trailing data: that case alone accepts EOF or the exact read-reset error, always
+with zero response bytes. No timeout, write error or other socket error is
+accepted as its rejection. Other negative cases retain the zero-byte EOF check.
 
 An additional 26 shared source-output cases run through TypeScript readback
 and the authenticated Python socket server. They exercise valid empty inventory,
@@ -2525,7 +2536,7 @@ writer, sends valid requests with request EOF, validates complete framed replies
 and requires zero response bytes for rejected requests. Malformed raw frames
 deliberately bypass the writer. The two delayed-EOF cases use the production frame
 encoder but explicit writes/half-close to control timing; ordinary valid requests
-still use the production writer. All 24 request/framing and 26 source-output cases,
+still use the production writer. All 32 request/framing and 26 source-output cases,
 foreign-UID denial and approved reconnect pass over a real Unix socket against
 the Python server. The admission/failure/cancellation experiment then runs with
 Node clients too: idle connections reach the server deadline; timed-out held
