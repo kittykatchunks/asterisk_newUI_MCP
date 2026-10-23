@@ -2403,6 +2403,53 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Opt-in broker connection admission (no listener)
+
+`createAgentBrokerConnectionHandler(readback, identify)` composes the existing
+read-only broker and bounded frame reader/writer for an already-accepted socket.
+The caller explicitly invokes and awaits `handle(socket, signal?)`, handles its
+rejection through protected operational logging, and owns the listener. This
+factory does not bind an address, create a service or authenticate an OS peer.
+
+The handler accepts one in-flight connection per instance, matching the
+readback source's existing serial contract. A competitor is destroyed and
+rejected before peer lookup or frame consumption. Each socket is single-use;
+an overlapping call with the same socket rejects without destroying the
+already-running operation. Different handler instances are not a shared
+admission authority: use one owner for one source.
+
+The synchronous trusted `identify(socket)` callback must obtain identity from
+the connection's authenticated transport, not request bytes or a claimed
+customer field. Its returned principal/customer/epoch is checked through the
+same broker peer gate **before frame reading**. Failure or missing/foreign peer
+identity rejects without source access. Identity metadata is detached before
+the first await. The callback must not read/resume the socket or block the event
+loop; Linux peer-credential support remains unimplemented.
+
+An admitted socket must have an unused byte-mode read/write direction and
+`allowHalfOpen: true`. One total cooperative five-second signal spans identity
+checks, request EOF, readback and response finish, in addition to the individual
+codec bounds. Cancellation/deadline or detected socket loss destroys the
+connection. Errors reject without a success-shaped response. An uncooperative
+source keeps the admission slot until its actual promise settles, even after
+socket closure; it is never replaced with concurrent work. Local write finish
+still does not prove peer acceptance.
+
+A request half-close is normal, so TCP FIN is not treated as peer disappearance.
+A client that stops reading without a detectable error may only be noticed by
+write/deadline behaviour. A stalled event loop cannot enforce these timers.
+The application must separately limit OS/listener backlog, total accepted sockets
+and connection attempts; this handler bounds only work admitted through itself.
+Kernel/stream buffering is outside its bounded payload copy.
+
+Real ephemeral loopback tests verify peer rejection before reading, exactly one
+admission, subsequent admission after cancellation/errors, source exception
+propagation, deadline closure, and slot retention while an observation ignores
+cancellation. All listeners and owned sockets are cleaned up. Tests still inject
+peer metadata: they prove plumbing, not Unix-domain socket identity or permission
+isolation. No production listener, PBX access, apply operation or recovery
+mutation is enabled.
+
 #### Bounded broker stream framing (no listener)
 
 `encodeBrokerFrame(text, kind)` and `readBrokerFrame(stream, kind, signal?)`
@@ -2465,8 +2512,9 @@ listener cleanup.
 
 This TCP loopback fixture injects trusted test peer metadata. It is **not** a
 production network endpoint, Linux Unix-domain peer-credential proof or deployed
-broker. Connection admission, actual local identity/permissions and the
-deployment lifecycle remain unimplemented; no privileged PBX probe is enabled.
+broker. The opt-in handler above adds per-instance admission and lifetime composition;
+actual local identity/permissions, listener-level limits and deployment lifecycle
+remain unimplemented. No privileged PBX probe is enabled.
 
 #### Unprivileged broker readback protocol fixture
 

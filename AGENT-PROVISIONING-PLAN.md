@@ -770,3 +770,18 @@ before source access. It closes all owned sockets/listeners. This narrows the
 remaining transport uncertainty but still injects peer metadata: it does not
 prove Linux Unix-domain identity, permissions, connection admission or a deployed
 broker. No privileged apply/observation access or PBX effects were introduced.
+
+The next unprivileged subset supplies an opt-in connection handler for an
+already-accepted half-open socket, not a listener. It verifies trusted
+transport-derived peer metadata before reading, admits one in-flight connection
+per instance and applies a total five-second cooperative budget across readback
+and response writing. Competitors are rejected before identity/source access;
+cancelled uncooperative observations retain admission until actual settlement.
+Original exceptions propagate without a success reply or automatic retry.
+
+Loopback tests cover early peer denial, admission/cancellation/error recovery,
+deadline closure and source slot retention after socket loss. Peer identity is
+still injected test metadata; synchronous OS credential acquisition, Unix-domain
+permissions and listener/backlog admission remain deployment gates. No runtime
+listener or PBX authority is created. See the
+[connection contract](./README.md#opt-in-broker-connection-admission-no-listener).

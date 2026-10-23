@@ -48,7 +48,13 @@ export function createAgentBrokerReadback(input: BrokerReadbackPeer, source: Bro
     throw new Error("Invalid broker readback binding");
   }
   let busy = false;
+  const authorize = (peer: BrokerReadbackPeer | undefined) => {
+    if (!peer || peer.principal !== principal || peer.customer !== binding.customer || peer.epoch !== binding.epoch) {
+      throw new Error("Broker readback peer denied");
+    }
+  };
   return {
+    authorize,
     async read(text: string, peer: BrokerReadbackPeer | undefined, cancellation?: AbortSignal): Promise<BrokerReadbackResponse> {
       if (busy) throw new Error("Broker readback already in flight");
       busy = true;
@@ -56,9 +62,7 @@ export function createAgentBrokerReadback(input: BrokerReadbackPeer, source: Bro
         const budget = AbortSignal.timeout(5000);
         const signal = cancellation ? AbortSignal.any([budget, cancellation]) : budget;
         signal.throwIfAborted();
-        if (!peer || peer.principal !== principal || peer.customer !== binding.customer || peer.epoch !== binding.epoch) {
-          throw new Error("Broker readback peer denied");
-        }
+        authorize(peer);
         const request = parseRequest(text);
         if (request.customer !== binding.customer || request.epoch !== binding.epoch) throw new Error("Broker readback scope mismatch");
         let response: BrokerReadbackResponse;
