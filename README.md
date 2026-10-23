@@ -3484,6 +3484,10 @@ and bridge Stasis callback and written by parking/core paths; the separate
 pooled subscriptions do not establish cross-callback synchronization. This is
 an unsynchronized-access candidate requiring concurrency validation, not a
 confirmed runtime race or an admission mechanism.
+Terminal NOTIFY allocation failure can also bypass cleanup in both progress
+callbacks: unsubscribe/framehook detach are nested under successful allocation.
+Verify injected failure and cleanup; treat missing progress as unresolved, not
+as transfer settlement. This is a source-level risk, not a confirmed leak.
 
 The multi-party transfer callback receives the Local `;1` channel. Asterisk's
 Local driver then inherits datastores to `;2` before starting its target

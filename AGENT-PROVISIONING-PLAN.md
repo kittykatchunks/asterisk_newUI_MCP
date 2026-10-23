@@ -3392,6 +3392,21 @@ terminal reports for a core-rejected transfer. Exercise both queue orders and
 retain the core return, final REFER response, every NOTIFY, and channel outcome
 as separate evidence.
 
+There is also an allocation-failure edge at terminal progress reporting.
+`refer_progress_notification_alloc()` returns `NULL` when AO2 allocation fails
+([allocator](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L161-L176)).
+In the bridge callback, unsubscribe and framehook detach occur only inside the
+successful-notification branch; the framehook similarly detaches only when a
+terminal notification object exists
+([bridge terminal path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L272-L323),
+[framehook terminal path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L326-L385)).
+Thus source inspection shows that allocation failure can skip both terminal
+NOTIFY scheduling and the corresponding progress cleanup at these call sites.
+This is a source-level failure mode, not proof of a runtime leak or permanent
+subscription. Inject failure at terminal-notification allocation and verify
+cleanup, observability, and that missing progress cannot settle a transfer
+claim or be interpreted as target failure/success.
+
 This is not limited to a framehook timing race. With
 `refer_blind_progress=no`, `refer_blind_callback()` itself queues terminal
 `200` as soon as it is called; in the two-party path that callback precedes the
