@@ -3468,7 +3468,15 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([dispatch break](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4462-L4476)).
   The supplement contract therefore requires the rejecting callback itself to
   send a SIP response; it runs on a SIP servant thread, and a channel is not
-  guaranteed to exist. The built-in REFER supplement is registered at
+  guaranteed to exist. Its request data is cloned: the callback contract says
+  `pjsip_rdata_get_dlg()` and `pjsip_rdata_get_tsx()` do not work properly
+  because module data is not copied, and directs dialog access through
+  `session->inv_session->dlg`
+  ([callback contract](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip_session.h#L319-L335)).
+  Therefore, the admission owner must not key a claim from those PJSIP getter
+  results; a retransmission-stable REFER transaction key must be derived from
+  clone-safe request data or another proven source and tested against wire
+  retransmissions. The built-in REFER supplement is registered at
   [`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2162),
   with `AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL` defined as `1000000`
   ([priority values and ordering](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip.h#L3389-L3398)).

@@ -3438,6 +3438,10 @@ built-in handler (`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`). A nonzero
 supplement result only stops later handlers; the rejecting callback must send
 its own SIP response. The gate must reserve before returning zero to continue
 into built-in handling, or send the final response itself and stop dispatch.
+Because the session callback receives cloned request data, it cannot safely
+derive dialog or transaction identity from `pjsip_rdata_get_dlg()` /
+`pjsip_rdata_get_tsx()`; its transaction key needs a clone-safe source that is
+stable across retransmissions.
 Asterisk's progress watcher tracks the transferee's frames/bridge re-entry; its
 internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
