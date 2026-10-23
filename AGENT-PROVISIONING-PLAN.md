@@ -4042,6 +4042,56 @@ one generic "call count":
    for supported Dial/Queue branches. A transferred operation claim is their
    parent, not a substitute for each fork's child claim.
 
+#### Candidate operation identity and state contract
+
+The serialized owner needs two identities, not one reusable transfer token:
+
+- An **operation identity** is bound to the protected generation, originating
+  Asterisk session/dialog, and one incoming REFER transaction. The owner must
+  derive the transaction component from verified PJSIP request fields and
+  distinguish a retransmission of that request from a new REFER. The
+  normalized destination/context is immutable operation data and must be
+  validated against policy; it is not a replacement for transaction identity.
+- An **attempt identity** is created for each distinct channel execution that
+  can start transfer work. Re-entry on the same operation/channel/transfer
+  type is idempotent, but parking's failed-insertion fallback uses a different
+  Local channel and therefore needs a fresh attempt child. Each actual
+  Dial/Queue callee gets its own child-leg identity beneath its attempt.
+
+The candidate state progression is `reserved -> attempting -> queued/active ->
+settling -> terminal`. Reservation must occur in the transfer owner before
+calling the bridge API and remain a drain obligation while queue outcome or
+target execution is unresolved. A successful two-party enqueue advances the
+operation but does not mean a target leg exists; the per-callee gate must
+create its child before signaling. Every distinct parking or ordinary Local
+attempt must be represented before it can start PBX work, and target branches
+must remain children until their own final channel/session outcome is
+reconciled. Do not decrement the parent merely because a callback returned,
+the Local optimized out, a REFER response/NOTIFY arrived, or one fork ended.
+
+A definitive pre-enqueue failure settles only the attempt(s) that did not
+start, and settles the operation only when no asynchronous work or child
+remains. A rejected child admission settles that child before signaling; if
+the result is uncertain (for example, call setup or cancellation has no
+authoritative terminal event), retain the obligation and block zero/replacement.
+Late events are idempotently applied to the matching operation/attempt/leg and
+must not alter a newer transfer's state. Enforce at most one outstanding
+operation per source session until a terminal outcome is reconciled; a second
+independent REFER is rejected or deferred by explicit policy, never allowed to
+overwrite progress or operation correlation.
+
+The callback's `void` contract makes allocation after entry unsafe as the only
+claim-creation strategy. The owner must pre-reserve enough operation/attempt
+state for every callback that can run, or provide a separately proven
+abortable gate before any action starts. Since the callback cannot signal
+failure to Asterisk, missing capacity/state must never be represented by
+continuing with an unowned route. This contract is design-only: the exact
+operation key, pre-reservation bounds, lock/serializer ownership, channel
+handoff, and PJSIP response behavior still need source/API and isolated-test
+proof. In particular, the multi-party parking callback occurs after Local PBX
+start, so this contract cannot make that path safe without the separately
+required post-inheritance/pre-PBX gate.
+
 Handoff must be atomic with drain: retain the operation obligation while
 creating/attaching child obligations, then settle the parent only when its
 children are durably owned or the operation has definitively failed. For the

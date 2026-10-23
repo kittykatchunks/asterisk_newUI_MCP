@@ -3400,6 +3400,12 @@ a child datastore or leave its duplicated payload NULL on allocation failure;
 target admission must validate usable trusted state and fail closed. DTMF
 transfer and parking need separate treatment. This remains design work: no
 module, call path, PBX config or call was changed.
+The candidate claim contract now distinguishes one generation/session/REFER
+operation from unique channel-attempt and per-callee child identities.
+Retransmissions must resolve to the same operation; parking fallback on a
+different Local requires a distinct attempt. Parent obligations remain open
+until every child is reconciled, and the callback's `void` result means claim
+capacity must be secured before entering a path that cannot abort.
 
 The repository's pinned SIP.js version is 0.21.2. Its `SessionManager` installs
 an incoming `onRefer` handler that accepts referrals and sends an INVITE to the
