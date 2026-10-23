@@ -1993,3 +1993,122 @@ capability, namespace/map, UID/primary-GID and read-only socket-volume assertion
 with four source calls and three exact cross-namespace denials. This establishes
 typed-consumer topology evidence with the existing in-memory fixture, not
 separate-container SQLite publication, production supervision or PBX access.
+
+### 9.15 Live read-only source authority contract (design only)
+
+The synthetic path is now connected from typed consumer through authenticated
+Python listener to read-only fake SQLite state. Stop expanding that fixture as
+a substitute for choosing real state authority. This section defines the next
+integration boundary; it does not approve PBX access, credentials, new AMI
+permissions, a deployed broker or any mutation.
+
+#### Existing evidence and why it is insufficient
+
+| Existing component | What it establishes | What it cannot establish |
+| --- | --- | --- |
+| `src/pbx-status.ts` | Customer-pinned reporting of core status and endpoint list fields, including endpoint active-channel counts and contact presence. | Generation identity, stored generation deadline, verified new-call fence, complete generation dialog ownership or removal of all managed objects. |
+| `tests/identity/fake-provisioning-runtime.ts` | Synthetic generation/deadline lifecycle and simulated dialogs in a customer/epoch-pinned database. | Actual loaded PBX configuration, routing, authentication or live dialogs. |
+| Provisioning command/receipt journals | Recorded intent and execution/recovery evidence under their existing contracts. | That the current PBX still matches a prior receipt, or that a missing row proves absence at runtime. |
+| `local/broker/readback.py` and typed client | Scoped, bounded, validated read-only transport with exact mapped worker UID/primary GID enforcement. | Truth or freshness of the source, or server authentication merely because a response echoes scope. |
+
+Do not adapt `PbxEndpoint.activeChannels` directly into `dialogs`. In particular,
+an endpoint ID is not currently a protected generation mapping, and zero in that
+report is not evidence that every relevant dialog is absent. Contact absence,
+device state and expiry of a desired lease likewise do not verify a new-call
+fence. No existing reporting account should gain control permissions to bridge
+these gaps.
+
+#### Proposed customer-local authority split
+
+The proposed source composes two inputs inside the customer-local boundary:
+
+1. **Protected generation ledger/model authority.** Supplies the enrolled
+   customer/epoch, managed namespace, immutable generation-to-runtime-object
+   mapping, committed deadline and latched drain intent. It must distinguish a
+   healthy, initialized empty inventory from missing/unreadable/restored state.
+   The fake database is not a production ledger, and the worker's requested
+   extension or current receipt must not select arbitrary PBX object names.
+2. **Verified runtime observation authority.** Supplies bounded observations of
+   the exact mapped managed objects, relevant new-call routing/authentication
+   fence and generation-correlated dialogs. Its concrete access mechanism,
+   complete-observation guarantees and privileges are not yet selected.
+
+This is a logical separation, not approval for another service or IPC protocol.
+Prefer an existing protected customer-local owner if it can meet the contract.
+Do not create a writable snapshot publisher or grant the network worker direct
+PBX/database access merely to avoid selecting the actual owner.
+
+Read operations must never load configuration, reload, fence, revoke, repair,
+mint credentials or renew a deadline. Evidence collection may fail; failure is
+not permission to perform a corrective operation. No query selectors, file
+paths, CLI strings, credentials or runtime object names come from broker JSON.
+
+#### Meaning of each current wire result
+
+| Result | Required authority/evidence | Fail-closed outcome |
+| --- | --- | --- |
+| Inventory item | Ledger-pinned generation UUID and positive committed deadline, with a durable drain state appropriate to the existing expiry contract. Enumerate the complete pinned managed inventory without silently dropping uncertain entries. | Reject the operation if binding, completeness, deadline or inventory validity cannot be established; never return a partial/empty success or truncate at 100. |
+| `newCallsBlocked: true` | Runtime verification of the actual generation-specific new-call fence covering the relevant routing/authentication surfaces, not only ledger drain intent. | Reject if fence evidence is absent/contradictory; a known verified open fence may be returned as `false`, which is not permission to activate. |
+| Numeric `dialogs` | A complete, current, generation-correlated observation with defined consistency across relevant runtime objects. Zero requires the same completeness as a positive count. | Use `"unknown"` only when scope and the other returned fields remain authoritative but dialog completeness is not established; otherwise reject the observation. Never use zero as a default. |
+| `removed: true` | Verified absence of all mapped managed runtime surfaces required by the eventual removal contract, including retained access that could still permit new calls. | A deleted ledger row, absent endpoint report or successful reload is insufficient. Partial or contradictory evidence fails, rather than inventing removal. |
+| Generation `state: "missing"` | An authoritative, complete lookup proving no such generation in the pinned namespace, with reconciliation rules excluding untracked runtime remnants. | Until such lookup/reconciliation exists, return an explicit source failure, as the fake source already does for absent rows. |
+
+The production mapping for inventory `draining` remains a required decision:
+the fake runtime equates its durable phase with an effective fence, while a real
+ledger's drain intent alone cannot prove PBX enforcement. The chosen source must
+document whether this field denotes a durable irreversible drain latch or a
+verified runtime state, and ensure the expiry consumer cannot mistake intent
+for an already verified fence. Do not silently change the wire meaning during
+adapter implementation.
+
+#### Consistency and failure rules
+
+- Pin and validate customer, epoch and managed namespace from protected
+  configuration on every operation. Authority replacement/restored state needs
+  an explicit reconciliation decision; it must not look like an initialized
+  empty database.
+- Bind ledger evidence to the runtime instance and generation/object revision
+  being observed. A PBX restart, concurrent reload, generation replacement,
+  partial event list or uncertain correlation invalidates the affected
+  observation unless the authority can prove a consistent result.
+- Collect within the existing five-second connection budget and retain source
+  ownership until actual settlement. Do not cache a prior positive result to
+  hide timeout, disconnection or source errors. SQLite lock recovery evidence
+  does not establish consistency with a live PBX.
+- A wire response is a point-in-time observation, never an execution lease or
+  authorisation to mutate. Any future removal must independently reverify the
+  fence and zero-dialog condition under its own protected execution boundary;
+  a previously returned zero can become stale.
+- Preserve fixed safe diagnostics. Do not expose AMI credentials, rendered
+  authentication configuration, source exception details or caller-sensitive
+  channel metadata in broker replies/logs.
+
+The current response schema carries no runtime-instance, revision or freshness
+token. Keep the existing protocol for the synthetic path. Before live
+implementation, decide whether consistency can be enforced wholly inside one
+source call or needs a separately reviewed protocol version. Do not add optional
+fields that the current exact-key clients would reject.
+
+#### Decisions required before live adapter implementation
+
+1. Name the protected customer-local generation ledger/model owner and its
+   schema, initialization/restore policy and read-only access boundary.
+2. Select the runtime observation mechanism and exact allowed read operations;
+   prove their generation mapping and completeness without broadening the
+   existing reporting account or exposing control sockets to the worker.
+3. Define effective fencing, dialog ownership and managed-object removal
+   evidence for the selected Asterisk deployment, including restart and
+   concurrent-state-change handling.
+4. Resolve inventory drain semantics and whether the current v1 response is
+   sufficient for the chosen consistency design.
+5. Approve only then a bounded live read-only integration with synthetic
+   credentials/state first. Production packaging/supervision and real access
+   remain separate approvals; independent expiry and all mutation gates remain
+   open.
+
+Acceptance should cover one real generation end to end: exact inventory and
+observation, an uncertain dialog result that never becomes zero, explicit
+failure for stale/mismatched authority, no unrelated managed/base-object access,
+and proof that reads cause no PBX effects. This is the next meaningful source
+integration milestone, not a requirement to repeat the closed transport fixture
+programme.

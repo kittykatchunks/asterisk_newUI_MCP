@@ -3199,6 +3199,15 @@ with explicit client markers and unchanged kernel UID/primary-GID enforcement.
 Its source remains a deterministic in-memory fixture, not a shared SQLite
 database or live PBX source.
 
+The next design gate is the
+[live read-only source authority contract](./AGENT-PROVISIONING-PLAN.md#915-live-read-only-source-authority-contract-design-only),
+not more transport fixture variants. Existing AMI endpoint/channel reporting is
+not generation-correlated dialog, deadline or verified fence authority. The
+contract separates protected ledger/model evidence from runtime observation,
+defines fail-closed handling for every wire result, and lists the owner,
+observation mechanism and consistency decisions required before live adapter
+implementation. It does not approve new PBX access, permissions or deployment.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current
