@@ -3489,6 +3489,12 @@ Thus the final REFER response is the only SIP-level terminal outcome; if that
 send fails, no sipfrag failure notification recovers it. For ordinary blind
 transfer the progress path has no ARI state either, so rely on independently
 correlated channel/bridge lifecycle and leave an absent response unresolved.
+The header decision is not strict boolean parsing: Asterisk looks at the first
+matching header and enables subscription only when its value starts with
+case-insensitive `true`; test duplicate headers, casing and non-boolean values
+or reject forms outside the explicitly supported set
+([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_msg.c#L374-L387),
+[value check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L553-L569)).
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or
