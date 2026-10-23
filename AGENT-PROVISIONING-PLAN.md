@@ -3473,6 +3473,20 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
 
 The built-in blind REFER handler checks the target extension and then calls
 [`ast_bridge_transfer_blind()`](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822).
+For REFERs using the implicit subscription, however, the built-in request
+handler calls `refer_progress_alloc()` first; that helper sends `202 Accepted`
+before dispatching to the blind handler, which then checks whether the target
+extension exists
+([202 creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L599-L624),
+[later extension validation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1776-L1807),
+[request ordering](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2044-L2067)).
+Thus an unknown extension can receive `202` and only later a failure NOTIFY;
+that status is subscription acceptance, not target validity or reservation
+proof. A generation/allowlist gate that must refuse a request before any
+accepted transfer response needs to run before this built-in handler and send
+its own final response when it stops supplement dispatch. This earlier gate
+must also reserve the operation before allowing the built-in handler to emit
+`202`; it still cannot make the later void propagation callback cancellable.
 The outgoing-session callback may gate resulting PJSIP legs, but it does not by
 itself constrain the transfer context, non-PJSIP legs, or arbitrary dialplan
 redirection. Initial inbound INVITEs follow a distinct path: Asterisk sends
@@ -4312,7 +4326,7 @@ legs still need generation attribution and complete settlement.
 | Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
-| Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
+| Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in implicit-subscription `202`; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. Also record behavior with `Refer-Sub: false`, where there is no implicit-subscription `202`. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |

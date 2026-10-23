@@ -3428,8 +3428,15 @@ progress. `refer_blind_progress` defaults to yes, but disabling it emits
 terminal 200 from the transfer callback before target answer; monitoring setup
 failures can also explicitly fall back to assumed-success 200. Therefore pin
 the effective setting and require channel/bridge ownership evidence; never use
-terminal NOTIFY 200 alone as a safe-zero signal. Asterisk's progress watcher
-tracks the transferee's frames/bridge re-entry; its internal `completed` flag
+terminal NOTIFY 200 alone as a safe-zero signal.
+The built-in handler creates the implicit REFER subscription and sends `202`
+before its blind-transfer handler checks target-extension existence. An
+unknown target can therefore receive 202 followed by a failure NOTIFY; a
+generation/allowlist rejection that must precede accepted-transfer signaling
+needs an earlier supplement that reserves the operation and sends its own
+final response.
+Asterisk's progress watcher tracks the transferee's frames/bridge re-entry; its
+internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
 not an identity-complete record for forked target legs.
 With `refer_blind_progress=no`, the callback queues terminal `200` before the
