@@ -3884,14 +3884,18 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   in-dialog send helper calls `pjsip_dlg_send_request()`, which replaces the
   request CSeq with the dialog's next local CSeq and creates a new UAC
   transaction. pjproject's `auth_retry` txdata flag is described as marking a
-  prepared retry, but the pinned PJSIP source sets/resets it only in the auth
-  reinitializer and does not read it in the PJSIP transaction path. Therefore
-  it is not evidence that the old transaction is resumed or that the new
-  transaction regains the terminated REFER evsub association
+  prepared retry, and the auth reinitializer sets/resets it. It is not a
+  transaction-layer resume or association mechanism. The evsub code's explicit
+  check of this flag is in its challenged NOTIFY response branch; the UAC
+  REFER challenge branch does not consult it. Therefore it is not evidence
+  that the old transaction is resumed or that the new transaction regains the
+  terminated REFER evsub association
   ([Asterisk in-dialog send](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495),
   [pjproject dialog CSeq and transaction creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1361-L1445),
   [auth retry marker](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transport.h#L655-L663),
-  [auth reinitializer](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1708-L1861)).
+  [auth reinitializer](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1708-L1861),
+  [REFER UAC challenge branch](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
+  [NOTIFY-only evsub flag check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2328-L2342)).
   Asterisk's outbound-auth helper itself increments the cloned request's CSeq
   after auth reinitialization, but the subsequent `pjsip_dlg_send_request()`
   writes the dialog's current `local.cseq` into that header and increments the

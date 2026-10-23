@@ -3691,12 +3691,15 @@ default realm alone is not a substitute
 ([Asterisk challenge matching](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L147-L155)).
 Asterisk then sends it through the stateful dialog helper: pjproject assigns
 the next local CSeq and creates a new UAC transaction. The `auth_retry` txdata
-marker is not read by the PJSIP transaction path, so it does not resume the
-challenged transaction or prove that the terminated REFER subscription is
-reattached. Verify CSeq and response association on the wire
+marker does not resume the challenged transaction or restore subscription
+association. Its explicit evsub check appears in challenged NOTIFY response
+handling; the UAC REFER challenge branch does not consult it. Verify CSeq and
+response association on the wire
 ([Asterisk send helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495),
 [pjproject dialog send](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1361-L1445),
-[auth retry marker](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transport.h#L655-L663)).
+[auth retry marker](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transport.h#L655-L663),
+[REFER challenge handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
+[NOTIFY-only flag check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2328-L2342)).
 Asterisk's digest helper also increments the cloned request's CSeq after
 reinitialization, but dialog send overwrites it from the current
 `local.cseq`. If another in-dialog request intervenes, verify the final CSeq
