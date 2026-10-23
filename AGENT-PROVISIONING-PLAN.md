@@ -3572,9 +3572,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([dialog response helper](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1717-L1764)).
   Asterisk's built-in early rejection branches call this helper and ignore its
   result. `ast_sip_send_stateful_response()` is a different API that creates a
-  transaction, but its compatibility with this cloned in-dialog request path
-  and its response/retransmission behavior must be proven before selecting it
+  new UAS transaction from the supplied request
   ([Asterisk stateful response helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L2399-L2441)).
+  pjproject derives its transaction key from the request and rejects
+  registration with `PJ_EEXISTS` if that key is already present
+  ([UAS creation and key registration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L1731-L1881),
+  [duplicate-key check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L595-L617)).
+  Since this is an in-dialog request handled through an existing session,
+  prove whether its original transaction is already registered when the
+  supplement runs; cloned message fields alone do not prove this helper can
+  create a second transaction or safely handle retransmissions. Its use on
+  this path remains a candidate to test, not a selected solution.
   Every rejecting gate therefore needs a tested, clone-compatible response
   mechanism; returning nonzero only stops supplement dispatch.
 
@@ -4489,6 +4497,7 @@ legs still need generation attribution and complete settlement.
 | REFER implicit-subscription setup succeeds but `202` creation or send fails | Fault-inject response creation/send failure; record the final wire response and verify the built-in handler's subsequent target-validation/transfer work, progress subscription state, and claim correlation. Asterisk ignores `pjsip_xfer_accept()`'s return, so do not infer that 202 was submitted from subscription allocation or continued handling. |
 | REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the actual wire response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Verify the rejection API works with cloned request data; keep distinct from unknown-target handling, which occurs after implicit-subscription setup if its transaction is available. |
 | Missing `Refer-To`, malformed URI, or unsupported non-SIP/SIPS scheme | Reject before progress setup; no operation claim, implicit subscription/`202`, target channel, or INVITE is created. Verify the actual wire rejection and that the custom gate's response API works on cloned data; confirm agreement with built-in URI eligibility. |
+| Custom rejection uses `ast_sip_send_stateful_response()` on cloned in-dialog REFER | Verify whether an original transaction with the request's key is already registered when the supplement runs; capture helper return, wire response, retransmission handling, and duplicate transaction behavior. A key collision can make UAS transaction creation return `PJ_EEXISTS`; do not adopt the helper based only on its creation of a transaction. |
 | Progress setup cannot allocate the transferee unique ID | Inject the `ast_strdup()` failure; prove bridge progress cannot call `strcmp()` with a NULL transferee ID, progress resources are safely handled, and any assumed-success `200` is not treated as transfer or claim completion. |
 | Allowed blind REFER with a pre-handler reservation | If the supplement returns zero, prove the built-in transfer callback, progress, and all terminal outcomes correlate to that reservation; if it handles and returns nonzero, prove it owns the bridge propagation callback and SIP response/progress lifecycle. No reservation-only path may leave built-in work uncorrelated. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, `Replaces`, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; the out-of-scope attended-transfer branch selected by `Replaces` is rejected before built-in handling. No display-name/domain spoof or unreviewed context reroute is admitted. |

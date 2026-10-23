@@ -3465,8 +3465,14 @@ timeout behavior rather than assuming the constructed response was sent.
 The same clone constraint applies to `pjsip_dlg_respond()`: it needs a dialog
 transaction and returns an error when none is available. Asterisk's early
 `400`/`404` branches ignore that return. The custom gate must prove a
-clone-compatible response mechanism; `ast_sip_send_stateful_response()` is a
-candidate to test, not an assumed solution.
+clone-compatible response mechanism. `ast_sip_send_stateful_response()`
+creates a new UAS transaction from the request; pjproject derives its key from
+request headers and returns `PJ_EEXISTS` if the key is already registered.
+Because this is an in-dialog request handled through an existing session, test
+whether its original transaction is already registered at supplement time,
+along with helper return, wire response, and retransmission behavior.
+`ast_sip_send_stateful_response()` remains a candidate to test, not an assumed
+solution.
 For an allowed request, returning zero continues into Asterisk's built-in
 transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,
