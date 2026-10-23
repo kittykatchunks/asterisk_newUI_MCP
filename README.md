@@ -3483,7 +3483,14 @@ A retry with a new Via branch and higher CSeq is a distinct REFER and can
 reach the gate while the original bridge action is pending, so transaction
 deduplication alone does not prevent duplicate work. The operation owner needs
 an idempotency key or must reject a second unresolved operation; separately
-verify cleanup/lifetime of the unanswered transaction.
+verify cleanup/lifetime of the unanswered transaction. Source inspection
+shows the UAS `TRYING` path does not arm the normal final-response timeout;
+exact retransmissions are ignored without scheduling a response. Test whether
+the transaction remains registered beyond 64*T1 with the dialog still open.
+The NULL-transaction response-send guard also returns before PJSIP releases
+the created transmit-data reference, while Asterisk ignores the error and
+does not release that buffer; inspect its reference/lifetime on the exact
+callback path before calling it a measured leak.
 The same clone constraint applies to `pjsip_dlg_respond()`: it needs a dialog
 transaction and returns `PJ_EINVALIDOP` before response creation when the
 transaction is unavailable or belongs to a different dialog
