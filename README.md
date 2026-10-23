@@ -3446,6 +3446,11 @@ Keep `Refer-Sub: false` as a distinct proof case: the built-in no-subscription
 response path also uses `pjsip_rdata_get_tsx()` despite that clone warning, so
 verify the transaction and wire-response behavior without assuming a runtime
 failure.
+For blind REFER, Asterisk routes using `TRANSFER_CONTEXT` (or the endpoint
+context) and the `Refer-To` URI user, not its displayed URI as a whole. With
+`ignore_uri_user_options` enabled it truncates user text at `;`, and an empty
+user becomes extension `s`; admission must validate that same effective target
+and pin the global setting.
 Asterisk's progress watcher tracks the transferee's frames/bridge re-entry; its
 internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
