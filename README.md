@@ -3664,9 +3664,10 @@ retaining both. Verify the deployed compile-time setting and emitted headers
 [default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1365-L1372)).
 Confirm the peer's challenge-selection result separately; generated headers
 alone do not prove which credential the server accepts.
-Asterisk's endpoint-auth helper prefers an exact realm match even if a
-wildcard auth object appeared earlier; among duplicate exact or wildcard
-matches, the first eligible object wins. Eligibility depends on the challenge
+Asterisk's endpoint-auth helper prefers a case-insensitive exact realm match
+even if a wildcard auth object appeared earlier; among duplicate exact or
+wildcard matches, the first eligible object wins. It also deduplicates
+challenge realms case-insensitively. Eligibility depends on the challenge
 algorithm and a usable credential: an exact-realm auth object that cannot
 supply the challenged algorithm does not prevent an eligible wildcard object
 from being selected. For each realm, it takes credentials
