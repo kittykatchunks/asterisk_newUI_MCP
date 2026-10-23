@@ -3687,7 +3687,13 @@ realm is not a pjproject wildcard. Asterisk, by contrast, accepts empty or `*`
 configured auth realms as wildcard objects, then supplies the concrete
 challenge realm in the credential passed to pjproject. Its helper supplies at
 most one credential per realm, so duplicate-wildcard list ordering applies
-only to other pjproject callers. Confirm the peer's chosen Authorization header
+only to other pjproject callers. If a pjproject auth session has a parent, its
+credentials are searched first and a parent wildcard can precede a child exact
+match; verify whether the deployed REFER dialog-auth session actually has a
+parent before applying this behavior
+([credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901),
+[parent setup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L912-L946)).
+Confirm the peer's chosen Authorization header
 ([Asterisk selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L91-L248),
 [per-realm challenge handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L303-L426),
 [pjproject credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901)).
