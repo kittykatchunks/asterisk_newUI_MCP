@@ -3598,6 +3598,33 @@ optimization, call forwarding, non-PJSIP technologies, or any other supported
 path preserves or invokes the same owner is still an explicit coverage proof,
 not an assumption.
 
+The source trace makes the optimization boundary more specific: the Local
+driver calls `ast_bridge_unreal_optimize_out()` when it detects an eligible
+bridge state ([Local trigger](https://github.com/asterisk/asterisk/blob/22.11.0/main/core_unreal.c#L295-L308)).
+The bridge code may swap a bridge channel or merge bridges while kicking the
+two unreal/Local channels out ([swap and merge paths](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L2954-L3013),
+[merge path](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L3078-L3127)).
+These are bridge membership operations, not a general contract that a
+datastore attached to `;1` or `;2` is copied to the surviving target channel.
+A separate channel masquerade does run datastore `chan_fixup` and
+`chan_breakdown` callbacks and moves datastores from the clone channel to the
+survivor ([datastore callbacks](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/datastore.h#L36-L60),
+[masquerade datastore handling](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L7111-L7142)),
+but that behavior must not be assumed for the Local bridge swap/merge path or
+treated as proof of child-leg completion.
+
+Consequently, the channel datastore is an association to a claim in the
+in-process owner, not the claim's sole lifetime authority. The owner must keep
+the transfer operation open while any child-leg claim remains unsettled; a
+Local `;1`/`;2` hangup or optimization-finished callback cannot release that
+parent obligation while a target leg is still active. Each real target callee
+must acquire its own child claim before signaling, and its own terminal
+channel lifecycle must settle that claim exactly once. On Local optimization,
+the owner must still correlate the surviving target to that child claim without
+depending on the Local datastore being transferred. If the selected Asterisk
+hook set cannot observe that surviving channel and its terminal state, the
+path is not safely covered and must fail closed or be excluded.
+
 The callback itself returns `void`, so any callback-side condition that could
 leave the transfer queued/executing without a valid claim must fail closed.
 Whether preallocation plus locked datastore insertion is sufficient for every
@@ -3689,7 +3716,10 @@ For multi-party transfer, test claim presence on the callback's Local `;1`
 channel, paired `;2` after `ast_unreal_call_setup()`, guarded target dialplan,
 and each real target callee; inject duplicate-datastore/payload failure and
 prove that no unowned target call is signaled. Exercise both Local optimization
-outcomes and reconcile the operation claim with the final target channel state.
+outcomes; keep a target active after the Local pair is optimized out and prove
+the parent operation remains open until every child claim reaches one terminal
+outcome. Verify that masquerade fixup/breakdown, when used, cannot duplicate,
+lose, or prematurely settle a child claim.
 The design must also prove that DTMF blind transfer and parking are either
 interposed or disabled. Only then design the finite synthetic proof around the matrix above.
 If the chosen path cannot be interposed without a zero-count gap or bypass,

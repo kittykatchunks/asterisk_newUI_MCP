@@ -3427,7 +3427,10 @@ Local driver then inherits datastores to `;2` before starting its target
 dialplan, but that copy can fail silently. The generated target route must
 validate the inherited operation claim before any call-producing application,
 and ownership must be proven across Local optimization into every actual target
-leg.
+leg. The Local bridge swap/merge path does not itself guarantee datastore
+transfer to the surviving target; the in-process owner must retain the parent
+operation while any per-target child claim remains unsettled. Local-channel
+hangup or optimization completion alone cannot settle active target work.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
