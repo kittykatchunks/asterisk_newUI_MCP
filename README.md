@@ -3472,7 +3472,13 @@ session supplement runs within that dispatch; its clone retains the Via branch,
 so the helper tries to register the same transaction key, gets `PJ_EEXISTS`,
 and returns before sending. This makes the helper unsuitable for this
 clone-based rejection path at pinned source level; confirm the deployed path
-and wire result, then prove a different response mechanism.
+and wire result, then prove a different response mechanism. The stateless
+endpoint helper is also unsafe by default: its active-transaction guard reads
+the same missing cloned transaction data and can send outside the live UAS
+transaction. A candidate worth proving is deriving the original transaction
+key from clone-safe Via/CSeq fields, looking up that transaction, and sending
+through the owning dialog; reference lifetime, locking, retransmission, and
+exactly-one-response behavior remain open.
 For an allowed request, returning zero continues into Asterisk's built-in
 transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,

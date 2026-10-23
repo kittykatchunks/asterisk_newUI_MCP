@@ -3591,6 +3591,29 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   cloned in-dialog rejection path at the pinned source level; capture the
   deployed callback path and wire behavior, and select a different
   clone-compatible response mechanism.
+  The stateless alternative is not automatically safe: pjproject explicitly
+  requires stateful response when an active UAS transaction exists, but
+  `pjsip_endpt_respond_stateless()` checks that condition with
+  `pjsip_rdata_get_tsx(rdata)` and then sends without updating a transaction
+  ([stateless response path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L1947-L2012)).
+  On this clone that getter hides the already-registered transaction, so the
+  stateless helper can bypass its own guard and send outside the live
+  transaction. Do not select it without proving response ownership and
+  retransmission behavior.
+  A source-backed route worth evaluating is to derive the request's UAS key
+  from clone-safe Via/CSeq data with `pjsip_tsx_create_key()`, retrieve the
+  already registered transaction with `pjsip_tsx_layer_find_tsx2()`, build a
+  response from the clone, then send it through
+  `pjsip_dlg_send_response(session->inv_session->dlg, tsx, tdata)`.
+  pjproject exposes the key/lookup APIs
+  ([API contracts](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transaction.h#L184-L216),
+  [key creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transaction.h#L394-L409)),
+  and the in-dialog UAS transaction is associated with its dialog before
+  usage dispatch
+  ([dialog association](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1861-L1865)).
+  This is only a candidate: reference lifetime, lock ordering, response
+  construction, transaction state, retransmissions, and prevention of a
+  second final response all require proof.
   Every rejecting gate therefore needs a tested, clone-compatible response
   mechanism; returning nonzero only stops supplement dispatch.
 
@@ -4506,6 +4529,7 @@ legs still need generation attribution and complete settlement.
 | REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the actual wire response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Verify the rejection API works with cloned request data; keep distinct from unknown-target handling, which occurs after implicit-subscription setup if its transaction is available. |
 | Missing `Refer-To`, malformed URI, or unsupported non-SIP/SIPS scheme | Reject before progress setup; no operation claim, implicit subscription/`202`, target channel, or INVITE is created. Verify the actual wire rejection and that the custom gate's response API works on cloned data; confirm agreement with built-in URI eligibility. |
 | Custom rejection uses `ast_sip_send_stateful_response()` on cloned in-dialog REFER | Source order predicts that the session callback's cloned request reuses the already-registered UAS transaction key, causing helper transaction creation to return `PJ_EEXISTS` before response send. Confirm on the exact deployed path, capture wire behavior and retransmissions, and reject this helper if the expected collision occurs; test an alternative response mechanism. |
+| Custom rejection tries stateless response or clone-safe transaction lookup | Verify that stateless response does not bypass an active UAS transaction hidden by the clone; evaluate key derivation and lookup of the existing transaction followed by dialog-stateful response, including references, lock ordering, dialog ownership, retransmissions, and exactly-one-final-response behavior. No candidate is approved from source inspection alone. |
 | Progress setup cannot allocate the transferee unique ID | Inject the `ast_strdup()` failure; prove bridge progress cannot call `strcmp()` with a NULL transferee ID, progress resources are safely handled, and any assumed-success `200` is not treated as transfer or claim completion. |
 | Allowed blind REFER with a pre-handler reservation | If the supplement returns zero, prove the built-in transfer callback, progress, and all terminal outcomes correlate to that reservation; if it handles and returns nonzero, prove it owns the bridge propagation callback and SIP response/progress lifecycle. No reservation-only path may leave built-in work uncorrelated. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters, `Replaces`, empty user, or URI user options | Effective context and post-normalization extension are explicitly verified, including the deployed `ignore_uri_user_options` value, semicolon truncation, and empty-user fallback to `s`; the out-of-scope attended-transfer branch selected by `Replaces` is rejected before built-in handling. No display-name/domain spoof or unreviewed context reroute is admitted. |
