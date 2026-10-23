@@ -71,11 +71,11 @@ function Start-TestBroker([string]$Mode) {
     }
     throw "Broker readiness deadline exceeded: $Mode"
 }
-function Wait-AdmissionEvent([string]$Id, [string]$Event) {
+function Wait-AdmissionEvent([string]$Id, [string]$Event, [int]$Count = 1) {
     for ($attempt = 0; $attempt -lt 40; $attempt++) {
         $logs = @(& docker logs $Id 2>&1)
         if ($LASTEXITCODE -ne 0) { throw 'Could not read admission broker events.' }
-        if ($logs -contains "{`"event`": `"$Event`"}") { return }
+        if (@($logs | Where-Object { $_ -eq "{`"event`": `"$Event`"}" }).Count -ge $Count) { return }
         $running = & docker inspect --format '{{.State.Running}}' $Id
         if ($LASTEXITCODE -ne 0 -or $running -ne 'true') { throw "Admission broker stopped before ${Event}: $logs" }
         Start-Sleep -Milliseconds 250
@@ -274,13 +274,28 @@ try {
         throw 'Missing idle admission client runtime completion.'
     }
     $identities.Add($idleEvents[0].identity)
+    $noEof = Invoke-Client 'admission-no-eof' '1102:2100' -Detached
+    Wait-AdmissionEvent $admission 'admitted' 2
+    Wait-AdmissionEvent $admission 'request-body-received'
+    Invoke-Client 'admission-capacity-no-eof' '1102:2100'
+    Wait-AdmissionEvent $admission 'capacity' 2
+    Wait-AdmissionEvent $admission 'timeout' 2
+    Wait-AdmissionEvent $admission 'released' 2
+    $noEofExit = & docker wait $noEof
+    if ($LASTEXITCODE -ne 0 -or "$noEofExit" -ne '0') { throw 'Missing-EOF client did not observe clean deadline EOF.' }
+    $noEofEvents = @((& docker logs $noEof) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $noEofEvents[-1].lifecycleCase -ne 'admission-no-eof' -or
+        $noEofEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+        throw 'Missing no-EOF admission client runtime completion.'
+    }
+    $identities.Add($noEofEvents[0].identity)
     Invoke-Client 'admission-reconnect' '1102:2100'
     $admissionExit = & docker wait $admission
     if ($LASTEXITCODE -ne 0 -or "$admissionExit" -ne '0') { throw 'Separate-container admission broker failed.' }
     $admissionEvents = @((& docker logs $admission) | ForEach-Object { $_ | ConvertFrom-Json })
     if ($LASTEXITCODE -ne 0 -or $admissionEvents[-1].event -ne 'complete') { throw 'Missing admission completion.' }
     $admissionIdentity = $admissionEvents[0].identity
-    foreach ($identity in @($identities | Select-Object -Last 3)) {
+    foreach ($identity in @($identities | Select-Object -Last 5)) {
         if ($identity.uid_map -ne $admissionIdentity.uid_map -or $identity.gid_map -ne $admissionIdentity.gid_map -or
             $identity.userNamespace -ne $admissionIdentity.userNamespace -or
             $identity.pidNamespace -eq $admissionIdentity.pidNamespace -or
@@ -289,21 +304,26 @@ try {
         }
     }
     $admissionPeers = @($admissionEvents | Where-Object { $_.peer })
-    if ($admissionPeers.Count -ne 3 -or @($admissionPeers | Where-Object {
+    if ($admissionPeers.Count -ne 5 -or @($admissionPeers | Where-Object {
         $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
     }).Count -ne 0) { throw 'Missing exact authenticated admission peer evidence.' }
     $admissionCounts = @($admissionEvents | Where-Object { $_.admissionCounts })
     if ($admissionCounts.Count -ne 1 -or $admissionCounts[0].admissionCounts.reads -ne 1 -or
-        $admissionCounts[0].admissionCounts.capacity -ne 1 -or $admissionCounts[0].admissionCounts.timeouts -ne 1 -or
-        $admissionCounts[0].admissionCounts.requestTimeouts -ne 1) { throw 'Unexpected admission source/deadline counters.' }
+        $admissionCounts[0].admissionCounts.capacity -ne 2 -or $admissionCounts[0].admissionCounts.timeouts -ne 2 -or
+        $admissionCounts[0].admissionCounts.requestTimeouts -ne 2) { throw 'Unexpected admission source/deadline counters.' }
     $admissionTimeouts = @($admissionEvents | Where-Object { $_.admissionTimeout })
-    if ($admissionTimeouts.Count -ne 1 -or $admissionTimeouts[0].admissionTimeout.elapsedSeconds -lt 5 -or
-        $admissionTimeouts[0].admissionTimeout.elapsedSeconds -ge 8 -or
-        $admissionTimeouts[0].admissionTimeout.sourceEntries -ne 0) {
-        throw 'Idle deadline was outside the measured five-to-eight-second budget or entered a source.'
+    if ($admissionTimeouts.Count -ne 2 -or $admissionTimeouts[0].admissionTimeout.bodyReceived -ne $false -or
+        $admissionTimeouts[1].admissionTimeout.bodyReceived -ne $true) {
+        throw 'Expected idle timeout followed by complete-body/missing-EOF timeout.'
+    }
+    foreach ($timeout in $admissionTimeouts) {
+        if ($timeout.admissionTimeout.elapsedSeconds -lt 5 -or $timeout.admissionTimeout.elapsedSeconds -ge 8 -or
+            $timeout.admissionTimeout.sourceEntries -ne 0) {
+            throw 'Request deadline was outside the measured five-to-eight-second budget or entered a source.'
+        }
     }
     $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
-    Write-Output "PASS separate-container admission ($runtime clients): idle slot excludes competitor, five-second deadline closes without response/source entry, fresh authenticated read succeeds."
+    Write-Output "PASS separate-container admission ($runtime clients): idle and complete-body/missing-EOF slots exclude competitors, five-second deadlines close without response/source entry, fresh authenticated read succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

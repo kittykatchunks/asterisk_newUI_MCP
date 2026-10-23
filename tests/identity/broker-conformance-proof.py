@@ -42,7 +42,7 @@ def remaining(connection, deadline):
     connection.settimeout(seconds)
 
 
-def read_frame(connection, maximum, deadline):
+def read_frame(connection, maximum, deadline, on_payload=None):
     def exact(count):
         data = bytearray()
         while len(data) < count:
@@ -57,6 +57,8 @@ def read_frame(connection, maximum, deadline):
     if not 1 <= length <= maximum:
         raise ValueError("Invalid frame length")
     payload = exact(length)
+    if on_payload is not None:
+        on_payload(payload)
     remaining(connection, deadline)
     if connection.recv(1):
         raise ValueError("Trailing frame bytes")
@@ -340,7 +342,15 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
     def serve(connection):
         expired = threading.Event()
         request_complete = threading.Event()
+        body_received = threading.Event()
         before = counts["reads"]
+
+        def received(payload):
+            vector = VECTORS["cases"][0]
+            expected = vector["text"].encode("utf8")
+            assert payload in (expected, expected.ljust(vector["padBytes"], b" "))
+            body_received.set()
+            event("request-body-received")
 
         def source(default):
             with lifetime_lock:
@@ -379,7 +389,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                     assert 5 <= elapsed < 8, elapsed
                     with output_lock:
                         print(json.dumps({"admissionTimeout": {"elapsedSeconds": elapsed,
-                                                              "sourceEntries": counts["reads"]}}), flush=True)
+                                                              "sourceEntries": counts["reads"],
+                                                              "bodyReceived": body_received.is_set()}}), flush=True)
                 connection.shutdown(socket.SHUT_RDWR)
                 connection.close()
                 event(reason)
@@ -390,7 +401,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             with lifetime_lock:
                 active["cancel"] = terminate
             timer.start()
-            text = read_frame(connection, 8192, deadline)
+            text = read_frame(connection, 8192, deadline, received if admission_only else None)
             with lifetime_lock:
                 if expired.is_set():
                     return
@@ -461,8 +472,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        expected = ({"reads": 1, "generationReads": 0, "capacity": 1, "timeouts": 1,
-                     "requestTimeouts": 1, "sourceFailures": 0, "cancellations": 0} if admission_only else
+        expected = ({"reads": 1, "generationReads": 0, "capacity": 2, "timeouts": 2,
+                     "requestTimeouts": 2, "sourceFailures": 0, "cancellations": 0} if admission_only else
                     {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1})
         assert counts == expected, counts

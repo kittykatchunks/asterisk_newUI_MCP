@@ -2710,18 +2710,24 @@ cleanup rejection and exactly one newly authenticated read after restart.
 The wrapper emits checked per-step Node runtime completion with no fallback.
 Default mode keeps the original Python crash/restart clients.
 
-The separate-container admission phase now overlaps an authenticated idle client
-with a second approved client. The idle client holds the single slot; its
-competitor gets EOF without response bytes. The fixture measures a five-second
-deadline (at least five and below the eight-second client watchdog), verifies
-zero source entries at timeout, then releases the slot. A fresh authenticated
-connection must return exact inventory. Final counters require one read, one
-capacity rejection, one request timeout and no source failures/cancellations.
-All three clients have separate PID/mount namespaces from the broker and the
+The separate-container admission phase overlaps an authenticated idle client
+with an approved competitor, then repeats with a complete framed inventory
+request whose client withholds EOF. Each waiting client holds the single slot;
+its competitor gets EOF without response bytes. Before starting the second
+competitor, the parent requires broker evidence that the exact valid request
+body has arrived, not merely that a client connected. The fixture measures each
+five-second deadline (at least five and below the eight-second client watchdog),
+verifies zero source entries at both timeouts, then releases the slot. Timeout
+evidence distinguishes idle/no-body from complete-body/missing-EOF.
+A fresh authenticated connection must return exact inventory. Final counters
+require one read, two capacity rejections, two request timeouts and no source
+failures/cancellations.
+All five clients have separate PID/mount namespaces from the broker and the
 same approved UID/GID maps; every connection records its kernel peer tuple.
-Default mode uses Python; `-NodeClients` uses Node for all three clients with
-checked runtime completion and no fallback. The finite idle client runs alongside
-the competitor only for this phase and remains subject to ownership-checked cleanup.
+Default mode uses Python; `-NodeClients` uses Node for all five clients with
+checked runtime completion and no fallback. Each finite waiting client runs
+alongside its competitor only for this phase and remains subject to
+ownership-checked cleanup.
 
 The shared concurrent fixture also rechecks terminal state/deadline after frame
 EOF and before source entry. This prevents deadline-triggered socket shutdown

@@ -1315,7 +1315,7 @@ general concurrent lifecycle behaviour across containers; those remain distinct 
 
 `Test-BrokerContainerProof.ps1 -NodeClients` now substitutes Node/TypeScript
 clients for the sequential separate-container corpus, the three crash/restart
-client steps and the idle admission phase below. The existing client
+client steps and the idle/missing-EOF admission phase below. The existing client
 imports the production framing helper, and every case must produce explicit
 wrapper completion evidence identifying Node. The Python identity wrapper
 checks maps/groups/namespaces first and runs Node with inherited credentials,
@@ -1348,15 +1348,24 @@ The replacement authenticates a new socket and records one source entry.
 Default Python mode is unchanged. This extends the same bounded no-replay
 scenario across runtimes, not a general retry or response-loss recovery policy.
 
-The bounded separate-container idle admission follow-up reuses the concurrent
+The bounded separate-container idle/missing-EOF admission follow-up reuses the concurrent
 fixture with its default positive-PID check retained for the original topology.
 Only the approved separate-container mode authorises mapped UID/primary GID
-without using PID, and records all three kernel peer tuples. An idle authenticated
+without using PID, and records all five kernel peer tuples. An idle authenticated
 client occupies the one slot while an overlapping approved competitor must close
 with EOF and zero bytes. The idle connection times out after a measured five
 seconds (at least five, below the eight-second client watchdog) with zero source
-entries, then releases the slot. A new authenticated client gets exact inventory.
-Final counters are exactly one read, one capacity rejection, one request timeout,
+entries, then releases the slot. The sequence repeats with a complete valid framed
+inventory body but withheld EOF. The parent waits for explicit broker
+body-received evidence before starting that competitor. The observation hook
+checks the exact fixture payload (unpadded request or its specified padded
+reconnect form) before the frame reader waits for EOF; it neither accepts EOF
+nor enters a source. The second timeout must report body received, whereas the
+first must report no body, both with zero source entries and measured
+five-to-eight-second budgets. Both waiting clients require EOF without response
+bytes, never reset/timeout success fallbacks.
+A new authenticated client then gets exact inventory.
+Final counters are exactly one read, two capacity rejections, two request timeouts,
 no generation reads, no source failures and no cancellations.
 
 Both default Python and opt-in Node clients exercise this sequence in independent
@@ -1371,5 +1380,5 @@ to a complete waiting frame before its thread observed terminal state. The
 concurrent fixture now checks terminal state and the same monotonic deadline
 after frame reading and under the lifetime lock before source entry. This is a
 test-fixture correction, not a production implementation change.
-Passing this idle scenario does not prove separate-container held-source slot
+Passing these request-wait scenarios does not prove separate-container held-source slot
 retention, cancellation, peer-disconnect handling or general terminal-race safety.
