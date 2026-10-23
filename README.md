@@ -3676,8 +3676,11 @@ object; an unsupported challenge or missing credential does not by itself
 prevent a later same-realm challenge from being considered. Challenge-header
 order can therefore decide which Digest algorithm is used once a matching
 credential is found. Test these selections separately from
-pjproject's generic exact-then-wildcard lookup and confirm the peer's chosen
-Authorization header
+pjproject's generic lookup: it checks algorithm eligibility first, returns an
+eligible exact-realm credential immediately, and otherwise chooses the last
+eligible wildcard credential in its list. The endpoint helper supplies at most
+one credential per realm, so duplicate-wildcard list ordering applies only to
+other pjproject callers. Confirm the peer's chosen Authorization header
 ([Asterisk selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L91-L248),
 [per-realm challenge handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L303-L426),
 [pjproject credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901)).
