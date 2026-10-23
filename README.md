@@ -3422,6 +3422,13 @@ tracks the transferee's frames/bridge re-entry; its internal `completed` flag
 marks transfer-action preparation, not target answer. Progress NOTIFY is thus
 not an identity-complete record for forked target legs.
 
+The multi-party transfer callback receives the Local `;1` channel. Asterisk's
+Local driver then inherits datastores to `;2` before starting its target
+dialplan, but that copy can fail silently. The generated target route must
+validate the inherited operation claim before any call-producing application,
+and ownership must be proven across Local optimization into every actual target
+leg.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

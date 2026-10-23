@@ -3570,12 +3570,33 @@ its parent operation claim independently of these member-leg claims.
 
 The transfer callback can therefore provide the parent claim on the channel
 that will execute the target dialplan: the transferee in the two-party case or
-the new Local channel in the multi-party case. The fixed target route must
-retain that parent obligation while running `Dial()`/`Queue()`, and the
-per-callee admission Gosub then creates claims for each resulting member leg.
-Whether Local-channel optimization, call forwarding, non-PJSIP technologies,
-or any other supported path preserves or invokes the same owner is still an
-explicit coverage proof, not an assumption.
+the new Local channel in the multi-party case. For the multi-party path, the
+pinned implementation is `main/core_local.c` plus `main/core_unreal.c` (not a
+`channels/chan_local.c` module). `ast_request("Local", ..., transferer, ...)`
+returns the Local owner (`;1`); the bridge transfer callback runs on that
+channel, then `ast_call(local, ...)` invokes the Local driver's call method.
+That method calls `ast_unreal_call_setup(owner, chan)` to copy channel variables
+and inherit datastores from `;1` to its paired `;2`, then starts the target
+context on `;2` with `ast_pbx_start()`. The fixed target dialplan therefore
+needs its own check before further dialplan work can create legs. Its later
+`Dial()`/`Queue()` per-callee hook can validate the copied parent operation and
+create distinct pending claims for each target branch.
+
+This closes the *ordering* question for the ordinary multi-party Local path,
+not the failure or complete-lifecycle questions. The `;1` to `;2`
+`ast_channel_datastore_inherit()` uses the same fallible duplicate behavior:
+allocation or duplicate-payload failure can omit usable state without making
+the Local call fail. The target context must start in a generated guard that
+validates the operation marker and terminates the Local call path before it can
+reach any dial, queue, redirect, or other call-producing application if state
+is absent or malformed. The Local request in the transfer path has no `/n`
+option, so Local optimization is not disabled; the marker and operation/child
+claim lifetimes must remain correct through Local optimization/masquerade and
+the ultimate channel's terminal events. The fixed target route must retain the
+parent operation obligation while running `Dial()`/`Queue()`. Whether
+optimization, call forwarding, non-PJSIP technologies, or any other supported
+path preserves or invokes the same owner is still an explicit coverage proof,
+not an assumption.
 
 The callback itself returns `void`, so any callback-side condition that could
 leave the transfer queued/executing without a valid claim must fail closed.
@@ -3664,6 +3685,11 @@ channel/bridge settlement. Assert that target answer and every forked leg are
 independently correlated; a transferee frame or bridge-entry signal alone is
 not the per-leg proof. Pin and assert the effective `refer_blind_progress`
 setting; the permissive 200 fallbacks must not satisfy the success threshold.
+For multi-party transfer, test claim presence on the callback's Local `;1`
+channel, paired `;2` after `ast_unreal_call_setup()`, guarded target dialplan,
+and each real target callee; inject duplicate-datastore/payload failure and
+prove that no unowned target call is signaled. Exercise both Local optimization
+outcomes and reconcile the operation claim with the final target channel state.
 The design must also prove that DTMF blind transfer and parking are either
 interposed or disabled. Only then design the finite synthetic proof around the matrix above.
 If the chosen path cannot be interposed without a zero-count gap or bypass,
