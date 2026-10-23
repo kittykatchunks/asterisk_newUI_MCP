@@ -20,7 +20,7 @@ $mounts = @(
     '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-conformance.json'),target=/vectors.json,readonly"
 )
 function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [switch]$Writable) {
-    $name = "$owner-$Mode"
+    $name = "$owner-$($Mode.Replace(':', '-'))"
     $names.Add($name)
     $access = if ($Writable) { '' } else { ',readonly' }
     $output = & docker run --name $name --label $label @common --user $User @Extra `
@@ -184,6 +184,46 @@ try {
         throw 'Fresh connection was not reauthenticated after restart.'
     }
     Write-Output 'PASS explicit crash/restart: old connection closes without response, stale connect/startup fail, recorded inode removed only after exit, fresh authenticated read succeeds without replay.'
+    $corpus = Start-TestBroker 'server-corpus'
+    $vectors = Get-Content -Raw (Join-Path $root 'tests\identity\broker-conformance.json') | ConvertFrom-Json
+    $corpusModes = @('foreign') + @(0..($vectors.cases.Count - 1) | ForEach-Object { "$_" }) +
+        @(0..($vectors.sourceCases.Count - 1) | ForEach-Object { "source:$_" }) + @('reconnect')
+    foreach ($mode in $corpusModes) {
+        $user = if ($mode -eq 'foreign') { '1103:2100' } else { '1102:2100' }
+        Invoke-Client "corpus-$mode" $user
+        $identity = $identities[-1]
+        $corpusLogs = @(& docker logs $corpus)
+        if ($LASTEXITCODE -ne 0) { throw 'Could not read corpus broker identity.' }
+        $corpusIdentity = ($corpusLogs[0] | ConvertFrom-Json).identity
+        if ($identity.uid_map -ne $corpusIdentity.uid_map -or $identity.gid_map -ne $corpusIdentity.gid_map -or
+            $identity.userNamespace -ne $corpusIdentity.userNamespace -or
+            $identity.pidNamespace -eq $corpusIdentity.pidNamespace -or
+            $identity.mntNamespace -eq $corpusIdentity.mntNamespace) {
+            throw 'Corpus client namespace topology differs from approved mapping/separation.'
+        }
+    }
+    $corpusExit = & docker wait $corpus
+    if ($LASTEXITCODE -ne 0 -or "$corpusExit" -ne '0') { throw 'Separate-container corpus broker failed.' }
+    $corpusEvents = @((& docker logs $corpus) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read final corpus evidence.' }
+    $requestsAccepted = @($vectors.cases | Where-Object { $null -ne $_.expected }).Count
+    $sourcesAccepted = @($vectors.sourceCases | Where-Object { $_.valid }).Count
+    $expectedRejected = $vectors.cases.Count + $vectors.sourceCases.Count - $requestsAccepted - $sourcesAccepted
+    $result = $corpusEvents[-1]
+    if ($result.reads -ne ($requestsAccepted + $sourcesAccepted + 1) -or
+        $result.sourceEntries -ne ($requestsAccepted + $vectors.sourceCases.Count + 1) -or
+        $result.rejected -ne $expectedRejected -or $result.denied -ne 1) {
+        throw 'Separate-container corpus counters did not match the shared vectors.'
+    }
+    $corpusPeers = @($corpusEvents | Where-Object { $_.peer })
+    if ($corpusPeers.Count -ne $corpusModes.Count) { throw 'Missing per-connection kernel peer evidence.' }
+    for ($index = 0; $index -lt $corpusPeers.Count; $index++) {
+        $expectedUid = if ($index -eq 0) { 1103 } else { 1102 }
+        if ($corpusPeers[$index].peer.uid -ne $expectedUid -or $corpusPeers[$index].peer.gid -ne 2100) {
+            throw 'Unexpected kernel identity in corpus connection.'
+        }
+    }
+    Write-Output "PASS separate-container corpus: $($vectors.cases.Count) framing/request and $($vectors.sourceCases.Count) source-output cases, foreign denial, per-case source assertions and approved reconnect."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

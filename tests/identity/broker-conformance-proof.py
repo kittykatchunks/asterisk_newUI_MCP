@@ -139,7 +139,7 @@ def readback(text, source=None, on_source=None):
     raise ValueError("Unsupported fields/action")
 
 
-def server(path):
+def server(path, require_visible_pid=True):
     unprivileged()
     assert os.getuid() == BROKER_UID
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -163,7 +163,9 @@ def server(path):
             with connection:
                 deadline = time.monotonic() + 5
                 pid, uid, gid = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
-                if uid != UID or gid != GID or pid <= 0:
+                if not require_visible_pid:
+                    print(json.dumps({"peer": {"pid": pid, "uid": uid, "gid": gid}}), flush=True)
+                if uid != UID or gid != GID or (require_visible_pid and pid <= 0):
                     denied += 1
                     continue
                 before = source_entries

@@ -163,6 +163,13 @@ def remove_stale():
 
 
 def client(mode):
+    if mode.startswith("corpus-"):
+        index = mode.removeprefix("corpus-")
+        assert (os.getuid(), os.getgid()) == ((1103, 2100) if index == "foreign" else (1102, 2100))
+        assert set(os.getgroups()) == {2100}
+        protocol.client(PATH, index)
+        emit({"corpusCase": index})
+        return
     expected = {
         "foreign": (1103, 2100), "wrong-gid": (1102, 2101),
         "filesystem-denied": (1104, 2101),
@@ -234,9 +241,16 @@ def client(mode):
         connection.close()
 
 
-signal.alarm(60 if sys.argv[1].startswith("server") else 15)
+signal.alarm(180 if sys.argv[1] == "server-corpus" else 60 if sys.argv[1].startswith("server") else 15)
 identity()
-if sys.argv[1] in ("server", "server-crash", "server-restarted"):
+if sys.argv[1] == "server-corpus":
+    assert (os.getuid(), os.getgid()) == (1101, 2100) and set(os.getgroups()) <= {2100}
+    directory = os.lstat("/socket/broker")
+    assert stat.S_ISDIR(directory.st_mode) and stat.S_IMODE(directory.st_mode) == 0o750
+    assert (directory.st_uid, directory.st_gid) == (1101, 2100)
+    os.umask(0o117)
+    protocol.server(PATH, require_visible_pid=False)
+elif sys.argv[1] in ("server", "server-crash", "server-restarted"):
     server(sys.argv[1])
 elif sys.argv[1] == "remove-stale":
     remove_stale()

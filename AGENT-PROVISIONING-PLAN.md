@@ -1230,17 +1230,17 @@ Verified subset:
 - Normal completion removes only the same verified socket inode. Cleanup checks
   exact recorded container names plus owner labels, removes their IDs, then
   removes the exact labelled volume only if container cleanup succeeded.
-  Readiness is bounded, broker alarm is 60 seconds, client alarms are 15 seconds;
+  Readiness is bounded, ordinary broker alarm is 60 seconds, client alarms are 15 seconds;
   no service is intentionally left running.
 
-This subset uses Python clients, not the entire shared vector corpus across
-separate containers. Namespace identifiers can be reused after sequential client
+This subset uses Python clients; the follow-up below adds the entire shared
+vector corpus across separate containers. Namespace identifiers can be reused after sequential client
 containers exit; only client-versus-live-broker separation is asserted. The
 observed rootful/default-map topology does not establish rootless/remapped user
 namespace support. Same-UID compromise remains outside this identity policy.
 
 Still open from section 9.11: broader namespace configurations and
-separate-container full conformance/lifecycle coverage. The bounded explicit
+separate-container Node-client and concurrent lifecycle coverage. The bounded explicit
 crash/restart case is recorded below, not a general recovery policy.
 No automatic restart, production listener, control access or later acceptance
 gate is implemented or approved by these results.
@@ -1286,3 +1286,28 @@ safety or a production stale-path policy. The protected fixture directory and
 stopped owned containers exclude concurrent writers during cleanup; the
 stat/connect/stat/unlink sequence is not claimed atomic against a hostile broker
 UID or host administrator.
+
+The shared-corpus follow-up starts an additional sequential broker after the
+explicit restart proof completes. It reuses the existing conformance server and
+client functions instead of copying their schema/framing checks. Its test-only
+`require_visible_pid=False` setting applies the explicitly approved separate-PID
+namespace policy; the default remains true for all older single-container runs.
+Every accepted socket records kernel PID/UID/GID. Peer PID remains evidence only,
+while exact UID/primary GID controls access.
+
+The launcher creates a fresh non-root client container per case: foreign UID
+first, all 36 request/framing cases, all 28 source-output cases, then approved
+reconnect. Client socket mounts are read-only; only the broker can publish/remove
+the socket. Client-versus-live-broker maps, user namespace equality and distinct
+PID/mount namespaces are checked for every case. Server per-case source-entry
+assertions and framing/JSON error categories remain active. Final successful
+response, source-entry, rejection and foreign-denial counters are derived from
+the same shared vectors; kernel peer tuples must match every expected client.
+
+The corpus broker has an explicit 180-second process alarm to allow bounded
+container startup overhead, five-second connection budgets and a ten-second
+accept wait. Each client retains its 15-second process alarm and existing socket
+budget. Cleanup retains every recorded container until the run ends for evidence,
+then removes only owner-labelled resources. Passing this complete finite corpus
+does not establish full protocol equivalence, remapped user-namespace support or
+concurrent lifecycle behaviour across containers; those remain distinct gaps.

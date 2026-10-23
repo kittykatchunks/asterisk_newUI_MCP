@@ -2635,8 +2635,9 @@ The proof checks inventory/generation readback, read-only and writable-mount
 worker publication denial (the writable case requires permission denial, not
 cross-device failure), duplicate broker exclusion and successful subsequent
 approved reads. Exact source/denial counters are checked. It reuses the Python
-protocol functions, not a new production server; this subset uses Python clients
-and does not run the entire shared vector corpus across containers.
+protocol functions, not a new production server; this subset uses Python clients.
+The subsequent corpus phase runs all shared vectors across containers as
+described below.
 
 Every runtime has network disabled, read-only root, explicit limits and only
 three read-only fixture inputs. Cleanup removes only recorded containers matching
@@ -2664,8 +2665,24 @@ is recorded. No request is automatically replayed. This is an isolated,
 before-source crash case, not general crash recovery, atomic hostile-writer
 protection, automatic restart or production stale-socket removal policy.
 
-Broader namespace configurations and separate-container full conformance/lifecycle
-coverage remain future cases. Conflicting-path preservation is not proof of general
+The launcher now also starts a sequential conformance broker and a new client
+container for each of the 36 request/framing and 28 source-output cases, plus a
+foreign-UID denial and final approved reconnect. It reuses the existing corpus
+server/client functions, retaining per-case source-entry and failure-category
+checks, including exact inventory bounds and delayed EOF. Every client must have
+the approved user-namespace mapping and separate PID/mount namespaces from the
+live broker. Every accepted socket's kernel tuple and final counters are checked.
+The corpus broker records peer PID without requiring visibility; the original
+single-container server still requires positive PID by default.
+
+The extra corpus phase has a 180-second broker alarm, five-second connection
+budgets, ten-second accept waits and 15-second client process alarms. It creates
+only owned labelled containers on the same isolated volume and uses no new
+mounts or runtime network access. Successful finite-corpus conformance is not
+proof of all protocol behaviour.
+
+Broader namespace configurations, Node clients and concurrent lifecycle coverage
+across separate containers remain future cases. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
