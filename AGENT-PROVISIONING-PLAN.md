@@ -1089,3 +1089,98 @@ is a valid control case and still succeeds. Existing last-field-wins parsing
 matches TypeScript; no new duplicate-key policy or text filtering is introduced.
 This changes the test-only Python fixture, not the production TypeScript parser,
 and does not establish equivalence for every JSON edge case.
+
+### 9.11 Planned separate-container identity and socket-publication experiment
+
+Decision recorded 23 October 2026: plan this experiment before implementation.
+This section approves neither running it nor selecting a production runtime.
+It extends the existing unprivileged read-only fixture only; PBX/control sockets,
+managed configuration, credentials, mutation and network listeners remain out
+of scope. Existing single-container PASS results are not deployment evidence.
+
+#### Topology and ownership
+
+- A future dedicated launcher creates one uniquely named and ownership-labelled
+  Docker volume plus separate broker and worker containers. Use local immutable
+  image IDs from the existing test-only images; do not pull/build implicitly.
+  Do not reuse an operator/customer volume, Windows host bind mount, or existing
+  socket directory. A Docker-managed Linux volume tests that backing filesystem,
+  not all production filesystems.
+- Use distinct default PID/mount namespaces, `--network none`, read-only roots,
+  no-new-privileges and zero runtime capabilities. Do not use privileged mode,
+  host PID/user namespace flags, Docker socket mounts or extra device access.
+  Retain explicit per-container CPU/memory/PID limits and bounded subprocess
+  lifetimes. No repository-wide mount is needed.
+- A short-lived, separately labelled setup container may initialise only the
+  new volume's exact socket subdirectory, owned by broker UID 1101 / GID 2100,
+  mode 0750. It has only the capability needed to establish ownership and exits
+  before either runtime starts. Do not recursively chown a shared parent or
+  relax directory permissions after a failed test.
+- The broker runs as 1101:2100 with the volume writable; the worker runs as
+  1102:2100 with the socket directory mounted read-only. Bind mode is not
+  authentication: a read-only mount may still permit connecting to a Unix
+  socket. Kernel credentials and filesystem mode checks remain mandatory.
+  Node clients need only their fixture, vectors and framing helper read-only.
+- Foreign clients are separate short-lived containers with exact test identities.
+  Only the broker writes/unlinks the socket entry. The host launcher owns
+  lifecycle coordination, not application identity assertions.
+
+#### Namespace evidence before making identity claims
+
+Record the daemon security/rootless/user-namespace configuration relevant to
+the run and each fixture process's numeric UID/GID, supplementary groups,
+`uid_map`, `gid_map`, effective capabilities and PID/user namespace links.
+Do not collect unrelated host/container environment or credentials.
+
+On each accepted connection, acquire `SO_PEERCRED` from that socket before frame
+read, recording the observed tuple in test evidence. Compare UID/primary GID
+against the explicitly declared policy in the broker's namespace. A client
+claim in JSON, its container's numeric UID alone, or an inspected container name
+is not a substitute for the observed credentials. Unmapped/overflow identities
+must fail closed; unexpected mappings block the run rather than silently changing
+the allowlist. One passing daemon mapping does not approve all user namespaces.
+
+Do not carry over the single-container assumption that peer PID is positive and
+equals a client-local PID. Cross-PID-namespace observations can differ or be zero.
+Measure and report them; PID is not authentication or process attestation. Before
+implementation, explicitly decide whether this fixture authorises by mapped
+UID/primary GID alone when PID is not visible, or treats that environment as
+unsupported. Do not silently weaken the existing fixture's checks.
+
+#### Required cases and measurable outcomes
+
+| Case | Required result |
+| --- | --- |
+| Approved worker | Exact mapped UID/primary GID observed before read; valid inventory/generation replies match the shared corpus; runtime identities have zero effective capabilities. |
+| Foreign UID, same socket group | Filesystem connection may succeed, but broker denies before any frame read/source entry; no success bytes. |
+| Wrong primary GID with approved supplementary group | Where the measured namespace/group setup supports the case, traversal/connect may succeed but broker still denies before read. Supplementary group membership must not substitute for the primary-GID policy. |
+| No socket-directory group | Filesystem connect fails; no broker admission/source access. Distinguish this from protocol-level denial. |
+| Worker publication attempts | Approved worker cannot create, unlink, rename or replace entries in its read-only socket mount. Repeat against a temporary writable mount of this fixture volume with the same worker identity, proving broker directory ownership/mode rather than mount mode alone. Touch no paths outside that volume. |
+| Sequential availability | A denied client does not kill the broker or consume its slot indefinitely; a fresh approved connection succeeds afterward. |
+| Duplicate broker | A second broker fails on the live pathname without unlinking it or serving on a fallback path; original broker remains reachable. No pre-bind unconditional stale-socket removal. |
+| Broker exit and explicit restart | Observe existing-connection loss and new-connect failure, then restart only through explicit parent control after verifying the old owned container has exited. Remove only the verified fixture-owned stale socket, if present. Fresh approved clients must reconnect and reauthenticate; no replay of old requests. |
+| Conflicting publication state | A regular file or symlink at the expected pathname makes startup fail without overwriting/following it. Create these only in the newly owned fixture volume after stopping the broker. |
+| Bounds and cleanup | Explicit readiness and per-case deadlines; failures retain diagnostics and fail the launcher. Stop/remove only recorded container IDs with matching ownership labels, then remove only the exact newly created labelled volume after owned containers are gone. |
+
+Socket publication uses a fixed path under the protected directory, not a
+client-supplied pathname. Restrict socket mode at creation (for example with a
+restrictive process umask), verify final owner/mode before readiness, and never
+make an unverified socket available as ready. An existing connection remains
+bound to its original accepted socket: pathname replacement cannot transfer its
+identity. The restart case is test-driven operator action, not automatic
+supervision, recovery mutation or a selected production rotation policy.
+
+#### Stop conditions and approval boundary
+
+Stop on unexpected namespace mappings, missing kernel credential support,
+unexplained permissions, inability to verify owned cleanup, or any need for host
+namespace/privileged access. Report unsupported environments separately from
+passing cases; do not use success-shaped skips. Do not fix a failing mapping by
+granting DAC override, broad supplementary groups or world-writable directories.
+
+Before implementation, confirm the peer-PID visibility policy above and approve
+the dedicated launcher/labelled-volume scope. A successful experiment would
+support only the measured separate-container fixture topology. It would not
+choose native binding/helper/Python production integration, solve same-UID
+compromise, establish production supervision or complete the control-access,
+secret, crash-durability, routing/dialog and independent-expiry gates.

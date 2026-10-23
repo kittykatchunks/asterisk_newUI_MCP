@@ -2604,6 +2604,14 @@ identity-map proof or completion of the broker acceptance gate.
 
 #### Broker OS identity integration: production option still unselected
 
+The [separate-container experiment plan](./AGENT-PROVISIONING-PLAN.md#911-planned-separate-container-identity-and-socket-publication-experiment)
+now defines an isolated labelled socket volume, separate broker/worker
+namespaces, mapped UID/GID evidence, denial/publication/restart cases and bounded
+owned cleanup. This is **planning only**, not an implemented launcher or a run.
+It explicitly separates read-only socket mounts from peer authentication and
+requires a decision on cross-namespace peer-PID visibility before implementation.
+No production topology, runtime or privileged probe is selected.
+
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
 separates tested read-only interoperability from unproved parity/deployment
 behaviour. The request-version forms and independent source-entry accounting
