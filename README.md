@@ -3447,13 +3447,21 @@ do not assign `pre_call` overrides, but deployment must reject or separately
 audit out-of-tree drivers that could replace the configured admission Gosub.
 AMI Originate, ARI Stasis channel dialing, and `ast_dial` callers can also
 place calls outside Dial/Queue; their optional/absent predial Gosubs are not a
-universal admission gate, so those APIs must be gated or restricted.
+universal admission gate, so those APIs must be gated or restricted. Unlike
+the `Dial()`/`Queue()` app-forward paths, generic `ast_dial` re-runs its
+predial callback on a forwarded replacement when that caller configured one;
+this remains opt-in and must not depend on inherited state if no requestor
+channel exists.
 The broader Asterisk 22.11 `ast_call()` inventory adds `FollowMe()`, core
 call-forward/request-and-dial, bridge transfer, parking-feature, and DAHDI/PRI
 idle-dial paths. These are not uniformly covered by dialplan callee hooks:
 each must be explicitly admitted at its path or excluded by deployment policy.
 Attended-transfer targets/recalls and parking remain outside the initial
-supported set unless separately integrated or disabled.
+supported set unless separately integrated or disabled. A source-wide scan
+found channel technology `->call()` dispatch only inside core `ast_call()`,
+which has no admission callback; this is a possible core interception point,
+but Local/control channels, child-claim accounting, lock ordering, and internal
+PJSIP redirects remain unresolved design constraints—not implementation approval.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning

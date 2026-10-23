@@ -3653,6 +3653,16 @@ The generic `ast_dial` API likewise executes the predial callback only when
 its caller explicitly enables that optional setting
 ([option is caller-set](https://github.com/asterisk/asterisk/blob/22.11.0/main/dial.c#L199-L205),
 [conditional invocation](https://github.com/asterisk/asterisk/blob/22.11.0/main/dial.c#L418-L426)).
+Its forwarding path differs from the `Dial()`/`Queue()` application bypass:
+`handle_call_forward()` drops the old owner and re-enters
+`begin_dial_channel()`, which requests the replacement and runs the same
+configured predial callback before its `ast_call()`
+([forward re-entry](https://github.com/asterisk/asterisk/blob/22.11.0/main/dial.c#L498-L547),
+[replacement request, inheritance, and predial](https://github.com/asterisk/asterisk/blob/22.11.0/main/dial.c#L330-L426)).
+This is still conditional coverage, not a universal guarantee: every
+`ast_dial` caller must configure and preserve the admission callback, and the
+callback must not rely on inherited parent state when that caller has no
+requestor channel. Alternatively, that instance must disable forwarding.
 These paths must be included in the supported call matrix: either provide a
 PBX-owned serialized gate before every direct `ast_call()`/originate operation,
 or disable/restrict the relevant AMI/ARI surfaces and in-process callers.
@@ -3692,6 +3702,28 @@ those APIs and the two dialplan applications:
   `ast_call()` ([idle dial](https://github.com/asterisk/asterisk/blob/22.11.0/channels/sig_pri.c#L2007-L2029)).
   If this driver/feature is present, deployment policy must classify and
   restrict it so maintenance traffic cannot become an unclaimed customer leg.
+
+A source-wide scan of the pinned C tree found one invocation of a channel
+technology's `->call()` method: the dispatch inside core `ast_call()`
+([dispatch and lock scope](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L6478-L6492)).
+That function checks channel state and invokes the technology method while
+holding the channel lock; it does not invoke `ast_pre_call()` or any common
+admission callback. This makes `ast_call()` the strongest candidate boundary
+for a core-level admission hook, not evidence that such a hook already exists.
+It also means dialplan Gosubs alone cannot establish complete coverage of the
+enumerated source-tree callers.
+
+If that boundary is explored, its contract must distinguish a Local/control
+channel call (which can start dialplan, join a bridge, or perform a
+masquerade) from the eventual customer-facing channel-driver call. It must
+avoid both an unclaimed route through a Local channel and double-counting the
+same logical leg at Local and terminal channels. It must also define behavior
+for calls with no trusted parent claim, the current channel-lock ordering,
+claim settlement on failed calls, and non-customer maintenance/diagnostic
+calls. A core `ast_call()` hook would still not observe a PJSIP 3xx target
+followed internally by `chan_pjsip`; that technology-level redirect needs its
+own gate or exclusion. Treat a central hook as a feasibility/design candidate
+only; no core patch or implementation is selected.
 
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
