@@ -3080,6 +3080,30 @@ listener and validation are unchanged. The selector is cleared for fresh
 inventory recovery after each corpus. Exact diagnostic counts exclude hidden
 failures or success-shaped fallback.
 
+The implementation now has a focused separate-container check:
+
+```powershell
+.\scripts\Test-PythonBrokerContainers.ps1
+```
+
+It runs the actual Python module as broker UID 1101/GID 2100 with no capabilities,
+network disabled, read-only root and fixed resource limits. Six fresh clients
+use a shared labelled socket volume mounted read-only on the client side.
+Python and Node foreign-UID clients must be denied; a worker with wrong primary
+GID but supplementary socket-group access must also be denied. Approved Python
+inventory, Node generation and Node inventory reads must match exact expected
+responses. Final source calls must be three, with exactly three peer denials.
+
+The launcher checks default UID/GID maps, shared user namespace and distinct
+broker/client PID and mount namespaces, with runtime-specific completion records.
+Denied sibling peers must be recorded with kernel PID zero and exact UID/GID;
+PID is not an authorization input. Parent `SIGUSR1` requests only test-owned
+clean stop; the fixture verifies socket removal before successful exit.
+Temporary containers/volume are cleaned using exact names plus ownership labels.
+Only setup receives CHOWN; broker and clients remain capability-free.
+This is focused deployment-topology evidence, not the old fixture's full
+separate-container lifecycle/corpus coverage or a production service launcher.
+
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.
 Implementation-specific integration coverage, concrete read-only source wiring

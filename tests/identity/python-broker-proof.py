@@ -8,7 +8,9 @@ import logging
 import multiprocessing
 import os
 import queue
+import re
 import select
+import signal
 import socket
 import stat
 import struct
@@ -677,7 +679,95 @@ def authenticated_corpus_proof(source_outputs=False):
     print(f"PASS implementation authenticated corpus: all {description} via Python and Node, per-request source accounting, exact diagnostics and fresh recovery")
 
 
+def container_identity():
+    assert os.getuid() != 0
+    with open("/proc/self/status", encoding="ascii") as file:
+        assert re.search(r"^CapEff:\s+0+$", file.read(), re.MULTILINE)
+    identity = {"uid": os.getuid(), "gid": os.getgid(), "groups": os.getgroups()}
+    for name in ("uid_map", "gid_map"):
+        with open(f"/proc/self/{name}", encoding="ascii") as file:
+            identity[name] = file.read().split()
+        assert identity[name] == ["0", "0", "4294967295"]
+    for name in ("pid", "mnt", "user"):
+        identity[name] = os.readlink(f"/proc/self/ns/{name}")
+    print(json.dumps({"identity": identity}), flush=True)
+
+
+def container_server():
+    assert (os.getuid(), os.getgid()) == (1101, 2100)
+    stop, ready = threading.Event(), threading.Event()
+    records = []
+
+    class EvidenceHandler(logging.Handler):
+        def emit(self, record):
+            message = record.getMessage()
+            records.append(message)
+            print(json.dumps({"diagnostic": message}), flush=True)
+
+    broker.LOG.handlers = [EvidenceHandler()]
+    broker.LOG.propagate = False
+    broker.LOG.setLevel(logging.WARNING)
+    source = FakeSource()
+    old = signal.signal(signal.SIGUSR1, lambda _signal, _frame: stop.set())
+
+    def publish_ready():
+        if ready.wait(5):
+            print(json.dumps({"ready": True}), flush=True)
+
+    observer = threading.Thread(target=publish_ready)
+    observer.start()
+    try:
+        broker.Broker(binding, source).serve("/socket/broker/readback.sock", stop, ready)
+        assert source.calls == 3, source.calls
+        assert len(records) == 3 and all(message.startswith("Broker peer denied:") for message in records), records
+        assert not os.path.exists("/socket/broker/readback.sock")
+        print(json.dumps({"complete": True, "sourceCalls": source.calls, "peerDenials": len(records)}), flush=True)
+    finally:
+        signal.signal(signal.SIGUSR1, old)
+        observer.join(6)
+        assert not observer.is_alive()
+
+
+def container_client(mode, runtime):
+    denied = mode in ("foreign", "wrong-gid")
+    expected = (1103, 2100) if mode == "foreign" else (1102, 2101) if mode == "wrong-gid" else (1102, 2100)
+    assert (os.getuid(), os.getgid()) == expected
+    assert mode in ("foreign", "wrong-gid", "inventory", "generation") and runtime in ("python", "node")
+    path = "/socket/broker/readback.sock"
+    if runtime == "node":
+        assert mode != "wrong-gid"
+        result = subprocess.run(
+            ["node", "/tests/identity/broker-cross-client.ts", path,
+             "foreign" if denied else "generation-reconnect" if mode == "generation" else "reconnect"],
+            capture_output=True, text=True, timeout=10)
+        assert result.returncode == 0 and result.stdout == "" and result.stderr == "", result.stderr
+    else:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(5)
+            connection.connect(path)
+            if denied:
+                assert connection.recv(1) == b""
+            else:
+                vector = vectors["cases"][1 if mode == "generation" else 0]
+                connection.sendall(broker.encode_frame(vector["text"], 8192))
+                connection.shutdown(socket.SHUT_WR)
+                data = bytearray()
+                while chunk := connection.recv(4096):
+                    data.extend(chunk)
+                assert decode(data) == vector["expected"]
+    print(json.dumps({"complete": True, "mode": mode, "runtime": runtime}), flush=True)
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        signal.alarm(30)
+        container_identity()
+        if sys.argv[1:] == ["container-server"]:
+            container_server()
+        else:
+            assert len(sys.argv) == 4 and sys.argv[1] == "container-client"
+            container_client(sys.argv[2], sys.argv[3])
+        sys.exit(0)
     if not unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(ProtocolTests)).wasSuccessful():
         sys.exit(1)
     for scenario in ("deadline", "peer loss", "shutdown"):

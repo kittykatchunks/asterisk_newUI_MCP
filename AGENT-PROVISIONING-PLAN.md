@@ -1854,11 +1854,42 @@ count, using only fixed connection-rejection messages; no source exception,
 terminal event, capacity denial or missing-state fallback may pass. This reuses
 the authenticated request-corpus harness without changing runtime code.
 
+The first implementation-specific separate-container check is
+[scripts/Test-PythonBrokerContainers.ps1](./scripts/Test-PythonBrokerContainers.ps1).
+It uses the existing image resolved locally to its immutable ID; it never builds
+or pulls implicitly. A temporary owner-labelled volume contains the broker-owned
+0750 directory. Setup alone receives CHOWN; the actual broker UID 1101/GID 2100
+and all six clients run capability-free with network none, read-only root,
+no-new-privileges, pids 16, memory 96 MiB and one CPU. Client socket-volume mounts
+are read-only.
+
+Python and actual Node foreign-UID clients must receive zero-byte EOF; a worker
+with primary GID 2101 and supplementary GID 2100 must likewise be rejected.
+Approved Python inventory, Node generation and Node inventory reads require exact
+responses. The same actual module owns every accepted socket and performs kernel
+identity lookup; no fixture server or supplied peer identity is substituted.
+Final counts require exactly three source calls and three fixed peer-denial
+diagnostics. The diagnostic PID must be zero for sibling namespace peers, while
+UID/primary GID remain exact authorization inputs.
+
+The launcher requires default maps and matching user namespace, separate
+broker/client PID and mount namespaces, exact UID/GID/group sets and explicit
+Python/Node completion. Parent `SIGUSR1` is a private fixture stop event, not a wire
+operation. The fixture must return cleanly and verify socket removal before its
+completion record. Exact named/labelled resources are cleaned on success/failure;
+no unrelated containers or volumes are touched.
+
+This establishes focused implementation-topology evidence only. It does not
+inherit the old fixture's entire separate-container corpus, blocked-source or
+terminal-schedule coverage, and is not production packaging/supervision.
+
 This is the first implementation slice, not inherited production certification
-from fixture tests. Separate-container, terminal-schedule, blocked-write and broader
-filesystem-race checks still need implementation-specific evidence before
+from fixture tests. Broader separate-container lifecycle, terminal-schedule,
+blocked-write and filesystem-race checks still need implementation-specific evidence before
 deployment. The real-process peer-loss and draining-shutdown cases above
-are covered, but are not separate-container or arbitrary-schedule proofs.
+are covered, but are not separate-container or arbitrary-schedule proofs. The
+focused separate-container readback/denial/shutdown check above covers only its
+explicit topology and operations.
 Existing fixture results do not automatically cover the new
 code. Production packaging/supervision and a concrete read-only source adapter
 remain next integration work; real-source authority and privileged gates remain
