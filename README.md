@@ -3634,11 +3634,16 @@ realm/MD5 cache and stale counter
 [cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1790)).
 The cache key also omits the WWW-versus-Proxy challenge class: sequential 401
 and 407 challenges with the same case-insensitive realm and resolved algorithm
-reuse the cached context and stale count, although the Authorization header
-class and authenticating peer differ. Verify this explicitly in multi-hop
-scenarios
+reuse the same cached auth context, although the Authorization header class
+and authenticating peer differ. Stale-state evaluation and counter increment
+also require a prior Authorization header matching the challenge's class,
+realm, and scheme, so cross-class cache reuse alone does not guarantee the
+counter advances. Verify cache reuse separately from counter advancement in
+multi-hop scenarios, both with and without a matching prior class-specific
+header
 ([lookup key](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L814-L840),
-[cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1796)).
+[cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1796),
+[stale-state check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675)).
 The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
 deployed value: the counter increments before its `>=` check, so the default
 allows two stale retries, and a third stale challenge ends pjproject's retry
