@@ -2792,6 +2792,15 @@ response. Both held source results must be discarded after source-settled
 evidence and immediately before slot-release evidence, with zero send attempts.
 This checks the server path even after the original clients have exited; a
 failed write to a closed connection cannot masquerade as deliberate suppression.
+The held and recovery inventory sources also return distinguishable fixture
+values: source entries five through eight use the baseline `notAfter` plus
+their entry number. Delivery evidence requires discarded values `160005` and
+`160007`; the Python and Node recovery clients independently require exact
+inventories with `160006` and `160008`. Returning the old baseline or a discarded
+result therefore fails recovery, even if a new source-entry counter increments.
+These are synthetic fixture values, not real credential deadlines or a wire
+schema change. The original shared corpus and single-container lifecycle retain
+their existing expected responses.
 It does not establish simultaneous cancellation/deadline
 race safety or cancellation after a successful response.
 

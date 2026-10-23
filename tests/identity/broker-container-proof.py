@@ -179,8 +179,6 @@ def client(mode):
         if index in ("capacity-no-eof", "capacity-held", "capacity-expired", "capacity-cancelled",
                      "capacity-cancel-deadline"):
             index = "capacity"
-        elif index in ("held-reconnect", "cancel-reconnect"):
-            index = "reconnect"
         elif index == "cancel-held":
             index = "held-source"
         assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}

@@ -11,12 +11,20 @@ assert.equal(process.getgid?.(), 2100);
 assert.match(await readFile("/proc/self/status", "utf8"), /^CapEff:\s+0000000000000000$/m);
 const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
   binding: { customer: string; epoch: string };
-  generation: { generationId: string };
+  generation: { generationId: string; notAfter: number; draining: boolean };
   cases: { name?: string; text?: string; hex?: string; padBytes?: number;
     delayEofMs?: number; trailingHex?: string; expected: unknown }[];
   sourceCases: { kind: string; value: unknown; inventoryCount?: number; valid: boolean }[];
 };
 let vector = vectors.cases[["reconnect", "restart-read"].includes(index) ? 0 : Number(index)];
+if (index === "held-reconnect" || index === "cancel-reconnect") {
+  const entry = index === "held-reconnect" ? 6 : 8;
+  const { customer, epoch } = vectors.binding;
+  vector = { ...vectors.cases[0], expected: {
+    version: 1, customer, epoch, action: "inventory",
+    generations: [{ ...vectors.generation, notAfter: vectors.generation.notAfter + entry }],
+  } };
+}
 if (index === "generation-reconnect") vector = vectors.cases[1];
 const passive = ["foreign", "idle", "capacity"].includes(index);
 const held = ["held-source", "failed-source", "failed-generation", "no-eof", "crash-wait"].includes(index);

@@ -1469,6 +1469,20 @@ silently treating a failed send as success. Fresh recovery clients still require
 exact inventory/generation responses; no replay, new wire action, resource
 privilege or production behavior is added.
 
+The freshness follow-up makes the two held-source inventory results and their
+recovery results distinguishable. In separate-container admission mode only,
+source entries five through eight return copied generation metadata with
+`notAfter` equal to the shared fixture baseline plus the source-entry number.
+The baseline object is not mutated. Delivery evidence requires values `160005`,
+`160006`, `160007`, `160008` for those entries, independently of response-attempt
+and discard assertions. Both Python and Node recovery clients build their exact
+expected inventory from the fixture baseline plus six or eight, respectively.
+Thus an old baseline or a discarded result cannot pass as the fresh recovery
+response merely because the broker logged another source entry. The new client
+modes are used only by these recovery steps; shared corpus and original
+single-container lifecycle behavior remain unchanged. No real clock, credential
+lifetime, production caching policy or protocol field is introduced.
+
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
 runtime completion and the existing resource/cleanup restrictions. No extra

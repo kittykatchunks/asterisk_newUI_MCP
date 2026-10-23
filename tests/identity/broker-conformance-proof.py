@@ -235,7 +235,13 @@ def client(path, index):
             vector = {"text": json.dumps(request), "expected": expected if source["valid"] else None}
         else:
             vector = VECTORS["cases"][1] if index == "generation-reconnect" else (
-                VECTORS["cases"][int(index)] if index != "reconnect" else VECTORS["cases"][0])
+                VECTORS["cases"][0] if index in ("reconnect", "held-reconnect", "cancel-reconnect")
+                else VECTORS["cases"][int(index)])
+            if index in ("held-reconnect", "cancel-reconnect"):
+                entry = 6 if index == "held-reconnect" else 8
+                vector = {**vector, "expected": {**vector["expected"], "generations": [
+                    {**VECTORS["generation"], "notAfter": VECTORS["generation"]["notAfter"] + entry}
+                ]}}
         text = vector.get("text", "")
         if "padBytes" in vector:
             text += " " * (vector["padBytes"] - len(text.encode("utf8")))
@@ -368,6 +374,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         before = counts["reads"]
         response_attempts = 0
         result_discarded = False
+        response = None
 
         def received(payload):
             vector = VECTORS["cases"][0]
@@ -401,6 +408,9 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                     assert expired.is_set() and slot.locked()
                     assert counts["capacity"] == (4 if entry == 5 else 6) and counts["reads"] == entry
                     event("source-settled")
+                if counts["reads"] >= 5:
+                    assert isinstance(default, list) and len(default) == 1
+                    return [{**default[0], "notAfter": default[0]["notAfter"] + counts["reads"]}]
                 return default
             if counts["reads"] in (1, 5):
                 release.clear()
@@ -515,6 +525,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                         "sourceEntries": counts["reads"], "responseAttempts": response_attempts,
                         "resultDiscarded": result_discarded, "terminal": expired.is_set(),
                         "slotLocked": slot.locked(),
+                        "inventoryNotAfter": (response["generations"][0]["notAfter"]
+                                              if response is not None and response["action"] == "inventory" else None),
                     }}), flush=True)
             slot.release()
             event("released")

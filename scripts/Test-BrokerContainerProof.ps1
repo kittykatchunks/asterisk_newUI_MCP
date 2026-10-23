@@ -460,6 +460,10 @@ try {
             $delivery.slotLocked -ne $true) {
             throw "Unexpected response delivery or terminal state at admission $index"
         }
+        if ($index -ge 6 -and $delivery.inventoryNotAfter -ne
+            ($vectors.generation.notAfter + $expectedSources[$index])) {
+            throw "Recovery inventory did not distinguish fresh and discarded source results at admission $index"
+        }
     }
     for ($index = 0; $index -lt $admissionEvents.Count; $index++) {
         if ($admissionEvents[$index].delivery.resultDiscarded -eq $true -and
