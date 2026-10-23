@@ -20,6 +20,8 @@ PATH = "/socket/broker/readback.sock"
 DISCONNECT_BYTES = {
     "disconnect-empty": 0, "disconnect-header-1": 1, "disconnect-header-2": 2,
     "disconnect-header-3": 3, "disconnect-header-only": 4, "disconnect-partial": 7,
+    "disconnect-body-last": len(protocol.VECTORS["cases"][0]["text"].encode("utf8")) + 3,
+    "disconnect-limit-last": 8195,
 }
 
 
@@ -214,7 +216,13 @@ def client(mode):
                     connection.connect(PATH)
                     count = DISCONNECT_BYTES[mode]
                     if count:
-                        connection.sendall(protocol.frame(protocol.VECTORS["cases"][0]["text"], 8192)[:count])
+                        text = protocol.VECTORS["cases"][0]["text"]
+                        if mode == "disconnect-limit-last":
+                            text = text.ljust(8192, " ")
+                        data = protocol.frame(text, 8192)
+                        if mode in ("disconnect-body-last", "disconnect-limit-last"):
+                            assert len(data) == count + 1
+                        connection.sendall(data[:count])
             runtime = "python"
         emit({"lifecycleCase": mode, "clientRuntime": runtime})
         return

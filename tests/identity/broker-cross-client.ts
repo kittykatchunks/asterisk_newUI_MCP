@@ -49,6 +49,8 @@ const socket = createConnection({ path, allowHalfOpen: true });
 const disconnectBytes: Readonly<Record<string, number>> = {
   "disconnect-empty": 0, "disconnect-header-1": 1, "disconnect-header-2": 2,
   "disconnect-header-3": 3, "disconnect-header-only": 4, "disconnect-partial": 7,
+  "disconnect-body-last": Buffer.byteLength(vectors.cases[0].text!, "utf8") + 3,
+  "disconnect-limit-last": 8195,
 };
 socket.setTimeout(passive || held ? 8000 : 5000, () => socket.destroy(new Error("Cross-runtime client timed out")));
 async function send() {
@@ -74,7 +76,13 @@ try {
   } else {
     await once(socket, "connect");
     if (Object.hasOwn(disconnectBytes, index)) {
-      const data = encodeBrokerFrame(vectors.cases[0].text!, "request").subarray(0, disconnectBytes[index]);
+      const text = index === "disconnect-limit-last" ?
+        vectors.cases[0].text!.padEnd(8192, " ") : vectors.cases[0].text!;
+      const frame = encodeBrokerFrame(text, "request");
+      if (index === "disconnect-body-last" || index === "disconnect-limit-last") {
+        assert.equal(frame.length, disconnectBytes[index] + 1);
+      }
+      const data = frame.subarray(0, disconnectBytes[index]);
       const finished = once(socket, "finish");
       socket.end(data);
       await finished;

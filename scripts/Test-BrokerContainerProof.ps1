@@ -485,8 +485,10 @@ try {
     Write-Output "PASS terminal delivery ($runtime clients): both late source results discarded without a send attempt before slot release; only four fresh successful reads attempt responses."
     $disconnect = Start-TestBroker 'server-disconnect'
     $disconnectModes = @('disconnect-empty', 'disconnect-header-1', 'disconnect-header-2',
-        'disconnect-header-3', 'disconnect-header-only', 'disconnect-partial')
-    $expectedDisconnectBytes = @(0, 1, 2, 3, 4, 7)
+        'disconnect-header-3', 'disconnect-header-only', 'disconnect-partial',
+        'disconnect-body-last', 'disconnect-limit-last')
+    $expectedDisconnectBytes = @(0, 1, 2, 3, 4, 7,
+        ([System.Text.Encoding]::UTF8.GetByteCount($vectors.cases[0].text) + 3), 8195)
     foreach ($mode in $disconnectModes) { Invoke-Client $mode '1102:2100' }
     Invoke-Client 'disconnect-reconnect' '1102:2100'
     $disconnectExit = & docker wait $disconnect
@@ -519,7 +521,7 @@ try {
     if ($disconnectResult.Count -ne 1 -or $disconnectResult[0].disconnects -ne $disconnectModes.Count -or
         $disconnectResult[0].responseAttempts -ne 1 -or $disconnectResult[0].sourceEntries -ne 1 -or
         $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
-    Write-Output "PASS request disconnect ($runtime clients): exact 0/1/2/3/4/7-byte boundaries close without source/send entry; fresh authenticated inventory succeeds."
+    Write-Output "PASS request disconnect ($runtime clients): exact header and one-byte-short body boundaries (including 8195 bytes) close without source/send entry; fresh authenticated inventory succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
