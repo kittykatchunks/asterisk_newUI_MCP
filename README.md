@@ -3068,6 +3068,18 @@ with no hidden peer-loss, deadline, source or capacity outcomes. Clean stop must
 remove the socket. This is same-container process integration, not yet proof of
 the implementation's separate-container deployment.
 
+The same authenticated-listener harness also exercises all 28 source-output
+vectors with each client runtime (56 fresh corpus connections). These requests
+are valid: every case must enter exactly one source, including rejected outputs.
+Invalid inventory/observation values must close with zero response bytes;
+valid outputs must match the complete expected response. This includes the
+100/101 inventory boundary, duplicate generations, unsafe numeric values,
+unexpected fields and invalid/null observations. A test-owned source selector
+stays inside the server process boundary, never in request JSON; the runtime
+listener and validation are unchanged. The selector is cleared for fresh
+inventory recovery after each corpus. Exact diagnostic counts exclude hidden
+failures or success-shaped fallback.
+
 The runtime choice is now approved; deployment is **not**. Prior experimental
 race/container/writer evidence is not automatically evidence for this new module.
 Implementation-specific integration coverage, concrete read-only source wiring

@@ -1837,6 +1837,23 @@ unexpected source/terminal/capacity outcomes. Clean shutdown removes the socket.
 This is implementation-specific same-container integration, not a claim that the
 experimental separate-container proof automatically covers this runtime.
 
+The authenticated corpus harness additionally runs all 28 shared source-output
+cases with Python and actual Node clients (56 fresh corpus connections, plus a
+fresh inventory read after each runtime). A protected test-process selector
+chooses adapter output, not customer/authority or a new wire field. Both source
+operations verify that the selected corpus kind matches the operation requested.
+The selector is reset before recovery so stale invalid output cannot be silently
+reused as the recovery source.
+
+Every source-output request is valid and must enter exactly once, including
+invalid outputs. Rejected values must produce zero response bytes; valid values
+must equal the complete expected inventory or observation. Covered shapes include
+100/101 inventory entries, duplicates, unsafe numbers, extra fields and null/
+malformed observations. Captured diagnostics must equal the exact invalid-case
+count, using only fixed connection-rejection messages; no source exception,
+terminal event, capacity denial or missing-state fallback may pass. This reuses
+the authenticated request-corpus harness without changing runtime code.
+
 This is the first implementation slice, not inherited production certification
 from fixture tests. Separate-container, terminal-schedule, blocked-write and broader
 filesystem-race checks still need implementation-specific evidence before

@@ -535,21 +535,48 @@ def publication_proof():
         print(f"PASS implementation publication: {scenario}, exact metadata/content preserved, no source entry, same instance reusable")
 
 
-def authenticated_corpus_proof():
+def authenticated_corpus_proof(source_outputs=False):
     context = multiprocessing.get_context("fork")
     stop, ready = context.Event(), context.Event()
     calls = context.Value("i", 0)
     diagnostics = context.Queue()
+    selected_source = context.Value("i", -1)
+    cases = vectors["cases"]
+    source_cases = copy.deepcopy(vectors["sourceCases"])
+    if source_outputs:
+        cases = []
+        for case in source_cases:
+            if "inventoryCount" in case:
+                case["value"] = [{"generationId": f"22222222-2222-2222-2222-{index:012x}",
+                                  "notAfter": index + 1, "draining": index % 2 == 0}
+                                 for index in range(case["inventoryCount"])]
+            request = {"version": 1, "customer": binding.customer, "epoch": binding.epoch,
+                       "action": "inventory" if case["kind"] == "inventory" else "generation"}
+            if case["kind"] != "inventory":
+                request["generationId"] = vectors["generation"]["generationId"]
+            expected = {**request, **({"generations": case["value"]} if case["kind"] == "inventory" else
+                                     {"state": "observed", "observation": case["value"]})}
+            cases.append({"name": case["name"], "text": json.dumps(request),
+                          "expected": expected if case["valid"] else None})
 
     class CountedSource(FakeSource):
         def inventory(self, cancellation):
             with calls.get_lock():
                 calls.value += 1
+            if selected_source.value >= 0:
+                case = source_cases[selected_source.value]
+                assert case["kind"] == "inventory"
+                return copy.deepcopy(case["value"])
             return super().inventory(cancellation)
 
         def generation(self, generation_id, cancellation):
             with calls.get_lock():
                 calls.value += 1
+            if selected_source.value >= 0:
+                case = source_cases[selected_source.value]
+                assert case["kind"] != "inventory"
+                assert generation_id == vectors["generation"]["generationId"]
+                return copy.deepcopy(case["value"])
             return super().generation(generation_id, cancellation)
 
     with tempfile.TemporaryDirectory(dir="/proof") as directory:
@@ -570,10 +597,13 @@ def authenticated_corpus_proof():
         try:
             assert ready.wait(3), "Authenticated corpus listener did not become ready"
             for runtime in ("python", "node"):
-                for index, vector in enumerate(vectors["cases"]):
+                for index, vector in enumerate(cases):
+                    if source_outputs:
+                        selected_source.value = index
                     if runtime == "node":
                         result = subprocess.run(
-                            ["node", "/tests/identity/broker-cross-client.ts", path, str(index)],
+                            ["node", "/tests/identity/broker-cross-client.ts", path,
+                             f"source:{index}" if source_outputs else str(index)],
                             user=1102, group=2100, extra_groups=[], capture_output=True, text=True, timeout=10)
                         assert result.returncode == 0 and result.stdout == "" and result.stderr == "", (
                             runtime, vector["name"], result.stderr)
@@ -612,9 +642,10 @@ def authenticated_corpus_proof():
                         process.join(6)
                         assert not process.is_alive() and process.exitcode == 0, (
                             runtime, vector["name"], process.exitcode)
-                    expected_calls += int(vector["expected"] is not None)
+                    expected_calls += int(source_outputs or vector["expected"] is not None)
                     rejected += int(vector["expected"] is None)
                     assert calls.value == expected_calls, (runtime, vector["name"], calls.value, expected_calls)
+                selected_source.value = -1
                 result = subprocess.run(
                     ["node", "/tests/identity/broker-cross-client.ts", path, "reconnect"],
                     user=1102, group=2100, extra_groups=[], capture_output=True, text=True, timeout=10)
@@ -642,7 +673,8 @@ def authenticated_corpus_proof():
             os.chown(directory, 0, 0)
             diagnostics.close()
             diagnostics.join_thread()
-    print("PASS implementation authenticated corpus: all 36 requests via Python and Node, per-request source accounting, exact diagnostics and fresh recovery")
+    description = "28 source outputs" if source_outputs else "36 requests"
+    print(f"PASS implementation authenticated corpus: all {description} via Python and Node, per-request source accounting, exact diagnostics and fresh recovery")
 
 
 if __name__ == "__main__":
@@ -653,3 +685,4 @@ if __name__ == "__main__":
     publication_proof()
     source_failure_proof()
     authenticated_corpus_proof()
+    authenticated_corpus_proof(source_outputs=True)
