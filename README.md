@@ -3409,9 +3409,14 @@ capacity must be secured before entering a path that cannot abort.
 The PJSIP `incoming_request` supplement runs synchronously on a SIP servant
 thread; the pinned dispatch path shows no admission-owner per-session latch.
 PJSIP holds the dialog lock across each in-dialog usage callback, so distinct
-REFER callbacks on that dialog are serialized. A later REFER with a new CSeq
-can still arrive while the first transfer remains pending; a bounded PBX-side
-per-session reservation must reject or safely resolve that second operation.
+REFER callbacks on that dialog are serialized. A valid later REFER needs a
+new Via branch and a higher CSeq; while the original transaction is active,
+reusing its branch with a changed CSeq enters the transaction-layer stateless
+`400` path, while a new branch with a non-increasing CSeq enters the
+dialog-layer stateless `500` path before supplements. Verify actual wire
+responses. A later valid REFER can still arrive while the first transfer
+remains pending, so a bounded PBX-side per-session reservation must reject or
+safely resolve that second operation.
 
 The repository's pinned SIP.js version is 0.21.2. Its `SessionManager` installs
 an incoming `onRefer` handler that accepts referrals and sends an INVITE to the

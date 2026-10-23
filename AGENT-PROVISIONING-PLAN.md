@@ -3694,11 +3694,18 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([TRYING/PROCEEDING behavior](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L3110-L3195),
   [completed UAS retransmission](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L3676-L3695)).
   Such same-branch retransmissions do not rerun the session supplement when
-  the transaction layer recognizes them. A later REFER with a new CSeq creates
-  a distinct transaction; PJSIP holds the dialog lock across each usage
-  callback, serializing those callbacks, but this does not prevent a later
-  operation from arriving while the prior transfer is still pending. The
-  admission owner still needs a bounded per-session active-operation latch.
+  the transaction layer recognizes them. A valid later REFER needs a new Via
+  branch and a CSeq greater than the dialog's remote CSeq to create a distinct
+  transaction and reach the supplements. Reusing the branch for the same
+  method with a changed CSeq is rejected by the transaction layer's stateless
+  `400` response path; a new branch with a non-increasing CSeq reaches the
+  dialog's stateless `500` response path before session supplements
+  ([branch/CSeq transaction handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L937-L998),
+  [dialog CSeq check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1782-L1803)).
+  PJSIP holds the dialog lock across each usage callback, serializing those
+  callbacks, but this does not prevent a valid later operation from arriving
+  while the prior transfer is still pending. The admission owner still needs
+  a bounded per-session active-operation latch.
   Every rejecting gate therefore needs a tested, clone-compatible response
   mechanism; returning nonzero only stops supplement dispatch.
 
@@ -4627,7 +4634,7 @@ legs still need generation attribution and complete settlement.
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
 | SIP.js REFER promise resolves without waiting for response; Asterisk successfully submits 202 before target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution and a submitted REFER 202 are not treated as transfer completion; terminal NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence, especially if `refer_blind_progress=no`, monitor setup fell back to assumed success, or frame/bridge progress does not identify all forked legs. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
-| Same REFER transaction retransmitted versus a new REFER with a later CSeq | Confirm the pinned transaction layer recognizes same-branch retransmissions before dialog dispatch; the supplement must not reserve or start duplicate operation work, and the transaction's saved response behavior is captured. A new CSeq creates a distinct request and must follow the one-outstanding-operation policy without overwriting unresolved progress correlation. |
+| Same active REFER transaction retransmitted, same branch with changed CSeq, and valid new transaction | Same branch/method/CSeq retransmission is handled by the active transaction without rerunning the supplement; same branch/method with changed CSeq enters the transaction-layer stateless `400` path; a new branch with non-increasing CSeq enters the dialog-layer stateless `500` path before supplements; only a new branch with a higher CSeq reaches a distinct session callback and must follow the one-outstanding-operation policy. Capture the actual wire responses separately and prove no invalid request duplicates or overwrites claims. |
 | Two distinct in-dialog REFER transactions arrive while the first operation is queued but no target leg has reached `b()` admission | Confirm PJSIP's dialog lock serializes session-supplement callbacks but does not serialize the lifetime of separate operations; enforce a bounded per-source-session active-operation latch that accepts at most one and explicitly rejects the other, proving no progress state or operation claim is overwritten and no work is queued twice. |
 | Custom gate sends final rejection through looked-up UAS transaction inside supplement callback | Confirm the supplement runs after the transaction has entered `TRYING`; use `pjsip_tsx_create_key()` on the clone's parsed message and prove it matches the active UAS transaction for both RFC 3261 and legacy RFC 2543 key paths; build with `pjsip_dlg_create_response()`, send through the owning dialog, and release the added reference exactly once. Capture send errors and wire response, prove no final response was already sent, and verify transaction-managed retransmissions and exactly-one-final-response behavior. |
 | Stateful custom rejection response send fails after transaction status is set | Force `pjsip_tsx_send_msg()` failure after the transaction records the final status; prove the built-in REFER supplement is still stopped, no target attempt occurs, and PJSIP's unhandled-request fallback does not send `500` when status is already final. Capture actual peer response/timeout and transaction cleanup; expose the failure operationally. |
