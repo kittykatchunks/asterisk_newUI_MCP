@@ -3375,7 +3375,14 @@ such a frame wins the timing race is runtime-dependent, but the source ordering
 allows the question and the result needs a dedicated failure-injection test.
 Record the enqueue failure, any progress NOTIFY ordering, target-channel
 signaling, and source bridge state separately; a progress `200` must not
-override the failed transfer result or imply admission.
+override the failed transfer result or imply admission. The framehook queues
+that NOTIFY on the REFER progress serializer, while the REFER handler maps the
+bridge return to its final SIP response synchronously
+([serialized NOTIFY](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L371-L382),
+[synchronous result mapping](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822-L1830)).
+The inspected paths establish no ordering guarantee between the asynchronous
+NOTIFY send and the handler's failed REFER response; capture wire order rather
+than assuming either response must precede the other.
 
 The transfer wrapper has two different lifetime rules. `transfer_channel_cb`
 may read its `data` pointer only during the callback; the pinned PJSIP callback
