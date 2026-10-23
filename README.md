@@ -3445,6 +3445,9 @@ cannot be prevented by core handling; protected endpoints need a PJSIP-level
 target gate or must exclude that mode. Asterisk 22.11's in-tree channel drivers
 do not assign `pre_call` overrides, but deployment must reject or separately
 audit out-of-tree drivers that could replace the configured admission Gosub.
+AMI Originate, ARI Stasis channel dialing, and `ast_dial` callers can also
+place calls outside Dial/Queue; their optional/absent predial Gosubs are not a
+universal admission gate, so those APIs must be gated or restricted.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning

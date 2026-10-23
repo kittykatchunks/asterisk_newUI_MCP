@@ -3192,6 +3192,7 @@ image's effective configuration or a complete generation ownership mechanism.
 | Centralized fixed routes | Readable and straightforward when every call enters a closed, broker-generated context. | Can expose fixed admission operations while retaining generated dialplan, but must still cover all entry contexts. |
 | Final admission race | A dialplan check before `Dial` or `Queue` can race the drain latch. Asterisk 22.11 provides per-callee `b()` Gosubs in both applications; source runs them after the called channel is created and before `ast_call()`. A Gosub alone is not serialization, but it can invoke an in-process admission operation that atomically records a pending-leg claim against the same latch used by drain. A denied Gosub must hang up the callee channel; both applications proceed to `ast_call()`, which refuses an already hung-up channel. | Can own a lock/claim and generation latch inside the PBX at these verified pre-call points, if every relevant path invokes the operation, rejected channels cannot reach their channel driver's call method, and claim/state lifetime is correct. |
 | Queues and parallel/forked dialing | Queue can hold work before an outbound member channel; `Dial` can originate multiple branches. `b()` runs per callee after channel datastore inheritance, but the queue-waiting obligation begins earlier and must remain counted separately. Every branch needs its own admission record, and cancellation/failure must settle it. Both applications have forwarding paths that bypass re-running the initial per-callee Gosub; protected routes must intercept or explicitly suppress forwarding and prove the effective option. | Can centralize per-branch admission and outstanding-claim accounting through per-callee hooks while separately owning queue-waiting work; integration must prove all options, retries, forwarding and channel technologies rather than assume the hook is universal. |
+| Direct originate APIs | AMI Originate, ARI Stasis channel dialing, and direct `ast_dial`/outgoing-call API users can place calls without entering the generated Dial/Queue route. A predial Gosub exists on some APIs but is optional or absent on other paths. External permissions and every in-process caller must be inventoried. | A per-callee app Gosub is not a universal call boundary. The PBX owner must hook or mediate every supported originate API, or the deployment must disable/restrict each bypass and prove the restriction. |
 | Transfers and direct protocol behavior | Application `t`/`T` options and dialplan transfer contexts do not globally govern channel-driver-native transfer methods. Redirect/transfer destinations can enter a different context. A fully closed configuration could disable unsupported transfer paths, but must prove every endpoint/module/channel feature is constrained. | Can mediate only the transfer/admission APIs it explicitly hooks. Native PJSIP and core transfer paths may bypass a custom dialplan app; the module must disable or integrate those paths and prove the coverage. |
 | Dialog lifecycle | Dialplan hangup handlers/channel variables can help for a narrow closed path but require correct propagation through bridges, Local channels, queue legs, transfer and failure/early-dialog cases. | Can attach channel/datastore/bridge lifecycle tracking close to PBX events and reconcile outstanding admissions, but implementation is ABI/version coupled and still needs complete semantics/tests. |
 | Operational cost | Lower initial code/build cost; high risk of missing a route or future configuration/module change. Strong configuration lint and a closed feature matrix required. | Asterisk build/module packaging and upgrade burden; larger in-process fault blast radius. Easier to make one explicit serialized owner, but not automatically complete or safe. |
@@ -3629,6 +3630,35 @@ PJSIP-level hook validates and individually accounts for every selected target.
 `Dial`/`Queue` option `i` cannot be relied on to stop this mode because it is
 not exposed as a core call-forward request.
 
+The pre-call Gosub is also not a universal Asterisk originate hook. In the
+pinned source, `pbx_outgoing_attempt()` enables `ast_dial`'s predial routine
+only when a nonempty predial Gosub is supplied, then runs `ast_dial_prerun()`
+before starting the outgoing call ([optional predial setup and prerun](https://github.com/asterisk/asterisk/blob/22.11.0/main/pbx.c#L6021-L6045)).
+The ordinary outgoing APIs pass no Gosub by default; AMI Originate can pass an
+optional Gosub for its extension path, but its application path calls the
+non-predial outgoing-app function, and the asynchronous originate worker uses
+the non-predial extension function ([AMI originate paths](https://github.com/asterisk/asterisk/blob/22.11.0/main/manager.c#L4456-L4468),
+[AMI application/extension dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/main/manager.c#L5444-L5455)).
+Thus an AMI-originated call can signal its initial destination without the
+protected route's `b()` hook.
+
+ARI's channel-create action requests the outbound channel and places it in a
+Stasis application; its channel-dial control later calls `ast_call()` directly
+on that channel ([ARI channel request](https://github.com/asterisk/asterisk/blob/22.11.0/res/ari/resource_channels.c#L2212-L2228),
+[ARI Stasis dial](https://github.com/asterisk/asterisk/blob/22.11.0/res/stasis/control.c#L1701-L1736)).
+When an originator is supplied, ARI also inherits its datastore state to the
+new channel, but that copy is not a synchronized per-leg admission claim
+([inheritance](https://github.com/asterisk/asterisk/blob/22.11.0/res/ari/resource_channels.c#L2324-L2349)).
+The generic `ast_dial` API likewise executes the predial callback only when
+its caller explicitly enables that optional setting
+([option is caller-set](https://github.com/asterisk/asterisk/blob/22.11.0/main/dial.c#L199-L205),
+[conditional invocation](https://github.com/asterisk/asterisk/blob/22.11.0/main/dial.c#L418-L426)).
+These paths must be included in the supported call matrix: either provide a
+PBX-owned serialized gate before every direct `ast_call()`/originate operation,
+or disable/restrict the relevant AMI/ARI surfaces and in-process callers.
+Dialplan route guards, `Dial()` option `i`, and `Queue()` option `i` do not
+contain a direct API call.
+
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
 datastore whose duplicated `data` is NULL if the duplicator fails, while
@@ -3817,8 +3847,12 @@ effective and suppresses member forwarding, or prove equivalent replacement
 admission. Include a PJSIP INVITE 3xx case for each allowed `redirect_method`:
 prove `user`/`uri_core` forwarding is suppressed or separately admitted, and
 prove `uri_pjsip` is rejected for protected endpoints unless every redirected
-target is validated and accounted for in the PJSIP layer. A passing
-initial-channel `b()` test alone does not cover these paths.
+target is validated and accounted for in the PJSIP layer. Exercise AMI
+Originate in app, extension, synchronous and asynchronous modes, ARI
+channel-create plus Stasis dial, and every in-process `ast_dial` user. Prove
+each invokes the same serialized admission owner before signaling or is
+unavailable to the protected call path. A passing initial-channel `b()` test
+alone does not cover these paths.
 The synthetic proof must distinguish API promise resolution, Asterisk 202
 acceptance, NOTIFY contents/state, progress-monitor health, and PBX
 channel/bridge settlement. Assert that target answer and every forked leg are
