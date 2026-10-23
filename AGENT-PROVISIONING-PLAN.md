@@ -811,3 +811,90 @@ explicit treatment. The next design decision is how the application acquires
 OS-derived identity without accepting caller claims; privileged control probes
 remain gated. See the
 [Linux peer experiment](./README.md#linux-unix-socket-peer-identity-experiment-test-only).
+
+### 9.8 OS identity integration options: comparison, not selection
+
+Decision recorded 23 October 2026: compare integration approaches before adding
+a native dependency, helper or second production runtime. No approach below is
+approved for implementation or deployment by this comparison.
+
+Current repository evidence:
+
+- The TypeScript connection handler expects a synchronous
+  `identify(acceptedSocket)` callback before frame consumption. Its tests inject
+  metadata; they do not acquire kernel credentials.
+- The installed Node type definitions provide socket/child-process handle APIs
+  but no peer-credential method used by this project. No native peer-credential
+  package has been selected, installed or evaluated. This is not a claim that
+  every Node runtime/version lacks any possible solution.
+- The Python fixture obtains Linux `SO_PEERCRED` on the accepted Unix socket and
+  proves selected UID/GID filesystem policy. It implements neither the broker
+  framing contract nor production admission, error reporting or supervision.
+- Neither test proves identity mapping across separate containers, user
+  namespaces or a socket passed between processes.
+
+#### Option comparison
+
+| Approach | Reuse and benefit | New trust/build cost | Required proof before selection |
+| --- | --- | --- | --- |
+| Native Node peer-credential binding | Keeps TypeScript framing, admission and readback in one process; potentially fits the synchronous callback. | Native code executes inside the broker; package provenance, maintenance, Node/N-API compatibility, architecture/libc packaging and failure behaviour need investigation. | A maintained candidate must query the exact accepted socket without undocumented Node handle access, fail closed on unsupported platforms and pass real UID/GID/namespace tests with the current handler. |
+| Socket-owning credential helper | Small OS-specific component can accept/authenticate the local connection while TypeScript retains application validation. | Adds an authenticated local IPC boundary, lifecycle owner and crash/backpressure handling. A helper that forwards bytes becomes a trusted proxy, not merely a credential reader. | Prove unambiguous socket-to-request binding, bounded private IPC, no bypass path, ownership/cancellation on either-process death, and no unbounded queue or automatically replayed request. |
+| Dedicated local broker runtime, Python as the current fixture candidate | Uses the already-proven standard-library kernel call directly on the socket it owns; no Node native extension or helper-to-handler identity hop. | Adds a separately deployed/runtime-tested implementation. Exact framing, schemas, cancellation and evidence behaviour must be ported and kept compatible; the current tiny Python probe is not that implementation. | Run shared protocol conformance cases plus actual Unix-socket identity/admission tests, then establish read-only source integration and production packaging/patching responsibility. |
+
+No external package support/maintenance conclusion has been reached. If native
+Node is chosen for investigation, evaluate current upstream sources and supported
+runtime/platform matrices before dependency installation. Do not assume a package
+is safe or maintained because it exposes the desired function.
+
+#### Identity binding rules common to all options
+
+1. Obtain credentials from the exact accepted Unix socket before reading request
+   bytes. Map kernel UID/primary GID to a deployment-owned principal; customer
+   and authority come from protected configuration, not peer JSON.
+2. Do not look up a caller-supplied PID, `/proc` path, socket pathname or numeric
+   file descriptor as proof of ownership. Descriptor numbers can be reused,
+   process identity can change, and PID is diagnostic evidence rather than a
+   durable principal. Kernel credential semantics after connection/descriptor
+   transfer must be tested, not inferred.
+3. Never return a free-standing `{ uid, gid, principal }` token that a caller can
+   attach to another socket/request. Authentication and lifetime ownership must
+   remain bound to that connection through decoding, source access and writing.
+4. File-descriptor transfer is not automatically solved by Node child-process
+   handle APIs. A Python/native-helper handoff requires a separately proven
+   protocol and receiver support. Byte proxying instead requires a private,
+   authenticated channel and a single trusted origin for forwarded identity.
+5. Only the chosen entry path may reach the source. No test/injected-identity
+   listener may be accidentally exposed beside the authenticated one. The
+   current TypeScript factory remains an internal primitive, not an auth service.
+6. Keep a single bounded admission owner across any helper/proxy layers. A
+   cancelled or dead client must not release a slot while an uncooperative
+   source still owns work. Independent process loss must surface explicitly;
+   a restart must not manufacture acceptance or replay.
+7. Preserve half-close/EOF framing and response limits end to end. A proxy must
+   not turn request EOF into premature response shutdown or strip extra bytes
+   before the validator can reject them.
+
+#### Recommended next experiment, subject to approval
+
+Prefer a **dedicated Python read-only conformance fixture** as the next experiment,
+not a production runtime commitment. It can join the existing real kernel
+credential check and bounded readback contract on one accepted Unix socket without
+introducing an unproven native extension or identity-forwarding protocol. Keep it
+unprivileged and source-fake-only; do not copy any privileged apply functionality.
+The experiment must reuse language-neutral test vectors for field/size/encoding,
+missing/unknown observations, half-close and error behaviour so the TypeScript
+contract is not silently changed.
+
+If retaining one TypeScript runtime is a higher operational priority, investigate
+a maintained native binding instead before writing the Python implementation.
+The credential-helper approach is least attractive for the first experiment
+because it introduces an additional trusted hop whose socket/lifetime binding
+must be established before it closes the current gap.
+
+Selection still requires user approval. After selection, first prove an allowed
+Unix peer can obtain the exact fixed readback response while a foreign peer,
+oversized/trailing frame and conflicting concurrent connection cannot reach the
+source. Prove failure cleanup and namespace mapping in the intended container
+layout before any PBX control-access experiment. Secret/key management,
+independent expiry protection and mutation/recovery policies remain unchanged
+approval gates.

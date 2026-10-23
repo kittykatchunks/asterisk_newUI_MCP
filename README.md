@@ -2403,6 +2403,28 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Broker OS identity integration: options still unselected
+
+The [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
+now weighs three approaches: a maintained native Node binding, a socket-owning
+credential helper, and a dedicated local runtime with Python as the current
+fixture candidate. No native package, helper protocol or production language
+has been selected.
+
+The important invariant is connection ownership: credentials must come from the
+exact accepted socket and remain bound to that request/lifetime. A reported UID,
+PID or file-descriptor number must not become a reusable identity token for
+another connection. A helper adds a trusted IPC/proxy boundary; a separate
+runtime adds protocol-conformance and operational responsibilities; a native
+binding adds native dependency and compatibility requirements.
+
+The recommended next experiment is a dedicated Python **read-only conformance
+fixture**, subject to approval, joining real Linux credentials and the fixed
+framing/readback contract on one socket. This is not a runtime selection or
+permission to implement PBX operations. The current TypeScript handler remains
+an internal primitive with injected identity, and the Linux probe remains a
+separate experiment.
+
 #### Linux Unix-socket peer-identity experiment (test only)
 
 `.\scripts\Test-BrokerPeerProof.ps1` runs a separate Linux-only Python
