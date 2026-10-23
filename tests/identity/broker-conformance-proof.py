@@ -586,16 +586,17 @@ def concurrent_proof(directory, cross_runtime=False):
             process.communicate(timeout=5)
 
 
-signal.alarm(45)
-if len(sys.argv) == 1:
-    proof()
-elif sys.argv[1] == "server":
-    server(sys.argv[2])
-elif sys.argv[1] == "client":
-    client(sys.argv[2], sys.argv[3])
-elif sys.argv[1] == "concurrent-server":
-    concurrent_server(sys.argv[2])
-elif sys.argv[1] == "cross-runtime":
-    proof(cross_runtime=True)
-else:
-    raise ValueError("Unknown fixture mode")
+if __name__ == "__main__":
+    signal.alarm(45)
+    if len(sys.argv) == 1:
+        proof()
+    elif sys.argv[1] == "server":
+        server(sys.argv[2])
+    elif sys.argv[1] == "client":
+        client(sys.argv[2], sys.argv[3])
+    elif sys.argv[1] == "concurrent-server":
+        concurrent_server(sys.argv[2])
+    elif sys.argv[1] == "cross-runtime":
+        proof(cross_runtime=True)
+    else:
+        raise ValueError("Unknown fixture mode")

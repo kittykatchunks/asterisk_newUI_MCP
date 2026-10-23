@@ -2607,10 +2607,42 @@ identity-map proof or completion of the broker acceptance gate.
 The [separate-container experiment plan](./AGENT-PROVISIONING-PLAN.md#911-planned-separate-container-identity-and-socket-publication-experiment)
 now defines an isolated labelled socket volume, separate broker/worker
 namespaces, mapped UID/GID evidence, denial/publication/restart cases and bounded
-owned cleanup. This is **planning only**, not an implemented launcher or a run.
-It explicitly separates read-only socket mounts from peer authentication and
-requires a decision on cross-namespace peer-PID visibility before implementation.
+owned cleanup. That initial plan was **planning only**, not evidence of a run.
+It explicitly separates read-only socket mounts from peer authentication. The
+subsequent scoped approval/results below supersede its planning-only status for
+the implemented subset, not for every planned case.
 No production topology, runtime or privileged probe is selected.
+
+The user approved a first [separate-container identity/publication subset](./AGENT-PROVISIONING-PLAN.md#912-approved-separate-container-identitypublication-subset)
+with exact kernel UID/primary-GID authorisation and PID recorded only. Run it
+using the already-built local cross-runtime proof image:
+
+```powershell
+.\scripts\Test-BrokerContainerProof.ps1
+```
+
+The launcher creates a new labelled Linux Docker volume, a CHOWN-only setup
+container, and separate capability-free non-root broker/client containers. It
+requires matching full identity UID/GID maps and shared user namespace, but
+distinct broker/client PID/mount namespaces. Remapped/rootless mappings are
+unsupported and fail explicitly. The observed peer PID was zero: UID/primary GID
+checks still admitted the exact approved identity and denied foreign UID/wrong
+primary GID before reading. Supplementary socket-group membership does not
+substitute for the primary GID. An unrelated identity is denied by filesystem
+permissions.
+
+The proof checks inventory/generation readback, read-only and writable-mount
+worker publication denial (the writable case requires permission denial, not
+cross-device failure), duplicate broker exclusion and successful subsequent
+approved reads. Exact source/denial counters are checked. It reuses the Python
+protocol functions, not a new production server; this subset uses Python clients
+and does not run the entire shared vector corpus across containers.
+
+Every runtime has network disabled, read-only root, explicit limits and only
+three read-only fixture inputs. Cleanup removes only recorded containers matching
+the owner label, then their exact new labelled volume; no PBX or unrelated
+container is touched. Explicit restart/stale-socket handling, regular-file/symlink
+conflicts and broader namespace configurations remain future cases.
 
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
 separates tested read-only interoperability from unproved parity/deployment

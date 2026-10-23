@@ -1008,7 +1008,7 @@ and the separate Node/Python image remains an approved experiment only.
 | Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
 | Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. Idle and complete-without-EOF deadlines leave source counts unchanged. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios count nine actual source invocations, including two failures and exactly two generation entries. |
 | Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. | Peer full disconnect during blocked source code, cancellation/deadline/response races and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
-| Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. | All processes share one container's namespaces. Separate-container UID/GID mapping, user namespaces, socket publication/replacement and same-UID compromise need explicit deployment treatment. PID positivity alone is not process attestation. |
+| Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. Section 9.12 adds separate-container default-map evidence and publication denial. | Broader user-namespace mappings, restart/conflicting-path publication and same-UID compromise still need explicit deployment treatment. PID positivity alone is not process attestation. |
 | Admission/resources | One active slot is retained until source settlement; capacity denial precedes peer lookup/read; fixtures have container limits. | Backlog one is not an end-to-end resource/rate limit. Production listener policy, process supervision, shutdown and crash behaviour are unselected. Fixture threads/control pipe are not that architecture. |
 | Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler, and no production Python broker is selected. Choose a runtime/binding/helper separately; passing test interoperability does not choose one. |
 | Privileged effects | No new evidence is claimed beyond the unprivileged subset. | Control access, managed-file confinement/durability, crash ledger, secrets, runtime truth, routing/dialog fences and independent expiry remain the separate gates in sections 9.3-9.5. |
@@ -1092,8 +1092,9 @@ and does not establish equivalence for every JSON edge case.
 
 ### 9.11 Planned separate-container identity and socket-publication experiment
 
-Decision recorded 23 October 2026: plan this experiment before implementation.
-This section approves neither running it nor selecting a production runtime.
+Initial decision recorded 23 October 2026: plan this experiment before
+implementation. The later scoped fixture approval and results are recorded in
+section 9.12; this plan alone did not authorise execution or a production runtime.
 It extends the existing unprivileged read-only fixture only; PBX/control sockets,
 managed configuration, credentials, mutation and network listeners remain out
 of scope. Existing single-container PASS results are not deployment evidence.
@@ -1184,3 +1185,62 @@ support only the measured separate-container fixture topology. It would not
 choose native binding/helper/Python production integration, solve same-UID
 compromise, establish production supervision or complete the control-access,
 secret, crash-durability, routing/dialog and independent-expiry gates.
+
+### 9.12 Approved separate-container identity/publication subset
+
+The user approved the isolated test implementation and chose authorisation by
+exact mapped kernel UID/primary GID. Peer PID is recorded, not used to authorise.
+The older single-container fixture retains its positive-PID check unchanged.
+This is not a production authentication-policy or runtime selection.
+
+`scripts/Test-BrokerContainerProof.ps1` now creates a fresh uniquely labelled
+Docker volume and recorded containers using the existing immutable local
+cross-runtime image ID. It records daemon security options without collecting
+environment/credential dumps. A short-lived root setup container has only CHOWN
+in addition to the restrictive common flags and initialises exact new paths;
+broker/clients are separate non-root, zero-capability containers with network
+disabled, read-only roots and resource limits. Only three fixture inputs are
+mounted read-only. No PBX, Docker socket or repository-wide mounts are used.
+
+The Python fixture reuses the existing framing/readback/validation functions;
+an import guard prevents importing that fixture from starting its original
+orchestrator or installing its alarm. Each separate process installs its own
+bounded alarm. The broker verifies directory ownership/mode and publishes under
+a restrictive umask, checking socket ownership/mode before readiness.
+
+Verified subset:
+
+- Separate PID/mount namespaces, shared user namespace, full identity UID/GID
+  maps (`0 0 4294967295`). Other mappings are explicitly unsupported and fail,
+  not skipped or allowed by changing identities. Every process records its
+  groups/maps/namespace links and asserts zero effective capabilities.
+- Approved 1102:2100 clients receive exact inventory and generation responses.
+  Kernel peer PID was **0** in this topology; exact UID/primary GID remained
+  visible. Foreign UID 1103 with GID 2100 and approved UID with primary GID 2101
+  plus supplementary 2100 are denied before frame read/source entry.
+- Unrelated 1104:2101 fails at filesystem connect. Expected group membership is
+  checked in each client, distinguishing filesystem denial from peer denial.
+- Approved workers cannot create/unlink/rename/replace the socket entry:
+  read-only mounts produce EROFS/EACCES; writable-volume tests require EACCES,
+  proving directory protection independently of mount mode. Replacement uses an
+  existing worker-owned file on the same volume, not cross-device failure.
+- A duplicate broker fails with address-in-use without removing the live path.
+  The original subsequently serves approved reads. Three actual source entries,
+  two pre-read identity denials and five accepted-socket peer tuples are required.
+- Normal completion removes only the same verified socket inode. Cleanup checks
+  exact recorded container names plus owner labels, removes their IDs, then
+  removes the exact labelled volume only if container cleanup succeeded.
+  Readiness is bounded, broker alarm is 60 seconds, client alarms are 15 seconds;
+  no service is intentionally left running.
+
+This subset uses Python clients, not the entire shared vector corpus across
+separate containers. Namespace identifiers can be reused after sequential client
+containers exit; only client-versus-live-broker separation is asserted. The
+observed rootful/default-map topology does not establish rootless/remapped user
+namespace support. Same-UID compromise remains outside this identity policy.
+
+Still open from section 9.11: explicit broker death/restart and stale-socket
+ownership, conflicting regular-file/symlink publication, broader namespace
+configurations, and separate-container full conformance/lifecycle coverage.
+No automatic restart, production listener, control access or later acceptance
+gate is implemented or approved by these results.
