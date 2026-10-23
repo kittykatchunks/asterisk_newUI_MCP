@@ -3619,6 +3619,14 @@ when Authorization is already present. Capture the wire retry to verify
 headers and URI handling
 ([pjproject reinitializer](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1708-L1861),
 [Asterisk rewrite guard](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1200-L1220)).
+Asterisk then sends it through the stateful dialog helper: pjproject assigns
+the next local CSeq and creates a new UAC transaction. The `auth_retry` txdata
+marker is not read by the PJSIP transaction path, so it does not resume the
+challenged transaction or prove that the terminated REFER subscription is
+reattached. Verify CSeq and response association on the wire
+([Asterisk send helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495),
+[pjproject dialog send](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1361-L1445),
+[auth retry marker](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transport.h#L655-L663)).
 Asterisk ignores the retry send result; at its own retry limit, it
 attempts a zero-expiry `SUBSCRIBE` only if the subscription is not already
 terminated, and ignores that send result too. Capture event types, requests
