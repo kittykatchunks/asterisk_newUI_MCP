@@ -1917,8 +1917,28 @@ pre-cancellation fail explicitly. The ordinary implementation launcher runs this
 cross-runtime test in Linux before the existing listener suite; it can also run
 locally with Python 3 and Node.
 
-This is a synthetic-source/readback proof, not authenticated-listener wiring of
-that source or live PBX integration. The fixture uses the fake runtime's default
+The subsequent integration wires that concrete synthetic source through the
+actual Python authenticated listener under Linux. At each of five snapshots
+(prepared, active with a dialog, active with unknown dialogs, draining, removed),
+Python and actual Node clients each exercise foreign UID, wrong epoch, inventory,
+generation, absent generation and fresh inventory recovery. Full responses must
+match the TypeScript source and database bytes/file list/effect counts must stay
+unchanged. The 60 connections require exactly 40 source calls and 30 expected
+diagnostics, excluding capacity, deadline or hidden source failures. Wrong peers
+and wrong request scope enter no source; absent generations close with zero
+response bytes rather than inventing authoritative missing state.
+
+The Linux launcher enables this path explicitly with
+`ASTERISK_SYNTHETIC_LISTENER_PROOF=1`; the ordinary local test retains direct
+cross-runtime coverage on Windows. The test-owned root supervisor assigns a
+separate read-only database group to the capability-free broker, not the worker
+clients. It restores fixture permissions and requires clean listener exit and
+socket removal at each snapshot. The task limit rises from 32 to 64 for nested
+Node/Python runtimes; network, capabilities, read-only root and other limits are
+unchanged. No runtime module, live adapter or deployed service is changed.
+
+This is same-container synthetic-source integration, not live PBX integration or
+separate-container database deployment. The fixture uses the fake runtime's default
 rollback journal; concurrent writers, WAL/shared-memory behavior, source-path
 deployment policy and production packaging are not certified. Those remain
 separate integration decisions, not permission to access real PBX state.

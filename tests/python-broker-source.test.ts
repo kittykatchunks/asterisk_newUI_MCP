@@ -11,7 +11,7 @@ import { openFakeProvisioningRuntime } from "./identity/fake-provisioning-runtim
 
 const driver = fileURLToPath(new URL("./identity/fake-broker-source-proof.py", import.meta.url));
 
-test("Python source reads the TypeScript fake runtime without mutation and fails closed", async () => {
+test("Python source reads the TypeScript fake runtime without mutation and fails closed", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "asterisk-python-source-"));
   const path = join(directory, "runtime #1.sqlite");
   const binding = { customer: "customer-a", epoch: randomUUID() };
@@ -20,7 +20,7 @@ test("Python source reads the TypeScript fake runtime without mutation and fails
   const read = (action: string, epoch = binding.epoch, id = generationId, sourcePath = path) =>
     spawnSync(process.platform === "win32" ? "python" : "python3",
       ["-B", driver, sourcePath, binding.customer, epoch, id, action],
-      { encoding: "utf8", timeout: 5000 });
+      { encoding: "utf8", timeout: action === "listener" ? 20000 : 5000 });
   const success = (action: string) => {
     const result = read(action);
     assert.ifError(result.error);
@@ -43,6 +43,17 @@ test("Python source reads the TypeScript fake runtime without mutation and fails
     const signal = AbortSignal.timeout(5000);
     assert.deepEqual(success("inventory").generations, await runtime.expiry.inventory(signal));
     assert.deepEqual(success("generation").observation, await runtime.expiry.observe(generationId, signal));
+    if (process.env.ASTERISK_SYNTHETIC_LISTENER_PROOF === "1") {
+      assert.equal(process.platform, "linux");
+      const responses = success("listener");
+      for (const client of ["python", "node"]) {
+        const inventory = success("inventory");
+        assert.deepEqual(responses[client], {
+          denied: null, scope: null, inventory, generation: success("generation"),
+          missing: null, recovery: inventory,
+        });
+      }
+    }
     assert.deepEqual(await snapshot(), before);
   };
   const apply = async (action: "prepare" | "activate" | "drain" | "revoke") => {
@@ -78,6 +89,10 @@ test("Python source reads the TypeScript fake runtime without mutation and fails
     failure(read("inventory", binding.epoch, generationId, join(directory, "absent.sqlite")),
       /unable to open database file/);
     assert.deepEqual(await snapshot(), before);
+    if (process.env.ASTERISK_SYNTHETIC_LISTENER_PROOF === "1") {
+      t.diagnostic("Authenticated synthetic source: 5 state snapshots, 60 Python/Node connections, " +
+        "40 source entries, 30 expected denials/rejections, exact responses and unchanged database.");
+    }
 
     const corrupt = new DatabaseSync(path);
     try {

@@ -3125,8 +3125,26 @@ active, draining and removed states, including live and unknown dialog counts,
 and verifies unchanged database bytes, file list and effect count. A write
 attempt on the reader connection must fail with `SQLITE_READONLY`. Wrong binding,
 missing database/generation, corrupt state and pre-cancellation must fail.
-This exercises the actual Python protocol encoder with a concrete synthetic
-source, not yet that source through the authenticated socket listener.
+The Linux launcher additionally wires that concrete source through the actual
+authenticated Python listener. For each of five state snapshots (prepared,
+active with one dialog, active with unknown dialogs, draining, removed), both
+Python and actual Node clients check foreign-UID denial, wrong-epoch rejection,
+exact inventory and generation responses, zero-byte rejection for an absent
+generation, and a fresh inventory recovery. These are 60 connections with exactly
+40 source entries and 30 expected peer/rejection diagnostics. Denied peers and
+wrong-scope requests must never enter the source. Node uses the production frame
+reader/writer. The TypeScript driver compares complete responses and verifies
+database bytes, directory entries and effect counts across each socket batch.
+
+The broker runs as UID 1101, primary GID 2100, with no capabilities and a separate
+supplementary read-only database group; worker clients have no database-reader
+group. The root supervisor creates only synthetic state and protected socket
+directories, restores fixture permissions, waits for clean stop/socket removal,
+and cleans exact owned processes. The launcher retains its existing capabilities,
+network isolation and read-only root; its task limit is now 64 to accommodate
+the nested Node test runner, real Node client and Python processes/threads.
+This is same-container concrete-source integration, not a production source
+installation or separate-container database deployment.
 Concurrent-writer/WAL behavior, real-source authority and production source
 installation are not established by this rollback-journal fake-runtime proof.
 

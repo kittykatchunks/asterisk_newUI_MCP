@@ -19,7 +19,13 @@ path, customer, epoch, generation_id, mode = sys.argv[1:]
 binding = broker.Binding(customer, epoch, "journal-worker", 1102, 2100)
 source = module.FakeRuntimeSource(path, binding)
 cancellation = threading.Event()
-if mode == "readonly":
+if mode == "listener":
+    listener_spec = importlib.util.spec_from_file_location(
+        "listener_proof", Path(__file__).with_name("fake-broker-listener-proof.py"))
+    listener = importlib.util.module_from_spec(listener_spec)
+    listener_spec.loader.exec_module(listener)
+    print(json.dumps(listener.prove(broker, module.FakeRuntimeSource, path, binding, generation_id)))
+elif mode == "readonly":
     with source._snapshot(cancellation) as connection:
         try:
             connection.execute("DELETE FROM fake_binding")
