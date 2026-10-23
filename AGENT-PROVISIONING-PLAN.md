@@ -1200,7 +1200,7 @@ environment/credential dumps. A short-lived root setup container has only CHOWN
 in addition to the restrictive common flags and initialises exact new paths;
 broker/clients are separate non-root, zero-capability containers with network
 disabled, read-only roots and resource limits. Three fixture inputs are
-mounted read-only; opt-in Node corpus clients add only their client and framing
+mounted read-only; opt-in Node corpus and crash/restart clients add only their client and framing
 helper read-only. No PBX, Docker socket or repository-wide mounts are used.
 
 The Python fixture reuses the existing framing/readback/validation functions;
@@ -1314,7 +1314,7 @@ does not establish full protocol equivalence, remapped user-namespace support or
 concurrent lifecycle behaviour across containers; those remain distinct gaps.
 
 `Test-BrokerContainerProof.ps1 -NodeClients` now substitutes Node/TypeScript
-clients for the sequential separate-container corpus only. The existing client
+clients for the sequential separate-container corpus and the three crash/restart client steps. The existing client
 imports the production framing helper, and every case must produce explicit
 wrapper completion evidence identifying Node. The Python identity wrapper
 checks maps/groups/namespaces first and runs Node with inherited credentials,
@@ -1323,10 +1323,26 @@ Node independently checks UID/GID and zero effective capabilities. Failures do
 not fall back to Python. The default Python mode emits equivalent checked runtime
 completion evidence.
 
-Only these Node corpus containers mount the two additional read-only TypeScript
-files. Broker, identity/publication, conflict and crash/restart phases stay Python,
+Only these Node client containers mount the two additional read-only TypeScript
+files. Broker, identity/publication, conflict and stale cleanup stay Python,
 and ownership/resource restrictions remain unchanged. Both modes pass the 36
 request/framing and 28 source-output cases plus foreign denial and approved
 reconnect across separate containers. This proves sequential cross-language
 interoperability in the measured default-map topology, not concurrent lifecycle
 or broader namespace support and not production runtime selection.
+
+The Node crash/restart follow-up additionally substitutes the crash-wait,
+stale-refused and restart-read clients in `-NodeClients` mode. Each wrapper checks
+explicit lifecycle-case/runtime completion and inherits the same non-root
+identity/map checks, ten-second child timeout and empty stdout/stderr requirement.
+Node crash-wait requires EOF without response bytes, never a timeout/reset
+fallback; stale-refused requires exact connect-side ECONNREFUSED with zero
+bytes sent/received. Fresh restart-read uses the production frame reader/writer
+and exact expected inventory.
+
+The parent continues to require the old broker's controlled before-source exit,
+stopped state, refusal at the stale path, startup refusal, wrong-inode cleanup
+rejection and exact inode cleanup before explicitly starting its replacement.
+The replacement authenticates a new socket and records one source entry.
+Default Python mode is unchanged. This extends the same bounded no-replay
+scenario across runtimes, not a general retry or response-loss recovery policy.

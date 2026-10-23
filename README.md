@@ -2641,7 +2641,7 @@ The subsequent corpus phase runs all shared vectors across containers as
 described below.
 
 Every runtime has network disabled, read-only root, explicit limits and only
-three read-only fixture inputs (the opt-in Node corpus clients additionally mount
+three read-only fixture inputs (the opt-in Node corpus and crash/restart clients additionally mount
 their TypeScript client and framing helper read-only). Cleanup removes only recorded containers matching
 the owner label, then their exact new labelled volume; no PBX or unrelated
 container is touched. After normal broker completion, two additional broker-user
@@ -2693,10 +2693,22 @@ successfully without stdout/stderr, and the wrapper emits explicit per-case Node
 completion evidence. The launcher checks that evidence rather than inferring
 which runtime ran from a flag. No fallback to Python occurs on Node failure.
 
-Only corpus clients receive the extra two read-only mounts. The broker and
-identity/publication/conflict/crash phases remain Python in both modes, with
+Only Node corpus and crash/restart clients receive the extra two read-only
+mounts. The broker, identity/publication/conflict checks and stale cleanup remain Python in both modes, with
 unchanged resource limits and ownership-checked cleanup. Default Python corpus
 clients also emit checked runtime completion evidence.
+
+With `-NodeClients`, the crash-wait, stale-refused and restart-read clients now
+also run in Node, each on a fresh read-only-volume client container. The crash
+client sends through the production writer and requires EOF with zero response
+bytes; resets/timeouts do not satisfy this case. Stale connect must fail with
+exact connect-side `ECONNREFUSED` and zero bytes read/written. After parent-only
+verified cleanup/restart, the Node client uses the production frame reader/writer
+and checks exact inventory. The existing server evidence still requires crash
+before source entry, stopped old container, stale startup refusal, wrong-inode
+cleanup rejection and exactly one newly authenticated read after restart.
+The wrapper emits checked per-step Node runtime completion with no fallback.
+Default mode keeps the original Python crash/restart clients.
 
 Broader namespace configurations and concurrent lifecycle coverage
 across separate containers remain future cases. Conflicting-path preservation is not proof of general

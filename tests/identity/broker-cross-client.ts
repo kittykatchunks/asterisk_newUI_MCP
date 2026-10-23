@@ -16,10 +16,10 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
     delayEofMs?: number; trailingHex?: string; expected: unknown }[];
   sourceCases: { kind: string; value: unknown; inventoryCount?: number; valid: boolean }[];
 };
-let vector = vectors.cases[index === "reconnect" ? 0 : Number(index)];
+let vector = vectors.cases[["reconnect", "restart-read"].includes(index) ? 0 : Number(index)];
 if (index === "generation-reconnect") vector = vectors.cases[1];
 const passive = ["foreign", "idle", "capacity"].includes(index);
-const held = ["held-source", "failed-source", "failed-generation", "no-eof"].includes(index);
+const held = ["held-source", "failed-source", "failed-generation", "no-eof", "crash-wait"].includes(index);
 if (held) vector = { ...vectors.cases[index === "failed-generation" ? 1 : 0], expected: null };
 if (index.startsWith("source:")) {
   const source = vectors.sourceCases[Number(index.split(":")[1])];
@@ -53,26 +53,34 @@ async function send() {
   else await writeBrokerFrame(socket, vector.text!.padEnd(vector.padBytes ?? 0, " "), "request");
 }
 try {
-  await once(socket, "connect");
-  if (passive || vector.expected === null) {
-    let responseBytes = 0;
-    socket.on("data", (chunk: Buffer) => { responseBytes += chunk.length; });
-    const ended = once(socket, "end");
-    try {
-      await Promise.all([ended, passive ? Promise.resolve() : send()]);
-    } catch (error) {
-      assert.ok(vector?.name === "concatenated-valid-requests" && error instanceof Error &&
-        "code" in error && error.code === "ECONNRESET" && "syscall" in error && error.syscall === "read",
-      `Unexpected rejection transport error: ${String(error)}`);
-    }
-    assert.equal(responseBytes, 0);
+  if (index === "stale-refused") {
+    await assert.rejects(once(socket, "connect"), (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "ECONNREFUSED" &&
+      "syscall" in error && error.syscall === "connect");
+    assert.equal(socket.bytesRead, 0);
+    assert.equal(socket.bytesWritten, 0);
   } else {
-    const response = readBrokerFrame(socket, "response");
-    const results = await Promise.all([
-      response,
-      send(),
-    ]);
-    assert.deepEqual(JSON.parse(results[0]), vector.expected);
+    await once(socket, "connect");
+    if (passive || vector.expected === null) {
+      let responseBytes = 0;
+      socket.on("data", (chunk: Buffer) => { responseBytes += chunk.length; });
+      const ended = once(socket, "end");
+      try {
+        await Promise.all([ended, passive ? Promise.resolve() : send()]);
+      } catch (error) {
+        assert.ok(vector?.name === "concatenated-valid-requests" && error instanceof Error &&
+          "code" in error && error.code === "ECONNRESET" && "syscall" in error && error.syscall === "read",
+        `Unexpected rejection transport error: ${String(error)}`);
+      }
+      assert.equal(responseBytes, 0);
+    } else {
+      const response = readBrokerFrame(socket, "response");
+      const results = await Promise.all([
+        response,
+        send(),
+      ]);
+      assert.deepEqual(JSON.parse(results[0]), vector.expected);
+    }
   }
 } finally {
   socket.destroy();

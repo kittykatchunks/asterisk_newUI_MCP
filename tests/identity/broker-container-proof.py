@@ -162,6 +162,13 @@ def remove_stale():
     emit({"staleRemoved": True, "device": original.st_dev, "inode": original.st_ino})
 
 
+def node_client(index):
+    result = subprocess.run(["node", "/tests/identity/broker-cross-client.ts", PATH, index],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "" and result.stderr == "", (result.stdout, result.stderr)
+
+
 def client(mode):
     if mode.startswith("corpus-"):
         index = mode.removeprefix("corpus-")
@@ -169,10 +176,7 @@ def client(mode):
         assert set(os.getgroups()) == {2100}
         if len(sys.argv) == 3:
             assert sys.argv[2] == "node-client"
-            result = subprocess.run(["node", "/tests/identity/broker-cross-client.ts", PATH, index],
-                                    capture_output=True, text=True, timeout=10)
-            assert result.returncode == 0, result.stderr
-            assert result.stdout == "" and result.stderr == "", (result.stdout, result.stderr)
+            node_client(index)
             runtime = "node"
         else:
             assert len(sys.argv) == 2
@@ -189,6 +193,12 @@ def client(mode):
     }
     assert mode in expected and (os.getuid(), os.getgid()) == expected[mode]
     assert set(os.getgroups()) == ({2100, 2101} if mode == "wrong-gid" else {os.getgid()})
+    if len(sys.argv) == 3:
+        assert sys.argv[2] == "node-client" and mode in ("crash-wait", "stale-refused", "restart-read")
+        node_client(mode)
+        emit({"lifecycleCase": mode, "clientRuntime": "node"})
+        return
+    assert len(sys.argv) == 2
     if mode in ("publish-ro", "publish-rw"):
         assert (os.getuid(), os.getgid()) == (1102, 2100)
         original = os.stat(PATH, follow_symlinks=False)

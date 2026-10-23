@@ -25,7 +25,8 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
     $clientArguments = @()
-    if ($NodeClients -and $Mode.StartsWith('corpus-')) {
+    $nodeLifecycle = $NodeClients -and $Mode -in @('crash-wait', 'stale-refused', 'restart-read')
+    if ($NodeClients -and ($Mode.StartsWith('corpus-') -or $nodeLifecycle)) {
         $clientMounts = @(
             '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
             '--mount', "type=bind,source=$(Join-Path $root 'src\agent-broker-frame.ts'),target=/src/agent-broker-frame.ts,readonly"
@@ -41,6 +42,9 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
         $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
         if ($events[-1].clientRuntime -ne $expectedRuntime -or
             $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
+    }
+    if ($nodeLifecycle -and ($events[-1].clientRuntime -ne 'node' -or $events[-1].lifecycleCase -ne $Mode)) {
+        throw "Unexpected Node lifecycle completion: $Mode"
     }
     $identities.Add($events[0].identity)
     Write-Output $output
