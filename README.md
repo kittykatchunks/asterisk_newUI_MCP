@@ -3408,9 +3408,10 @@ until every child is reconciled, and the callback's `void` result means claim
 capacity must be secured before entering a path that cannot abort.
 The PJSIP `incoming_request` supplement runs synchronously on a SIP servant
 thread; the pinned dispatch path shows no admission-owner per-session latch.
-Dialog/transaction serialization of concurrent distinct REFERs still needs
-verification, while a bounded PBX-side per-session reservation must prevent a
-second pending operation from overwriting the first or queuing duplicate work.
+PJSIP holds the dialog lock across each in-dialog usage callback, so distinct
+REFER callbacks on that dialog are serialized. A later REFER with a new CSeq
+can still arrive while the first transfer remains pending; a bounded PBX-side
+per-session reservation must reject or safely resolve that second operation.
 
 The repository's pinned SIP.js version is 0.21.2. Its `SessionManager` installs
 an incoming `onRefer` handler that accepts referrals and sends an INVITE to the
@@ -3475,10 +3476,16 @@ clone-based rejection path at pinned source level; confirm the deployed path
 and wire result, then prove a different response mechanism. The stateless
 endpoint helper is also unsafe by default: its active-transaction guard reads
 the same missing cloned transaction data and can send outside the live UAS
-transaction. A candidate worth proving is deriving the original transaction
-key from clone-safe Via/CSeq fields, looking up that transaction, and sending
-through the owning dialog; reference lifetime, locking, retransmission, and
-exactly-one-response behavior remain open.
+transaction; because this does not update the transaction's status, PJSIP may
+subsequently send its unhandled-request `500` as well. Looking up the existing
+transaction by clone-safe Via/CSeq fields is more promising: PJSIP feeds the
+initial request to the transaction before releasing the dialog lock, moves it
+to `TRYING`, then invokes Asterisk's transaction-state callback, where the
+session supplements run. A synchronous response through the found transaction
+may therefore be viable, but verify the exact clone-derived key and state,
+release the lookup reference safely, prove lock behavior, handle send errors,
+and ensure no final response was already sent. This remains a candidate, not
+an approved response mechanism.
 For an allowed request, returning zero continues into Asterisk's built-in
 transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,
