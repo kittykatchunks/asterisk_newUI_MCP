@@ -3750,6 +3750,20 @@ Validate them and require an upstream fix or explicitly exclude the fallback
 before relying on it. This is separate from making transfer-attempt claims
 independently idempotent and settled.
 
+There is a more specific stale-subscription hazard in that retry scenario:
+`refer_progress_bridge()` receives the subscription that delivered the event
+as `sub`, but on a matching target event it unsubscribes
+`progress->bridge_sub` instead
+([callback uses stored handle](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L272-L309)).
+After repeated setup, that field points to the newer subscription. The older
+subscription can therefore match the newly overwritten `transferee` identity,
+send progress for the newer attempt, and unsubscribe the newer subscription
+instead of itself. Subsequent events can revisit the still-live old callback;
+the exact number/order of notifications and cleanup effects depends on
+concurrency and event delivery. The synthetic bridge-insertion-failure case
+must observe which subscription handles are live and verify each callback
+unsubscribes itself, not merely assert that one terminal notification arrived.
+
 These progress fields are also shared between the synchronous transfer callback,
 the bridge subscription callback, and the channel framehook. The callback
 assigns `transferee`, `transfer_data`, `framehook`, and `bridge_sub` outside a
@@ -4199,7 +4213,7 @@ legs still need generation attribution and complete settlement.
 | Two-party blind-transfer enqueue fails after progress hook attachment | Force queue failure while transferee frames are still flowing; record progress NOTIFY order and prove any hook-generated `200` does not mask the core failure, create a target leg, or settle the transfer claim as successful. |
 | Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
 | Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |
-| Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback, then confirm the ordinary fallback callback does not overwrite or race progress correlation; exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
+| Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |

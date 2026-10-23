@@ -3506,7 +3506,10 @@ PBX is already started before the parking callback and bridge insertion; a
 failed bridge insertion then runs ordinary transfer against the same
 destination. Source ordering does not prove the first route was stopped before
 signaling, so fallback must prevent or explicitly account for overlapping
-target attempts.
+target attempts. On repeated progress setup, the older bridge callback can
+match the overwritten target identity but unsubscribe the newer stored
+subscription instead of itself; verify callback-specific unsubscribe and
+single-target notification in the focused fallback test.
 Fallback needs a separately settled child claim; ordinary multi-party fallback
 fails before bridge insertion if its Local `ast_call()` is rejected, and the
 two-party path does not remove the transferer when action enqueue fails. Built-in
