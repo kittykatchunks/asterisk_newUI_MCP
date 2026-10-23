@@ -930,8 +930,14 @@ admission/lifetime experiment. One nonblocking slot excludes competitors before
 identity lookup or read. An idle request expires after five seconds. A subsequent
 approved framed request enters a held fake source: its socket closes at deadline,
 but the slot remains occupied until the source actually settles. An approved
-reconnect then succeeds. Exact counters require two source reads, three capacity
-denials and two timeouts; accepted clients still use real kernel UID/primary GID.
+reconnect then succeeds. A further approved request invokes a fake source that
+raises a typed exception: the client receives no response bytes, the server emits
+the expected fixed stderr diagnostic and releases the slot, and the next approved
+request succeeds. Exact counters require four source invocations (one failed),
+three capacity denials and two timeouts; accepted clients still use real kernel
+UID/primary GID. The parent requires exactly the expected diagnostic, rejecting
+unexpected thread/timer tracebacks too. Source hooks/failure sequencing remain
+fixture-only, not wire actions or a production exception policy.
 
 The test uses source/deadline threads and a private parent control pipe solely
 to release the fake source deterministically. It selects no production

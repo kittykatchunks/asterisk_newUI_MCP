@@ -2454,8 +2454,12 @@ experiment with **one nonblocking admission slot**. A held idle request excludes
 competitors and closes at its five-second deadline. An approved framed request
 then enters a deliberately held fake source; the connection closes at deadline,
 but a new competitor is still rejected until the original source is explicitly
-released. A later approved readback succeeds. Exact counters verify two source
-reads, three capacity denials and two deadline closures. Capacity is checked
+released. A later approved readback succeeds. The experiment then injects a
+typed fake-source exception during another approved request: no response bytes
+are returned, the expected fixed diagnostic appears on server stderr, and the
+slot is released so a fresh approved readback succeeds. Exact counters verify
+four source invocations (including one failure), three capacity denials and two
+deadline closures. Capacity is checked
 before peer lookup/read, and accepted requests still require real kernel UID/GID.
 
 This experiment uses a source thread, an independent connection deadline timer,
@@ -2465,6 +2469,11 @@ the container are cleaned up. A backlog of one is not a total kernel-resource
 or connection-rate bound; threads/timers and the control harness are not a
 selected production architecture. Unexpected fixture errors fail the proof
 rather than returning a success frame.
+The parent requires stderr to contain exactly the one expected source diagnostic,
+so unexpected thread/timer tracebacks also fail the experiment. The source hook
+and deterministic failure schedule are fixture-only; no client can select a
+failure mode. This proves the injected inventory-failure/recovery case, not all
+source errors, disconnect races or cancellation behaviour.
 
 #### Broker OS identity integration: production option still unselected
 

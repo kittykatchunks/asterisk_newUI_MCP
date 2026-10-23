@@ -91,6 +91,16 @@ def observation(value):
     return dict(value)
 
 
+class FixtureSourceFailure(RuntimeError):
+    pass
+
+
+def source_value(source, default):
+    if callable(source):
+        return source()
+    return source["value"] if source is not None else default
+
+
 def readback(text, source=None):
     request = json.loads(text)
     binding = VECTORS["binding"]
@@ -100,16 +110,16 @@ def readback(text, source=None):
         raise ValueError("Foreign scope")
     base = {"version": 1, "customer": binding["customer"], "epoch": binding["epoch"]}
     if request.get("action") == "inventory" and set(request) == {"version", "customer", "epoch", "action"}:
-        value = source["value"] if source is not None else [VECTORS["generation"]]
+        value = source_value(source, [VECTORS["generation"]])
         return {**base, "action": "inventory", "generations": inventory(value)}
     if request.get("action") == "generation" and set(request) == {"version", "customer", "epoch", "action", "generationId"}:
         generation = request["generationId"]
         if not isinstance(generation, str) or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", generation):
             raise ValueError("Invalid generation")
         result = {**base, "action": "generation", "generationId": generation}
-        value = source["value"] if source is not None else {
+        value = source_value(source, {
             "newCallsBlocked": True, "dialogs": "unknown", "removed": False,
-        }
+        })
         return {**result, "state": "observed", "observation": observation(value)} if generation == VECTORS["generation"]["generationId"] else {**result, "state": "missing"}
     raise ValueError("Unsupported fields/action")
 
@@ -161,8 +171,8 @@ def client(path, index):
         if index == "foreign":
             assert connection.recv(1) == b""
             return
-        if index in ("capacity", "idle", "held-source"):
-            if index == "held-source":
+        if index in ("capacity", "idle", "held-source", "failed-source"):
+            if index in ("held-source", "failed-source"):
                 connection.sendall(frame(VECTORS["cases"][0]["text"], 8192))
                 connection.shutdown(socket.SHUT_WR)
             connection.settimeout(8)
@@ -240,7 +250,7 @@ def concurrent_server(path):
     release = threading.Event()
     stop = threading.Event()
     output_lock = threading.Lock()
-    counts = {"reads": 0, "capacity": 0, "timeouts": 0}
+    counts = {"reads": 0, "capacity": 0, "timeouts": 0, "sourceFailures": 0}
     errors = []
     tasks = []
 
@@ -264,6 +274,16 @@ def concurrent_server(path):
     def serve(connection):
         expired = threading.Event()
 
+        def source():
+            counts["reads"] += 1
+            if counts["reads"] == 1:
+                event("source-entered")
+                if not release.wait(15):
+                    raise TimeoutError("Fixture source was not released")
+            elif counts["reads"] == 3:
+                raise FixtureSourceFailure("Fixture source unavailable")
+            return [VECTORS["generation"]]
+
         def timeout():
             expired.set()
             counts["timeouts"] += 1
@@ -276,16 +296,16 @@ def concurrent_server(path):
             timer.start()
             deadline = time.monotonic() + 5
             text = read_frame(connection, 8192, deadline)
-            response = readback(text)
-            counts["reads"] += 1
-            if counts["reads"] == 1:
-                event("source-entered")
-                if not release.wait(15):
-                    raise TimeoutError("Fixture source was not released")
+            response = readback(text, source)
             if not expired.is_set():
                 remaining(connection, deadline)
                 connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
+        except FixtureSourceFailure as error:
+            counts["sourceFailures"] += 1
+            with output_lock:
+                print(str(error), file=sys.stderr, flush=True)
+            event("source-failed")
         except (OSError, ValueError, TimeoutError) as error:
             if not expired.is_set():
                 errors.append(repr(error))
@@ -326,7 +346,7 @@ def concurrent_server(path):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        assert counts == {"reads": 2, "capacity": 3, "timeouts": 2}, counts
+        assert counts == {"reads": 4, "capacity": 3, "timeouts": 2, "sourceFailures": 1}, counts
         event("complete")
     finally:
         release.set()
@@ -402,13 +422,23 @@ def concurrent_proof(directory):
         done(recovered)
         observed = [receive()["event"] for _ in range(2)]
         assert sorted(observed) == ["admitted", "released"]
+        failed = start("failed-source")
+        done(failed)
+        observed = [receive()["event"] for _ in range(3)]
+        assert sorted(observed) == ["admitted", "released", "source-failed"]
+        recovered = start("reconnect")
+        done(recovered)
+        observed = [receive()["event"] for _ in range(2)]
+        assert sorted(observed) == ["admitted", "released"]
         process.stdin.write("stop\n")
         process.stdin.flush()
         event("complete")
         _, error = process.communicate(timeout=10)
         assert process.returncode == 0, error
+        assert error == "Fixture source unavailable\n", error
         assert not os.path.exists(path)
         print("PASS Python/Linux admission: idle deadline, competitors rejected, timed-out source retains slot until release, reconnect succeeds", flush=True)
+        print("PASS Python/Linux source failure: explicit diagnostic, no response frame, slot released and approved reconnect succeeds", flush=True)
     finally:
         for child in clients:
             if child.poll() is None:
