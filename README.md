@@ -3690,6 +3690,12 @@ reattached. Verify CSeq and response association on the wire
 ([Asterisk send helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L1488-L1495),
 [pjproject dialog send](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1361-L1445),
 [auth retry marker](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_transport.h#L655-L663)).
+Asterisk's digest helper also increments the cloned request's CSeq after
+reinitialization, but dialog send overwrites it from the current
+`local.cseq`. If another in-dialog request intervenes, verify the final CSeq
+on the wire rather than attributing it to that pre-increment
+([Asterisk helper increment](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L590-L614),
+[pjproject assignment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1390-L1405)).
 Asterisk ignores the retry send result; at its own retry limit, it
 attempts a zero-expiry `SUBSCRIBE` only if the subscription is not already
 terminated, and ignores that send result too. Capture event types, requests
