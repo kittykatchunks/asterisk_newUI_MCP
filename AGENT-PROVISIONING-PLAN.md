@@ -3620,6 +3620,14 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   `pjsip_inv_verify_request3()` and does not establish the behavior for REFER
   ([INVITE verifier](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L1318-L1328),
   [Require check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L1595-L1653)).
+  The REFER-specific `pjsip_xfer_create_uas()` passes the request to
+  `pjsip_evsub_create_uas()`, whose validation checks the transaction,
+  subscription attachment, callbacks, and `Event` header but not `Require`
+  ([transfer UAS](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L216-L268),
+  [event-subscription UAS](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L960-L1009)).
+  This narrows the unresolved question to any earlier endpoint/module dispatch
+  layer; source review of these REFER processing functions does not establish
+  an automatic `420`/`Unsupported` response.
   Establish whether any earlier PJSIP/Asterisk framework stage validates
   option tags on incoming REFER. Test `Require: norefersub` with and without
   `Refer-Sub: false`, under both global advertisement settings, and record

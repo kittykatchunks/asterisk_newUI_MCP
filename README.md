@@ -3517,6 +3517,11 @@ The REFER supplement does not itself inspect `Require`; pjproject's
 proof of REFER validation
 ([INVITE verifier](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L1318-L1328),
 [Require check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L1595-L1653)).
+The REFER-specific transfer and event-subscription UAS constructors also
+validate transaction/subscription inputs, not `Require`
+([transfer UAS](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L216-L268),
+[event-subscription UAS](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L960-L1009)).
+No automatic 420 can be assumed from those paths.
 Test `Require: norefersub` with and without `Refer-Sub: false` under both
 global settings, and capture any 420/`Unsupported` before progress.
 RFC 3261 requires that response when a UAS does not support a required option
