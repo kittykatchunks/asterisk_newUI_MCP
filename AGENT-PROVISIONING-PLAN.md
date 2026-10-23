@@ -3382,7 +3382,15 @@ bridge return to its final SIP response synchronously
 [synchronous result mapping](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822-L1830)).
 The inspected paths establish no ordering guarantee between the asynchronous
 NOTIFY send and the handler's failed REFER response; capture wire order rather
-than assuming either response must precede the other.
+than assuming either response must precede the other. On any non-200 transfer
+result, the request handler also queues a terminal NOTIFY carrying that failure
+code
+([failure NOTIFY enqueue](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2089-L2098)).
+If a framehook has concurrently queued a progress-derived terminal `200`, the
+serializer can therefore be asked to send both success-shaped and failed
+terminal reports for a core-rejected transfer. Exercise both queue orders and
+retain the core return, final REFER response, every NOTIFY, and channel outcome
+as separate evidence.
 
 The transfer wrapper has two different lifetime rules. `transfer_channel_cb`
 may read its `data` pointer only during the callback; the pinned PJSIP callback
@@ -4267,7 +4275,7 @@ legs still need generation attribution and complete settlement.
 | Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
-| Two-party blind-transfer enqueue fails after progress hook attachment | Force queue failure while transferee frames are still flowing; record progress NOTIFY order and prove any hook-generated `200` does not mask the core failure, create a target leg, or settle the transfer claim as successful. |
+| Two-party blind-transfer enqueue fails after progress hook attachment | Force queue failure while transferee frames are still flowing; capture final REFER response and all terminal NOTIFY sipfrags/order, prove any hook-generated `200` cannot mask the core failure or failure NOTIFY, create a target leg, or settle the transfer claim as successful. |
 | Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
 | Parking Local admission rejected, then ordinary-transfer fallback rejected | Confirm both attempted Locals are torn down, the original transferer remains in its original bridge absent a concurrent hangup, the final REFER failure response is observed, and parking/fallback attempt plus parent claims settle exactly once. The failed parking Local must not run its callback or start an unowned target PBX. |
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |

@@ -3430,7 +3430,9 @@ not an identity-complete record for forked target legs.
 In the two-party path, `completed` is already set when the callback attaches
 the progress framehook, before the bridge action is enqueued. If that enqueue
 fails, a concurrent frame may still produce a progress `200`; test and record
-this separately from core transfer failure and target signaling.
+this separately from core transfer failure and target signaling. For a
+non-200 transfer result, Asterisk also queues a failure NOTIFY, so wire order
+and any competing terminal sipfrags must be captured.
 The `completed` field is a plain integer read from both the channel framehook
 and bridge Stasis callback and written by parking/core paths; the separate
 pooled subscriptions do not establish cross-callback synchronization. This is
