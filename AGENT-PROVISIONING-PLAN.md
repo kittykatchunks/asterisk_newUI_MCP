@@ -3714,12 +3714,22 @@ visible prior-state cleanup or already-initialized guard
 [single-field destructor cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L522-L548)).
 If parking and ordinary fallback both invoke this callback for one REFER, the
 second setup can overwrite the first target correlation and resource handles;
-the source therefore presents a potential lost-reference/subscription or
-framehook cleanup defect, not merely a stale progress indicator. The exact
-runtime effects require focused validation. Before relying on this parking
-fallback, require an upstream fix or explicitly exclude the path. This is
-separate from making transfer-attempt claims independently idempotent and
-settled.
+the older bridge subscription's handle is then no longer available through
+`progress->bridge_sub`. Each subscription has a corresponding explicit progress
+reference released by its final-message callback; Stasis sends that final
+message on unsubscribe
+([subscription reference](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L880-L907),
+[final callback release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L272-L283),
+[unsubscribe final-message sequence](https://github.com/asterisk/asterisk/blob/22.11.0/main/stasis.c#L1049-L1086)).
+Thus the second setup appears to orphan the first subscription/reference unless
+another path retains and unsubscribes that handle; it can continue receiving
+events against the overwritten target fields. The overwritten framehook handle
+also means progress-state teardown no longer identifies the first channel's
+hook (though teardown of that channel may destroy it). These are source-level
+lost-reference/resource-cleanup candidates, not runtime-confirmed leaks.
+Validate them and require an upstream fix or explicitly exclude the fallback
+before relying on it. This is separate from making transfer-attempt claims
+independently idempotent and settled.
 
 These progress fields are also shared between the synchronous transfer callback,
 the bridge subscription callback, and the channel framehook. The callback
