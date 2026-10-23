@@ -3625,6 +3625,38 @@ depending on the Local datastore being transferred. If the selected Asterisk
 hook set cannot observe that surviving channel and its terminal state, the
 path is not safely covered and must fail closed or be excluded.
 
+One candidate terminal signal for a child claim is the datastore's `destroy`
+callback on the actual callee channel. Asterisk invokes this callback while
+destroying the channel's datastores; the channel destructor publishes its final
+Stasis snapshot before it frees those datastores
+([channel teardown](https://github.com/asterisk/asterisk/blob/22.11.0/main/channel.c#L2179-L2217),
+[datastore destroy](https://github.com/asterisk/asterisk/blob/22.11.0/main/datastore.c#L68-L94)).
+This is a conservative reclamation point, not a hangup-time notification:
+channel references can delay destruction after hangup, leaving the claim
+outstanding longer rather than falsely reaching zero. Stasis delivery is
+separate and asynchronous; observing its final snapshot must not itself be
+treated as the serialized claim-release operation.
+
+The callback is invoked synchronously during teardown with the channel locked.
+It must not perform network/database work, wait for another thread, or acquire
+locks in an order that can deadlock against channel operations. Any completion
+handoff to the claim owner must be bounded and idempotent. If that handoff
+cannot be recorded, the claim must remain outstanding (safe over-count) and
+raise an operationally visible error; it must never be silently converted to
+settled. The owner must also be protected from module unload while callbacks
+can still run. The datastore should identify one specific child claim, not
+settle a parent operation merely because an inherited Local-channel copy is
+destroyed. Masquerade fixup/breakdown must preserve the child association on
+the surviving channel and cannot settle it as a side effect.
+
+This makes datastore teardown a source-supported candidate for eventual
+per-callee settlement, not yet a complete lifecycle proof. The design must
+still prove exactly one settlement across normal hangup, failed `ast_call()`,
+fork cancellation, channel masquerade, forwarding/re-dial, Local-to-Local
+targets, and unload/restart. If precise call teardown and generation-drain
+latency require release at hangup rather than final object destruction, a
+separate synchronous hook is needed, with its own lock-order and failure proof.
+
 The callback itself returns `void`, so any callback-side condition that could
 leave the transfer queued/executing without a valid claim must fail closed.
 Whether preallocation plus locked datastore insertion is sufficient for every
@@ -3719,7 +3751,10 @@ prove that no unowned target call is signaled. Exercise both Local optimization
 outcomes; keep a target active after the Local pair is optimized out and prove
 the parent operation remains open until every child claim reaches one terminal
 outcome. Verify that masquerade fixup/breakdown, when used, cannot duplicate,
-lose, or prematurely settle a child claim.
+lose, or prematurely settle a child claim. Verify datastore-destroy settlement
+occurs exactly once after final channel teardown, remains safe if channel
+destruction is delayed after hangup, and cannot deadlock or lose its owner
+handoff; inject handoff failure and prove the claim remains outstanding.
 The design must also prove that DTMF blind transfer and parking are either
 interposed or disabled. Only then design the finite synthetic proof around the matrix above.
 If the chosen path cannot be interposed without a zero-count gap or bypass,

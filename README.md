@@ -3430,7 +3430,10 @@ and ownership must be proven across Local optimization into every actual target
 leg. The Local bridge swap/merge path does not itself guarantee datastore
 transfer to the surviving target; the in-process owner must retain the parent
 operation while any per-target child claim remains unsettled. Local-channel
-hangup or optimization completion alone cannot settle active target work.
+hangup or optimization completion alone cannot settle active target work. A
+child datastore's destroy callback may provide conservative final settlement
+when the actual callee channel is destroyed, but that may lag hangup and must
+not lose or deadlock the claim-owner handoff.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
