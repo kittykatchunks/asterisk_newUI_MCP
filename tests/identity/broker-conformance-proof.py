@@ -308,9 +308,10 @@ def proof(cross_runtime=False):
                 process.communicate(timeout=5)
             os.chown(directory, 0, 0)
 
-def concurrent_server(path, require_visible_pid=True, admission_only=False):
+def concurrent_server(path, require_visible_pid=True, admission_only=False, terminal_race=False):
     unprivileged()
     assert os.getuid() == BROKER_UID
+    assert not (admission_only and terminal_race)
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     slot = threading.Lock()
     release = threading.Event()
@@ -324,12 +325,22 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
               "requestTimeouts": 0, "sourceFailures": 0, "cancellations": 0}
     errors = []
     tasks = []
+    race_barrier = threading.Barrier(2, timeout=8) if terminal_race else None
+    race_attempts = []
+    race_tasks = []
 
     def event(name):
         with output_lock:
             print(json.dumps({"event": name}), flush=True)
 
     def release_held_source(_signal, _frame):
+        if terminal_race:
+            if (len(race_attempts) != 2 or counts["reads"] != 1 or counts["capacity"] != 2 or
+                    counts["timeouts"] + counts["cancellations"] != 1 or
+                    not slot.locked() or release.is_set()):
+                errors.append("Unexpected race source-release signal")
+            release.set()
+            return
         state = (counts["reads"], counts["timeouts"], counts["capacity"], counts["cancellations"])
         if (state not in ((5, 3, 4, 0), (7, 3, 6, 1)) or
                 not slot.locked() or release.is_set() or
@@ -339,6 +350,16 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         release.set()
 
     def cancel_held_source(_signal, _frame):
+        if terminal_race:
+            with lifetime_lock:
+                if (counts["reads"] != 1 or counts["capacity"] != 1 or race_tasks or
+                        not slot.locked() or release.is_set() or "race" not in active):
+                    errors.append("Unexpected race cancellation signal")
+                    return
+                task = threading.Thread(target=active["race"], args=("cancelled",))
+                race_tasks.append(task)
+                task.start()
+            return
         with lifetime_lock:
             state = (counts["reads"], counts["timeouts"], counts["capacity"], counts["cancellations"])
             if (state not in ((5, 3, 3, 0), (7, 3, 4, 0), (7, 3, 5, 1)) or
@@ -394,6 +415,17 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 counts["reads"] += 1
                 if not isinstance(default, list):
                     counts["generationReads"] += 1
+            if terminal_race:
+                assert isinstance(default, list) and len(default) == 1
+                if counts["reads"] == 1:
+                    release.clear()
+                    event("source-entered")
+                    if not release.wait(15):
+                        errors.append("Race source was not released by parent")
+                        raise TimeoutError("Fixture race source was not released")
+                    assert expired.is_set() and slot.locked() and len(race_attempts) == 2
+                    event("source-settled")
+                return [{**default[0], "notAfter": default[0]["notAfter"] + counts["reads"]}]
             if admission_only:
                 if counts["reads"] == 1:
                     raise FixtureSourceFailure("Fixture source unavailable")
@@ -429,7 +461,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         def terminate(reason):
             with lifetime_lock:
                 if active.get("cancel") is not terminate:
-                    return
+                    return False
                 if expired.is_set():
                     if admission_only and reason == "cancelled" and counts["reads"] == 7:
                         repeat_cancel_observed.set()
@@ -455,7 +487,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                                 "cancellations": counts["cancellations"], "slotLocked": slot.locked(),
                             }}), flush=True)
                         event("cancelled-deadline-observed")
-                    return
+                    return False
                 expired.set()
                 counts["timeouts" if reason == "timeout" else "cancellations"] += 1
                 if reason == "timeout" and not request_complete.is_set():
@@ -472,12 +504,35 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 connection.shutdown(socket.SHUT_RDWR)
                 connection.close()
                 event(reason)
+                return True
+
+        def race_terminate(reason):
+            try:
+                race_barrier.wait()
+                won = terminate(reason)
+                with lifetime_lock:
+                    assert expired.is_set() and slot.locked() and counts["reads"] == 1
+                    observation = {"reason": reason, "won": won, "sourceEntries": counts["reads"],
+                                   "timeouts": counts["timeouts"], "cancellations": counts["cancellations"],
+                                   "responseAttempts": response_attempts, "slotLocked": slot.locked(),
+                                   "elapsedSeconds": time.monotonic() - (deadline - 5)}
+                    race_attempts.append(observation)
+                    with output_lock:
+                        print(json.dumps({"terminalRace": observation}), flush=True)
+                    if len(race_attempts) == 2:
+                        event("race-settled")
+            except (threading.BrokenBarrierError, AssertionError, OSError) as error:
+                errors.append(repr(error))
 
         deadline = time.monotonic() + 5
-        timer = threading.Timer(max(0, deadline - time.monotonic()), terminate, args=("timeout",))
+        timer = threading.Timer(max(0, deadline - time.monotonic()),
+                                race_terminate if terminal_race and before == 0 else terminate,
+                                args=("timeout",))
         try:
             with lifetime_lock:
                 active["cancel"] = terminate
+                if terminal_race and before == 0:
+                    active["race"] = race_terminate
             timer.start()
             text = read_frame(connection, 8192, deadline, received if admission_only else None)
             with lifetime_lock:
@@ -492,6 +547,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
                 if admission_only and counts["reads"] == 8:
+                    stop.set()
+                if terminal_race and counts["reads"] == 2:
                     stop.set()
             else:
                 result_discarded = True
@@ -521,7 +578,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             timer.cancel()
             timer.join()
             connection.close()
-            if admission_only:
+            if admission_only or terminal_race:
                 with output_lock:
                     print(json.dumps({"delivery": {
                         "sourceEntries": counts["reads"], "responseAttempts": response_attempts,
@@ -534,14 +591,14 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             event("released")
 
     try:
-        if admission_only:
+        if admission_only or terminal_race:
             previous_release_handler = signal.signal(signal.SIGUSR1, release_held_source)
             previous_cancel_handler = signal.signal(signal.SIGUSR2, cancel_held_source)
         listener.bind(path)
         os.chmod(path, 0o660)
         listener.listen(1)
         listener.settimeout(0.1)
-        if not admission_only:
+        if not admission_only and not terminal_race:
             threading.Thread(target=control, daemon=True).start()
         event("ready")
         while not stop.is_set():
@@ -574,7 +631,27 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         for task in tasks:
             task.join(16)
             assert not task.is_alive()
+        for task in race_tasks:
+            task.join(4)
+            assert not task.is_alive()
         assert not errors, errors
+        if terminal_race:
+            assert len(race_attempts) == 2
+            assert {attempt["reason"] for attempt in race_attempts} == {"timeout", "cancelled"}
+            assert sum(attempt["won"] for attempt in race_attempts) == 1
+            assert race_attempts[0]["timeouts"] == race_attempts[1]["timeouts"] == counts["timeouts"]
+            assert race_attempts[0]["cancellations"] == race_attempts[1]["cancellations"] == counts["cancellations"]
+            winner = next(attempt for attempt in race_attempts if attempt["won"])
+            assert counts["timeouts"] == int(winner["reason"] == "timeout")
+            assert counts["timeouts"] + counts["cancellations"] == 1
+            expected = {"reads": 2, "generationReads": 0, "capacity": 2,
+                        "timeouts": counts["timeouts"], "requestTimeouts": 0,
+                        "sourceFailures": 0, "cancellations": counts["cancellations"]}
+            assert counts == expected, counts
+            with output_lock:
+                print(json.dumps({"raceCounts": counts}), flush=True)
+            event("complete")
+            return
         expected = ({"reads": 8, "generationReads": 2, "capacity": 6, "timeouts": 3,
                      "requestTimeouts": 2, "sourceFailures": 2, "cancellations": 1} if admission_only else
                     {"reads": 9, "generationReads": 2, "capacity": 5, "timeouts": 3,
@@ -585,7 +662,7 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
                 print(json.dumps({"admissionCounts": counts}), flush=True)
         event("complete")
     finally:
-        if admission_only:
+        if admission_only or terminal_race:
             signal.signal(signal.SIGUSR1, previous_release_handler)
             signal.signal(signal.SIGUSR2, previous_cancel_handler)
         release.set()

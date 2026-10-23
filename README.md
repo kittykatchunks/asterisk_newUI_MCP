@@ -2801,8 +2801,9 @@ result therefore fails recovery, even if a new source-entry counter increments.
 These are synthetic fixture values, not real credential deadlines or a wire
 schema change. The original shared corpus and single-container lifecycle retain
 their existing expected responses.
-It does not establish simultaneous cancellation/deadline
-race safety or cancellation after a successful response.
+These ordered cases alone do not establish simultaneous cancellation/deadline
+race safety or cancellation after a successful response. The separate barrier
+case below adds bounded deadline/cancellation contention evidence.
 
 The shared concurrent fixture also rechecks terminal state/deadline after frame
 EOF and before source entry. This prevents deadline-triggered socket shutdown
@@ -2848,6 +2849,25 @@ completion, kernel peer authentication and separate PID/mount namespace evidence
 The optional byte-count observation hook does not alter frame parsing and is
 disabled for existing callers. This adds no wire operation, mount or privilege.
 
+A final isolated broker phase holds one inventory source while two threads
+contend to invoke the existing terminal callback. Parent `SIGUSR2` arms the
+cancellation thread; it waits at a two-party barrier with the actual five-second
+deadline timer. Both then contend for the existing lifetime lock, without forcing
+which reason wins. An eight-second barrier watchdog fails missing participation.
+The launcher requires two attempt records at five to under eight elapsed seconds:
+one winner and one no-op loser with identical terminal counters and no send attempt.
+The old client must receive zero-byte EOF. Fresh authenticated competitors are
+denied before contention and after both callbacks finish; the source still owns
+the single slot. Only parent `SIGUSR1` releases the test source. Its late result
+(`notAfter` baseline plus one) must settle, be discarded with zero send attempts,
+then release the slot. A fresh client must receive exact inventory with baseline
+plus two. Four fresh client containers require runtime completion, kernel
+UID/primary-GID checks and the same separate PID/mount namespace evidence.
+The default shared lifecycle is unchanged; this opt-in fixture adds no wire action,
+PBX access or production runtime selection. A passing run does not require both
+possible winners or prove all schedules, response-completion races, simultaneous
+duplicate cancellation or cancellation after successful completion.
+
 Broader namespace configurations and peer-disconnect handling while a source is
 blocked remain future cases. These early framing failures do not prove that
 full disconnect can be distinguished from required request half-close after a
@@ -2857,8 +2877,8 @@ managed-file symlink confinement or production socket rotation.
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)
 separates tested read-only interoperability from unproved parity/deployment
 behaviour. The request-version forms and independent source-entry accounting
-gaps are now covered by shared tests; blocked-source peer disconnect/terminal
-races remain open. The first acceptance gate is not signed off; production runtime
+gaps are now covered by shared tests; blocked-source peer disconnect and broader
+terminal/response-completion races remain open. The first acceptance gate is not signed off; production runtime
 selection and every privileged probe still require separate approval.
 
 The [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)

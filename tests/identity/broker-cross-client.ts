@@ -18,9 +18,9 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
 };
 const disconnectRecovery = index.startsWith("disconnect-reconnect-");
 let vector = vectors.cases[["reconnect", "restart-read"].includes(index) ? 0 : Number(index)];
-if (index === "held-reconnect" || index === "cancel-reconnect" || disconnectRecovery) {
+if (index === "held-reconnect" || index === "cancel-reconnect" || index === "race-reconnect" || disconnectRecovery) {
   const entry = disconnectRecovery ? Number(index.slice("disconnect-reconnect-".length)) :
-    index === "held-reconnect" ? 6 : 8;
+    index === "held-reconnect" ? 6 : index === "race-reconnect" ? 2 : 8;
   if (disconnectRecovery) {
     assert.ok(Number.isSafeInteger(entry) && entry >= 1 && entry <= 16);
     assert.equal(index, `disconnect-reconnect-${entry}`);

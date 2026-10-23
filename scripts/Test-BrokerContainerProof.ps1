@@ -25,7 +25,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
     $clientArguments = @()
-    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
+    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
     if ($NodeClients -and ($Mode.StartsWith('corpus-') -or $nodeLifecycle)) {
         $clientMounts = @(
             '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
@@ -45,7 +45,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
         if ($events[-1].clientRuntime -ne $expectedRuntime -or
             $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
     }
-    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-')) {
+    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode.StartsWith('half-close-') -or $Mode.StartsWith('race-')) {
         $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
         if ($events[-1].clientRuntime -ne $expectedRuntime -or $events[-1].lifecycleCase -ne $Mode) {
             throw "Unexpected lifecycle completion: $Mode"
@@ -541,6 +541,90 @@ try {
         $disconnectResult[0].sourceEntries -ne $disconnectModes.Count -or
         $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
     Write-Output "PASS request disconnect ($runtime clients): eight exact truncation boundaries in full-close and write-half-close modes add no source/send entry; half-closed clients require zero-byte EOF and every rejection has immediate authenticated inventory recovery with its own exact fresh expiry."
+    $race = Start-TestBroker 'server-race'
+    $raceHeld = Invoke-Client 'race-held' '1102:2100' -Detached
+    Wait-AdmissionEvent $race 'source-entered'
+    Invoke-Client 'race-capacity-before' '1102:2100'
+    Wait-AdmissionEvent $race 'capacity'
+    & docker kill --signal USR2 $race
+    if ($LASTEXITCODE -ne 0) { throw 'Could not arm test-only competing cancellation callback.' }
+    Wait-AdmissionEvent $race 'race-settled'
+    $raceHeldExit = & docker wait $raceHeld
+    if ($LASTEXITCODE -ne 0 -or "$raceHeldExit" -ne '0') { throw 'Race client did not observe zero-byte EOF.' }
+    $raceHeldEvents = @((& docker logs $raceHeld) | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $raceHeldEvents[-1].lifecycleCase -ne 'race-held' -or
+        $raceHeldEvents[-1].clientRuntime -ne $(if ($NodeClients) { 'node' } else { 'python' })) {
+        throw 'Missing race client runtime completion.'
+    }
+    $identities.Add($raceHeldEvents[0].identity)
+    Invoke-Client 'race-capacity-after' '1102:2100'
+    Wait-AdmissionEvent $race 'capacity' 2
+    & docker kill --signal USR1 $race
+    if ($LASTEXITCODE -ne 0) { throw 'Could not release test-only race source.' }
+    Wait-AdmissionEvent $race 'source-settled'
+    Wait-AdmissionEvent $race 'released'
+    Invoke-Client 'race-reconnect' '1102:2100'
+    $raceExit = & docker wait $race
+    if ($LASTEXITCODE -ne 0 -or "$raceExit" -ne '0') { throw 'Terminal-race broker failed.' }
+    $raceEvents = @((& docker logs $race 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or $raceEvents[-1].event -ne 'complete') { throw 'Missing terminal-race completion.' }
+    $raceIdentity = $raceEvents[0].identity
+    foreach ($identity in @($identities | Select-Object -Last 4)) {
+        if ($identity.uid_map -ne $raceIdentity.uid_map -or $identity.gid_map -ne $raceIdentity.gid_map -or
+            $identity.userNamespace -ne $raceIdentity.userNamespace -or
+            $identity.pidNamespace -eq $raceIdentity.pidNamespace -or
+            $identity.mntNamespace -eq $raceIdentity.mntNamespace) {
+            throw 'Race client namespace topology differs from approved separation.'
+        }
+    }
+    $racePeers = @($raceEvents | Where-Object { $_.peer })
+    if ($racePeers.Count -ne 4 -or @($racePeers | Where-Object {
+        -not ($_.peer.uid -eq 1102 -and $_.peer.gid -eq 2100)
+    }).Count -ne 0) { throw 'Missing authenticated race peer evidence.' }
+    $raceAttempts = @($raceEvents | Where-Object { $_.terminalRace } | ForEach-Object { $_.terminalRace })
+    $raceWinners = @($raceAttempts | Where-Object { $_.won })
+    if ($raceAttempts.Count -ne 2 -or $raceWinners.Count -ne 1 -or
+        @($raceAttempts | Where-Object { $_.reason -eq 'timeout' }).Count -ne 1 -or
+        @($raceAttempts | Where-Object { $_.reason -eq 'cancelled' }).Count -ne 1 -or
+        @($raceAttempts | Where-Object {
+            $_.sourceEntries -ne 1 -or $_.responseAttempts -ne 0 -or -not $_.slotLocked -or
+            ($_.timeouts + $_.cancellations) -ne 1 -or $_.elapsedSeconds -lt 5 -or $_.elapsedSeconds -ge 8
+        }).Count -ne 0) { throw 'Race must record one terminal winner and one unchanged loser at the deadline.' }
+    $expectedRaceTimeouts = if ($raceWinners[0].reason -eq 'timeout') { 1 } else { 0 }
+    if (@($raceAttempts | Where-Object {
+        $_.timeouts -ne $expectedRaceTimeouts -or $_.cancellations -ne (1 - $expectedRaceTimeouts)
+    }).Count -ne 0) { throw 'Race loser must preserve the winner reason and counters.' }
+    $raceCounts = @($raceEvents | Where-Object { $_.raceCounts })
+    if ($raceCounts.Count -ne 1 -or $raceCounts[0].raceCounts.reads -ne 2 -or
+        $raceCounts[0].raceCounts.capacity -ne 2 -or $raceCounts[0].raceCounts.requestTimeouts -ne 0 -or
+        $raceCounts[0].raceCounts.sourceFailures -ne 0 -or $raceCounts[0].raceCounts.generationReads -ne 0 -or
+        $raceCounts[0].raceCounts.timeouts -ne $expectedRaceTimeouts -or
+        $raceCounts[0].raceCounts.cancellations -ne (1 - $expectedRaceTimeouts) -or
+        ($raceCounts[0].raceCounts.timeouts + $raceCounts[0].raceCounts.cancellations) -ne 1 -or
+        @($raceEvents | Where-Object { $_.event -in @('timeout', 'cancelled') }).Count -ne 1 -or
+        @($raceEvents | Where-Object { $_.event -eq 'released' }).Count -ne 2) {
+        throw 'Unexpected terminal-race lifecycle totals.'
+    }
+    $raceDeliveries = @($raceEvents | Where-Object { $_.delivery } | ForEach-Object { $_.delivery })
+    if ($raceDeliveries.Count -ne 2 -or $raceDeliveries[0].sourceEntries -ne 1 -or
+        $raceDeliveries[0].responseAttempts -ne 0 -or -not $raceDeliveries[0].resultDiscarded -or
+        -not $raceDeliveries[0].terminal -or -not $raceDeliveries[0].slotLocked -or
+        $raceDeliveries[0].inventoryNotAfter -ne ($vectors.generation.notAfter + 1) -or
+        $raceDeliveries[1].sourceEntries -ne 2 -or $raceDeliveries[1].responseAttempts -ne 1 -or
+        $raceDeliveries[1].resultDiscarded -or $raceDeliveries[1].terminal -or
+        -not $raceDeliveries[1].slotLocked -or
+        $raceDeliveries[1].inventoryNotAfter -ne ($vectors.generation.notAfter + 2)) {
+        throw 'Race result must be discarded before fresh inventory delivery.'
+    }
+    $settledIndex = -1
+    for ($index = 0; $index -lt $raceEvents.Count; $index++) {
+        if ($raceEvents[$index].event -eq 'source-settled') { $settledIndex = $index }
+    }
+    if ($settledIndex -lt 0 -or $null -eq $raceEvents[$settledIndex + 1].delivery -or
+        $raceEvents[$settledIndex + 2].event -ne 'released') {
+        throw 'Race source must settle and discard its result before releasing the slot.'
+    }
+    Write-Output "PASS terminal race ($runtime clients): barrier-released deadline/cancellation callbacks have exactly one winner ($($raceWinners[0].reason)), retain capacity through late-result discard, then deliver distinct fresh inventory."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

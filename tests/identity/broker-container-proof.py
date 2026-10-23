@@ -212,7 +212,40 @@ def node_client(index):
     assert result.stdout == "" and result.stderr == "", (result.stdout, result.stderr)
 
 
+def fresh_inventory_client(entry):
+    vector = protocol.VECTORS["cases"][0]
+    expected = {**vector["expected"], "generations": [
+        {**protocol.VECTORS["generation"], "notAfter": protocol.VECTORS["generation"]["notAfter"] + entry}
+    ]}
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        connection.settimeout(5)
+        connection.connect(PATH)
+        deadline = time.monotonic() + 5
+        protocol.remaining(connection, deadline)
+        connection.sendall(protocol.frame(vector["text"], 8192))
+        connection.shutdown(socket.SHUT_WR)
+        assert json.loads(protocol.read_frame(connection, 32768, deadline)) == expected
+
+
 def client(mode):
+    if mode.startswith("race-"):
+        index = {"race-held": "held-source", "race-capacity-before": "capacity",
+                 "race-capacity-after": "capacity", "race-reconnect": "race-reconnect"}.get(mode)
+        assert index is not None
+        assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
+        if len(sys.argv) == 3:
+            assert sys.argv[2] == "node-client"
+            node_client(index)
+            runtime = "node"
+        else:
+            assert len(sys.argv) == 2
+            if index == "race-reconnect":
+                fresh_inventory_client(2)
+            else:
+                protocol.client(PATH, index)
+            runtime = "python"
+        emit({"lifecycleCase": mode, "clientRuntime": runtime})
+        return
     recovery = mode.startswith("disconnect-reconnect-")
     if mode in DISCONNECT_BYTES or recovery:
         assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
@@ -226,18 +259,7 @@ def client(mode):
         else:
             assert len(sys.argv) == 2
             if recovery:
-                vector = protocol.VECTORS["cases"][0]
-                expected = {**vector["expected"], "generations": [
-                    {**protocol.VECTORS["generation"], "notAfter": protocol.VECTORS["generation"]["notAfter"] + entry}
-                ]}
-                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                    connection.settimeout(5)
-                    connection.connect(PATH)
-                    deadline = time.monotonic() + 5
-                    protocol.remaining(connection, deadline)
-                    connection.sendall(protocol.frame(vector["text"], 8192))
-                    connection.shutdown(socket.SHUT_WR)
-                    assert json.loads(protocol.read_frame(connection, 32768, deadline)) == expected
+                fresh_inventory_client(entry)
             else:
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                     connection.settimeout(5)
@@ -372,14 +394,16 @@ def client(mode):
 
 signal.alarm(180 if sys.argv[1] == "server-corpus" else 60 if sys.argv[1].startswith("server") else 15)
 identity()
-if sys.argv[1] in ("server-corpus", "server-admission"):
+if sys.argv[1] in ("server-corpus", "server-admission", "server-race"):
     assert (os.getuid(), os.getgid()) == (1101, 2100) and set(os.getgroups()) <= {2100}
     directory = os.lstat("/socket/broker")
     assert stat.S_ISDIR(directory.st_mode) and stat.S_IMODE(directory.st_mode) == 0o750
     assert (directory.st_uid, directory.st_gid) == (1101, 2100)
     os.umask(0o117)
-    if sys.argv[1] == "server-admission":
-        protocol.concurrent_server(PATH, require_visible_pid=False, admission_only=True)
+    if sys.argv[1] in ("server-admission", "server-race"):
+        protocol.concurrent_server(PATH, require_visible_pid=False,
+                                   admission_only=sys.argv[1] == "server-admission",
+                                   terminal_race=sys.argv[1] == "server-race")
     else:
         protocol.server(PATH, require_visible_pid=False)
 elif sys.argv[1] in ("server", "server-crash", "server-restarted", "server-disconnect"):
