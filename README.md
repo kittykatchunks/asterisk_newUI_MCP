@@ -3325,6 +3325,22 @@ observation-connection association. The existing foreground Asterisk entrypoint
 is unchanged. Authority-session/revision coordination is proposed but is not
 implemented by the current synthetic evidence validator.
 
+The [synthetic authority-state model](./AGENT-PROVISIONING-PLAN.md#925-synthetic-authority-state-and-evidence-coordination-model)
+now coordinates those local checks in
+[`local/broker/authority.py`](./local/broker/authority.py). It accepts trusted
+caller lifecycle facts, rejects out-of-order transitions, and binds one-use
+evidence collections to a session/revision under the same lock as invalidation.
+An invalidation followed by the same binding cannot revive an old collection.
+
+```powershell
+python -I -B .\tests\identity\broker-authority-proof.py
+```
+
+The existing Linux launcher runs the four synthetic tests as non-root with no
+effective capabilities. This is not a supervisor or process attestation: real
+child ownership, connection association, callback ordering and cross-process
+invalidation remain unimplemented. No PBX access or lifecycle control is added.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

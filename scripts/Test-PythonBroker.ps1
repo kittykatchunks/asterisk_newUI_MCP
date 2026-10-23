@@ -15,6 +15,8 @@ try {
         --mount "type=bind,source=$(Join-Path $root 'local\broker\readback.py'),target=/local/broker/readback.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'local\broker\ledger.py'),target=/local/broker/ledger.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'local\broker\evidence.py'),target=/local/broker/evidence.py,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'local\broker\authority.py'),target=/local/broker/authority.py,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-authority-proof.py'),target=/tests/identity/broker-authority-proof.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'local\broker\mapping.py'),target=/local/broker/mapping.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-mapping-proof.py'),target=/tests/identity/broker-mapping-proof.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-evidence-proof.py'),target=/tests/identity/broker-evidence-proof.py,readonly" `
@@ -34,7 +36,7 @@ try {
         --mount "type=bind,source=$(Join-Path $root 'src\agent-provisioning-expiry.ts'),target=/src/agent-provisioning-expiry.ts,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\agent-broker-client.test.ts'),target=/tests/agent-broker-client.test.ts,readonly" `
         --env TMPDIR=/proof --env ASTERISK_SYNTHETIC_LISTENER_PROOF=1 `
-        --entrypoint sh $image -c 'python3 -I -B /tests/identity/broker-ledger-proof.py && python3 -I -B /tests/identity/broker-evidence-proof.py && python3 -I -B /tests/identity/broker-mapping-proof.py && node --test /tests/agent-broker-client.test.ts /tests/python-broker-source.test.ts && exec python3 -I -B /proof-test.py'
+        --entrypoint sh $image -c 'python3 -I -B /tests/identity/broker-ledger-proof.py && python3 -I -B /tests/identity/broker-evidence-proof.py && python3 -I -B /tests/identity/broker-authority-proof.py && python3 -I -B /tests/identity/broker-mapping-proof.py && node --test /tests/agent-broker-client.test.ts /tests/python-broker-source.test.ts && exec python3 -I -B /proof-test.py'
     if ($LASTEXITCODE -ne 0) { throw 'Python broker implementation proof failed.' }
 } finally {
     $owned = & docker container ls -aq --filter "name=^/$name$" --filter "label=$label"

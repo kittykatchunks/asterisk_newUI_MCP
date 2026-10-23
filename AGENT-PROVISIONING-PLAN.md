@@ -2835,3 +2835,50 @@ forwarding/reaping policy, startup failure behavior and upgrade operations need
 their own implementation review before replacing the current foreground launch
 path. Independent expiry, collector permissions, effective fencing and complete
 generation-dialog evidence remain open regardless of enrollment progress.
+
+### 9.25 Synthetic authority-state and evidence coordination model
+
+The user accepted the recommended bounded synthetic implementation scope.
+`local/broker/authority.py` adds an in-process `ObservationAuthority` for one
+generation's `EvidenceBinding`. It does not supervise or attest a process,
+establish a connection association, implement collector IPC or change ledger
+schema. Lifecycle and association facts are trusted caller assertions.
+
+The model starts unenrolled. Explicit `start(binding)` enters starting;
+`child_started()` enters association-pending; `association_verified(binding)`
+enters ready only for the expected binding. Out-of-order transitions fail.
+`invalidate()` clears the binding and prevents collection until the entire
+sequence is performed again. Restarting an already-ready authority without
+invalidation is rejected.
+
+Each model instance owns a fresh session UUID and an increasing in-memory
+revision. `begin()` is permitted only while ready and captures both alongside
+a new `EvidenceRequest`. `accept()` checks the session, one-use collection state,
+ready state and exact revision before invoking the existing evidence validator.
+The same lock coordinates acceptance and invalidation, so an old collection
+cannot survive an invalidation/re-enrollment ABA even when the binding is
+identical. Cancellation, unavailable and malformed results consume the local
+attempt rather than inviting reuse. Collections from another session are
+rejected; tokens are internal trusted-process objects, not transport credentials.
+
+Acceptance is linearized relative to local invalidation: if validation holds
+the coordination lock first, it may return a point-in-time result before
+invalidation takes effect. That does not prove the child is still alive when
+the caller later uses the result, nor authorize mutation. Real exit detection
+latency and ordering of trusted lifecycle callbacks remain responsibilities of
+the future supervisor integration. The model neither verifies those callbacks
+nor identifies which real child emitted them.
+
+Four synthetic tests cover ordered/unavailable states, valid acceptance,
+same-binding ABA rejection, replacement-session rejection, one-use failures,
+cancellation and lock-coordinated acceptance/invalidation using thread barriers.
+They run on Windows and capability-free non-root Linux through the existing
+launcher, alongside the unchanged full broker regression.
+
+This closes only the in-process stale-collection coordination gap. There is no
+persistent enrollment, cross-process invalidation protocol, runtime liveness
+proof or shared multi-generation authority fanout. A future real lifecycle
+owner must invalidate every affected generation and supply the verified
+connection association; this model does not create that owner. The next
+meaningful gate is the separately approved isolated-PBX feasibility design and
+access decision, not additional synthetic transition permutations.
