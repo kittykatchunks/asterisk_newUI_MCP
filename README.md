@@ -3506,7 +3506,13 @@ Asterisk advertises `Supported: norefersub` by default through the global
 `norefersub=yes` setting
 ([default](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/config_global.c#L52-L57),
 [registration](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2168-L2177));
-this capability advertisement is not itself a per-request grant. Also capture
+this capability advertisement is not itself a per-request grant. The setting
+only gates capability registration in the source: the incoming parser chooses
+the no-subscription path from `Refer-Sub` without checking that option. Thus
+`norefersub=no` should not be assumed to disable that request behavior
+([advertisement check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2168-L2177),
+[incoming parser](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L553-L569)).
+Verify both effective settings on the deployed build. Also capture
 response code and header together: Asterisk's no-subscription response builder
 adds `Refer-Sub: false` without restricting it to 2xx
 ([response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)),
