@@ -3666,9 +3666,12 @@ Confirm the peer's challenge-selection result separately; generated headers
 alone do not prove which credential the server accepts.
 Asterisk's endpoint-auth helper prefers an exact realm match even if a
 wildcard auth object appeared earlier; among duplicate exact or wildcard
-matches, the first eligible object wins. It also takes credentials for only
-the first supported challenge per realm, so challenge-header order can decide
-which Digest algorithm is used. Test these selections separately from
+matches, the first eligible object wins. For each realm, it takes credentials
+from the first supported challenge that also has a matching endpoint auth
+object; an unsupported challenge or missing credential does not by itself
+prevent a later same-realm challenge from being considered. Challenge-header
+order can therefore decide which Digest algorithm is used once a matching
+credential is found. Test these selections separately from
 pjproject's generic exact-then-wildcard lookup and confirm the peer's chosen
 Authorization header
 ([Asterisk selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L91-L248),
