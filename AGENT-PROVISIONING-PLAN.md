@@ -3362,6 +3362,18 @@ selected transfer context and its complete extension patterns; the policy
 should reject URI forms not explicitly supported and verify the resolved
 same-customer destination before any target leg is signaled.
 
+The `ari-only` PJSIP mode is not itself a transfer admission controller. In
+22.11.0 the REFER handler builds transfer state, attaches a frame hook, then
+calls `ast_refer_notify_transfer_request()` to publish a Stasis channel event
+([ARI event publication](https://github.com/asterisk/asterisk/blob/22.11.0/main/refer.c#L541)).
+That function is notification, not an approval callback: the public API
+describes a transfer notification, and the REFER handler returns SIP `200`
+after successful notification setup. The ARI application can observe transfer
+progress, but this path does not synchronously wait for its policy decision
+before authorizing or reserving a target. Therefore `ari-only` may be useful
+for a future application-owned transfer protocol, but it does not close the
+pre-target claim gap without additional PBX-side interposition.
+
 These APIs make an in-process PJSIP gate technically plausible, but do not
 prove coverage of every queue, transfer, redirect, channel technology, or call
 direction. `incoming_request` runs on a SIP servant thread, so it must not wait
