@@ -3331,7 +3331,7 @@ queues a bridge-channel action
 ([queue implementation](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_channel.c#L3017)).
 `ast_bridge_transfer_blind()` returns success after that enqueue and immediately
 publishes the transfer result
-([result publication](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4747)).
+([result publication](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4757)).
 The built-in PJSIP REFER handler maps that return value to SIP `200`
 ([response mapping](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L711)).
 Therefore that immediate `200`/success proves transfer acceptance/queueing at
@@ -3401,13 +3401,16 @@ event alone does not establish the ownership or serialization assertions above.
 
 #### Next gate
 
-Pin the SIP.js version, verify its blind- and incoming-REFER behavior, then
-review the exact Asterisk 22.11.0 transfer path and determine whether it exposes
-a controllable pre-target admission boundary that can share the final
-generation fence. Then design the finite synthetic proof around the matrix
-above. If the chosen transfer path cannot be interposed without a zero-count
-gap or bypass, stop and return to the product scope rather than claim the
-existing Milestone 1 behavior is safely generation-managed.
+Pin the SIP.js version and verify its blind- and incoming-REFER behavior. Then
+specify where a generation claim is created before the two-party transfer is
+queued or a multi-party `Local` channel is started, and how that claim is bound
+to every later target-leg admission and released on all terminal outcomes.
+`session_create` alone is too late to represent that transfer-start obligation.
+The design must also prove that DTMF blind transfer and parking are either
+interposed or disabled. Only then design the finite synthetic proof around the
+matrix above. If the chosen path cannot be interposed without a zero-count gap
+or bypass, stop and return to the product scope rather than claim the existing
+Milestone 1 behavior is safely generation-managed.
 
 This is a design recommendation and feasibility gate, not PBX module selection
 or implementation approval. Exact Asterisk API coverage, build compatibility,
