@@ -3611,6 +3611,14 @@ than nine retries may be sent. This is only a callback-branch threshold, not
 necessarily a limit on sequential wire retries: the terminal-state retry may
 not remain associated with a live evsub, so its response may not reach
 Asterisk's callback. This does not bound pjproject's separate attempts.
+The auth reinitializer starts from the challenged `last_tx`, adding
+Authorization and changing the Via branch rather than rebuilding the REFER;
+the original Refer-To and caller-supplied headers, including Refer-Sub, are
+therefore expected to carry over. Asterisk also skips its Refer-To rewrite
+when Authorization is already present. Capture the wire retry to verify
+headers and URI handling
+([pjproject reinitializer](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1708-L1861),
+[Asterisk rewrite guard](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1200-L1220)).
 Asterisk ignores the retry send result; at its own retry limit, it
 attempts a zero-expiry `SUBSCRIBE` only if the subscription is not already
 terminated, and ignores that send result too. Capture event types, requests
