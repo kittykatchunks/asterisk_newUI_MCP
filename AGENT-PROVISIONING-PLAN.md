@@ -3640,9 +3640,23 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   `pjsip_dlg_send_response()` is therefore a source-backed response candidate,
   unlike creating a second UAS transaction or sending statelessly. It is not
   yet proven: confirm the callback's actual rdata/key and transaction state;
-  manage the lookup's added group-lock reference; prove nested dialog/
-  transaction lock behavior, response construction, response-send error
-  handling, and that no earlier code has already sent a final response.
+  manage the lookup's added group-lock reference; prove response construction,
+  response-send error handling, and that no earlier code has already sent a
+  final response. The source shows the transaction group lock is chained to
+  the dialog group lock with dialog-first ordering before UAS transaction
+  creation
+  ([lock chaining](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1823-L1836)),
+  and each group lock uses a recursive mutex
+  ([group-lock creation](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/lock.c#L410-L456)).
+  `pjsip_tsx_layer_find_tsx2()` adds a reference without acquiring the
+  transaction lock, and the lookup releases its hash mutex before returning
+  ([lookup implementation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L730-L778)).
+  This aligns with `pjsip_dlg_send_response()` reacquiring the dialog lock
+  before sending through the transaction
+  ([dialog send ordering](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1642-L1713)).
+  Balance the lookup reference with one `pj_grp_lock_dec_ref()` on every path;
+  confirm this nested-lock and lifetime behavior on the exact callback path
+  before adopting it.
 
   The PJSIP transaction layer also handles an active request with the same
   transaction key before it reaches the dialog again

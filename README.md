@@ -3483,9 +3483,16 @@ initial request to the transaction before releasing the dialog lock, moves it
 to `TRYING`, then invokes Asterisk's transaction-state callback, where the
 session supplements run. A synchronous response through the found transaction
 may therefore be viable, but verify the exact clone-derived key and state,
-release the lookup reference safely, prove lock behavior, handle send errors,
-and ensure no final response was already sent. This remains a candidate, not
-an approved response mechanism.
+release the lookup reference safely, handle send errors, and ensure no final
+response was already sent. pjproject chains the transaction lock to the dialog
+lock in dialog-first order and uses recursive group-lock mutexes
+([lock chaining](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1823-L1836),
+[group lock](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/lock.c#L410-L456));
+transaction lookup takes a reference without acquiring the transaction lock
+([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L730-L778)),
+which aligns with the dialog response helper's lock order. The added reference
+must be released exactly once with `pj_grp_lock_dec_ref()`. This remains a
+candidate, not an approved response mechanism.
 For an allowed request, returning zero continues into Asterisk's built-in
 transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,
