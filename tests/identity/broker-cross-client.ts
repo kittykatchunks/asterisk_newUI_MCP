@@ -16,7 +16,7 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
     delayEofMs?: number; trailingHex?: string; expected: unknown }[];
   sourceCases: { kind: string; value: unknown; inventoryCount?: number; valid: boolean }[];
 };
-let vector = vectors.cases[["reconnect", "restart-read"].includes(index) ? 0 : Number(index)];
+let vector = vectors.cases[["reconnect", "restart-read", "disconnect-reconnect"].includes(index) ? 0 : Number(index)];
 if (index === "held-reconnect" || index === "cancel-reconnect") {
   const entry = index === "held-reconnect" ? 6 : 8;
   const { customer, epoch } = vectors.binding;
@@ -69,7 +69,18 @@ try {
     assert.equal(socket.bytesWritten, 0);
   } else {
     await once(socket, "connect");
-    if (passive || vector.expected === null) {
+    if (index === "disconnect-empty" || index === "disconnect-partial") {
+      const data = index === "disconnect-partial" ?
+        encodeBrokerFrame(vectors.cases[0].text!, "request").subarray(0, 7) : Buffer.alloc(0);
+      const finished = once(socket, "finish");
+      socket.end(data);
+      await finished;
+      assert.equal(socket.bytesWritten, data.length);
+      assert.equal(socket.bytesRead, 0);
+      const closed = once(socket, "close");
+      socket.destroy();
+      await closed;
+    } else if (passive || vector.expected === null) {
       let responseBytes = 0;
       socket.on("data", (chunk: Buffer) => { responseBytes += chunk.length; });
       const ended = once(socket, "end");

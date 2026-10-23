@@ -2641,7 +2641,7 @@ The subsequent corpus phase runs all shared vectors across containers as
 described below.
 
 Every runtime has network disabled, read-only root, explicit limits and only
-three read-only fixture inputs (the opt-in Node corpus and crash/restart clients additionally mount
+three read-only fixture inputs (the opt-in Node corpus and lifecycle clients additionally mount
 their TypeScript client and framing helper read-only). Cleanup removes only recorded containers matching
 the owner label, then their exact new labelled volume; no PBX or unrelated
 container is touched. After normal broker completion, two additional broker-user
@@ -2693,7 +2693,7 @@ successfully without stdout/stderr, and the wrapper emits explicit per-case Node
 completion evidence. The launcher checks that evidence rather than inferring
 which runtime ran from a flag. No fallback to Python occurs on Node failure.
 
-Only Node corpus, crash/restart and admission clients receive the extra two read-only
+Only Node corpus, crash/restart, admission and request-disconnect clients receive the extra two read-only
 mounts. The broker, identity/publication/conflict checks and stale cleanup remain Python in both modes, with
 unchanged resource limits and ownership-checked cleanup. Default Python corpus
 clients also emit checked runtime completion evidence.
@@ -2809,8 +2809,26 @@ EOF and before source entry. This prevents deadline-triggered socket shutdown
 from supplying an apparent request EOF that could otherwise reach the source.
 The original single-container lifecycle sequence remains covered.
 
-Broader namespace configurations and peer-disconnect
-lifecycle coverage across separate containers remain future cases. Conflicting-path preservation is not proof of general
+An additional finite broker phase exercises early request disconnects. Fresh
+approved clients connect and close both directions either without sending bytes
+or after sending a four-byte valid length header and three bytes of its body.
+The Python client closes the socket after `sendall`; Node finishes the selected
+bytes locally, destroys the socket and waits for local close. Neither treats a
+transport error or watchdog expiry as success.
+The broker's actual frame reader must observe exactly zero and seven bytes,
+respectively, then reject specifically as a truncated frame, with no source
+entry or response attempt. Only this mode accepts those two expected framing
+failures; other failures remain fatal. A third approved client must receive
+exact inventory, with final counters of two request disconnects, one source
+entry and one response attempt. All three clients require explicit runtime
+completion, kernel peer authentication and separate PID/mount namespace evidence.
+The optional byte-count observation hook does not alter frame parsing and is
+disabled for existing callers. This adds no wire operation, mount or privilege.
+
+Broader namespace configurations and peer-disconnect handling while a source is
+blocked remain future cases. These early framing failures do not prove that
+full disconnect can be distinguished from required request half-close after a
+complete request. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 
 The current [broker acceptance-gap review](./AGENT-PROVISIONING-PLAN.md#910-acceptance-gap-review-after-cross-runtime-lifecycle-proof)

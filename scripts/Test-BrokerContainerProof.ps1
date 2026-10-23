@@ -25,7 +25,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
     $access = if ($Writable) { '' } else { ',readonly' }
     $clientMounts = @()
     $clientArguments = @()
-    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
+    $nodeLifecycle = $NodeClients -and ($Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-') -or $Mode -in @('crash-wait', 'stale-refused', 'restart-read'))
     if ($NodeClients -and ($Mode.StartsWith('corpus-') -or $nodeLifecycle)) {
         $clientMounts = @(
             '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
@@ -45,7 +45,7 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
         if ($events[-1].clientRuntime -ne $expectedRuntime -or
             $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
     }
-    if ($nodeLifecycle -or $Mode.StartsWith('admission-')) {
+    if ($nodeLifecycle -or $Mode.StartsWith('admission-') -or $Mode.StartsWith('disconnect-')) {
         $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
         if ($events[-1].clientRuntime -ne $expectedRuntime -or $events[-1].lifecycleCase -ne $Mode) {
             throw "Unexpected lifecycle completion: $Mode"
@@ -483,6 +483,37 @@ try {
     Write-Output "PASS cancellation after timeout ($runtime clients): original timeout retained without a cancellation outcome or early slot release; competitor excluded until source settlement."
     Write-Output "PASS repeated cancellation ($runtime clients): one cancellation outcome, no extra timeout/source entry or early slot release, fresh read succeeds after settlement."
     Write-Output "PASS terminal delivery ($runtime clients): both late source results discarded without a send attempt before slot release; only four fresh successful reads attempt responses."
+    $disconnect = Start-TestBroker 'server-disconnect'
+    Invoke-Client 'disconnect-empty' '1102:2100'
+    Invoke-Client 'disconnect-partial' '1102:2100'
+    Invoke-Client 'disconnect-reconnect' '1102:2100'
+    $disconnectExit = & docker wait $disconnect
+    if ($LASTEXITCODE -ne 0 -or "$disconnectExit" -ne '0') { throw 'Request-disconnect broker failed.' }
+    $disconnectEvents = @((& docker logs $disconnect 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
+    if ($LASTEXITCODE -ne 0 -or -not $disconnectEvents[-1].complete) { throw 'Missing disconnect completion.' }
+    $disconnectIdentity = $disconnectEvents[0].identity
+    foreach ($identity in @($identities | Select-Object -Last 3)) {
+        if ($identity.uid_map -ne $disconnectIdentity.uid_map -or $identity.gid_map -ne $disconnectIdentity.gid_map -or
+            $identity.userNamespace -ne $disconnectIdentity.userNamespace -or
+            $identity.pidNamespace -eq $disconnectIdentity.pidNamespace -or
+            $identity.mntNamespace -eq $disconnectIdentity.mntNamespace) {
+            throw 'Disconnect client namespace topology differs from approved separation.'
+        }
+    }
+    $disconnectPeers = @($disconnectEvents | Where-Object { $_.peer })
+    if ($disconnectPeers.Count -ne 3 -or @($disconnectPeers | Where-Object {
+        -not $_.allowed -or $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
+    }).Count -ne 0) { throw 'Missing authenticated disconnect peer evidence.' }
+    $rejections = @($disconnectEvents | Where-Object { $_.requestDisconnected })
+    if ($rejections.Count -ne 2 -or $rejections[0].requestDisconnected.requestBytes -ne 0 -or
+        $rejections[1].requestDisconnected.requestBytes -ne 7 -or @($rejections | Where-Object {
+            $_.requestDisconnected.sourceEntries -ne 0 -or $_.requestDisconnected.responseAttempts -ne 0
+        }).Count -ne 0) { throw 'Incomplete disconnect entered a source or attempted a response.' }
+    $disconnectResult = @($disconnectEvents | Where-Object { $_.disconnectComplete })
+    if ($disconnectResult.Count -ne 1 -or $disconnectResult[0].disconnects -ne 2 -or
+        $disconnectResult[0].responseAttempts -ne 1 -or $disconnectResult[0].sourceEntries -ne 1 -or
+        $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
+    Write-Output "PASS request disconnect ($runtime clients): empty and seven-byte truncated frames close without source/send entry; fresh authenticated inventory succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

@@ -1200,7 +1200,7 @@ environment/credential dumps. A short-lived root setup container has only CHOWN
 in addition to the restrictive common flags and initialises exact new paths;
 broker/clients are separate non-root, zero-capability containers with network
 disabled, read-only roots and resource limits. Three fixture inputs are
-mounted read-only; opt-in Node corpus, crash/restart and admission clients add only their client and framing
+mounted read-only; opt-in Node corpus and lifecycle clients add only their client and framing
 helper read-only. No PBX, Docker socket or repository-wide mounts are used.
 
 The Python fixture reuses the existing framing/readback/validation functions;
@@ -1315,7 +1315,7 @@ general concurrent lifecycle behaviour across containers; those remain distinct 
 
 `Test-BrokerContainerProof.ps1 -NodeClients` now substitutes Node/TypeScript
 clients for the sequential separate-container corpus, the three crash/restart
-client steps and the idle/missing-EOF admission phase below. The existing client
+client steps, the admission phase and the early request-disconnect phase below. The existing client
 imports the production framing helper, and every case must produce explicit
 wrapper completion evidence identifying Node. The Python identity wrapper
 checks maps/groups/namespaces first and runs Node with inherited credentials,
@@ -1503,3 +1503,26 @@ and timeout before late cancellation) do not prove simultaneous
 cancellation/deadline or response-completion races.
 The sequential repeated-cancellation case likewise does not establish
 simultaneous cancellation delivery or cancellation after successful completion.
+
+The early-disconnect follow-up uses a separate finite broker instance on the
+same isolated socket volume after the admission broker has exited and removed
+its path. Three fresh approved clients run sequentially: close without a
+request, close after a valid four-byte length header plus three body bytes,
+then a complete inventory read. Python closes its socket after the selected
+send; Node waits for local write finish, destroys the socket and waits for local
+close. Errors/watchdog expiry are not successful disconnect completion.
+
+The existing frame reader has an optional byte-count observation hook at actual
+successful receives, disabled by default. The broker requires exactly zero and
+seven bytes and the specific `Truncated frame` exception for the first two
+connections. Both must have zero source entries and zero response attempts;
+other errors or unexpected complete frames fail. The third connection must
+return exact inventory. Final evidence requires two expected disconnects, one
+source entry and one response attempt, three authenticated kernel peers,
+explicit Python/Node completion and approved maps with distinct broker/client
+PID/mount namespaces. Runtime restrictions and ownership-checked cleanup are
+unchanged; no extra mount, signal or wire action is added.
+
+This proves bounded handling of early framing disconnects, not disconnect
+detection during a blocked source or differentiation of full peer close from
+the protocol's required write half-close after a complete request.

@@ -46,6 +46,8 @@ def server(mode="server"):
     bound = False
     entries = 0
     denied = 0
+    response_attempts = 0
+    disconnects = 0
     try:
         # Never remove an existing pathname to make bind succeed.
         try:
@@ -66,7 +68,7 @@ def server(mode="server"):
             nonlocal entries
             entries += 1
 
-        for _ in range(5 if mode == "server" else 1):
+        for case in range(5 if mode == "server" else 3 if mode == "server-disconnect" else 1):
             connection, _ = listener.accept()
             with connection:
                 peer = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
@@ -76,15 +78,37 @@ def server(mode="server"):
                     denied += 1
                     continue
                 deadline = time.monotonic() + 5
-                text = protocol.read_frame(connection, 8192, deadline)
+                request_bytes = 0
+
+                def received_bytes(count):
+                    nonlocal request_bytes
+                    request_bytes += count
+
+                try:
+                    text = protocol.read_frame(connection, 8192, deadline, on_bytes=received_bytes)
+                except ValueError as error:
+                    if mode != "server-disconnect" or case >= 2 or str(error) != "Truncated frame":
+                        raise
+                    assert request_bytes == (0 if case == 0 else 7)
+                    assert entries == 0 and response_attempts == 0
+                    disconnects += 1
+                    emit({"requestDisconnected": {"requestBytes": request_bytes, "sourceEntries": entries,
+                                                   "responseAttempts": response_attempts}})
+                    continue
+                assert mode != "server-disconnect" or case == 2
                 if mode == "server-crash":
                     emit({"crashingBeforeSource": True, "sourceEntries": entries})
                     os._exit(23)
                 response = protocol.readback(text, on_source=entered)
                 protocol.remaining(connection, deadline)
+                response_attempts += 1
                 connection.sendall(protocol.frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
         assert (entries, denied) == ((3, 2) if mode == "server" else (1, 0)), (entries, denied)
+        if mode == "server-disconnect":
+            assert disconnects == 2 and response_attempts == 1
+            emit({"disconnectComplete": True, "disconnects": disconnects,
+                  "responseAttempts": response_attempts, "sourceEntries": entries})
         emit({"complete": True, "sourceEntries": entries, "deniedBeforeRead": denied})
     finally:
         listener.close()
@@ -170,6 +194,25 @@ def node_client(index):
 
 
 def client(mode):
+    if mode in ("disconnect-empty", "disconnect-partial", "disconnect-reconnect"):
+        assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
+        if len(sys.argv) == 3:
+            assert sys.argv[2] == "node-client"
+            node_client(mode)
+            runtime = "node"
+        else:
+            assert len(sys.argv) == 2
+            if mode == "disconnect-reconnect":
+                protocol.client(PATH, "reconnect")
+            else:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                    connection.settimeout(5)
+                    connection.connect(PATH)
+                    if mode == "disconnect-partial":
+                        connection.sendall(protocol.frame(protocol.VECTORS["cases"][0]["text"], 8192)[:7])
+            runtime = "python"
+        emit({"lifecycleCase": mode, "clientRuntime": runtime})
+        return
     if mode.startswith("admission-"):
         index = mode.removeprefix("admission-")
         assert index in ("idle", "capacity", "no-eof", "capacity-no-eof", "failed-source", "reconnect",
@@ -295,7 +338,7 @@ if sys.argv[1] in ("server-corpus", "server-admission"):
         protocol.concurrent_server(PATH, require_visible_pid=False, admission_only=True)
     else:
         protocol.server(PATH, require_visible_pid=False)
-elif sys.argv[1] in ("server", "server-crash", "server-restarted"):
+elif sys.argv[1] in ("server", "server-crash", "server-restarted", "server-disconnect"):
     server(sys.argv[1])
 elif sys.argv[1] == "remove-stale":
     remove_stale()

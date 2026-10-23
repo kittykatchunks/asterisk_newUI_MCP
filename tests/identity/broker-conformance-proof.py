@@ -42,7 +42,7 @@ def remaining(connection, deadline):
     connection.settimeout(seconds)
 
 
-def read_frame(connection, maximum, deadline, on_payload=None):
+def read_frame(connection, maximum, deadline, on_payload=None, on_bytes=None):
     def exact(count):
         data = bytearray()
         while len(data) < count:
@@ -50,6 +50,8 @@ def read_frame(connection, maximum, deadline, on_payload=None):
             chunk = connection.recv(count - len(data))
             if not chunk:
                 raise ValueError("Truncated frame")
+            if on_bytes is not None:
+                on_bytes(len(chunk))
             data.extend(chunk)
         return bytes(data)
 
