@@ -2810,17 +2810,20 @@ from supplying an apparent request EOF that could otherwise reach the source.
 The original single-container lifecycle sequence remains covered.
 
 An additional finite broker phase exercises early request disconnects. Fresh
-approved clients connect and close both directions either without sending bytes
-or after sending a four-byte valid length header and three bytes of its body.
+approved clients connect and close both directions without sending bytes, after
+each one/two/three-byte partial header, after the complete four-byte header
+without a body, and after that header plus three bytes of its body.
 The Python client closes the socket after `sendall`; Node finishes the selected
 bytes locally, destroys the socket and waits for local close. Neither treats a
 transport error or watchdog expiry as success.
-The broker's actual frame reader must observe exactly zero and seven bytes,
-respectively, then reject specifically as a truncated frame, with no source
-entry or response attempt. Only this mode accepts those two expected framing
-failures; other failures remain fatal. A third approved client must receive
-exact inventory, with final counters of two request disconnects, one source
-entry and one response attempt. All three clients require explicit runtime
+The broker's actual frame reader must observe exactly 0/1/2/3/4/7 bytes in that
+order, then reject specifically as a truncated frame, with no source entry or
+response attempt. The partial headers and header-only case are prefixes of the
+same valid inventory frame, not malformed-length proxies. Only this mode
+accepts those six expected framing failures; other failures remain fatal.
+A seventh approved client must receive exact inventory, with final counters of
+six request disconnects, one source entry and one response attempt.
+All seven clients require explicit runtime
 completion, kernel peer authentication and separate PID/mount namespace evidence.
 The optional byte-count observation hook does not alter frame parsing and is
 disabled for existing callers. This adds no wire operation, mount or privilege.

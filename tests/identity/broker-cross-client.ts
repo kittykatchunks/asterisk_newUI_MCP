@@ -46,6 +46,10 @@ if (index.startsWith("source:")) {
   } : null };
 }
 const socket = createConnection({ path, allowHalfOpen: true });
+const disconnectBytes: Readonly<Record<string, number>> = {
+  "disconnect-empty": 0, "disconnect-header-1": 1, "disconnect-header-2": 2,
+  "disconnect-header-3": 3, "disconnect-header-only": 4, "disconnect-partial": 7,
+};
 socket.setTimeout(passive || held ? 8000 : 5000, () => socket.destroy(new Error("Cross-runtime client timed out")));
 async function send() {
   if (index === "no-eof") {
@@ -69,9 +73,8 @@ try {
     assert.equal(socket.bytesWritten, 0);
   } else {
     await once(socket, "connect");
-    if (index === "disconnect-empty" || index === "disconnect-partial") {
-      const data = index === "disconnect-partial" ?
-        encodeBrokerFrame(vectors.cases[0].text!, "request").subarray(0, 7) : Buffer.alloc(0);
+    if (Object.hasOwn(disconnectBytes, index)) {
+      const data = encodeBrokerFrame(vectors.cases[0].text!, "request").subarray(0, disconnectBytes[index]);
       const finished = once(socket, "finish");
       socket.end(data);
       await finished;

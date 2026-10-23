@@ -484,15 +484,17 @@ try {
     Write-Output "PASS repeated cancellation ($runtime clients): one cancellation outcome, no extra timeout/source entry or early slot release, fresh read succeeds after settlement."
     Write-Output "PASS terminal delivery ($runtime clients): both late source results discarded without a send attempt before slot release; only four fresh successful reads attempt responses."
     $disconnect = Start-TestBroker 'server-disconnect'
-    Invoke-Client 'disconnect-empty' '1102:2100'
-    Invoke-Client 'disconnect-partial' '1102:2100'
+    $disconnectModes = @('disconnect-empty', 'disconnect-header-1', 'disconnect-header-2',
+        'disconnect-header-3', 'disconnect-header-only', 'disconnect-partial')
+    $expectedDisconnectBytes = @(0, 1, 2, 3, 4, 7)
+    foreach ($mode in $disconnectModes) { Invoke-Client $mode '1102:2100' }
     Invoke-Client 'disconnect-reconnect' '1102:2100'
     $disconnectExit = & docker wait $disconnect
     if ($LASTEXITCODE -ne 0 -or "$disconnectExit" -ne '0') { throw 'Request-disconnect broker failed.' }
     $disconnectEvents = @((& docker logs $disconnect 2>&1) | ForEach-Object { "$_" | ConvertFrom-Json })
     if ($LASTEXITCODE -ne 0 -or -not $disconnectEvents[-1].complete) { throw 'Missing disconnect completion.' }
     $disconnectIdentity = $disconnectEvents[0].identity
-    foreach ($identity in @($identities | Select-Object -Last 3)) {
+    foreach ($identity in @($identities | Select-Object -Last ($disconnectModes.Count + 1))) {
         if ($identity.uid_map -ne $disconnectIdentity.uid_map -or $identity.gid_map -ne $disconnectIdentity.gid_map -or
             $identity.userNamespace -ne $disconnectIdentity.userNamespace -or
             $identity.pidNamespace -eq $disconnectIdentity.pidNamespace -or
@@ -501,19 +503,23 @@ try {
         }
     }
     $disconnectPeers = @($disconnectEvents | Where-Object { $_.peer })
-    if ($disconnectPeers.Count -ne 3 -or @($disconnectPeers | Where-Object {
+    if ($disconnectPeers.Count -ne ($disconnectModes.Count + 1) -or @($disconnectPeers | Where-Object {
         -not $_.allowed -or $_.peer.uid -ne 1102 -or $_.peer.gid -ne 2100
     }).Count -ne 0) { throw 'Missing authenticated disconnect peer evidence.' }
     $rejections = @($disconnectEvents | Where-Object { $_.requestDisconnected })
-    if ($rejections.Count -ne 2 -or $rejections[0].requestDisconnected.requestBytes -ne 0 -or
-        $rejections[1].requestDisconnected.requestBytes -ne 7 -or @($rejections | Where-Object {
-            $_.requestDisconnected.sourceEntries -ne 0 -or $_.requestDisconnected.responseAttempts -ne 0
-        }).Count -ne 0) { throw 'Incomplete disconnect entered a source or attempted a response.' }
+    if ($rejections.Count -ne $expectedDisconnectBytes.Count) { throw 'Missing disconnect boundary evidence.' }
+    for ($index = 0; $index -lt $rejections.Count; $index++) {
+        $rejection = $rejections[$index].requestDisconnected
+        if ($rejection.requestBytes -ne $expectedDisconnectBytes[$index] -or
+            $rejection.sourceEntries -ne 0 -or $rejection.responseAttempts -ne 0) {
+            throw "Incomplete disconnect had unexpected bytes or source/response entry at boundary $index"
+        }
+    }
     $disconnectResult = @($disconnectEvents | Where-Object { $_.disconnectComplete })
-    if ($disconnectResult.Count -ne 1 -or $disconnectResult[0].disconnects -ne 2 -or
+    if ($disconnectResult.Count -ne 1 -or $disconnectResult[0].disconnects -ne $disconnectModes.Count -or
         $disconnectResult[0].responseAttempts -ne 1 -or $disconnectResult[0].sourceEntries -ne 1 -or
         $disconnectEvents[-1].deniedBeforeRead -ne 0) { throw 'Unexpected disconnect/recovery counters.' }
-    Write-Output "PASS request disconnect ($runtime clients): empty and seven-byte truncated frames close without source/send entry; fresh authenticated inventory succeeds."
+    Write-Output "PASS request disconnect ($runtime clients): exact 0/1/2/3/4/7-byte boundaries close without source/send entry; fresh authenticated inventory succeeds."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

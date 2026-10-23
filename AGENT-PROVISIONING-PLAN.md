@@ -1506,19 +1506,22 @@ simultaneous cancellation delivery or cancellation after successful completion.
 
 The early-disconnect follow-up uses a separate finite broker instance on the
 same isolated socket volume after the admission broker has exited and removed
-its path. Three fresh approved clients run sequentially: close without a
-request, close after a valid four-byte length header plus three body bytes,
-then a complete inventory read. Python closes its socket after the selected
+its path. Seven fresh approved clients run sequentially: close without a
+request, close after one/two/three bytes of a valid four-byte length header,
+close after the full header without any body, close after that header plus
+three body bytes, then a complete inventory read. Each prefix comes from the
+same valid inventory frame, so invalid length is not substituted for truncation.
+Python closes its socket after the selected
 send; Node waits for local write finish, destroys the socket and waits for local
 close. Errors/watchdog expiry are not successful disconnect completion.
 
 The existing frame reader has an optional byte-count observation hook at actual
-successful receives, disabled by default. The broker requires exactly zero and
-seven bytes and the specific `Truncated frame` exception for the first two
-connections. Both must have zero source entries and zero response attempts;
-other errors or unexpected complete frames fail. The third connection must
-return exact inventory. Final evidence requires two expected disconnects, one
-source entry and one response attempt, three authenticated kernel peers,
+successful receives, disabled by default. The broker requires exactly
+0/1/2/3/4/7 bytes, in order, and the specific `Truncated frame` exception for
+the first six connections. All must have zero source entries and zero response
+attempts; other errors or unexpected complete frames fail. The seventh
+connection must return exact inventory. Final evidence requires six expected
+disconnects, one source entry and one response attempt, seven authenticated kernel peers,
 explicit Python/Node completion and approved maps with distinct broker/client
 PID/mount namespaces. Runtime restrictions and ownership-checked cleanup are
 unchanged; no extra mount, signal or wire action is added.

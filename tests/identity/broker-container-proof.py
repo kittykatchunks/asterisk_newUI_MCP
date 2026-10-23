@@ -17,6 +17,10 @@ spec = importlib.util.spec_from_file_location("conformance", "/fixture.py")
 protocol = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(protocol)
 PATH = "/socket/broker/readback.sock"
+DISCONNECT_BYTES = {
+    "disconnect-empty": 0, "disconnect-header-1": 1, "disconnect-header-2": 2,
+    "disconnect-header-3": 3, "disconnect-header-only": 4, "disconnect-partial": 7,
+}
 
 
 def emit(value):
@@ -68,7 +72,7 @@ def server(mode="server"):
             nonlocal entries
             entries += 1
 
-        for case in range(5 if mode == "server" else 3 if mode == "server-disconnect" else 1):
+        for case in range(5 if mode == "server" else len(DISCONNECT_BYTES) + 1 if mode == "server-disconnect" else 1):
             connection, _ = listener.accept()
             with connection:
                 peer = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
@@ -87,15 +91,15 @@ def server(mode="server"):
                 try:
                     text = protocol.read_frame(connection, 8192, deadline, on_bytes=received_bytes)
                 except ValueError as error:
-                    if mode != "server-disconnect" or case >= 2 or str(error) != "Truncated frame":
+                    if mode != "server-disconnect" or case >= len(DISCONNECT_BYTES) or str(error) != "Truncated frame":
                         raise
-                    assert request_bytes == (0 if case == 0 else 7)
+                    assert request_bytes == list(DISCONNECT_BYTES.values())[case]
                     assert entries == 0 and response_attempts == 0
                     disconnects += 1
                     emit({"requestDisconnected": {"requestBytes": request_bytes, "sourceEntries": entries,
                                                    "responseAttempts": response_attempts}})
                     continue
-                assert mode != "server-disconnect" or case == 2
+                assert mode != "server-disconnect" or case == len(DISCONNECT_BYTES)
                 if mode == "server-crash":
                     emit({"crashingBeforeSource": True, "sourceEntries": entries})
                     os._exit(23)
@@ -106,7 +110,7 @@ def server(mode="server"):
                 connection.shutdown(socket.SHUT_WR)
         assert (entries, denied) == ((3, 2) if mode == "server" else (1, 0)), (entries, denied)
         if mode == "server-disconnect":
-            assert disconnects == 2 and response_attempts == 1
+            assert disconnects == len(DISCONNECT_BYTES) and response_attempts == 1
             emit({"disconnectComplete": True, "disconnects": disconnects,
                   "responseAttempts": response_attempts, "sourceEntries": entries})
         emit({"complete": True, "sourceEntries": entries, "deniedBeforeRead": denied})
@@ -194,7 +198,7 @@ def node_client(index):
 
 
 def client(mode):
-    if mode in ("disconnect-empty", "disconnect-partial", "disconnect-reconnect"):
+    if mode in DISCONNECT_BYTES or mode == "disconnect-reconnect":
         assert (os.getuid(), os.getgid()) == (1102, 2100) and set(os.getgroups()) == {2100}
         if len(sys.argv) == 3:
             assert sys.argv[2] == "node-client"
@@ -208,8 +212,9 @@ def client(mode):
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                     connection.settimeout(5)
                     connection.connect(PATH)
-                    if mode == "disconnect-partial":
-                        connection.sendall(protocol.frame(protocol.VECTORS["cases"][0]["text"], 8192)[:7])
+                    count = DISCONNECT_BYTES[mode]
+                    if count:
+                        connection.sendall(protocol.frame(protocol.VECTORS["cases"][0]["text"], 8192)[:count])
             runtime = "python"
         emit({"lifecycleCase": mode, "clientRuntime": runtime})
         return
