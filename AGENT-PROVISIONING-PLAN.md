@@ -3309,6 +3309,35 @@ Whether that is a safe generation-aware admission boundary, and how initial
 INVITEs are distinguished from in-dialog requests, must be proven for the
 selected configuration.
 
+The bridge transfer implementation makes the missing obligation concrete.
+For a two-party bridge, it queues a blind-transfer task on the transferee before
+removing the transferer from the bridge
+([queue and removal](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4747)).
+For a multi-party bridge, it first creates a `Local` channel for the target
+context and extension, then calls and imparts that channel into the bridge
+([Local-channel path](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4336)).
+Only if dialplan execution subsequently creates an outbound PJSIP channel does
+`chan_pjsip` reach `ast_sip_session_create_outgoing()`
+([PJSIP channel request](https://github.com/asterisk/asterisk/blob/22.11.0/channels/chan_pjsip.c#L2819)).
+Thus `session_create` can be a useful final veto/claim point for each actual
+outgoing PJSIP leg, but it is not the transfer-start reservation: it does not
+see the queued two-party transfer or the initial `Local` channel, and it does
+not see other channel technologies. The transfer owner must account for that
+pending work before a fence can report zero, including transfer failure and
+cancellation paths.
+
+The SIP REFER supplement also does not cover every use of the same bridge
+transfer API. Asterisk's core DTMF blind-transfer feature calls
+`ast_bridge_transfer_blind()` directly
+([feature-code path](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_basic.c#L3563)).
+If that feature is enabled for generation-managed calls, it needs equivalent
+admission and reservation coverage; alternatively it must be disabled by
+verified configuration. The bridge transfer API attempts parking before its
+ordinary bridge transfer branches
+([parking attempt](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4700)),
+so parking must also be explicitly disabled or covered rather than assumed to
+be excluded by the REFER handler.
+
 These APIs make an in-process PJSIP gate technically plausible, but do not
 prove coverage of every queue, transfer, redirect, channel technology, or call
 direction. `incoming_request` runs on a SIP servant thread, so it must not wait
