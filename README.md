@@ -3618,11 +3618,13 @@ cached realm/algorithm stale counter. Auth retries use
 `pjsip_auth_clt_reinit_req()` followed by dialog send, so they do not repeat
 that reset: `PJSIP_MAX_STALE_COUNT` applies across the retry transaction
 sequence for that challenge, but not across later, freshly created requests.
-Test exhaustion and a new request separately before concluding that a
-challenge uses only one retry path
+The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
+deployed value, and test exhaustion and a new request separately before
+concluding that a challenge uses only one retry path
 ([auth reinitializer errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1559-L1705),
 [initial request auth initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1270),
-[evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914)).
+[evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
+[default stale retry count](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1244-L1249)).
 If configured async auth is abandoned, pjproject instead reports a synthetic
 event, which Asterisk handles as terminal failure.
 Asterisk's counter allows at most nine callback retry attempts; it increments
