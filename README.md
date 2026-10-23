@@ -3473,6 +3473,16 @@ sending; the matching REFER supplement also suppresses the generic dialog
 `500` fallback. Verify the clone, transfer enqueue, actual wire response or
 timeout, and retry behavior separately. A missing REFER response must not be
 mistaken for rejection or trigger an uncorrelated retry.
+The no-subscription setup returns before Asterisk's `pjsip_xfer_accept()` call,
+so it does not send the implicit-subscription `202`. It still allocates its
+progress object; with normal blind-progress monitoring enabled, the transfer
+callback can attach a framehook and bridge observer even without a SIP
+subscription. Progress notifications then skip SIP `NOTIFY`, emitting an ARI
+event only if ARI transfer state exists
+([no-subscription notification](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L208-L229),
+[monitor setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L818-L908)).
+Prove monitor cleanup separately from the absence of `202`/sipfrag and from
+the bridge/channel outcome.
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or
