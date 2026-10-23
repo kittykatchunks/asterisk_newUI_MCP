@@ -3373,6 +3373,14 @@ not an installed supervisor or authoritative generation fence/dialog evidence.
 The test does not accept CoreStatus as a generation observation, and no existing
 PBX service, account or entrypoint is changed.
 
+The [generation fencing and dialog ownership contract](./AGENT-PROVISIONING-PLAN.md#928-generation-fencing-and-dialog-ownership-contract-design-only)
+defines the next functional gate: a final generation-aware admission fence,
+complete ownership of outstanding dialogs/pending admissions, and a coordinated
+safe-zero/removal check. Channel counts, endpoint state and ledger intent are
+not substitutes. Transfer semantics and the concrete PBX enforcement/ownership
+mechanism still require decisions before a separately approved synthetic-call
+proof. This design introduces no PBX mutation, call or live source.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

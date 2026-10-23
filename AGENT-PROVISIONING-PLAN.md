@@ -3057,3 +3057,108 @@ CoreStatus is not a fence/dialog/removal result. The existing runtime entrypoint
 is unchanged. Before production integration, design the actual supervised
 deployment and connection-publication lifecycle, and resolve effective fencing,
 generation-dialog completeness and independent expiry under separate approvals.
+
+### 9.28 Generation fencing and dialog ownership contract (design only)
+
+The user selected this functional design after the lifecycle feasibility proof.
+No fence, dialplan, SIP account, call or observation adapter is implemented or
+exercised here. The existing expiry consumer in `src/agent-provisioning-expiry.ts`
+already orders fence, observation, zero-dialog removal and removal verification.
+The live adapter must establish the facts behind that sequence; transport and
+process association do not supply them.
+
+#### New-work fence: intended meaning
+
+`newCallsBlocked: true` must mean that all supported admission paths for the
+exact generation are effectively closed, including previously queued offers
+and requests racing the fence. It is not inferred from a desired drain flag,
+deadline, contact absence, endpoint device state or successful configuration
+reload. A known open path produces `false`; inability to establish the full
+claim makes the observation unavailable, not a partially verified `true`.
+
+| Surface | Required fence property | Existing-call preservation constraint |
+| --- | --- | --- |
+| Dispatcher/inbound offers | Stop selection of the generation and reject stale, queued or already-selected offers at a final generation-aware PBX admission check. | Do not hang up an already-admitted dialog to implement dispatcher removal. |
+| Endpoint-originated initial calls | Deny new initial dialog admission even with cached authentication, an existing registration or reused transport. | Permit required in-dialog signaling for retained calls under the selected drain policy. |
+| Queue and other PBX-originated legs | Every supported route checks the same effective generation fence immediately before admission; queue-member removal alone is insufficient. | Preserve already-admitted legs; uncertain pending offers remain owned until settled. |
+| Transfer, forwarding and alternate dial paths | Enumerate and gate paths that can create a new generation-owned leg. Unsupported bypass paths must be disabled by verified deployment configuration or block acceptance. | Continuation versus new-work semantics require an explicit transfer policy; do not silently interrupt an existing call or exempt arbitrary new legs as continuation. |
+| Expiry and controller loss | Enforce the same final admission decision from locally authoritative state, not only a running worker's next sweep. | Preserve active calls indefinitely while denying new work; independent expiry enforcement is still unimplemented. |
+
+A final admission boundary must serialize the irreversible fence latch with
+new generation-owned admissions. Record ownership of an admission before it can
+escape that boundary; once fencing returns, there must be no unaccounted
+pre-fence admission capable of becoming a call later. A check followed by an
+uncoordinated `Dial`/offer is not this guarantee. Pending/early dialogs,
+fork branches and deferred offers must either be prevented from creating new
+work or remain in the generation's outstanding ownership set until their
+terminal outcome is verified. The concrete PBX hook implementing this ordering
+is not selected; AMI lists cannot implement it by observation alone.
+
+#### Dialog ownership and completeness
+
+Define `dialogs` as the number of outstanding generation-owned dialog/admission
+obligations that must settle before removal, not the PBX's global calls or raw
+channel count. This refines the existing drain contract without changing its
+wire shape; the eventual producer and consumer must explicitly agree this
+definition before live integration. Early/unanswered work can therefore keep
+the count above zero. Numeric zero is a safety assertion about complete
+ownership, not an estimate of billable or connected calls.
+
+Ownership originates from trusted admission context bound to the protected
+generation mapping. Caller-supplied SIP headers, extension text, channel-name
+prefixes, `Linkedid` or SIP Call-ID alone are not authority. The eventual owner
+must track relevant SIP dialog identities/branches and their channel/bridge
+associations, handle retransmissions idempotently, and preserve ownership across
+supported transfer/Local-channel/bridge transformations without double-counting
+or silently dropping obligations. Identifiers and call metadata remain internal;
+broker responses return only the bounded observation.
+
+The producer needs either a proven consistent runtime snapshot of all relevant
+obligations or a reconciled baseline plus a loss-detectable, ordered lifecycle
+stream. This is a required capability, not a claim that the available AMI
+stream supplies it. Reconnect gaps, process restart, incomplete enumeration,
+ambiguous attribution or unsupported transformations yield `"unknown"` dialogs
+only if fence/removal facts remain authoritative; otherwise the entire
+observation fails. Do not decrement to zero because a timeout elapsed or a
+channel disappeared from one list.
+
+#### Safe-zero and removal boundary
+
+Removal requires a latched, runtime-verified admission fence, settled pending
+admissions and a complete zero-ownership result for the same generation/model/
+runtime authority. The future mutation owner must recheck these conditions
+under its execution coordination boundary; a prior broker read is not a
+removal permit. No new admission may race between the zero check and removal.
+Verify removal of the approved managed access surfaces afterward, without
+touching shared/base objects or other generations. Failure retains uncertainty
+and blocks replacement activation; it never triggers a forced hangup.
+
+Inventory `draining` should denote a **durable irreversible drain latch**,
+not verified fence success. This is the recommended semantic resolution of the
+open question in section 9.15: the existing expiry loop calls `fence` again for
+every draining item and separately verifies `newCallsBlocked`. The latch must
+not be cleared by renewal/restart, and a deadline never extends implicitly.
+This recommendation adds no drain column or implementation to the current
+metadata ledger.
+
+#### Finite future acceptance and decisions
+
+Before any mutation/call proof, choose the final PBX admission mechanism,
+complete dialog ownership source and explicit transfer-continuation policy.
+Review their privileges and supported route set; a generic collector cannot
+substitute for missing PBX enforcement. Then separately approve an isolated
+synthetic-call batch covering:
+
+1. An active call survives fencing while inbound, outbound, queue and supported
+   alternate new-work paths are denied, including a held pre-fence offer.
+2. Early dialogs, retransmissions and fork/transfer transformations retain
+   correct ownership; unknown/gapped state never becomes zero.
+3. Last-dialog settlement permits a newly verified zero; removal rechecks the
+   fence/ownership under coordination and leaves unrelated/base objects intact.
+4. Observation disconnect/restart blocks removal and replacement until complete
+   reconciliation; worker loss cannot reopen admission or extend deadlines.
+
+If the selected Asterisk interfaces cannot provide a serialized admission hook
+and complete ownership evidence, stop the collector-only approach and revisit
+PBX-side instrumentation. The next decision is that enforcement/ownership
+mechanism, not another AMI query or additional socket fixture variation.
