@@ -15,9 +15,10 @@ const vectors = JSON.parse(await readFile("/vectors.json", "utf8")) as {
   sourceCases: { kind: string; value: unknown; valid: boolean }[];
 };
 let vector = vectors.cases[index === "reconnect" ? 0 : Number(index)];
+if (index === "generation-reconnect") vector = vectors.cases[1];
 const passive = ["foreign", "idle", "capacity"].includes(index);
-const held = ["held-source", "failed-source"].includes(index);
-if (held) vector = { ...vectors.cases[0], expected: null };
+const held = ["held-source", "failed-source", "failed-generation"].includes(index);
+if (held) vector = { ...vectors.cases[index === "failed-generation" ? 1 : 0], expected: null };
 if (index.startsWith("source:")) {
   const source = vectors.sourceCases[Number(index.split(":")[1])];
   const request = { version: 1, customer: vectors.binding.customer, epoch: vectors.binding.epoch,

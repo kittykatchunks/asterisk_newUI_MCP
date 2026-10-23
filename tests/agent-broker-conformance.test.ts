@@ -65,3 +65,30 @@ test("shared source-output vectors enforce exact expiry shapes in TypeScript bro
     assert.equal(entries, 1, vector.name);
   }
 });
+
+test("generation source failure propagates unchanged and never becomes missing before fresh recovery", async () => {
+  const vectors = JSON.parse(await readFile(new URL("./identity/broker-conformance.json", import.meta.url), "utf8")) as {
+    binding: { customer: string; epoch: string; principal: string };
+    generation: { generationId: string };
+    cases: { name: string; text: string; expected: unknown }[];
+  };
+  const vector = vectors.cases.find((item) => item.name === "unknown-dialogs");
+  assert.ok(vector);
+  const failure = new Error("fixture generation source unavailable");
+  let failing = true;
+  let entries = 0;
+  const broker = createAgentBrokerReadback(vectors.binding, {
+    async inventory() { throw new Error("Unexpected inventory source"); },
+    async generation(id) {
+      assert.equal(id, vectors.generation.generationId);
+      entries++;
+      if (failing) throw failure;
+      return { newCallsBlocked: true, dialogs: "unknown", removed: false };
+    },
+  });
+  await assert.rejects(broker.read(vector.text, vectors.binding), (error: unknown) => error === failure);
+  assert.equal(entries, 1);
+  failing = false;
+  assert.deepEqual(await broker.read(vector.text, vectors.binding), vector.expected);
+  assert.equal(entries, 2);
+});

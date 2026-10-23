@@ -2467,7 +2467,7 @@ released. A later approved readback succeeds. The experiment then injects a
 typed fake-source exception during another approved request: no response bytes
 are returned, the expected fixed diagnostic appears on server stderr, and the
 slot is released so a fresh approved readback succeeds. Exact counters verify
-six source invocations (including one failure), four capacity denials, two
+eight source invocations (including two failures), four capacity denials, two
 deadline closures and one explicit cancellation. Capacity is checked
 before peer lookup/read, and accepted requests still require real kernel UID/GID.
 
@@ -2479,10 +2479,10 @@ the container are cleaned up. A backlog of one is not a total kernel-resource
 or connection-rate bound; threads/timers and the control harness are not a
 selected production architecture. Unexpected fixture errors fail the proof
 rather than returning a success frame.
-The parent requires stderr to contain exactly the one expected source diagnostic,
+The parent requires stderr to contain exactly the two expected source diagnostics,
 so unexpected thread/timer tracebacks also fail the experiment. The source hook
 and deterministic failure schedule are fixture-only; no client can select a
-failure mode. This proves the injected inventory-failure/recovery case, not all
+failure mode. This proves the injected inventory and generation failure/recovery cases, not all
 source errors or disconnect races.
 
 The cancellation case holds a new fake source and uses the private parent pipe
@@ -2526,12 +2526,22 @@ Negative/lifecycle clients require EOF with zero response bytes rather than
 treating a locally timed-out client as successful rejection. Their eight-second
 watchdog is longer than the server's five-second deadline.
 
-Both client variants use the same server scenario and exact counters: six source
-invocations (one failed), four capacity denials, two deadline closures and one
+Both client variants use the same server scenario and exact counters: eight source
+invocations (two failed, with exactly two generation-source entries), four capacity denials, two deadline closures and one
 explicit cancellation. Default `-Conformance` retains Python clients; only
 `-CrossRuntime` substitutes Node clients. Cancellation still originates from the
 private parent pipe, not a client action. This does not prove automatic
 peer-disconnect handling during a blocked source or production cancellation races.
+
+After the inventory and cancellation cases, a valid generation readback invokes
+a deliberately failing fake source. The client requires EOF with zero bytes:
+neither a success object nor a `missing` fallback is acceptable. The next fresh
+approved connection reads that same generation and must receive the exact
+expected observed state, including unknown dialogs. Both Python and Node clients
+run this scenario. A TypeScript readback regression separately requires original
+exception identity, no inventory-source access, and successful observed recovery.
+The source hook receives its fixture default only after request validation;
+failure selection remains trusted sequencing, not a new client-controlled field.
 
 Only the fixture, vectors, Node client and frame helper are mounted read-only,
 not the repository or PBX. Runtime networking is disabled; existing resource,

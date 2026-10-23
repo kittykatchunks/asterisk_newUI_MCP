@@ -99,7 +99,7 @@ def source_value(source, default, on_source):
     if on_source is not None:
         on_source()
     if callable(source):
-        return source()
+        return source(default)
     return source["value"] if source is not None else default
 
 
@@ -185,8 +185,11 @@ def client(path, index):
         if index == "foreign":
             assert connection.recv(1) == b""
             return
-        if index in ("capacity", "idle", "held-source", "failed-source"):
-            if index in ("held-source", "failed-source"):
+        if index in ("capacity", "idle", "held-source", "failed-source", "failed-generation"):
+            if index == "failed-generation":
+                connection.sendall(frame(VECTORS["cases"][1]["text"], 8192))
+                connection.shutdown(socket.SHUT_WR)
+            elif index in ("held-source", "failed-source"):
                 connection.sendall(frame(VECTORS["cases"][0]["text"], 8192))
                 connection.shutdown(socket.SHUT_WR)
             connection.settimeout(8)
@@ -205,7 +208,8 @@ def client(path, index):
                 expected["generations"] = source["value"]
             vector = {"text": json.dumps(request), "expected": expected if source["valid"] else None}
         else:
-            vector = VECTORS["cases"][int(index)] if index != "reconnect" else VECTORS["cases"][0]
+            vector = VECTORS["cases"][1] if index == "generation-reconnect" else (
+                VECTORS["cases"][int(index)] if index != "reconnect" else VECTORS["cases"][0])
         text = vector.get("text", "")
         if "padBytes" in vector:
             text += " " * (vector["padBytes"] - len(text.encode("utf8")))
@@ -275,7 +279,7 @@ def concurrent_server(path):
     output_lock = threading.Lock()
     lifetime_lock = threading.RLock()
     active = {}
-    counts = {"reads": 0, "capacity": 0, "timeouts": 0, "sourceFailures": 0, "cancellations": 0}
+    counts = {"reads": 0, "generationReads": 0, "capacity": 0, "timeouts": 0, "sourceFailures": 0, "cancellations": 0}
     errors = []
     tasks = []
 
@@ -306,8 +310,10 @@ def concurrent_server(path):
     def serve(connection):
         expired = threading.Event()
 
-        def source():
+        def source(default):
             counts["reads"] += 1
+            if not isinstance(default, list):
+                counts["generationReads"] += 1
             if counts["reads"] in (1, 5):
                 release.clear()
                 event("source-entered")
@@ -315,7 +321,10 @@ def concurrent_server(path):
                     raise TimeoutError("Fixture source was not released")
             elif counts["reads"] == 3:
                 raise FixtureSourceFailure("Fixture source unavailable")
-            return [VECTORS["generation"]]
+            elif counts["reads"] == 7:
+                assert not isinstance(default, list)
+                raise FixtureSourceFailure("Fixture generation source unavailable")
+            return default
 
         def terminate(reason):
             with lifetime_lock:
@@ -392,7 +401,7 @@ def concurrent_server(path):
             task.join(16)
             assert not task.is_alive()
         assert not errors, errors
-        assert counts == {"reads": 6, "capacity": 4, "timeouts": 2, "sourceFailures": 1, "cancellations": 1}, counts
+        assert counts == {"reads": 8, "generationReads": 2, "capacity": 4, "timeouts": 2, "sourceFailures": 2, "cancellations": 1}, counts
         event("complete")
     finally:
         release.set()
@@ -497,15 +506,24 @@ def concurrent_proof(directory, cross_runtime=False):
         done(recovered)
         observed = [receive()["event"] for _ in range(2)]
         assert sorted(observed) == ["admitted", "released"]
+        failed = start("failed-generation")
+        done(failed)
+        observed = [receive()["event"] for _ in range(3)]
+        assert sorted(observed) == ["admitted", "released", "source-failed"]
+        recovered = start("generation-reconnect")
+        done(recovered)
+        observed = [receive()["event"] for _ in range(2)]
+        assert sorted(observed) == ["admitted", "released"]
         process.stdin.write("stop\n")
         process.stdin.flush()
         event("complete")
         _, error = process.communicate(timeout=10)
         assert process.returncode == 0, error
-        assert error == "Fixture source unavailable\n", error
+        assert error == "Fixture source unavailable\nFixture generation source unavailable\n", error
         assert not os.path.exists(path)
         print("PASS Python/Linux admission: idle deadline, competitors rejected, timed-out source retains slot until release, reconnect succeeds", flush=True)
         print("PASS Python/Linux source failure: explicit diagnostic, no response frame, slot released and approved reconnect succeeds", flush=True)
+        print("PASS Python/Linux generation failure: no missing/success fallback, explicit diagnostic, fresh observed readback succeeds", flush=True)
         print("PASS Python/Linux cancellation: held request closes within three seconds, slot retained until source settles, approved reconnect succeeds", flush=True)
         if cross_runtime:
             print("PASS Node/TypeScript lifecycle clients: idle and source deadlines, capacity retention, source exception and owner cancellation recovery", flush=True)

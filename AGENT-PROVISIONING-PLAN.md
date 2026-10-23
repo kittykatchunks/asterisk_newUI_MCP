@@ -933,7 +933,8 @@ but the slot remains occupied until the source actually settles. An approved
 reconnect then succeeds. A further approved request invokes a fake source that
 raises a typed exception: the client receives no response bytes, the server emits
 the expected fixed stderr diagnostic and releases the slot, and the next approved
-request succeeds. Exact counters require six source invocations (one failed),
+request succeeds. Exact counters require eight source invocations (two failed,
+including exactly two generation-source entries),
 four capacity denials, two timeouts and one explicit cancellation; accepted clients still use real kernel
 UID/primary GID. The parent requires exactly the expected diagnostic, rejecting
 unexpected thread/timer tracebacks too. Source hooks/failure sequencing remain
@@ -1005,8 +1006,8 @@ and the separate Node/Python image remains an approved experiment only.
 | --- | --- | --- |
 | Read-only request/response subset | Shared 22 request/framing and 26 source-output vectors pass independently and with real Node clients against Python Unix sockets. | Broader parser/response boundary parity; this finite corpus is not protocol equivalence. No mutation schema or ledger is implemented. |
 | Numeric JSON semantics | Shared request text now accepts `1.0`, `1e0` and `10e-1` as version 1 and rejects booleans, strings, fractions and overflow. Source validators enforce safe integers. | Tested numeric forms now agree; this does not establish equivalence for every parser edge case. |
-| Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios still count six actual source invocations, including one failure. |
-| Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, one injected inventory failure, private owner cancellation and fresh recovery. | Peer full disconnect during blocked source code, cancellation/deadline/response races, generation-source failures and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
+| Source accounting | Independent source-entry instrumentation now asserts zero entries for every rejected request and one for valid requests, including missing generation; every source-output case enters once, even when its output fails validation. Successful responses are counted separately. | These per-case assertions cover the fixture corpus, not all future sources/actions. Concurrent scenarios count eight actual source invocations, including two failures and exactly two generation entries. |
+| Lifecycle | Both client variants prove idle/held-source deadlines, exclusion until settlement, injected inventory and generation failures, private owner cancellation and fresh recovery. Generation failure yields zero response bytes, not missing; a fresh generation read returns exact observed state. | Peer full disconnect during blocked source code, cancellation/deadline/response races and slow response consumption remain unproved in the Python fixture. Request EOF is intentional half-close, not proof of peer loss. |
 | Transport authority | Real accepted-socket `SO_PEERCRED`, exact UID/primary GID, non-root capability-free processes and broker-owned directory/socket modes are exercised. | All processes share one container's namespaces. Separate-container UID/GID mapping, user namespaces, socket publication/replacement and same-UID compromise need explicit deployment treatment. PID positivity alone is not process attestation. |
 | Admission/resources | One active slot is retained until source settlement; capacity denial precedes peer lookup/read; fixtures have container limits. | Backlog one is not an end-to-end resource/rate limit. Production listener policy, process supervision, shutdown and crash behaviour are unselected. Fixture threads/control pipe are not that architecture. |
 | Production integration | Node uses the real framing helper; Python owns its accepted Unix socket. No PBX access is needed. | No OS-identity integration is wired into the TypeScript connection handler, and no production Python broker is selected. Choose a runtime/binding/helper separately; passing test interoperability does not choose one. |
@@ -1027,3 +1028,11 @@ deadline for socket I/O and its timer, funnels socket deadline expiry through th
 same terminal callback, and includes server stderr if its event stream closes
 unexpectedly. This improves fixture diagnostics and deadline accounting without
 claiming that general terminal races are proved.
+
+The generation-failure follow-up uses the same typed fixture failure boundary
+and requires a second exact stderr diagnostic. Both client variants see EOF with
+zero bytes, then successfully read the same generation as observed on a fresh
+connection. TypeScript separately asserts unchanged exception identity and no
+inventory-source invocation. The fake source receives a validated-operation
+default, and its failure schedule remains private to the fixture. No production
+error policy, retry, repair or mutation is introduced.
