@@ -3512,6 +3512,16 @@ the no-subscription path from `Refer-Sub` without checking that option. Thus
 `norefersub=no` should not be assumed to disable that request behavior
 ([advertisement check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2168-L2177),
 [incoming parser](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L553-L569)).
+The REFER supplement does not itself inspect `Require`; pjproject's
+`pjsip_inv_verify_request3()` option check is for INVITE session handling, not
+proof of REFER validation
+([INVITE verifier](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L1318-L1328),
+[Require check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L1595-L1653)).
+Test `Require: norefersub` with and without `Refer-Sub: false` under both
+global settings, and capture any 420/`Unsupported` before progress.
+RFC 3261 requires that response when a UAS does not support a required option
+([Require rules](https://www.rfc-editor.org/rfc/rfc3261.html#section-8.2.2.3)).
+Do not infer required-option behavior only from `Supported` advertisement.
 Verify both effective settings on the deployed build. Also capture
 response code and header together: Asterisk's no-subscription response builder
 adds `Refer-Sub: false` without restricting it to 2xx
