@@ -3208,6 +3208,25 @@ defines fail-closed handling for every wire result, and lists the owner,
 observation mechanism and consistency decisions required before live adapter
 implementation. It does not approve new PBX access, permissions or deployment.
 
+The subsequently approved
+[broker-owned metadata ledger foundation](./AGENT-PROVISIONING-PLAN.md#916-broker-owned-metadata-ledger-foundation-approved-local-implementation)
+is implemented in [`local/broker/ledger.py`](./local/broker/ledger.py). It
+explicitly initializes a new customer/epoch/namespace-pinned SQLite database and
+records immutable generation UUID/deadline pairs with exact idempotence and
+conflict rejection. Existing/missing/uninitialized databases are never silently
+recreated. Binding checks run inside every transaction; lock and schema failures
+propagate. It stores no credentials and performs no PBX operations.
+
+```powershell
+python -I -B .\tests\identity\broker-ledger-proof.py
+```
+
+The existing Linux broker launcher also runs the ledger tests as non-root with
+zero effective capabilities. This is local metadata storage, not an installed
+service or live readback source: it cannot infer fencing, dialogs, removal or
+authoritative runtime absence. Protected path publication, power-loss durability
+and restored-authority detection remain separate work.
+
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
 credential helper, and a dedicated local runtime with Python as the current

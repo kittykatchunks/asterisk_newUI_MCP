@@ -13,6 +13,8 @@ try {
         --user '0:0' --tmpfs '/proof:rw,noexec,nosuid,size=1m,mode=1777' `
         --mount "type=bind,source=$(Join-Path $root 'local\broker\readback.py'),target=/broker.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'local\broker\readback.py'),target=/local/broker/readback.py,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'local\broker\ledger.py'),target=/local/broker/ledger.py,readonly" `
+        --mount "type=bind,source=$(Join-Path $root 'tests\identity\broker-ledger-proof.py'),target=/tests/identity/broker-ledger-proof.py,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\python-broker-source.test.ts'),target=/tests/python-broker-source.test.ts,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\fake-provisioning-runtime.ts'),target=/tests/identity/fake-provisioning-runtime.ts,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\identity\fake-broker-source.py'),target=/tests/identity/fake-broker-source.py,readonly" `
@@ -28,7 +30,7 @@ try {
         --mount "type=bind,source=$(Join-Path $root 'src\agent-provisioning-expiry.ts'),target=/src/agent-provisioning-expiry.ts,readonly" `
         --mount "type=bind,source=$(Join-Path $root 'tests\agent-broker-client.test.ts'),target=/tests/agent-broker-client.test.ts,readonly" `
         --env TMPDIR=/proof --env ASTERISK_SYNTHETIC_LISTENER_PROOF=1 `
-        --entrypoint sh $image -c 'node --test /tests/agent-broker-client.test.ts /tests/python-broker-source.test.ts && exec python3 -I -B /proof-test.py'
+        --entrypoint sh $image -c 'python3 -I -B /tests/identity/broker-ledger-proof.py && node --test /tests/agent-broker-client.test.ts /tests/python-broker-source.test.ts && exec python3 -I -B /proof-test.py'
     if ($LASTEXITCODE -ne 0) { throw 'Python broker implementation proof failed.' }
 } finally {
     $owned = & docker container ls -aq --filter "name=^/$name$" --filter "label=$label"

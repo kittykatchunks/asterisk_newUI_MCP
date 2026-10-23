@@ -2112,3 +2112,51 @@ failure for stale/mismatched authority, no unrelated managed/base-object access,
 and proof that reads cause no PBX effects. This is the next meaningful source
 integration milestone, not a requirement to repeat the closed transport fixture
 programme.
+
+### 9.16 Broker-owned metadata ledger foundation (approved local implementation)
+
+The user selected a broker-owned SQLite ledger for a metadata-only local
+foundation, rather than an unspecified existing authority. This approves neither
+PBX provisioning nor credential storage, deployment or interpretation of ledger
+intent as verified runtime truth.
+
+`local/broker/ledger.py` now provides explicit `initialize_ledger`, validated
+`LedgerBinding` (customer, epoch, managed namespace) and a `Ledger` interface.
+Bootstrap exclusively creates a new database path with mode 0600 on Linux; an
+existing file is never automatically initialized, migrated or replaced. A
+failed bootstrap remains for explicit investigation. Ordinary opens require an
+existing regular single-link database under an absolute canonical parent and
+SQLite schema version 1. Every operation rechecks exactly one matching binding
+inside its transaction; missing state, mismatched scope, unknown schema and lock
+errors propagate rather than becoming an empty inventory.
+
+The only stored generation fields are lowercase generation UUID and positive
+safe-integer deadline. Local `record` is immutable and idempotent for the exact
+same pair; a changed deadline conflicts. `records` is an internal metadata list,
+not protocol inventory. There are no extension, secret, runtime object, phase,
+drain, dialog or removal fields. No deadline extension, deletion, PBX effect,
+wire mutation or readback `Source` implementation is introduced. A recorded
+generation is not evidence that it exists in Asterisk; an empty ledger is not
+evidence that runtime remnants are absent.
+
+Transactions use SQLite `synchronous=FULL`, a 250 ms lock timeout and
+`BEGIN IMMEDIATE` for binding/record consistency. The foundation uses serialized
+local metadata access, not a read-only database role or lock-free reader API.
+The database belongs in a protected broker-owned directory; canonical path and
+single-link checks do not certify resistance to concurrent path replacement.
+Power-loss/filesystem durability, restore detection, schema migration,
+operation identity/revisions, live object mapping and production publication
+policy remain unimplemented. In particular, a structurally valid restored
+database with matching binding is not detected by these checks.
+
+`tests/identity/broker-ledger-proof.py` verifies explicit bootstrap, reopen
+persistence, exact idempotence/conflict, customer/epoch/namespace isolation,
+per-operation binding revalidation, invalid metadata, uninitialized/unknown
+schema rejection and exact SQLite lock failure followed by recovery. The Linux
+launcher runs these checks as non-root UID 1101/GID 2100 with zero effective
+capabilities before the existing broker/client/source suite; local Windows
+checks cover portable SQLite behavior but not Unix file permissions.
+
+Next source-authority decisions remain runtime observation mechanism, protected
+generation-to-object mapping, drain semantics and consistency/restart evidence
+from section 9.15. This ledger does not bypass those gates.
