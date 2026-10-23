@@ -3502,6 +3502,16 @@ values, or reject forms outside the explicitly supported set
 ([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_msg.c#L374-L387),
 [value check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L553-L569)).
 Without a final 2xx echo, do not treat subscription suppression as negotiated.
+Asterisk advertises `Supported: norefersub` by default through the global
+`norefersub=yes` setting
+([default](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/config_global.c#L52-L57),
+[registration](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2168-L2177));
+this capability advertisement is not itself a per-request grant. Also capture
+response code and header together: Asterisk's no-subscription response builder
+adds `Refer-Sub: false` without restricting it to 2xx
+([response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)),
+although RFC 4488 defines that response header for 2xx only. A non-2xx echo
+does not establish successful negotiation.
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or
