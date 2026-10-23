@@ -2403,6 +2403,49 @@ wiring. Production ownership capture, audit integration and post-acceptance work
 fencing remain gates. Real token/session expiry races remain covered by the local
 signed-token regression, not this Keycloak run.
 
+#### Linux Unix-socket peer-identity experiment (test only)
+
+`.\scripts\Test-BrokerPeerProof.ps1` runs a separate Linux-only Python
+standard-library experiment inside the existing `asterisk-local-diagnostics:proof`
+image, resolved to its immutable local image ID before execution. It does not
+build/pull an image automatically. If needed, build the existing diagnostics
+image using its documented fixture workflow first.
+
+The owned container has no network, published ports, PBX/control/config mounts,
+Docker socket or writable repository. It mounts only the experiment script
+read-only and a small disposable tmpfs. Unique container naming/ownership labels
+limit cleanup to that invocation. A root fixture orchestrator sets up distinct
+numeric Linux identities using only CHOWN/SETUID/SETGID/KILL capabilities; the
+actual socket server and clients run non-root with **zero effective
+capabilities**. The orchestrator is not a proposed broker deployment identity.
+
+The server owns a mode-0750 directory and mode-0660 Unix socket. It obtains
+`SO_PEERCRED` from the accepted connection and requires exact worker UID and
+primary GID before reading any probe bytes, with positive PID returned for
+comparison against the real client process. Tests prove:
+
+- The approved UID/GID connects, completes a half-closed probe and reconnects.
+- Another UID in the socket group can connect but is denied before request read.
+- The approved UID with a wrong primary GID is denied even when a supplementary
+  group permits filesystem access.
+- An unrelated UID/GID cannot connect through the directory/socket permissions.
+- The approved connecting worker cannot unlink the socket or create replacement
+  entries in the broker-owned directory.
+
+This demonstrates kernel identity and filesystem policy, **not a working broker
+transport**. The Python probe intentionally does not reimplement the JSON/frame
+protocol. The TypeScript handler's `identify` callback still has no OS credential
+implementation; Python is not selected as the production broker language/helper.
+The experiment uses processes in one container/PID/user namespace, not separate
+deployment containers or user-namespace remapping. UID/GID provisioning,
+cross-container credential interpretation, socket publication/replacement and
+same-UID compromise remain separate deployment concerns. Do not treat kernel
+PID as a durable application identity.
+
+The launcher awaits bounded child processes and removes its owned container;
+the server unlinks its socket and the temporary directory is removed. No
+production service, PBX privilege, secret issuance or calling is enabled.
+
 #### Opt-in broker connection admission (no listener)
 
 `createAgentBrokerConnectionHandler(readback, identify)` composes the existing

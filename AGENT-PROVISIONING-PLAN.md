@@ -785,3 +785,29 @@ still injected test metadata; synchronous OS credential acquisition, Unix-domain
 permissions and listener/backlog admission remain deployment gates. No runtime
 listener or PBX authority is created. See the
 [connection contract](./README.md#opt-in-broker-connection-admission-no-listener).
+
+### 9.7 Linux peer-credential and filesystem experiment
+
+A separate test-only Python standard-library fixture now proves actual
+`SO_PEERCRED` behaviour on Linux. Its non-root server owns the mode-0750 socket
+directory and mode-0660 socket, maps only the exact approved UID/primary GID,
+and compares positive kernel PID to the client process. Foreign UID and primary
+GID are denied before reading even if group permissions allow connection;
+unrelated filesystem identities cannot connect. The approved worker cannot
+unlink or create entries in the broker-owned socket directory. Server and
+clients assert zero effective capabilities.
+
+The PowerShell launcher uses the existing immutable local diagnostics image ID,
+no network, read-only root/script, isolated tmpfs and a uniquely labelled owned
+container. A capability-limited root orchestrator only establishes fixture
+identities and cleans up bounded children; it is not the proposed broker.
+The experiment touches no PBX, repository files or other containers.
+
+This does not complete the first protocol gate: the Python probe is separate
+from the TypeScript framing/readback handler, and no native binding/helper or
+production broker language is selected. Deployment containers, UID/GID mapping,
+user namespaces, trusted socket publication and same-UID compromise still need
+explicit treatment. The next design decision is how the application acquires
+OS-derived identity without accepting caller claims; privileged control probes
+remain gated. See the
+[Linux peer experiment](./README.md#linux-unix-socket-peer-identity-experiment-test-only).
