@@ -3618,6 +3618,11 @@ cached realm/algorithm stale counter. Auth retries use
 `pjsip_auth_clt_reinit_req()` followed by dialog send, so they do not repeat
 that reset: `PJSIP_MAX_STALE_COUNT` applies across the retry transaction
 sequence for that challenge, but not across later, freshly created requests.
+The initialization routine iterates over the session's entire cached-auth list
+and zeroes every stale counter, so initializing any later request in that
+session resets all cached realm/algorithm budgets, not just the pair challenged
+by that request
+([counter-reset loop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1391)).
 Each counter is scoped to a cached case-insensitive realm/algorithm pair, so
 multiple supported challenge pairs have independent stale-retry budgets rather
 than sharing one request-wide count
