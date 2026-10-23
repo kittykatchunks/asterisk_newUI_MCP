@@ -167,8 +167,18 @@ def client(mode):
         index = mode.removeprefix("corpus-")
         assert (os.getuid(), os.getgid()) == ((1103, 2100) if index == "foreign" else (1102, 2100))
         assert set(os.getgroups()) == {2100}
-        protocol.client(PATH, index)
-        emit({"corpusCase": index})
+        if len(sys.argv) == 3:
+            assert sys.argv[2] == "node-client"
+            result = subprocess.run(["node", "/tests/identity/broker-cross-client.ts", PATH, index],
+                                    capture_output=True, text=True, timeout=10)
+            assert result.returncode == 0, result.stderr
+            assert result.stdout == "" and result.stderr == "", (result.stdout, result.stderr)
+            runtime = "node"
+        else:
+            assert len(sys.argv) == 2
+            protocol.client(PATH, index)
+            runtime = "python"
+        emit({"corpusCase": index, "clientRuntime": runtime})
         return
     expected = {
         "foreign": (1103, 2100), "wrong-gid": (1102, 2101),

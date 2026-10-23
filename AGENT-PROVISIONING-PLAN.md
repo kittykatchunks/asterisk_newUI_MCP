@@ -1199,8 +1199,9 @@ cross-runtime image ID. It records daemon security options without collecting
 environment/credential dumps. A short-lived root setup container has only CHOWN
 in addition to the restrictive common flags and initialises exact new paths;
 broker/clients are separate non-root, zero-capability containers with network
-disabled, read-only roots and resource limits. Only three fixture inputs are
-mounted read-only. No PBX, Docker socket or repository-wide mounts are used.
+disabled, read-only roots and resource limits. Three fixture inputs are
+mounted read-only; opt-in Node corpus clients add only their client and framing
+helper read-only. No PBX, Docker socket or repository-wide mounts are used.
 
 The Python fixture reuses the existing framing/readback/validation functions;
 an import guard prevents importing that fixture from starting its original
@@ -1240,7 +1241,7 @@ observed rootful/default-map topology does not establish rootless/remapped user
 namespace support. Same-UID compromise remains outside this identity policy.
 
 Still open from section 9.11: broader namespace configurations and
-separate-container Node-client and concurrent lifecycle coverage. The bounded explicit
+separate-container concurrent lifecycle coverage. The bounded explicit
 crash/restart case is recorded below, not a general recovery policy.
 No automatic restart, production listener, control access or later acceptance
 gate is implemented or approved by these results.
@@ -1311,3 +1312,21 @@ budget. Cleanup retains every recorded container until the run ends for evidence
 then removes only owner-labelled resources. Passing this complete finite corpus
 does not establish full protocol equivalence, remapped user-namespace support or
 concurrent lifecycle behaviour across containers; those remain distinct gaps.
+
+`Test-BrokerContainerProof.ps1 -NodeClients` now substitutes Node/TypeScript
+clients for the sequential separate-container corpus only. The existing client
+imports the production framing helper, and every case must produce explicit
+wrapper completion evidence identifying Node. The Python identity wrapper
+checks maps/groups/namespaces first and runs Node with inherited credentials,
+a ten-second subprocess timeout, exact zero exit and empty stdout/stderr.
+Node independently checks UID/GID and zero effective capabilities. Failures do
+not fall back to Python. The default Python mode emits equivalent checked runtime
+completion evidence.
+
+Only these Node corpus containers mount the two additional read-only TypeScript
+files. Broker, identity/publication, conflict and crash/restart phases stay Python,
+and ownership/resource restrictions remain unchanged. Both modes pass the 36
+request/framing and 28 source-output cases plus foreign denial and approved
+reconnect across separate containers. This proves sequential cross-language
+interoperability in the measured default-map topology, not concurrent lifecycle
+or broader namespace support and not production runtime selection.

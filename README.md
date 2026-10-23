@@ -2619,6 +2619,7 @@ using the already-built local cross-runtime proof image:
 
 ```powershell
 .\scripts\Test-BrokerContainerProof.ps1
+.\scripts\Test-BrokerContainerProof.ps1 -NodeClients
 ```
 
 The launcher creates a new labelled Linux Docker volume, a CHOWN-only setup
@@ -2635,12 +2636,13 @@ The proof checks inventory/generation readback, read-only and writable-mount
 worker publication denial (the writable case requires permission denial, not
 cross-device failure), duplicate broker exclusion and successful subsequent
 approved reads. Exact source/denial counters are checked. It reuses the Python
-protocol functions, not a new production server; this subset uses Python clients.
+protocol functions, not a new production server; the default uses Python clients.
 The subsequent corpus phase runs all shared vectors across containers as
 described below.
 
 Every runtime has network disabled, read-only root, explicit limits and only
-three read-only fixture inputs. Cleanup removes only recorded containers matching
+three read-only fixture inputs (the opt-in Node corpus clients additionally mount
+their TypeScript client and framing helper read-only). Cleanup removes only recorded containers matching
 the owner label, then their exact new labelled volume; no PBX or unrelated
 container is touched. After normal broker completion, two additional broker-user
 containers test a regular file and a symlink at the exact socket pathname.
@@ -2681,7 +2683,22 @@ only owned labelled containers on the same isolated volume and uses no new
 mounts or runtime network access. Successful finite-corpus conformance is not
 proof of all protocol behaviour.
 
-Broader namespace configurations, Node clients and concurrent lifecycle coverage
+The opt-in `-NodeClients` mode runs the sequential corpus through the existing
+Node/TypeScript client, including exact framed responses, zero-byte rejections,
+the narrowly scoped concatenated-frame read-reset allowance and final approved
+reconnect. A Python wrapper first records/checks namespace identity and groups,
+then starts Node in the same container with a ten-second subprocess budget;
+Node independently checks UID/GID and zero effective capabilities. Node must exit
+successfully without stdout/stderr, and the wrapper emits explicit per-case Node
+completion evidence. The launcher checks that evidence rather than inferring
+which runtime ran from a flag. No fallback to Python occurs on Node failure.
+
+Only corpus clients receive the extra two read-only mounts. The broker and
+identity/publication/conflict/crash phases remain Python in both modes, with
+unchanged resource limits and ownership-checked cleanup. Default Python corpus
+clients also emit checked runtime completion evidence.
+
+Broader namespace configurations and concurrent lifecycle coverage
 across separate containers remain future cases. Conflicting-path preservation is not proof of general
 managed-file symlink confinement or production socket rotation.
 

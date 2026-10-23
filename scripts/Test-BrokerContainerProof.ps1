@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$NodeClients)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $image = & docker image inspect --format '{{.Id}}' 'asterisk-broker-cross-runtime:proof'
@@ -23,11 +23,25 @@ function Invoke-Client([string]$Mode, [string]$User, [string[]]$Extra = @(), [sw
     $name = "$owner-$($Mode.Replace(':', '-'))"
     $names.Add($name)
     $access = if ($Writable) { '' } else { ',readonly' }
+    $clientMounts = @()
+    $clientArguments = @()
+    if ($NodeClients -and $Mode.StartsWith('corpus-')) {
+        $clientMounts = @(
+            '--mount', "type=bind,source=$(Join-Path $root 'tests\identity\broker-cross-client.ts'),target=/tests/identity/broker-cross-client.ts,readonly",
+            '--mount', "type=bind,source=$(Join-Path $root 'src\agent-broker-frame.ts'),target=/src/agent-broker-frame.ts,readonly"
+        )
+        $clientArguments = @('node-client')
+    }
     $output = & docker run --name $name --label $label @common --user $User @Extra `
-        --mount "type=volume,source=$volume,target=/socket$access" @mounts `
-        --entrypoint python3 $image -I -B /container-proof.py $Mode
+        --mount "type=volume,source=$volume,target=/socket$access" @mounts @clientMounts `
+        --entrypoint python3 $image -I -B /container-proof.py $Mode @clientArguments
     if ($LASTEXITCODE -ne 0) { throw "Separate-container client failed: $Mode" }
     $events = @($output | ForEach-Object { $_ | ConvertFrom-Json })
+    if ($Mode.StartsWith('corpus-')) {
+        $expectedRuntime = if ($NodeClients) { 'node' } else { 'python' }
+        if ($events[-1].clientRuntime -ne $expectedRuntime -or
+            $events[-1].corpusCase -ne $Mode.Substring(7)) { throw "Unexpected corpus client completion: $Mode" }
+    }
     $identities.Add($events[0].identity)
     Write-Output $output
 }
@@ -223,7 +237,8 @@ try {
             throw 'Unexpected kernel identity in corpus connection.'
         }
     }
-    Write-Output "PASS separate-container corpus: $($vectors.cases.Count) framing/request and $($vectors.sourceCases.Count) source-output cases, foreign denial, per-case source assertions and approved reconnect."
+    $runtime = if ($NodeClients) { 'Node/TypeScript' } else { 'Python' }
+    Write-Output "PASS separate-container corpus ($runtime clients): $($vectors.cases.Count) framing/request and $($vectors.sourceCases.Count) source-output cases, foreign denial, per-case source assertions and approved reconnect."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
