@@ -924,3 +924,19 @@ service, ledger, mutation or PBX authority was introduced. The next experiment
 must close those protocol/lifetime gaps before the first broker acceptance gate
 can be considered complete. See the
 [Python fixture contract](./README.md#python-read-only-conformance-experiment-approved-fixture-only).
+
+The conformance command now additionally runs a separate real Unix-socket
+admission/lifetime experiment. One nonblocking slot excludes competitors before
+identity lookup or read. An idle request expires after five seconds. A subsequent
+approved framed request enters a held fake source: its socket closes at deadline,
+but the slot remains occupied until the source actually settles. An approved
+reconnect then succeeds. Exact counters require two source reads, three capacity
+denials and two timeouts; accepted clients still use real kernel UID/primary GID.
+
+The test uses source/deadline threads and a private parent control pipe solely
+to release the fake source deterministically. It selects no production
+threading/control architecture, creates no remote release action and adds no PBX
+authority. All owned children/socket entries/containers are removed. Dynamic
+source validation, broader error/cancellation parity, actual container identity
+mapping and deployment supervision remain incomplete. The first broker gate
+is still not approved as complete.

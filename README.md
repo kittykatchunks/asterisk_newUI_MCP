@@ -2427,16 +2427,32 @@ proof. Both original and conformance proofs have passed.
 This is the approved **experiment**, not a production Python runtime decision,
 full protocol equivalence or a privileged broker. There is no dynamic source
 adapter/validation, durable operation ledger, apply method, TypeScript-to-Python
-client integration or production service. The Python fixture processes clients
-sequentially; listener backlog/concurrent rejection and cancellation under an
-uncooperative source have not been ported or proved. Its socket deadline covers
-bounded I/O, not preemption of blocked Python source code. Other TypeScript tests
+client integration or production service. The shared-vector Python server processes clients sequentially; the separate
+admission experiment below tests held source/deadline behaviour. Its socket
+deadline does not preempt blocked Python source code. Other TypeScript tests
 still supply broader source/response/timeout/cancellation coverage; the shared
 vector set is a tested subset, not proof of those features in Python.
 
-Next acceptance work must address concurrent admission, dynamic fake-source
-validation and lifetime/error parity, then container/namespace identity mapping.
+Next acceptance work must address dynamic fake-source validation and broader
+lifetime/error parity, then container/namespace identity mapping.
 No PBX probe or secret issuance is authorised by this experiment.
+
+The conformance command now also runs a second non-root Unix-socket server
+experiment with **one nonblocking admission slot**. A held idle request excludes
+competitors and closes at its five-second deadline. An approved framed request
+then enters a deliberately held fake source; the connection closes at deadline,
+but a new competitor is still rejected until the original source is explicitly
+released. A later approved readback succeeds. Exact counters verify two source
+reads, three capacity denials and two deadline closures. Capacity is checked
+before peer lookup/read, and accepted requests still require real kernel UID/GID.
+
+This experiment uses a source thread, an independent connection deadline timer,
+and a test-only parent control pipe to release the fake source. The pipe is not
+a broker request/action or an operator API. Child processes, socket entries and
+the container are cleaned up. A backlog of one is not a total kernel-resource
+or connection-rate bound; threads/timers and the control harness are not a
+selected production architecture. Unexpected fixture errors fail the proof
+rather than returning a success frame.
 
 #### Broker OS identity integration: production option still unselected
 

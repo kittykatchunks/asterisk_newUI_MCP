@@ -10,6 +10,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 
@@ -127,6 +128,13 @@ def client(path, index):
         if index == "foreign":
             assert connection.recv(1) == b""
             return
+        if index in ("capacity", "idle", "held-source"):
+            if index == "held-source":
+                connection.sendall(frame(VECTORS["cases"][0]["text"], 8192))
+                connection.shutdown(socket.SHUT_WR)
+            connection.settimeout(8)
+            assert connection.recv(1) == b""
+            return
         vector = VECTORS["cases"][int(index)] if index != "reconnect" else VECTORS["cases"][0]
         text = vector.get("text", "")
         if "padBytes" in vector:
@@ -169,11 +177,198 @@ def proof():
             assert json.loads(output) == {"reads": len(VECTORS["cases"]) - rejected + 1, "rejected": rejected, "denied": 1}
             assert not os.path.exists(path)
             print(f"PASS Python/Linux: {len(VECTORS['cases'])} shared framing/readback vectors, foreign peer denied before read, approved reconnect", flush=True)
+            concurrent_proof(directory)
         finally:
             if process.poll() is None:
                 process.kill()
                 process.communicate(timeout=5)
             os.chown(directory, 0, 0)
+
+def concurrent_server(path):
+    unprivileged()
+    assert os.getuid() == BROKER_UID
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    slot = threading.Lock()
+    release = threading.Event()
+    stop = threading.Event()
+    output_lock = threading.Lock()
+    counts = {"reads": 0, "capacity": 0, "timeouts": 0}
+    errors = []
+    tasks = []
+
+    def event(name):
+        with output_lock:
+            print(json.dumps({"event": name}), flush=True)
+
+    def control():
+        for line in sys.stdin:
+            if line.strip() == "release":
+                release.set()
+            elif line.strip() == "stop":
+                stop.set()
+                return
+            else:
+                errors.append("Unknown fixture control")
+                stop.set()
+                return
+        stop.set()
+
+    def serve(connection):
+        expired = threading.Event()
+
+        def timeout():
+            expired.set()
+            counts["timeouts"] += 1
+            connection.shutdown(socket.SHUT_RDWR)
+            connection.close()
+            event("timeout")
+
+        timer = threading.Timer(5, timeout)
+        try:
+            timer.start()
+            deadline = time.monotonic() + 5
+            text = read_frame(connection, 8192, deadline)
+            response = readback(text)
+            counts["reads"] += 1
+            if counts["reads"] == 1:
+                event("source-entered")
+                if not release.wait(15):
+                    raise TimeoutError("Fixture source was not released")
+            if not expired.is_set():
+                remaining(connection, deadline)
+                connection.sendall(frame(json.dumps(response), 32768))
+                connection.shutdown(socket.SHUT_WR)
+        except (OSError, ValueError, TimeoutError) as error:
+            if not expired.is_set():
+                errors.append(repr(error))
+        finally:
+            timer.cancel()
+            timer.join()
+            connection.close()
+            slot.release()
+            event("released")
+
+    try:
+        listener.bind(path)
+        os.chmod(path, 0o660)
+        listener.listen(1)
+        listener.settimeout(0.1)
+        threading.Thread(target=control, daemon=True).start()
+        event("ready")
+        while not stop.is_set():
+            try:
+                connection, _ = listener.accept()
+            except socket.timeout:
+                continue
+            if not slot.acquire(blocking=False):
+                counts["capacity"] += 1
+                connection.close()
+                event("capacity")
+                continue
+            pid, uid, gid = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+            if uid != UID or gid != GID or pid <= 0:
+                connection.close()
+                slot.release()
+                raise AssertionError("Concurrent fixture unexpected identity")
+            task = threading.Thread(target=serve, args=(connection,))
+            tasks.append(task)
+            task.start()
+            event("admitted")
+        for task in tasks:
+            task.join(16)
+            assert not task.is_alive()
+        assert not errors, errors
+        assert counts == {"reads": 2, "capacity": 3, "timeouts": 2}, counts
+        event("complete")
+    finally:
+        release.set()
+        listener.close()
+        os.unlink(path)
+
+
+def concurrent_proof(directory):
+    path = os.path.join(directory, "concurrent.sock")
+    process = subprocess.Popen(
+        [sys.executable, "-I", "-B", __file__, "concurrent-server", path],
+        user=BROKER_UID, group=GID, extra_groups=[],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1,
+    )
+    clients = []
+
+    def receive():
+        data = bytearray()
+        deadline = time.monotonic() + 10
+        while not data.endswith(b"\n"):
+            remaining_time = deadline - time.monotonic()
+            assert remaining_time > 0 and select.select([process.stdout], [], [], remaining_time)[0], "Missing fixture event"
+            byte = os.read(process.stdout.fileno(), 1)
+            assert byte, "Fixture event stream closed"
+            data.extend(byte)
+            assert len(data) <= 1024
+        return json.loads(data)
+
+    def event(expected):
+        value = receive()
+        assert value == {"event": expected}, (expected, value)
+
+    def start(mode):
+        child = subprocess.Popen([sys.executable, "-I", "-B", __file__, "client", path, mode],
+                                 user=UID, group=GID, extra_groups=[],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        clients.append(child)
+        return child
+
+    def done(child):
+        _, error = child.communicate(timeout=10)
+        assert child.returncode == 0, error
+
+    try:
+        event("ready")
+        idle = start("idle")
+        event("admitted")
+        competitor = start("capacity")
+        event("capacity")
+        done(competitor)
+        event("timeout")
+        event("released")
+        done(idle)
+        held = start("held-source")
+        # The source thread may print entry before the accept thread prints admission.
+        observed = []
+        for _ in range(2):
+            observed.append(receive()["event"])
+        assert sorted(observed) == ["admitted", "source-entered"]
+        competitor = start("capacity")
+        event("capacity")
+        done(competitor)
+        event("timeout")
+        done(held)
+        competitor = start("capacity")
+        event("capacity")
+        done(competitor)
+        process.stdin.write("release\n")
+        process.stdin.flush()
+        event("released")
+        recovered = start("reconnect")
+        # Admission is emitted by accept, release by the source; order may differ.
+        done(recovered)
+        observed = [receive()["event"] for _ in range(2)]
+        assert sorted(observed) == ["admitted", "released"]
+        process.stdin.write("stop\n")
+        process.stdin.flush()
+        event("complete")
+        _, error = process.communicate(timeout=10)
+        assert process.returncode == 0, error
+        assert not os.path.exists(path)
+        print("PASS Python/Linux admission: idle deadline, competitors rejected, timed-out source retains slot until release, reconnect succeeds", flush=True)
+    finally:
+        for child in clients:
+            if child.poll() is None:
+                child.kill()
+                child.communicate(timeout=5)
+        if process.poll() is None:
+            process.kill()
+            process.communicate(timeout=5)
 
 
 signal.alarm(45)
@@ -183,5 +378,7 @@ elif sys.argv[1] == "server":
     server(sys.argv[2])
 elif sys.argv[1] == "client":
     client(sys.argv[2], sys.argv[3])
+elif sys.argv[1] == "concurrent-server":
+    concurrent_server(sys.argv[2])
 else:
     raise ValueError("Unknown fixture mode")
