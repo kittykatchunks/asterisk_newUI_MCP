@@ -3590,6 +3590,18 @@ silently omit or corrupt the child payload; if the gate rejects that Local
 call, parking reports failure and the bridge API falls through to the ordinary
 transfer path, whose callback runs before its own call.
 
+In the parking path there are two inheritance hops before the Local target
+PBX starts: the parker's datastore is copied to `parkee` (`;1`) in
+`park_local_transfer()`, then `ast_unreal_call_setup()` copies `;1` to `;2`.
+If the target route uses `Dial()`/`Queue()`, its callee creation adds another
+hop before the per-callee Gosub. A finite-inheritance datastore must survive
+the exact supported number of hops (the counter is decremented on each copy);
+otherwise use a deliberately shared/refcounted operation object with a
+validated inheritance policy. Every duplicate must still be validated for
+non-NULL usable payload and bound to the correct generation and logical
+operation; an unbounded inheritance setting is not itself proof of ownership
+or safe cleanup.
+
 The timing is stricter than merely "callback after `ast_call()`": the Local
 driver calls `ast_pbx_start()` on its paired `;2` channel, which starts a
 detached PBX thread before returning
@@ -3615,9 +3627,11 @@ the Local call if `;2` lacks a valid generation-bound claim, without starting
 PBX work. A guard as the first dialplan priority is useful defense in depth,
 but is later than the Local driver's PBX-thread creation and does not by itself
 preserve the parking/transfer source call on rejection. Callback state added
-after the parking Local call is too late to establish that lineage. If the
-deployed hook set cannot validate at the post-inheritance/pre-PBX boundary,
-disable/exclude this Local parking path.
+after the parking Local call is too late to establish that lineage: at that
+point the `;1` to `;2` copy has already run, so attaching a datastore to `;1`
+in the callback cannot repair `;2` or stop its PBX thread. If the deployed
+hook set cannot validate at the post-inheritance/pre-PBX boundary, disable/
+exclude this Local parking path.
 
 The failed parking attempt can also invoke the callback before bridge
 insertion, then fall through and invoke it again on a different channel. The
@@ -4024,7 +4038,7 @@ legs still need generation attribution and complete settlement.
 | Blind transfer requested after fence | No new generation-owned target leg is signaled; the existing call remains intact and tracked. |
 | Blind-transfer callback cannot attach its preallocated claim | This must be impossible by a proven invariant or an earlier abortable gate must reject before altering the existing call; a missing claim followed by queued transfer or target-route hangup is a failure. |
 | Bridge action enqueue fails after callback attached the transfer claim | The source call remains in a defined safe state and the transfer-operation claim is settled exactly once; no false zero occurs during callback/API return. |
-| Multi-party blind transfer through parking where Local inheritance fails or bridge insertion fails | Gate the source-bound operation at the Local owner, validate a usable `;2` claim after `ast_unreal_call_setup()` but before `ast_pbx_start()`, and make fallback create/settle a distinct attempt claim; a first-priority dialplan guard alone is insufficient. |
+| Multi-party blind transfer through parking where any inheritance hop fails or bridge insertion fails | Validate source-to-`;1` and `;1`-to-`;2` payloads, then gate `;2` after `ast_unreal_call_setup()` and before `ast_pbx_start()`; prove inheritance depth through each target branch and make fallback create/settle a distinct attempt claim. Callback attachment to `;1` after Local setup must not be treated as repairing `;2`. |
 | Invalid, unknown, or other-customer target | Rejected before target signaling; it cannot escape the generated allowlist or change ownership attribution. |
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |

@@ -3478,7 +3478,9 @@ before the supplied transfer callback, and can retry the callback after
 bridge-insertion failure. A source-channel operation claim plus a synchronous
 Local `ast_call()` gate is not enough: Local copies datastores from `;1` to
 `;2` after that gate, ignores inheritance failure, and starts the PBX thread
-before the transfer callback. Safe support needs validation after inheritance
+before the transfer callback. The callback's later `;1` attachment cannot
+repair `;2`; finite datastore inheritance also needs enough hops for the
+parking/Local/target-leg path. Safe support needs validation after inheritance
 but before `ast_pbx_start()`; a first-priority dialplan guard alone is too late.
 Fallback needs a separately settled child claim; otherwise protected transfers
 must exclude parking.
