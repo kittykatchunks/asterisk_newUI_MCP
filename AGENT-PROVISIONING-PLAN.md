@@ -3623,6 +3623,26 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   reached the peer
   ([dialog response guard](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1720-L1764),
   [built-in early rejection paths](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1997-L2049)).
+  `Refer-Sub: false` has a distinct ordering hazard: Asterisk skips subscription
+  creation, runs the selected transfer handler, and only afterward builds and
+  sends the final response. For blind transfer, a successful core return means
+  its bridge action was queued before the response call
+  ([no-subscription branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088),
+  [blind-transfer enqueue boundary](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1822-L1830),
+  [core queue/result ordering](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4747-L4757)).
+  The subsequent `pjsip_dlg_send_response()` receives
+  `pjsip_rdata_get_tsx(rdata)`; if the callback's cloned request has no
+  transaction module data, that argument is NULL and the API returns
+  `PJ_EINVAL` before sending
+  ([argument validation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1642-L1654)).
+  Asterisk ignores that return. Consequently, source order permits the bridge
+  transfer to be queued even though the REFER final response is not submitted;
+  do not treat the absent response as proof that the operation was rejected or
+  retry it as a new transaction without first resolving the original operation.
+  Because Asterisk's matching REFER supplement marks the request handled, the
+  generic dialog `500` does not repair this path. Confirm the actual clone,
+  transfer-queue outcome, wire response/timeout, and client retry behavior
+  separately; source review is not wire evidence.
   A source-backed route worth evaluating is to derive the request's UAS key
   from the cloned parsed message with `pjsip_tsx_create_key()`—not by
   hand-composing a Via/CSeq key—retrieve the already registered transaction
@@ -4639,6 +4659,7 @@ legs still need generation attribution and complete settlement.
 | Multi-party parking Local succeeds, callback runs, then bridge insertion fails into ordinary-transfer fallback | Force the `ast_bridge_impart()` failure after the parking callback; verify stale and current bridge subscriptions correlate only their own target and unsubscribe themselves; confirm exactly one terminal outcome is reported for the correct target, all framehooks/subscriptions/references are cleaned, the original call remains safe on any later fallback rejection, and parking/fallback/parent claims settle exactly once. |
 | Multi-party parking Local target PBX races bridge-insertion fallback | Hold the first Local target route at each call-producing boundary while forcing bridge insertion failure; prove no target leg can signal unclaimed or overlap the ordinary fallback leg, and prove any already-signaled first-attempt children remain counted and settle before the parent operation closes. Otherwise exclude this fallback. |
 | Invalid, unknown, or other-customer target | Earlier admission supplement sends a final rejection before built-in progress/subscription handling; no transfer operation, target INVITE, or success-shaped NOTIFY is created, and the target cannot escape the generated allowlist or change ownership attribution. If built-in handling continues, capture whether cloned-rdata transaction lookup causes setup to return `500` before the intended `202`/target validation or whether the selected runtime path supplies a usable transaction. With `Refer-Sub: false`, also capture the ignored dialog-send return, actual wire response/timeout behavior, and retransmissions. Do not expect PJSIP's generic unhandled-request `500` to rescue a failed response while Asterisk's matching REFER supplement claims the request. |
+| Valid blind REFER with `Refer-Sub: false` and cloned request data | Prove whether Asterisk queues the core bridge action before the final response attempt; verify whether cloned-rdata transaction lookup is NULL, `pjsip_dlg_send_response()` returns `PJ_EINVAL`, and no final response reaches the peer. Confirm the generic dialog `500` is suppressed, capture same-transaction retransmission behavior, and show that a client timeout/retry cannot start a duplicate operation or overwrite the original claim. A missing REFER response is not evidence that the transfer was rejected. |
 | REFER implicit-subscription setup succeeds but `202` creation or send fails | Fault-inject response creation/send failure; record the final wire response and verify the built-in handler's subsequent target-validation/transfer work, progress subscription state, and claim correlation. Asterisk ignores `pjsip_xfer_accept()`'s return, so do not infer that 202 was submitted from subscription allocation or continued handling. |
 | REFER arrives after its session channel is absent or detached | Fail closed without dereferencing a missing channel or fabricating a generation claim; capture the actual wire response and prove no progress subscription, `202`, target attempt, or operation reservation is created. Verify the rejection API works with cloned request data; a failed built-in `pjsip_dlg_respond()` is not rescued by the generic dialog `500` while the matching REFER supplement claims the request. Keep distinct from unknown-target handling, which occurs after implicit-subscription setup if its transaction is available. |
 | Missing `Refer-To`, malformed URI, or unsupported non-SIP/SIPS scheme | Reject before progress setup; no operation claim, implicit subscription/`202`, target channel, or INVITE is created. Verify the actual wire rejection and that the custom gate's response API works on cloned data; confirm agreement with built-in URI eligibility. A failed `pjsip_dlg_respond()` in Asterisk's built-in early path is not rescued by the generic dialog `500`, because the matching session supplement marks REFER handled. |

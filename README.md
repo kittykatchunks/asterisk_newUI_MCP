@@ -3464,10 +3464,15 @@ derive dialog or transaction identity from `pjsip_rdata_get_dlg()` /
 `pjsip_rdata_get_tsx()`; its transaction key needs a clone-safe source that is
 stable across retransmissions.
 Keep `Refer-Sub: false` as a distinct proof case: it skips subscription
-creation but the built-in response path still uses `pjsip_rdata_get_tsx()`
-despite the clone warning, and ignores the dialog-send return. pjproject 2.17
-returns `PJ_EINVAL` for a NULL transaction, so verify actual wire-response and
-timeout behavior rather than assuming the constructed response was sent.
+creation, but Asterisk executes the transfer handler before trying its final
+response. For a valid blind transfer the core can therefore queue the bridge
+action first; the later `pjsip_dlg_send_response()` still uses
+`pjsip_rdata_get_tsx()` on the cloned request and ignores its return. If that
+transaction lookup is NULL, pjproject 2.17 returns `PJ_EINVAL` without
+sending; the matching REFER supplement also suppresses the generic dialog
+`500` fallback. Verify the clone, transfer enqueue, actual wire response or
+timeout, and retry behavior separately. A missing REFER response must not be
+mistaken for rejection or trigger an uncorrelated retry.
 The same clone constraint applies to `pjsip_dlg_respond()`: it needs a dialog
 transaction and returns `PJ_EINVALIDOP` before response creation when the
 transaction is unavailable or belongs to a different dialog
