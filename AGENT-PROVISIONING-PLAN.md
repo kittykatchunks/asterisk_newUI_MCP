@@ -3737,6 +3737,36 @@ technology-level redirect needs its own gate or exclusion. Treat a central
 hook as a feasibility/design candidate only; no core patch or implementation
 is selected.
 
+The boundaries have distinct responsibilities and must not be collapsed into
+one generic "call count":
+
+1. A transfer-operation claim is reserved by the transfer owner before
+   asynchronous work is queued. The pinned two-party blind-transfer callback
+   runs before queueing, while the multi-party callback runs on the newly
+   created Local channel before its call starts
+   ([two-party ordering](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge_channel.c#L3017-L3035),
+   [multi-party ordering](https://github.com/asterisk/asterisk/blob/22.11.0/main/bridge.c#L4336-L4368)).
+   The bridge callback is a candidate to bind that operation claim, but only a
+   purpose-built transfer owner can define rejection, retransmission, and
+   failure settlement.
+2. A core `ast_call()` admission point, if implemented, can reject an
+   unapproved Local/control invocation before its technology method starts,
+   and can gate direct channel calls. It cannot replace the earlier transfer
+   reservation: the two-party transfer work is already queued by then.
+3. Per-callee `b()`/`ast_pre_call()` gates create distinct child-leg claims
+   for supported Dial/Queue branches. A transferred operation claim is their
+   parent, not a substitute for each fork's child claim.
+
+Handoff must be atomic with drain: retain the operation obligation while
+creating/attaching child obligations, then settle the parent only when its
+children are durably owned or the operation has definitively failed. For the
+multi-party Local route, the claim must remain valid through `;1` to `;2`
+inheritance, Local optimization, and the target-context guard. A central
+`ast_call()` hook alone cannot prove this lineage or cover technology-internal
+redirects. The combined callback/core/per-callee design is still only a
+candidate contract; its ownership, lock order, and every terminal path need a
+separate proof before implementation.
+
 Inheritance remains fallible. `ast_channel_datastore_inherit()` silently omits
 the child datastore if datastore allocation fails, and it can insert a
 datastore whose duplicated `data` is NULL if the duplicator fails, while

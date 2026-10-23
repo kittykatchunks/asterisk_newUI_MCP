@@ -3463,7 +3463,10 @@ which has no admission callback; this is a possible core interception point,
 but Local calls can start dialplan/bridge/masquerade work, and `ast_call()`
 holds the channel lock at dispatch. A safe gate must account for that lifecycle
 and prove bounded execution and lock ordering; internal PJSIP redirects remain
-a separate gap. This is not implementation approval.
+a separate gap. Admission also has distinct stages: reserve transfer work
+before it is queued, gate the Local/core call, then create a unique claim for
+each outbound branch. No one stage substitutes for the others. This is not
+implementation approval.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
