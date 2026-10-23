@@ -3482,7 +3482,13 @@ event only if ARI transfer state exists
 ([no-subscription notification](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L208-L229),
 [monitor setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L818-L908)).
 Prove monitor cleanup separately from the absence of `202`/sipfrag and from
-the bridge/channel outcome.
+the bridge/channel outcome. The no-subscription branch also skips the
+terminal failure-NOTIFY path used for subscribed transfers
+([handler branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2100)).
+Thus the final REFER response is the only SIP-level terminal outcome; if that
+send fails, no sipfrag failure notification recovers it. For ordinary blind
+transfer the progress path has no ARI state either, so rely on independently
+correlated channel/bridge lifecycle and leave an absent response unresolved.
 An exact retransmission of the same branch/CSeq is handled by the existing UAS
 transaction; while it remains in `TRYING` without a saved response, pjproject
 ignores the retransmitted request rather than rerunning the supplement or
