@@ -366,6 +366,8 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
         request_complete = threading.Event()
         body_received = threading.Event()
         before = counts["reads"]
+        response_attempts = 0
+        result_discarded = False
 
         def received(payload):
             vector = VECTORS["cases"][0]
@@ -474,10 +476,13 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             response = readback(text, source)
             if not expired.is_set():
                 remaining(connection, deadline)
+                response_attempts += 1
                 connection.sendall(frame(json.dumps(response), 32768))
                 connection.shutdown(socket.SHUT_WR)
                 if admission_only and counts["reads"] == 8:
                     stop.set()
+            else:
+                result_discarded = True
         except FixtureSourceFailure as error:
             counts["sourceFailures"] += 1
             with output_lock:
@@ -504,6 +509,13 @@ def concurrent_server(path, require_visible_pid=True, admission_only=False):
             timer.cancel()
             timer.join()
             connection.close()
+            if admission_only:
+                with output_lock:
+                    print(json.dumps({"delivery": {
+                        "sourceEntries": counts["reads"], "responseAttempts": response_attempts,
+                        "resultDiscarded": result_discarded, "terminal": expired.is_set(),
+                        "slotLocked": slot.locked(),
+                    }}), flush=True)
             slot.release()
             event("released")
 

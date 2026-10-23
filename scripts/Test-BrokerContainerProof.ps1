@@ -446,6 +446,29 @@ try {
         @($admissionEvents | Where-Object { $_.event -eq 'released' }).Count -ne 10) {
         throw 'Late cancellation changed the original timeout outcome or terminal/release event counts.'
     }
+    $deliveries = @($admissionEvents | Where-Object { $_.delivery })
+    $expectedSources = @(0, 0, 1, 2, 3, 4, 5, 6, 7, 8)
+    $expectedAttempts = @(0, 0, 0, 1, 0, 1, 0, 1, 0, 1)
+    if ($deliveries.Count -ne $expectedSources.Count) { throw 'Missing per-admission delivery evidence.' }
+    for ($index = 0; $index -lt $deliveries.Count; $index++) {
+        $delivery = $deliveries[$index].delivery
+        $discarded = $index -in @(6, 8)
+        $terminal = $index -in @(0, 1, 6, 8)
+        if ($delivery.sourceEntries -ne $expectedSources[$index] -or
+            $delivery.responseAttempts -ne $expectedAttempts[$index] -or
+            $delivery.resultDiscarded -ne $discarded -or $delivery.terminal -ne $terminal -or
+            $delivery.slotLocked -ne $true) {
+            throw "Unexpected response delivery or terminal state at admission $index"
+        }
+    }
+    for ($index = 0; $index -lt $admissionEvents.Count; $index++) {
+        if ($admissionEvents[$index].delivery.resultDiscarded -eq $true -and
+            ($index -eq 0 -or $index -eq ($admissionEvents.Count - 1) -or
+             $admissionEvents[$index - 1].event -ne 'source-settled' -or
+             $admissionEvents[$index + 1].event -ne 'released')) {
+            throw 'Late source result must be discarded after settlement and before admission release.'
+        }
+    }
     $admissionEvents | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 5 }
     Write-Output "PASS separate-container admission ($runtime clients): idle and complete-body/missing-EOF slots exclude competitors, five-second deadlines close without response/source entry, fresh authenticated read succeeds."
     Write-Output "PASS separate-container source failure ($runtime clients): exact diagnostic, zero response bytes, slot released, fresh authenticated read succeeds."
@@ -455,6 +478,7 @@ try {
     Write-Output "PASS cancelled deadline ($runtime clients): original five-second timer observes one cancellation without another timeout, competitor remains excluded until source settlement."
     Write-Output "PASS cancellation after timeout ($runtime clients): original timeout retained without a cancellation outcome or early slot release; competitor excluded until source settlement."
     Write-Output "PASS repeated cancellation ($runtime clients): one cancellation outcome, no extra timeout/source entry or early slot release, fresh read succeeds after settlement."
+    Write-Output "PASS terminal delivery ($runtime clients): both late source results discarded without a send attempt before slot release; only four fresh successful reads attempt responses."
     Write-Output 'PASS separate containers: mapped UID/primary GID, namespace separation, pre-read denials, publication protection, duplicate broker exclusion and approved reconnect.'
 } finally {
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()

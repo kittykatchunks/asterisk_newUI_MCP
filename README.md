@@ -2783,6 +2783,15 @@ connection while its source remains held.
 Final event evidence also requires exactly three timeout outcomes, one
 cancellation outcome and ten slot releases, preventing a second terminal event
 or double release from satisfying only the aggregate counters.
+Per-admission delivery evidence independently records source-entry count,
+response-send attempts, discarded late results, timeout/cancellation state and
+the still-locked slot before release. All ten admitted connections must match
+the expected sequence: only the four fresh successful reads attempt one
+response each; neither failed source nor either request deadline attempts a
+response. Both held source results must be discarded after source-settled
+evidence and immediately before slot-release evidence, with zero send attempts.
+This checks the server path even after the original clients have exited; a
+failed write to a closed connection cannot masquerade as deliberate suppression.
 It does not establish simultaneous cancellation/deadline
 race safety or cancellation after a successful response.
 

@@ -1451,6 +1451,24 @@ Final event evidence independently requires exactly three timeout outcomes,
 one cancellation outcome and ten slot releases, in addition to the aggregate
 counter checks. The late and repeated attempts add no client or source entry.
 
+The delivery follow-up records response-send attempts for each admitted
+connection, incrementing immediately before the actual send call, not only
+after successful delivery. The launcher requires all ten delivery records in
+source-entry order `0,0,1,2,3,4,5,6,7,8`, with attempts
+`0,0,0,1,0,1,0,1,0,1`. Every observation must precede admission release while
+the slot is still locked. The timeout/cancellation marker is true only for
+the two request deadlines and the two held-source terminal outcomes; source
+exceptions remain separately counted failures.
+
+Exactly the timed-out and cancelled held-source results must be marked
+discarded, with no response attempt. Each such delivery record must occur
+immediately after source-settled and immediately before slot-release evidence.
+Thus late source completion is checked after its original client has exited,
+rather than inferring suppression only from the earlier zero-byte EOF or
+silently treating a failed send as success. Fresh recovery clients still require
+exact inventory/generation responses; no replay, new wire action, resource
+privilege or production behavior is added.
+
 Both default Python and opt-in Node clients exercise this sequence in independent
 containers with checked identity/maps, distinct broker/client PID/mount namespaces,
 runtime completion and the existing resource/cleanup restrictions. No extra
