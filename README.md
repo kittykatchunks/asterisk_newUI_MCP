@@ -3612,9 +3612,12 @@ terminating the evsub, so its new transaction can still be associated by
 That distinction is conditional: if dialog auth cannot reinitialize or send
 the retry, pjproject terminates the evsub and delivers the challenge to
 Asterisk. A credential rejection without a stale nonce is one such failure;
-stale=true or a changed nonce can instead permit another dialog-auth attempt,
-bounded by `PJSIP_MAX_STALE_COUNT`. Exercise these outcomes separately before
-concluding that a challenge uses only one retry path
+stale=true or a changed nonce can instead permit another dialog-auth attempt.
+Although `PJSIP_MAX_STALE_COUNT` bounds the counter for a cached realm and
+algorithm, `pjsip_auth_clt_init_req()` resets it on request initialization;
+do not treat that constant alone as a cross-transaction retry ceiling.
+Exercise the actual sequence and reset behavior before concluding that a
+challenge uses only one retry path
 ([auth reinitializer errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1559-L1705),
 [evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914)).
 If configured async auth is abandoned, pjproject instead reports a synthetic
