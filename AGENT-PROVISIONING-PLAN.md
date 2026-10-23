@@ -3289,6 +3289,31 @@ must choose its SIP.js surface explicitly, install its admission policy after
 any manager delegate setup, and prove that no library-managed `onRefer`
 silently follows an unapproved target. Do not infer the path from the UI label.
 
+The pinned low-level outgoing API also separates request dispatch from
+completion. `Session.refer()` resolves to an `OutgoingReferRequest` after
+creating the non-INVITE transaction; it does not wait for the REFER response.
+`SessionManager.transfer()` simply awaits that API and returns, so resolving
+that promise is not evidence that the peer accepted the REFER. The supplied
+`requestDelegate.onAccept` observes a 2xx transaction response, while
+`options.onNotify` receives subsequent in-dialog NOTIFY requests separately.
+The latter receives a `Notification` wrapper and must explicitly accept or
+reject the request; it does not parse or certify target-dialog or bridge
+completion for the application.
+
+There is a correlation constraint in the pinned implementation: `Session`
+stores the `onNotify` handler in one per-session field, and each `refer()` call
+replaces it. A second outstanding REFER on the same dialog can therefore
+replace the first REFER's NOTIFY callback. The application must serialize
+outstanding REFER operations per source session, or prove an alternative
+transaction-correlation layer before allowing overlap. Even with a serialized
+request, a missing NOTIFY, a terminated subscription, or a SIP-fragment final
+status is not by itself proof that every Asterisk channel/bridge ownership
+obligation has settled. Source: the pinned
+[Session implementation](https://github.com/onsip/SIP.js/blob/0.21.2/src/api/session.ts),
+[SessionManager implementation](https://github.com/onsip/SIP.js/blob/0.21.2/src/platform/web/session-manager/session-manager.ts),
+[UAC response dispatch](https://github.com/onsip/SIP.js/blob/0.21.2/src/core/user-agents/user-agent-client.ts),
+and [Inviter NOTIFY generation](https://github.com/onsip/SIP.js/blob/0.21.2/src/api/inviter.ts).
+
 The browser may request a transfer, but it is not an authority for target
 allowlisting, generation state, or dialog ownership. Every REFER-created target
 leg must pass the PBX-side final admission boundary. The browser must install
@@ -3554,13 +3579,14 @@ legs still need generation attribution and complete settlement.
 | `TRANSFER_CONTEXT` override or Refer-To URI with unexpected domain/parameters | Effective context and normalized target are explicitly verified; no display-name/domain spoof or unreviewed context reroute is admitted. |
 | SIP.js incoming REFER | The pinned client version's default and `onRefer` behavior are verified; all supported sessions use explicit handling, and unsupported referrals do not auto-follow. |
 | Queue offer/member leg pending at fence | No unclaimed post-fence branch appears; pre-fence pending work remains counted until settled. |
-| REFER 200 followed by target failure/timeout, retransmission, no progress subscription, or controller/observer restart | Acceptance is not treated as completion; processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
+| SIP.js REFER promise resolves without waiting for response; 2xx REFER response followed by target failure/timeout, final or missing NOTIFY, retransmission, or controller/observer restart | Promise resolution is not treated as acceptance; REFER 2xx is not completion; NOTIFY is correlated to a serialized source-session operation and is not treated as complete ownership evidence. Processing is idempotent, and incomplete or unknown outcomes block removal/replacement rather than becoming zero. |
 | Last transferred/queued dialog ends | A complete reconciled snapshot reaches zero only after all old, target, and pending obligations settle; unrelated/base objects remain intact. |
 
 The protocol-specific matrix must add packet-level expected responses and
 channel/bridge lifecycle observations for the pinned SIP.js package and actual
-Asterisk REFER mode. A successful `session.refer()`/REFER result or a transfer
-event alone does not establish the ownership or serialization assertions above.
+Asterisk REFER mode. `Session.refer()` promise resolution, a REFER 2xx response,
+an implicit-subscription NOTIFY, or a transfer event alone does not establish
+the ownership or serialization assertions above.
 
 #### Next gate
 
@@ -3575,10 +3601,14 @@ obligation; the per-callee hook is a candidate final boundary, subject to
 proving queue-wait accounting, fail-closed denial, inheritance, and every
 channel/redirect path. The isolated test must include the selected API's
 incoming REFER delegate installation order and demonstrate rejection of an
-unapproved target without originating a new INVITE. The design must also prove
-that DTMF blind transfer and parking are either interposed or disabled. Only
-then design the finite synthetic proof around the matrix above. If the chosen
-path cannot be
+unapproved target without originating a new INVITE. Verify that a second
+transfer on the same session cannot overwrite progress correlation; the
+baseline design should permit at most one outstanding REFER per source session.
+The synthetic proof must distinguish API promise resolution, REFER final
+response, NOTIFY contents/state, and PBX channel/bridge settlement. The design
+must also prove that DTMF blind transfer and parking are either interposed or
+disabled. Only then design the finite synthetic proof around the matrix above.
+If the chosen path cannot be
 interposed without a zero-count gap or bypass, stop and return to the product
 scope rather than claim the existing Milestone 1 behavior is safely
 generation-managed.

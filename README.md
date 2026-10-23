@@ -3406,7 +3406,12 @@ an incoming `onRefer` handler that accepts referrals and sends an INVITE to the
 referral target, replacing any existing session handler. Low-level Session and
 UserAgent defaults instead reject incoming REFER when no delegate is present.
 The existing WebRTC proof uses the low-level API and does not exercise REFER;
-the chosen production API surface must explicitly gate referrals.
+the chosen production API surface must explicitly gate referrals. In the
+low-level API, the `Session.refer()` promise resolves with a request handle and
+does not wait for the REFER final response; 2xx response and later NOTIFY are
+separate callbacks. Its single per-session NOTIFY callback can be replaced by a
+second overlapping REFER, so transfers need per-dialog serialization and PBX
+lifecycle evidence beyond REFER/NOTIFY status.
 
 The earlier [identity integration comparison](./AGENT-PROVISIONING-PLAN.md#98-os-identity-integration-options-comparison-not-selection)
 now weighs three approaches: a maintained native Node binding, a socket-owning
