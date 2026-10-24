@@ -117,7 +117,8 @@ of `Supported: norefersub` on each INVITE `200`, and stops customer A between
 settings and in a `finally` block. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 48 authenticated in-dialog UDP cases passed: 12
+On 24 October 2026, all 68 authenticated in-dialog UDP cases passed. The
+unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
 global advertisement settings. The baseline cases had these results:
 
@@ -143,6 +144,14 @@ These observations confirm the pinned handler's permissive four-character
 `true` prefix check and first-header selection. Accepting malformed/duplicate
 inputs in this fixture is descriptive, not the policy for a future admission
 gate; that gate must reject ambiguous or invalid inputs.
+
+Another 20 cases cover missing `Refer-To`, an empty field, malformed
+`<sip:>`, a `tel:` URI, and an `https:` URI, each with absent or false
+`Refer-Sub` under both advertisement settings. All returned `400` without
+`Refer-Sub` or `202`, repeated the same final response on an identical
+retransmission, emitted no NOTIFY during one second, and accepted BYE.
+This confirms peer-visible early rejection for those inputs; the fixture
+does not instrument subscription allocation or operation claims.
 
 Every case sends an identical same-key REFER retransmission and checks the
 same final status, To tag, and `Refer-Sub` response, acknowledges NOTIFY requests, and ends the dialog
@@ -3606,7 +3615,9 @@ does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
 The repeatable proof additionally confirmed implicit-subscription `202`
 followed by terminal sipfrag `404`, successful same-key final-response
-retransmission, and BYE cleanup for all 48 rejected-target cases. These
+retransmission, and BYE cleanup for the 48 unknown-target cases. An additional
+20 invalid-target cases returned early `400` with no `Refer-Sub` response
+header and no observed NOTIFY. These
 results do not establish transaction resource counts or lifetime.
 Asterisk's out-of-dialog REFER client also compares the entire echoed header
 value to `false` rather than parsing RFC 4488 extension parameters. Thus a

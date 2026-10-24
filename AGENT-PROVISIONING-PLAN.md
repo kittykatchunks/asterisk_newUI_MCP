@@ -3649,6 +3649,12 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   value: `false` then `true` suppressed the subscription, while reversed
   order enabled it. These are observed pinned-handler behaviors, not
   permission for the admission gate to accept malformed or ambiguous input.
+  Another 20 cases passed early-target validation: missing `Refer-To`, an
+  empty value, malformed `<sip:>`, and `tel:`/`https:` schemes, each with
+  absent/false `Refer-Sub` under both settings. All returned `400` without
+  `Refer-Sub`, repeated that response on a same-key retransmission, emitted no
+  NOTIFY during one second, and accepted BYE. Allocation counts and custom
+  operation-claim behavior were not instrumented.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
