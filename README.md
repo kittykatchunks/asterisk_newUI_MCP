@@ -3431,10 +3431,9 @@ second overlapping REFER, so transfers need per-dialog serialization and PBX
 lifecycle evidence beyond REFER/NOTIFY status. Asterisk 22.11 attempts to
 accept an implicit-subscription REFER with 202 before the transfer outcome;
 later sipfrag NOTIFY may carry progress if the subscription and response
-succeed. The acceptance call's return is ignored, and cloned-rdata transaction
-lookup may prevent subscription creation or response submission, as detailed
-below. Capture wire behavior before treating 202 as sent or successful
-subscription setup as proof of target admission.
+succeed. The acceptance call's return is ignored, so capture wire behavior
+before treating 202 as sent or successful subscription setup as proof of
+target admission.
 `refer_blind_progress` defaults to yes, but disabling it emits
 terminal 200 from the transfer callback before target answer; monitoring setup
 failures can also explicitly fall back to assumed-success 200. Therefore pin
@@ -3443,36 +3442,39 @@ terminal NOTIFY 200 alone as a safe-zero signal.
 When implicit-subscription setup succeeds, the built-in handler attempts
 `202` before checking target-extension existence; if Asterisk submits that
 response, an unknown target can receive it followed by a failure NOTIFY.
-There is a source-level transaction-data concern in that setup: the session
-supplement receives cloned request data,
-and pinned pjproject 2.17's clone does not copy the transaction module data
-used by `pjsip_rdata_get_tsx()`. `pjsip_evsub_create_uas()` requires that
-transaction; Asterisk maps subscription-creation failure to `500` before the
-intended `202`. Even if subscription creation succeeds, Asterisk ignores the
-`pjsip_xfer_accept(..., 202, ...)` return; pjproject can report an error while
-creating or sending that response, after which Asterisk continues processing
-the target. Verify the callback's actual request data and wire response before
-relying on either path. A generation/allowlist rejection that must
+The generic Asterisk session-supplement contract warns that incoming callback
+`rdata` is cloned and module data is not copied. However, the pinned Asterisk
+22.11 in-dialog INVITE-session path invokes its transaction-state callback
+with `e->body.tsx_state.src.rdata` and passes that same pointer to the session
+supplements; pinned pjproject sets the transaction module data on that `rdata`
+before dispatching the `TRYING` event. The local `Refer-Sub: false` probe also
+received the handler's final response. Thus the generic clone warning does
+not describe this specific in-dialog REFER path; do not infer a missing
+transaction or failed subscription setup from it. The acceptance call's
+return is still ignored, so response-creation or send errors remain possible
+and wire behavior must be captured. A generation/allowlist rejection that must
 precede accepted-transfer signaling needs an earlier REFER supplement at a
 strictly lower priority than the built-in handler
 (`AST_SIP_SUPPLEMENT_PRIORITY_CHANNEL + 1`). A nonzero supplement result only
 stops later handlers; the rejecting callback must send its own SIP response.
 The gate must reserve before returning zero to continue into built-in handling,
 or send the final response itself and stop dispatch.
-Because the session callback receives cloned request data, it cannot safely
-derive dialog or transaction identity from `pjsip_rdata_get_dlg()` /
-`pjsip_rdata_get_tsx()`; its transaction key needs a clone-safe source that is
-stable across retransmissions.
+For this pinned in-dialog path, source order and the runtime response support
+using `pjsip_rdata_get_tsx()` in the callback. The public callback contract
+still conflicts with that implementation detail, so verify the exact deployed
+version before relying on this behavior elsewhere.
 Keep `Refer-Sub: false` as a distinct proof case: it skips subscription
 creation, but Asterisk executes the transfer handler before trying its final
 response. For a valid blind transfer the core can therefore queue the bridge
 action first; the later `pjsip_dlg_send_response()` still uses
-`pjsip_rdata_get_tsx()` on the cloned request and ignores its return. If that
-transaction lookup is NULL, pjproject 2.17 returns `PJ_EINVAL` without
-sending; the matching REFER supplement also suppresses the generic dialog
-`500` fallback. Verify the clone, transfer enqueue, actual wire response or
-timeout, and retry behavior separately. A missing REFER response must not be
-mistaken for rejection or trigger an uncorrelated retry.
+`pjsip_rdata_get_tsx()` and ignores its return. The local UDP test received a
+`404` with `Refer-Sub: false` for an unknown target, confirming a final
+response in that case; a separate known-extension attempt returned `400`.
+Neither test exercised an accepted transfer or response-send failure. The
+matching REFER supplement still suppresses the generic dialog `500` fallback
+if handling fails before a final response. Verify transfer enqueue and retry
+behavior separately; a missing REFER response must not be mistaken for
+rejection or trigger an uncorrelated retry.
 The no-subscription setup returns before Asterisk's `pjsip_xfer_accept()` call,
 so it does not send the implicit-subscription `202`. It still allocates its
 progress object; with normal blind-progress monitoring enabled, the transfer
@@ -3536,8 +3538,8 @@ does not establish successful negotiation.
 A local Asterisk 22.11.0 UDP spot check with `res_pjsip_refer` loaded sent a
 `404` plus `Refer-Sub: false` for an authenticated in-dialog REFER to an
 unknown target. The test confirms this response shape for that case only; it
-does not exercise an accepted transfer, prove the cloned request's transaction
-data or response reference count, or validate transaction lifetime.
+does not exercise an accepted transfer, measure response reference counts, or
+validate transaction lifetime.
 Asterisk's out-of-dialog REFER client also compares the entire echoed header
 value to `false` rather than parsing RFC 4488 extension parameters. Thus a
 valid `Refer-Sub: false;foo=bar` 2xx echo does not trigger its immediate
@@ -4123,34 +4125,30 @@ may leave another transaction registered and increase dialog-held resources.
 Measure repeated retries and prove every attempt is bounded or terminated;
 an operation latch prevents duplicate transfer work but does not by itself
 clean up leaked PJSIP transactions.
-For the `Refer-Sub: false` final-response path, if the callback's cloned
-request has no transaction module data, the source confirms a leaked response
-txdata reference: Asterisk creates the response and passes it with a NULL
-transaction, `pjsip_dlg_send_response()` returns `PJ_EINVAL` at its argument
-guard before its send-error decrement, and the caller ignores the result
-without releasing `tdata`. Runtime validation remains necessary to establish
-whether the deployed callback clone reaches this condition and to measure its
-operational impact
+The session-supplement header warns that callback request data is cloned, but
+the pinned in-dialog REFER callback path passes the transaction event's
+`src.rdata` directly through Asterisk's session callback. pjproject attaches
+the active transaction to that same `rdata` before invoking the `TRYING`
+callback. Thus the `Refer-Sub: false` response path has a transaction in this
+source trace; the local UDP spot check's `404` response confirms it for that
+unknown-target case. This invalidates the clone-based NULL-transaction and
+unreleased-txdata hypothesis for this path. Asterisk still ignores the send
+result, so test transport-send failures and bridge-action ordering separately
 ([Asterisk response creation and send](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088),
-[response allocation/refcount](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L479-L523),
-[dialog send guard and decrement](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1642-L1713)).
-The same clone constraint applies to `pjsip_dlg_respond()`: it needs a dialog
-transaction and returns `PJ_EINVALIDOP` before response creation when the
-transaction is unavailable or belongs to a different dialog
+[transaction attached to rdata](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L2123-L2137),
+[Asterisk transaction callback dispatch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4839-L4849)).
+The actual in-dialog request transaction belongs to the dialog, so
+`pjsip_dlg_respond()` can use it; its argument and dialog-ownership checks
+still apply
 ([response guard](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1720-L1764)).
 Asterisk's early `400`/`404` branches ignore that return. The custom gate
-must prove a clone-compatible response mechanism. `ast_sip_send_stateful_response()`
-creates a new UAS transaction from the request, but pjproject registers the
-original in-dialog UAS transaction before dispatching to dialog usages. The
-session supplement runs within that dispatch; its clone retains the Via branch,
-so the helper tries to register the same transaction key, gets `PJ_EEXISTS`,
-and returns before sending. This makes the helper unsuitable for this
-clone-based rejection path at pinned source level; confirm the deployed path
-and wire result, then prove a different response mechanism. The stateless
-endpoint helper is also unsafe by default: its active-transaction guard reads
-the same missing cloned transaction data and can send outside the live UAS
-transaction; because this does not update the transaction's status, do not
-assume the response is tracked or retransmitted. PJSIP's generic unhandled
+can use the dialog-owned active transaction through `pjsip_dlg_respond()` or
+build/send a stateful response with the existing transaction; it must check
+and surface errors. `ast_sip_send_stateful_response()` remains unsuitable
+inside this callback because it tries to create a second UAS transaction with
+the same key, which pjproject rejects with `PJ_EEXISTS`. A stateless response
+helper sees the active transaction and refuses to bypass it; it does not hide
+the transaction in this path. PJSIP's generic unhandled
 request `500` is not a reliable fallback here: Asterisk's dialog usage marks
 an in-dialog method handled whenever a matching session supplement exists,
 independent of the supplement callback's return
@@ -4158,48 +4156,24 @@ independent of the supplement callback's return
 [handled return](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_session.c#L4267-L4297),
 [PJSIP fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1931-L1950)).
 Thus a failed response helper may leave no final response rather than get a
-generic `500`; capture the peer-visible result and retransmissions. Calling
-`pjsip_tsx_create_key()` on the clone's parsed message and then looking up the
-existing transaction is more promising than hand-building a Via/CSeq key:
-PJSIP feeds the
-initial request to the transaction before releasing the dialog lock, moves it
-to `TRYING`, then invokes Asterisk's transaction-state callback, where the
-session supplements run. A synchronous response through the found transaction
-may therefore be viable, but verify the exact clone-derived key and state,
-release the lookup reference safely, handle send errors, and ensure no final
-response was already sent. pjproject chains the transaction lock to the dialog
-lock in dialog-first order and uses recursive group-lock mutexes
-([lock chaining](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1823-L1836),
-[group lock](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/lock.c#L410-L456));
-transaction lookup takes a reference without acquiring the transaction lock
-([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L730-L778)),
-which aligns with the dialog response helper's lock order. For response
-construction, `pjsip_dlg_create_response()` uses the cloned request's parsed
-headers and dialog state, not transaction module data
-([response construction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1556-L1587)).
-The clone preserves Via, CSeq, Call-ID, From, and To headers used by key
-construction
-([rdata clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L834-L905)).
-pjproject selects the RFC 3261 branch+method algorithm for standard branches
-and its RFC 2543 key algorithm otherwise
-([key selection](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L402-L430)).
-The added transaction reference must be released exactly once with
-`pj_grp_lock_dec_ref()`. This remains a candidate, not an approved response
-mechanism. Watch send failures: pjproject records the final status before
-transport send, but leaves the transaction short of `COMPLETED` if that send
-fails. Independently, Asterisk's matching session supplement marks the
-request handled, so PJSIP's generic unhandled-request `500` is suppressed even
-if the transaction status is still provisional. The gate must stop transfer
-handling even on this error and surface the missing-response condition.
+generic `500`; capture the peer-visible result and retransmissions. A custom
+response path should use the active transaction already associated with this
+request, not create or look up a duplicate transaction. Watch send failures:
+pjproject records the final status before transport send, but leaves the
+transaction short of `COMPLETED` if that send fails. Independently, Asterisk's
+matching session supplement marks the request handled, so PJSIP's generic
+unhandled-request `500` is suppressed even if the transaction status is still
+provisional. The gate must stop transfer handling even on this error and
+surface the missing-response condition.
 For an allowed request, returning zero continues into Asterisk's built-in
 transfer callback; that alone does not bind transfer work to a custom claim.
 A custom propagation callback requires the supplement to own the transfer,
 response, and progress lifecycle and stop later handling, or the design must
 prove another mechanism correlates and settles built-in work to the reservation.
 The built-in handler attempts `404` before progress setup when its session has
-no channel, and attempts `400` for missing or malformed `Refer-To`; because
-these branches use `pjsip_dlg_respond()` on cloned data and ignore its return,
-the helper can return `PJ_EINVALIDOP` before response creation. The matching
+no channel, and attempts `400` for missing or malformed `Refer-To`. These
+branches use `pjsip_dlg_respond()` and ignore its return, so response delivery
+still depends on successful response construction and send. The matching
 REFER supplement still makes the dialog usage report the request handled, so
 PJSIP does not supply a generic fallback `500`; verify the actual wire
 response or timeout. No such request may create a transfer claim.
