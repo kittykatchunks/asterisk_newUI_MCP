@@ -3821,9 +3821,10 @@ changed opaque into `last_chal`, not the rest of the new challenge fields
 (such as qop, domain, or stale). If `PJSIP_AUTH_AUTO_SEND_NEXT` is enabled,
 later request initialization can therefore regenerate from stale cached
 challenge fields even though the just-processed challenge had different
-values. Compare same-nonce challenges with changed fields and changed-nonce
-challenges with changed qop/domain, using both header-caching build settings;
-inspect cached challenge state and any later generated header
+values. By contrast, when `PJSIP_AUTH_HEADER_CACHING` is enabled, the
+successful-auth path clones the full new challenge into `last_chal`, so those
+fields are refreshed there. This contrast is source-confirmed; runtime checks
+should confirm the deployed options and resulting generated header
 ([selective cached challenge update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L779-L810),
 [header-caching challenge refresh](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1240-L1268),
 [fresh-request regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460)).
