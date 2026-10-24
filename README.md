@@ -3709,12 +3709,16 @@ when Authorization is already present. Capture the wire retry to verify
 headers and URI handling
 ([pjproject reinitializer](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1708-L1861),
 [Asterisk rewrite guard](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1200-L1220)).
-For multiple WWW/Proxy challenges, pjproject skips individual unsupported or
-uncredentialed challenges but still retries if it created at least one
-Authorization header. A transmitted retry therefore need not satisfy every
-challenge; test mixed realm/scheme credentials and follow any remaining
-challenge
-([challenge loop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1736-L1844)).
+For multiple WWW/Proxy challenges, pjproject processes each challenge and
+continues after an unsupported or uncredentialed challenge. If it creates at
+least one Authorization header, it returns success and retries with only the
+headers it created; failures from the other challenges do not prevent that
+partial retry. If none succeeds, the function returns the error from the last
+failing challenge encountered, so the response's challenge-header order can
+affect the reported error. A transmitted retry therefore need not satisfy
+every challenge. Capture generated headers, the final status, and unresolved
+challenges separately
+([challenge loop and completion status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1736-L1844)).
 For multiple Digest algorithms under the same realm/auth type,
 `PJSIP_AUTH_ALLOW_MULTIPLE_AUTH_HEADER` defaults to 0; a later challenge may
 replace or reject an earlier header depending on nonce/stale values instead of
