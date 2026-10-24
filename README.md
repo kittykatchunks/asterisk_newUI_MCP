@@ -3618,10 +3618,8 @@ cached realm/algorithm stale counter. Auth retries use
 `pjsip_auth_clt_reinit_req()` followed by dialog send, so they do not repeat
 that reset: `PJSIP_MAX_STALE_COUNT` applies across the retry transaction
 sequence for that challenge, but not across later, freshly created requests.
-The initialization routine iterates over the session's entire cached-auth list
-and zeroes every stale counter, so initializing any later request in that
-session resets all cached realm/algorithm budgets, not just the pair challenged
-by that request
+When initialization completes its cached-auth loop, it has zeroed every stale
+counter in the session, not just the pair challenged by that request
 ([counter-reset loop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1391)).
 When `PJSIP_AUTH_HEADER_CACHING` is enabled, that same initialization can
 shallow-clone a cached Digest Authorization header onto the new request when
@@ -3663,6 +3661,11 @@ headers for each case; the cached entry alone does not establish that
 Authorization was attached
 ([qop-less regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1390-L1415),
 [qop-auth regeneration and errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460)).
+Because that qop-auth error returns from inside the cache loop, entries later
+in the list have not yet had their stale counters reset, and any headers
+already queued in the local `added` list are not attached before the return.
+Test a failing qop-auth cache entry followed by another cached realm/algorithm
+entry and inspect both counters and the initialized request headers.
 The cached qop mode is set only while its value is `PJSIP_AUTH_QOP_NONE`; it
 is not reset when a later challenge for the same realm/algorithm omits qop.
 With qop support and auto-send-next enabled, that qop-less challenge can
