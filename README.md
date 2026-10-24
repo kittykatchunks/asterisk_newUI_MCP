@@ -3665,9 +3665,14 @@ request separately before concluding that a challenge uses only one retry path
 This retry budget is distinct from Digest qop `nc`: with qop enabled and the
 same nonce, `update_digest_session()` increments the nonce-count even when the
 challenge explicitly says `stale=true`; a changed nonce resets `nc` to 1.
-Verify the emitted `nc` independently from the stale retry count
+That state update occurs before qop validation and digest response generation,
+so a failed attempt (for example, an unsupported qop offer) can advance the
+cached nonce-count without producing an Authorization header. Do not infer an
+emitted `nc` from the internal counter alone; verify both processing status
+and the wire header
 ([nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810),
-[qop response generation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1220)).
+[pre-response state update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1220),
+[qop validation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L670-L714)).
 This stale counter belongs to pjproject's persistent dialog-auth session.
 Asterisk's endpoint-auth fallback initializes a fresh stack-local auth session
 per helper invocation, so repeated fallback callbacks (if observed) do not
