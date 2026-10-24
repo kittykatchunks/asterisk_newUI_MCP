@@ -3,6 +3,8 @@ services:
     volumes:
       - ./.local-proof/customer-a:/run/proof:ro
       - ./.local-proof/refer/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./.local-proof/refer/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./local/sip/refer-extensions.conf:/run/refer-proof.conf:ro
   refer-test-a:
     image: andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d
     profiles: ["test"]
@@ -18,3 +20,4 @@ services:
     volumes:
       - ./tests:/tests:ro
       - ./.local-proof/customer-a:/run/proof:ro
+      - customer-a-logs:/evidence:ro

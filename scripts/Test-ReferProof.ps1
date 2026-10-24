@@ -32,6 +32,10 @@ $referDirectory = Join-Path $root '.local-proof\refer'
 New-Item -ItemType Directory -Force -Path $referDirectory | Out-Null
 $baseConfig = Get-Content -Raw -LiteralPath (Join-Path $root 'local\asterisk\pjsip.conf')
 Assert-Match $baseConfig '(?m)^\[global\]\s*$' 'Missing proof global configuration section.'
+$dialplan = Get-Content -Raw -LiteralPath (Join-Path $root 'local\asterisk\extensions.conf')
+[IO.File]::WriteAllText((Join-Path $referDirectory 'extensions.conf'),
+    ($dialplan + "`n#include /run/refer-proof.conf`n").Replace("`r`n", "`n"),
+    [Text.UTF8Encoding]::new($false))
 try {
     foreach ($setting in @('yes', 'no')) {
         $config = $baseConfig.Replace('[global]', "[global]`nnorefersub = $setting").Replace("`r`n", "`n")
@@ -53,6 +57,13 @@ try {
         Assert-Match $settings "(?m)^\s*norefersub\s*:\s*$setting\s*$" "Expected norefersub=$setting."
         Invoke-Docker -DockerArguments @('run', '--rm', '--no-deps', 'refer-test-a',
             '--host', 'customer-a', '--norefersub', $setting) | Write-Host
+        $endpoint = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'pjsip show endpoint proof-client')
+        Assert-Match $endpoint '(?m)^\s*allow_transfer\s*:\s*true\s*$' 'Transfers were not enabled.'
+        Assert-Match $endpoint '(?m)^\s*refer_blind_progress\s*:\s*true\s*$' 'Blind progress was not enabled.'
+        Invoke-Docker -DockerArguments @('run', '--rm', '--no-deps', '--entrypoint',
+            'python3', 'refer-test-a', '-B', '/tests/sip_refer_transfer_proof.py',
+            '--host', 'customer-a') | Write-Host
         [IO.File]::WriteAllText((Join-Path $referDirectory 'pjsip.conf'),
             "$config`n[proof-client](+)`nallow_transfer = no`n",
             [Text.UTF8Encoding]::new($false))
@@ -74,4 +85,4 @@ try {
 finally {
     Invoke-Docker -DockerArguments @('stop', 'customer-a') | Write-Host
 }
-Write-Host 'PASS rejected-target REFER matrix. Proof PBX stopped; data preserved.'
+Write-Host 'PASS rejected-target and accepted bridged REFER proofs. Proof PBX stopped; data preserved.'

@@ -119,7 +119,8 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 authenticated in-dialog UDP dialogs passed, with
+On 24 October 2026, all 106 rejected-target/policy dialogs and four accepted
+bridged-transfer dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
@@ -194,11 +195,43 @@ successful BYE. The subscribed cases directly establish that this
 fixture can create the implicit subscription and send its `202`; the later
 failure NOTIFY does not make `202` target admission or transfer success.
 
-This fixture does not bridge two parties or prove an accepted transfer,
-response-send failure behavior, transaction/reference lifetime, or reliable
-transport. Its negative NOTIFY assertion is bounded by the
+The rejected-target cases do not prove response-send failure behavior,
+transaction/reference lifetime, or reliable transport.
+Their negative NOTIFY assertion is bounded by the
 one-second window. The existing SIP/RTP probe also passed after the shared
 message-parser/header changes, echoing 100/100 synthetic frames.
+
+### Accepted bridged REFER proof
+
+The same runner also executes [sip_refer_transfer_proof.py](./tests/sip_refer_transfer_proof.py)
+with `allow_transfer=yes` and `refer_blind_progress=yes` verified through the
+CLI. A proof-only dialplan include creates a PJSIP-to-Local bridge, then
+redirects the original Local transferee to a unique target extension that
+dials and bridges an answered second Local pair. Synthetic tones keep the
+local media paths active; no external endpoint or real caller is involved.
+The tester mounts the PBX's existing CEL volume read-only.
+
+Four cases passed: absent/false `Refer-Sub` under both `norefersub` settings.
+The no-subscription path returned `200` with `Refer-Sub: false` and no NOTIFY;
+the subscribed path returned `202` and a terminal sipfrag `200`.
+Each case independently verifies:
+
+- The source SIP Call-ID maps to the source CEL unique ID and linked ID.
+- The source and original transferee entered the same bridge before REFER.
+- That exact transferee executes the unique target and bridges with an
+  answered target leg.
+- An identical REFER retransmission returns the same final response and
+  creates neither a second target execution nor a second `BLINDTRANSFER`.
+- The `BLINDTRANSFER` event names the correct source, transferee, context,
+  and target extension.
+- The transferer dialog ends through BYE and all five correlated channels
+  have both `CHAN_START` and `CHAN_END`.
+
+This establishes a bounded accepted local blind transfer, not generation
+claims/fencing, external PJSIP target answer, post-transfer RTP quality,
+send-failure ordering, multi-party fallback, or PJSIP transaction/refcount
+cleanup. Terminal NOTIFY alone remains insufficient proof: this test relies
+on the independently correlated target bridge and CEL lifecycle.
 
 ## Browser WSS and encrypted WebRTC proof
 
@@ -3569,7 +3602,9 @@ action first; the later `pjsip_dlg_send_response()` still uses
 `pjsip_rdata_get_tsx()` and ignores its return. The local UDP test received a
 `404` with `Refer-Sub: false` for an unknown target, confirming a final
 response in that case; a separate known-extension attempt returned `400`.
-Neither test exercised an accepted transfer or response-send failure. The
+Neither spot check exercised an accepted transfer or response-send failure.
+The later [accepted bridged proof](#accepted-bridged-refer-proof) covers local
+transfer acceptance and channel/bridge outcomes, but not send failures. The
 matching REFER supplement still suppresses the generic dialog `500` fallback
 if handling fails before a final response. Verify transfer enqueue and retry
 behavior separately; a missing REFER response must not be mistaken for
@@ -3648,6 +3683,9 @@ A local Asterisk 22.11.0 UDP spot check with `res_pjsip_refer` loaded sent a
 unknown target. The test confirms this response shape for that case only; it
 does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
+The later accepted bridged proof separately covers four local successful
+transfer cases; response-reference and transaction-lifetime measurements remain
+open.
 The repeatable proof additionally confirmed implicit-subscription `202`
 followed by terminal sipfrag `404`, successful same-key final-response
 retransmission, and BYE cleanup for the 48 unknown-target cases. An additional

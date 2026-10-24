@@ -38,26 +38,32 @@ class ReferProbe(Probe):
     def __init__(self, host):
         super().__init__(host)
         self.notifications = {}
+        self.remote_ended = False
 
     def receive(self):
         start, headers, body = parse_message(self.sip.recv(65535))
         require(headers.get("call-id") == [self.call_id], "Unexpected SIP dialog")
         if start.startswith("SIP/2.0 "):
             return int(start.split()[1]), headers, body
-        require(start.startswith("NOTIFY "), f"Unexpected SIP request: {start}")
-        require(headers.get("event") == ["refer"], "Unexpected NOTIFY event")
-        require(headers.get("content-type") == ["message/sipfrag;version=2.0"],
-                "Expected REFER sipfrag content type")
-        require(len(headers.get("subscription-state", [])) == 1,
-                "Missing or ambiguous subscription state")
-        require(re.match(r"^SIP/2.0 \d{3}(?: |\r?$)", body) is not None,
-                "Malformed NOTIFY sipfrag")
+        method = start.split()[0]
+        require(method in ("NOTIFY", "BYE"), f"Unexpected SIP request: {start}")
+        if method == "NOTIFY":
+            require(headers.get("event") == ["refer"], "Unexpected NOTIFY event")
+            require(headers.get("content-type") == ["message/sipfrag;version=2.0"],
+                    "Expected REFER sipfrag content type")
+            require(len(headers.get("subscription-state", [])) == 1,
+                    "Missing or ambiguous subscription state")
+            require(re.match(r"^SIP/2.0 \d{3}(?: |\r?$)", body) is not None,
+                    "Malformed NOTIFY sipfrag")
         response = ["SIP/2.0 200 OK"]
         for name in ("via", "from", "to", "call-id", "cseq"):
-            require(name in headers, f"Missing NOTIFY {name}")
+            require(name in headers, f"Missing {method} {name}")
             response.extend(f"{name}: {value}" for value in headers[name])
         response += ["Content-Length: 0", "", ""]
         self.sip.send("\r\n".join(response).encode())
+        if method == "BYE":
+            self.remote_ended = True
+            return None
         key = tuple(headers["cseq"])
         value = (headers["subscription-state"][0], int(body.split()[1]))
         require(key not in self.notifications or self.notifications[key] == value,
@@ -164,6 +170,7 @@ def run_case(host, password, *, label, values, subscribed, require_option, adver
                 and repeated_headers.get("refer-sub") == expected_header,
                 "Same-key REFER retransmission changed final response")
         probe.observe_notifications(subscribed)
+        require(not probe.remote_ended, "Rejected REFER unexpectedly ended the source dialog")
         option = " with Require: norefersub" if require_option else ""
         result = " and terminal NOTIFY 404" if subscribed else " and no NOTIFY"
         setting = "yes" if advertised else "no"

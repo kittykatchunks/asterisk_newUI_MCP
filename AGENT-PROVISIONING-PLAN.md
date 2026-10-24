@@ -3649,7 +3649,7 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   those local cases, not successful transfer or resource-lifetime accounting.
   The INVITE `200` advertised `Supported: norefersub` only with the option
   enabled, but neither setting produced a `420` for these required-option
-  REFERs. Accepted transfers remain open; this result is not a general
+  REFERs. This rejected-target result is not a general
   required-extension compliance proof.
   The expanded proof also passed the full 48-case matrix (12 header forms,
   with/without `Require`, under both settings). `FALSE` and
@@ -3672,6 +3672,20 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   `404` with `Refer-Sub: false`, and passed retransmission/BYE checks.
   This validates these target forms on the fixture, not TLS or target-call
   admission/signaling.
+  The later [accepted bridged proof](./README.md#accepted-bridged-refer-proof)
+  passed four local cases with CLI-confirmed `allow_transfer=yes` and
+  `refer_blind_progress=yes`: absent/false `Refer-Sub` under both advertisement
+  settings. A PJSIP source first shares a bridge with a Local transferee;
+  the same transferee then executes a unique target and bridges with an
+  answered second Local pair. Read-only CEL evidence correlates the SIP
+  Call-ID, original bridge, transferee identity, target answer/bridge, exactly
+  one matching `BLINDTRANSFER`, exactly one target execution despite a
+  same-key REFER retransmission, and all five channels ending. The
+  no-subscription response is `200` with `Refer-Sub: false` and no NOTIFY;
+  the subscribed response is `202` followed by terminal sipfrag `200`.
+  Transferer BYE also succeeds. This proves a bounded accepted local transfer,
+  not generation claims/fencing, an external PJSIP target, post-transfer RTP
+  quality, send-failure ordering, or PJSIP transaction/reference cleanup.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
