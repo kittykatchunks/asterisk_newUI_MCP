@@ -4017,7 +4017,10 @@ fallback's stack-local session is not its parent
 [Asterisk dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L998-L1074),
 [REFER dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1434),
 [explicit dialog parent setter](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L2606-L2610)).
-Confirm the peer's chosen Authorization header
+These source paths establish which credentials the client selects and headers it
+constructs, not which credential the peer accepts. Establish peer acceptance
+with peer-side evidence or controlled tests that offer one candidate credential
+at a time
 ([Asterisk selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L91-L248),
 [per-realm challenge handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L303-L426),
 [pjproject credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901)).
