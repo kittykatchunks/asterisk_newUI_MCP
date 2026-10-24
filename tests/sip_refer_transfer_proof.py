@@ -104,8 +104,9 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
 
 
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
-                 lose_response=False):
-    probe = ReferProbe(host)
+                 lose_response=False, lose_terminal_ack=False):
+    require(not lose_terminal_ack or subscribed, "NOTIFY acknowledgement loss needs a subscription")
+    probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack)
     peer = TransferPeer(host) if outcome == "peer" else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
@@ -157,11 +158,21 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             peer_result = executor.submit(peer.run)
         request = probe.request("REFER", uri=target, extra_headers=extra_headers)
         code, headers, _ = probe.exchange(request, "REFER", discard_first_final=lose_response)
+        if lose_terminal_ack:
+            wait_for(probe, "identical terminal NOTIFY retry acknowledged",
+                     lambda rows: probe.terminal_retry_acked, seconds=5)
+            delay = time.monotonic() - probe.terminal_received_at
+            require(0 < delay < 5, f"Terminal NOTIFY recovery outside five seconds: {delay}")
+            print(f"PASS withheld first terminal NOTIFY acknowledgement: "
+                  f"identical retry acknowledged within {delay:.3f}s")
         if outcome == "unknown":
             verify_preserved_call(probe, target, request, code, headers, source, transferee,
                                   sdp, subscribed, blind_progress)
             if lose_response:
                 print("PASS lost REFER response: original bridged call and RTP preserved")
+            if lose_terminal_ack:
+                print("PASS lost terminal NOTIFY acknowledgement: rejected transfer "
+                      "preserved original bridge and RTP")
             return
         require(code == (202 if subscribed else 200), f"Unexpected accepted REFER: {code}")
         require(headers.get("refer-sub") == (None if subscribed else ["false"]),
@@ -289,6 +300,9 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
         if lose_response:
             print("PASS lost REFER response: exactly one transfer, target execution, "
                   "outbound target dialog, and post-transfer RTP echo")
+        if lose_terminal_ack:
+            print("PASS lost terminal NOTIFY acknowledgement: one transfer and target "
+                  "execution, outbound dialog and RTP echo, all channels ended")
     finally:
         if executor:
             executor.shutdown(wait=True)
@@ -313,6 +327,9 @@ def main():
         for outcome in ("unknown", "peer"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
                          lose_response=True)
+            if subscribed:
+                run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
+                             lose_terminal_ack=True)
 
 
 if __name__ == "__main__":

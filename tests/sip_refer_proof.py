@@ -35,10 +35,14 @@ INVALID_TARGET_CASES = (
 
 
 class ReferProbe(Probe):
-    def __init__(self, host):
+    def __init__(self, host, *, lose_terminal_ack=False):
         super().__init__(host)
         self.notifications = {}
         self.remote_ended = False
+        self.lose_terminal_ack = lose_terminal_ack
+        self.unacknowledged_terminal = None
+        self.terminal_retry_acked = False
+        self.terminal_received_at = None
 
     def receive(self):
         start, headers, body = parse_message(self.sip.recv(65535))
@@ -60,15 +64,26 @@ class ReferProbe(Probe):
             require(name in headers, f"Missing {method} {name}")
             response.extend(f"{name}: {value}" for value in headers[name])
         response += ["Content-Length: 0", "", ""]
+        if method == "NOTIFY":
+            key = tuple(headers["cseq"])
+            value = (headers["subscription-state"][0], int(body.split()[1]))
+            require(key not in self.notifications or self.notifications[key] == value,
+                    "Retransmitted NOTIFY changed its result")
+            self.notifications[key] = value
+            if self.lose_terminal_ack and value[0].split(";", 1)[0] == "terminated":
+                message = (start, headers, body)
+                if self.unacknowledged_terminal is None:
+                    self.unacknowledged_terminal = message
+                    self.terminal_received_at = time.monotonic()
+                    return None
+                require(message == self.unacknowledged_terminal,
+                        "Retransmitted terminal NOTIFY changed transaction, headers, or body")
         self.sip.send("\r\n".join(response).encode())
         if method == "BYE":
             self.remote_ended = True
             return None
-        key = tuple(headers["cseq"])
-        value = (headers["subscription-state"][0], int(body.split()[1]))
-        require(key not in self.notifications or self.notifications[key] == value,
-                "Retransmitted NOTIFY changed its result")
-        self.notifications[key] = value
+        if self.lose_terminal_ack and value[0].split(";", 1)[0] == "terminated":
+            self.terminal_retry_acked = True
         return None
 
     def exchange(self, request, method, *, discard_first_final=False):

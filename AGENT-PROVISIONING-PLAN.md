@@ -3763,6 +3763,22 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   of Asterisk's response helper or transport send: the discarded datagram
   reached the client. Internal send-failure ordering, permanent loss,
   reliable transport, and transaction reference lifetimes remain unproven.
+  Eight [terminal-NOTIFY acknowledgement-loss cases](./README.md#terminal-notify-acknowledgement-loss-recovery)
+  additionally withhold the first terminal request's `200 OK`, while
+  recording its validated logical result and acknowledging active progress
+  normally. They cover subscribed unknown-target and answered PJSIP-target
+  transfers under both advertisement/progress settings. An identical retry
+  (request line, complete parsed headers including branch/CSeq, and body)
+  must be acknowledged before the explicit five-second recovery wait ends.
+  All eight retries were observed and acknowledged 0.460-0.502 seconds after
+  first receipt. Rejected cases preserve the original bridge/inbound RTP
+  and end all three channels; accepted cases still produce exactly one
+  transfer/target execution and answered outbound dialog, echo 100/100
+  post-transfer RTP payloads, and end all four channels. CSeq-keyed results
+  avoid counting retransmitted terminal requests as separate outcomes.
+  This proves bounded UDP retry after a withheld peer acknowledgement,
+  not permanent-loss timeout cleanup, subscription/transaction reference
+  lifetimes, reliable transport, or internal send failures.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

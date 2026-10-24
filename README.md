@@ -120,12 +120,12 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs, 40 accepted
-bridged-transfer dialogs (24 Local-target and 16 PJSIP-target cases), and
-16 bridged-call preservation dialogs passed, with
+On 24 October 2026, all 106 rejected-target/policy dialogs, 44 accepted
+bridged-transfer dialogs (24 Local-target and 20 PJSIP-target cases), and
+20 bridged-call preservation dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 accepted and preservation totals include 16 controlled lost-response cases
-described below. The
+and eight terminal-NOTIFY acknowledgement-loss cases described below. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
 global advertisement settings. The baseline cases had these results:
@@ -375,6 +375,33 @@ Asterisk successfully sent the discarded datagram. It does **not** inject
 an internal response-helper/transport-send error, prove response-send versus
 transfer-enqueue ordering, measure transaction reference lifetimes, or cover
 permanent loss, reliable transport, or production network behavior.
+
+### Terminal NOTIFY acknowledgement-loss recovery
+
+Eight additional subscribed cases withhold the first terminal NOTIFY's
+`200 OK`: an unknown target and an answered synthetic PJSIP target under
+both advertisement and blind-progress settings. Active progress NOTIFYs
+are acknowledged normally. The first terminal result is validated and
+recorded, but its response is deliberately not sent. A subsequent terminal
+request must have the identical request line, complete parsed header map
+(including Via branch and CSeq), and sipfrag body before it is acknowledged.
+The test explicitly waits for that acknowledgement, rather than treating
+the first received terminal result as recovery.
+
+All eight cases observed and acknowledged an identical retry within
+0.460-0.502 seconds of first receipt in the verified run; recovery must
+complete within five seconds of the scenario's wait. The four rejected
+transfers still preserve the original bridge and ten fresh inbound RTP
+packets, then end all three channels after BYE. The four accepted transfers
+still create exactly one correlated transfer, target execution, and answered
+outbound PJSIP dialog, echo 100/100 distinct post-transfer RTP payloads, and
+end all four channels. Retransmitted terminal notifications remain one
+logical result keyed by NOTIFY CSeq.
+
+This establishes bounded UDP terminal-notification retry after a deliberately
+withheld peer acknowledgement. It does not establish permanent-loss timeout
+cleanup, subscription/transaction reference lifetimes, reliable-transport
+behavior, or failure of an internal Asterisk send operation.
 
 ## Browser WSS and encrypted WebRTC proof
 
