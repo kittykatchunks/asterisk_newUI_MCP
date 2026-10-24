@@ -3674,12 +3674,18 @@ from a request sent on the wire
 [nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810),
 [deferred header attachment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1460-L1508)).
 For a later outgoing REFER, this init error occurs before a transaction is
-created or the request is sent: dialog request creation releases the txdata
-and returns the status, `pjsip_evsub_initiate()` propagates it, and Asterisk
-takes its REFER request-creation failure cleanup path. This is not a received
-401/407, so it does not enter the response-driven endpoint-auth fallback.
-Verify this separately from authentication failures after a wire challenge
-([dialog request cleanup and auth-init status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1284),
+created or the request is sent: dialog request creation returns the status,
+`pjsip_evsub_initiate()` propagates it, and Asterisk takes its REFER
+request-creation failure cleanup path. This is not a received 401/407, so it
+does not enter the response-driven endpoint-auth fallback. There is also a
+source-derived txdata ownership concern: `dlg_create_request_throw()` creates
+txdata locally, but on auth-init error returns before assigning it to the
+output pointer. The outer `pjsip_dlg_create_request()` only decrements txdata
+when that output pointer is non-NULL, so this path appears to lose the
+created txdata's reference. Confirm the txdata refcount/destruction at runtime
+before characterizing it as a leak
+([dialog request construction and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1225-L1284),
+[outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
 [evsub initiate propagation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1210),
 [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
 The cached qop mode is set only while its value is `PJSIP_AUTH_QOP_NONE`; it
