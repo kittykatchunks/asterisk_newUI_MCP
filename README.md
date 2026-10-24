@@ -3709,6 +3709,17 @@ when Authorization is already present. Capture the wire retry to verify
 headers and URI handling
 ([pjproject reinitializer](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1708-L1861),
 [Asterisk rewrite guard](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1200-L1220)).
+This reinitializer operates on the supplied txdata in place. When it
+classifies a prior matching Authorization header as stale, it removes that
+header before credential lookup and digest generation; if either later fails,
+the failed reinitialization has not restored it. In the evsub challenge path,
+the supplied txdata is `tsx->last_tx`, and Asterisk's terminal-state fallback
+also builds from that transaction's `last_tx`. Check the fallback's actual
+input and emitted headers rather than assuming a failed pjproject attempt left
+the challenged request unchanged
+([stale-header removal](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675),
+[evsub reinitialization input](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1875-L1914),
+[Asterisk fallback input](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1318-L1338)).
 For multiple WWW/Proxy challenges, pjproject processes each challenge and
 continues after an unsupported or uncredentialed challenge. If it creates at
 least one Authorization header, it returns success and retries with only the
