@@ -3692,6 +3692,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Later target answer/bridge and channel cleanup were verified independently.
   This proves early signaling in this fixture, not target answer from NOTIFY
   or the exact callback/bridge-enqueue instruction order.
+  Eight further cases use a Local target running `Busy(1)` with the same
+  subscription/advertisement/progress combinations. CEL proves neither
+  target channel answers or bridges, the transferee ends with
+  `DIALSTATUS=BUSY`, and all five correlated channels end after exactly one
+  transfer/target execution despite retransmission. With blind progress
+  enabled, the subscribed terminal sipfrag is `503` on this fixture (not a
+  universal busy-to-SIP mapping); with it disabled, terminal `200` still
+  arrives before target-leg creation. Subscribed REFER acceptance remains
+  `202`; no-subscription REFER remains `200` with no NOTIFY despite later
+  target failure. This directly demonstrates why acceptance and disabled-
+  progress success signaling cannot settle a transfer operation as successful.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

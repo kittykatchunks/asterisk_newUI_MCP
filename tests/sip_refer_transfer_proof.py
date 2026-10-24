@@ -39,9 +39,10 @@ def user_event(row, name, value):
     return json.loads(row["extra"]).get("extra") == value
 
 
-def run_transfer(host, password, subscribed, blind_progress):
+def run_transfer(host, password, subscribed, blind_progress, rejected=False):
     probe = ReferProbe(host)
     token = uuid.uuid4().hex
+    extension = f"{'failed' if rejected else 'target'}-{token}"
     probe.uri = f"sip:bridge-{token}@{host}"
     probe.to_value = f"<{probe.uri}>"
     try:
@@ -72,7 +73,7 @@ def run_transfer(host, password, subscribed, blind_progress):
         transferee = wait_for(probe, "PJSIP/Local shared bridge", original_bridge)
         probe.cseq += 1
         probe.branch = "z9hG4bK" + uuid.uuid4().hex
-        extra_headers = [f"Refer-To: <sip:target-{token}@{host}>"]
+        extra_headers = [f"Refer-To: <sip:{extension}@{host}>"]
         if not subscribed:
             extra_headers.append("Refer-Sub: false")
         request = probe.request("REFER", uri=target, extra_headers=extra_headers)
@@ -82,7 +83,7 @@ def run_transfer(host, password, subscribed, blind_progress):
                 "Unexpected accepted Refer-Sub response")
         destination = wait_for(probe, "transferee executing target", lambda rows: next(
             (row for row in rows if row["linkedid"] == linkedid
-             and user_event(row, "PROOF_REFER_TARGET", f"target-{token}")), None))
+             and user_event(row, "PROOF_REFER_TARGET", extension)), None))
         require(destination["uniqueid"] == transferee["uniqueid"],
                 "Target marker does not belong to original bridged transferee")
         if subscribed and blind_progress == "no":
@@ -91,7 +92,8 @@ def run_transfer(host, password, subscribed, blind_progress):
                 for state, status in probe.notifications.values()))
             require(not any(row["linkedid"] == linkedid
                             and row["event"] == "CHAN_START"
-                            and row["channel"].startswith("Local/answer@refer-proof-")
+                            and row["channel"].startswith(
+                                ("Local/answer@refer-proof-", "Local/reject@refer-proof-"))
                             for row in events()),
                     "Target leg started before early NOTIFY observation")
             print("PASS refer_blind_progress=no: terminal NOTIFY 200 observed "
@@ -107,7 +109,8 @@ def run_transfer(host, password, subscribed, blind_progress):
                 and json.loads(other["extra"])["bridge_id"]
                 == json.loads(row["extra"])["bridge_id"] for other in entries)), None)
 
-        answered_target = wait_for(probe, "transferee/target shared bridge", target_bridge)
+        answered_target = None if rejected else wait_for(
+            probe, "transferee/target shared bridge", target_bridge)
         repeated, repeated_headers, _ = probe.exchange(request, "REFER")
         require(repeated == code and repeated_headers.get("to") == headers.get("to")
                 and repeated_headers.get("refer-sub") == headers.get("refer-sub"),
@@ -118,8 +121,9 @@ def run_transfer(host, password, subscribed, blind_progress):
             code, _, _ = probe.exchange(probe.request("BYE", uri=target), "BYE")
             require(code == 200, f"Transferer BYE failed: {code}")
         if subscribed:
-            wait_for(probe, "terminal success NOTIFY", lambda rows: any(
-                state.split(";", 1)[0] == "terminated" and status == 200
+            expected_terminal = 503 if rejected and blind_progress == "yes" else 200
+            wait_for(probe, f"terminal NOTIFY {expected_terminal}", lambda rows: any(
+                state.split(";", 1)[0] == "terminated" and status == expected_terminal
                 for state, status in probe.notifications.values()))
         else:
             probe.observe_notifications(False)
@@ -134,29 +138,42 @@ def run_transfer(host, password, subscribed, blind_progress):
         related = wait_for(probe, "all correlated channels ending", settled)
         started = {row["uniqueid"] for row in related if row["event"] == "CHAN_START"}
         require(len(started) == 5, f"Expected source and two Local pairs, found {len(started)} channels")
-        require(any(row["event"] == "ANSWER" and row["uniqueid"] == answered_target["uniqueid"]
-                    for row in related), "Target bridge leg has no ANSWER evidence")
+        if rejected:
+            target_ids = {row["uniqueid"] for row in related
+                          if row["channel"].startswith("Local/reject@refer-proof-")}
+            require(len(target_ids) == 2, "Expected rejecting target Local pair")
+            require(not any(row["uniqueid"] in target_ids
+                            and row["event"] in ("ANSWER", "BRIDGE_ENTER") for row in related),
+                    "Rejecting target unexpectedly answered or bridged")
+            require(any(row["uniqueid"] == transferee["uniqueid"]
+                        and row["event"] == "HANGUP"
+                        and json.loads(row["extra"]).get("dialstatus") == "BUSY"
+                        for row in related), "Missing transferee BUSY dial result")
+        else:
+            require(any(row["event"] == "ANSWER" and row["uniqueid"] == answered_target["uniqueid"]
+                        for row in related), "Target bridge leg has no ANSWER evidence")
         transfers = [row for row in related if row["event"] == "BLINDTRANSFER"]
         require(len(transfers) == 1 and transfers[0]["uniqueid"] == source_id,
                 "Expected exactly one source BLINDTRANSFER CEL event")
         transfer = json.loads(transfers[0]["extra"])
         require(transfer["transferee_channel_uniqueid"] == transferee["uniqueid"]
-                and transfer["extension"] == f"target-{token}"
+                and transfer["extension"] == extension
                 and transfer["context"] == "sip-proof",
                 "BLINDTRANSFER identity/target does not match correlated channels")
-        require(sum(user_event(row, "PROOF_REFER_TARGET", f"target-{token}")
+        require(sum(user_event(row, "PROOF_REFER_TARGET", extension)
                     for row in related) == 1, "Target executed more than once")
         if subscribed:
             terminal = [status for state, status in probe.notifications.values()
                         if state.split(";", 1)[0] == "terminated"]
-            require(terminal == [200], f"Unexpected terminal NOTIFY outcomes: {terminal}")
+            require(terminal == [expected_terminal], f"Unexpected terminal NOTIFY outcomes: {terminal}")
         else:
             require(not probe.notifications, "No-subscription transfer emitted NOTIFY")
         mode = "implicit subscription" if subscribed else "Refer-Sub: false"
         refer_code = 202 if subscribed else 200
+        outcome = "rejected busy target without answer" if rejected else "answered target bridge"
         print(f"PASS accepted {mode}, refer_blind_progress={blind_progress}: "
               f"REFER {refer_code}, original transferee reached target, "
-              "answered target bridge, one BLINDTRANSFER after retransmission, "
+              f"{outcome}, one BLINDTRANSFER after retransmission, "
               "transferer BYE, all five channels ended")
     finally:
         probe.close()
@@ -170,6 +187,7 @@ def main():
     password = read_password(Path("/run/proof/pjsip.conf"))
     for subscribed in (False, True):
         run_transfer(args.host, password, subscribed, args.blind_progress)
+        run_transfer(args.host, password, subscribed, args.blind_progress, rejected=True)
 
 
 if __name__ == "__main__":

@@ -119,7 +119,7 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs and eight accepted
+On 24 October 2026, all 106 rejected-target/policy dialogs and 16 accepted
 bridged-transfer dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
@@ -211,8 +211,9 @@ dials and bridges an answered second Local pair. Synthetic tones keep the
 local media paths active; no external endpoint or real caller is involved.
 The tester mounts the PBX's existing CEL volume read-only.
 
-Eight cases passed: absent/false `Refer-Sub` under both `norefersub` settings
-and both `refer_blind_progress` settings.
+Sixteen cases passed: answered/busy targets with absent/false `Refer-Sub`
+under both `norefersub` settings and both `refer_blind_progress` settings.
+Eight cases have an answered target.
 The no-subscription path returned `200` with `Refer-Sub: false` and no NOTIFY;
 the subscribed path returned `202` and a terminal sipfrag `200`.
 Each case independently verifies:
@@ -241,6 +242,24 @@ claims/fencing, external PJSIP target answer, post-transfer RTP quality,
 send-failure ordering, multi-party fallback, or PJSIP transaction/refcount
 cleanup. Terminal NOTIFY alone remains insufficient proof: this test relies
 on the independently correlated target bridge and CEL lifecycle.
+
+The other eight accepted-transfer cases redirect to a Local target running
+`Busy(1)`. CEL verifies that the rejecting Local pair never answers or enters
+a bridge, the original transferee finishes with `DIALSTATUS=BUSY`, and all
+five channels end. Exactly one correlated transfer and target execution still
+occur despite REFER retransmission. The fixture observes:
+
+| Target outcome | `refer_blind_progress` | Subscribed terminal sipfrag |
+| --- | --- | --- |
+| Answered target | `yes` | `200` |
+| Busy target, no answer | `yes` | `503` |
+| Either target outcome | `no` | Early `200`, before target-leg creation |
+
+The `503` is this fixture's observed progress result, not a claim that every
+busy target maps to SIP `503`. In both modes the subscribed REFER itself
+returns `202`; without a subscription it returns `200` and no NOTIFY even
+when the target later fails. Thus neither REFER acceptance nor the disabled-
+progress terminal `200` proves target success.
 
 ## Browser WSS and encrypted WebRTC proof
 
@@ -3692,8 +3711,8 @@ A local Asterisk 22.11.0 UDP spot check with `res_pjsip_refer` loaded sent a
 unknown target. The test confirms this response shape for that case only; it
 does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
-The later accepted bridged proof separately covers eight local successful
-transfer cases; response-reference and transaction-lifetime measurements remain
+The later accepted bridged proof separately covers eight answered-target and
+eight busy-target transfers; response-reference and transaction-lifetime measurements remain
 open.
 The repeatable proof additionally confirmed implicit-subscription `202`
 followed by terminal sipfrag `404`, successful same-key final-response
