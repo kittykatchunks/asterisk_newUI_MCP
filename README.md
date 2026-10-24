@@ -15,6 +15,88 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Deterministic synthetic booking harness
+
+`openBookingSimulation` in [src/booking-simulation.ts](./src/booking-simulation.ts)
+is a trusted in-process test harness, not a live dispatch connector or an
+authenticated API. It uses its own absolute-path SQLite database and accepts
+only fixture customers `customer-a` and `customer-b`. Each customer's locations
+are `<customer>-station` and `<customer>-hotel`; these identifiers are also the
+fixed synthetic location labels. Conversations use `synthetic-...` IDs, names
+start with `Synthetic ` and contacts use `test-contact-...`, not real numbers.
+Only book-now journeys with one to eight passengers are supported.
+
+Reproduce the acceptance harness with Node.js 24:
+
+```powershell
+npm run typecheck
+node --test .\tests\booking-simulation.test.ts
+```
+
+Example in-process sequence (supply a dedicated absolute database path):
+
+```typescript
+import { openBookingSimulation } from "./src/booking-simulation.ts";
+
+const store = openBookingSimulation(databasePath);
+try {
+  const draft = store.create("customer-a", "synthetic-call", {
+    pickup: "customer-a-station", destination: "customer-a-hotel",
+    passenger: "Synthetic Alice", contact: "test-contact-alice", passengers: 2,
+  });
+  const summary = store.review("customer-a", draft.id);
+  // The harness represents explicit confirmation of the exact displayed revision.
+  store.confirm("customer-a", draft.id, summary.revision);
+  const unknown = store.submit("customer-a", draft.id, "lose-reply");
+  console.log(unknown.simulation, unknown.state); // true, outcome unknown
+  const recovered = store.reconcile("customer-a", draft.id);
+  console.log(recovered.simulation, recovered.state); // true, accepted
+} finally {
+  store.close();
+}
+```
+
+Cases are `accept`, `reject`, `lose-reply` (acceptance committed before simulated
+reply loss), and `unresolved`. Every operation/read requires customer scope.
+`edit` invalidates confirmation, submitted payloads cannot be edited, and replaying
+an already-settled/unknown operation returns its current state without another
+dispatch effect. A still-`submitting` operation rejects submission retries;
+reopen does not run work automatically. Explicit `reconcile` looks up the
+existing result; absence stays unknown. Creating or submitting a replacement in
+the same conversation is blocked while another operation is pending/unknown.
+An explicitly confirmed later booking is allowed after settlement.
+
+Simulator effects and application receipts commit separately in the same dedicated
+database so the test can exit a process between them. `afterEffect` is an optional
+synchronous fault-injection hook, not an application callback or worker service.
+Unexpected errors propagate and leave committed submission evidence for explicit
+reconciliation. Only the simulator's defined uncertainty becomes an unknown
+outcome automatically. SQLite write transactions serialize mutations across
+connections/processes; reads return detached, validated snapshots. Ordered
+transition records include state, safe reason and revision within each scoped
+operation record. They are not a tamper-proof production audit log.
+
+`handover(customer, id, reason)` returns collected details, revision/confirmation,
+actual outcome/reference and a safe reason (`human_requested`, `caller_disconnected`
+or `unsupported_request`). It performs no call transfer or cancellation. Invalid
+or unsupported draft fields throw before dispatch; for a collected supported draft,
+the harness can explicitly produce an unsupported-request handover rather than
+submit. Caller disconnect preserves unknown state and permits later reconciliation.
+
+Validation passed eight booking tests plus ten existing lease/assignment storage
+regressions (18 total) and typecheck. Tests cover confirmation invalidation,
+two-customer denial, stable rejection, detached reads, lost replies, unresolved
+absence, competing processes, storage faults, corrupt stores and process exit after
+effect commit. Temporary databases are removed by tests; no service is started.
+
+Limitations: this is not booking authorisation, real personal-data processing,
+Autocab idempotency evidence, a production recovery protocol, availability/fare/ETA
+or allocation evidence, voice AI, or a UI/HTTP/MCP surface. A trusted caller that
+invents another conversation identity is outside the same-conversation duplicate
+guard; future user-facing identity, permissions and reconciliation must not rely
+on caller-supplied scope. See the
+[BS-01 through BS-10 evidence](./PROJECT-PLAN.md#executed-booking-simulation-evidence).
+
 ## Local runtime proof
 
 Prerequisites: Docker Desktop with a running Linux engine, Docker Compose v2,

@@ -795,6 +795,8 @@ The selected immediate increment after the bounded agent workspace is the
 [deterministic backend booking simulation](./PROJECT-PLAN.md#selected-next-increment-deterministic-booking-simulation),
 not live voice integration. BS-01 through BS-10 define its finite exit: synthetic
 details, revision-bound confirmation, durable outcomes, duplicate prevention and
-explicit uncertain-outcome reconciliation. All are pending implementation.
+explicit uncertain-outcome reconciliation.
+[Executed backend evidence](./PROJECT-PLAN.md#executed-booking-simulation-evidence)
+now closes this bounded in-process checklist; it does not include voice or UI.
 This parallel business-workflow increment does not waive unfinished M1 calling,
 isolation, publication or production-readiness gates.

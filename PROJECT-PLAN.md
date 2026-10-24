@@ -188,8 +188,8 @@ create another taxi merely because the previous response was lost.
 
 Following completion of the bounded agent workspace, the selected next scope is
 a **synthetic backend booking workflow**, before voice AI or any real dispatch
-integration. This is an implementation specification; no booking implementation
-or passing evidence is claimed yet. It does not complete the remaining live-phone
+integration. The in-process implementation and its executed evidence are recorded
+below. It does not complete the remaining live-phone
 or Milestone 1 acceptance gates.
 
 #### Boundary and first deliverable
@@ -270,8 +270,8 @@ or establish failure; reconciliation can continue through an explicit harness ca
 
 #### Finite acceptance checklist
 
-All checks start **pending**. Add tests and record actual evidence when implementing;
-do not expand this checklist with unrelated telephony or vendor research.
+The checklist below defines the finite scope; executed evidence follows it.
+Do not expand this checklist with unrelated telephony or vendor research.
 
 | ID | Required evidence |
 |---|---|
@@ -289,6 +289,34 @@ do not expand this checklist with unrelated telephony or vendor research.
 Stop at recorded evidence for BS-01 through BS-10 or an explicit blocker.
 The next decision is a separately authorised simulation UI or voice integration;
 real Autocab work remains dependent on supplied API YAML and test access.
+
+#### Executed booking simulation evidence
+
+The trusted harness is implemented in `src/booking-simulation.ts`, with its domain,
+SQLite store and deterministic connector kept together because there is no second
+connector or transport to abstract. No dependency, endpoint, service or calling
+capability was added. See [harness usage and limitations](./README.md#deterministic-synthetic-booking-harness).
+
+| Check | Recorded evidence |
+|---|---|
+| BS-01 | Invalid/foreign locations, unsupported fields, non-synthetic identity fields, conversation/customer scope and passenger boundaries are tested before any dispatch effect. |
+| BS-02 | Tests require review plus exact-revision explicit confirmation; edits clear confirmation and stale revision/submission attempts fail. |
+| BS-03 | Acceptance is labelled simulation, correlated with its operation and `SIM-` reference, with no fare/ETA/allocation fields. Detached reads cannot mutate stored payloads. |
+| BS-04 | Stable rejection has a safe simulated reason and no reference; handover preserves rejection. Unsupported draft input fails before dispatch; explicit unsupported-request handover is available for a collected draft. |
+| BS-05 | Lost reply records unknown while retaining the one committed simulator result; explicit reconciliation recovers acceptance without another effect. |
+| BS-06 | Unresolved results and missing simulator receipts stay unknown after reconciliation and caller-disconnected handover. Replacement creation and pre-existing replacement-draft submission in the same conversation are blocked. |
+| BS-07 | Submitted edits conflict; replay returns the same immutable outcome without another effect. Two simultaneous processes and a second connection at the crash boundary do not duplicate dispatch. |
+| BS-08 | Foreign-customer reads, edits, review, confirmation, submit, reconciliation and handover fail; separate confirmed operations in one conversation retain separate IDs. |
+| BS-09 | Close/reopen, thrown crash injection and actual child-process exit after effect commit preserve submitting evidence and one recoverable acceptance. Missing receipts remain unknown; unexpected dispatch storage errors propagate. Corrupt/unrelated stores and payload conflicts fail explicitly. |
+| BS-10 | Typecheck and eight booking tests pass, alongside ten existing SQLite lease/assignment regressions (18 tests total). Tests clean up temporary databases; no HTTP/MCP/phone/network/vendor surface or service was started. |
+
+The bounded BS-01 through BS-10 increment is complete for the synthetic in-process
+contract, not production booking readiness. The simulator and workflow share one
+dedicated local database; separate-system failure semantics and vendor capabilities
+remain unproven. Customer/conversation IDs are trusted harness inputs, not user
+authentication or a global semantic duplicate detector.
+The next decision remains a separately authorised simulation UI or voice
+integration; do not automatically extend the frozen REFER matrix.
 
 ## 6. Interface and roaming agents
 
