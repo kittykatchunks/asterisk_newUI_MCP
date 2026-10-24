@@ -3688,8 +3688,13 @@ allocation persists in a running endpoint
 ([dialog request construction and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1225-L1284),
 [outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
 [request txdata initialization and error cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L399-L473),
+[txdata pool creation and refcounted destruction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L490-L589),
 [evsub initiate propagation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1210),
 [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
+Each failed request therefore leaves its txdata object and separately
+allocated pool with the initial reference outstanding; repeated occurrences
+can accumulate retained txdata/pools. The source trace does not establish
+whether endpoint or allocator teardown reclaims these unreleased allocations.
 Separate subscription/dialog cleanup is expected on this branch: Asterisk
 releases its REFER object, clears the evsub module data, and terminates the
 subscription without notification. Because no request transaction was sent,
