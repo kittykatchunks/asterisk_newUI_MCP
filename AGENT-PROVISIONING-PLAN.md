@@ -3977,6 +3977,24 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This is bounded recovery through two synthetic UAS retries, not permanent
   ACK loss, Asterisk's own UAS timer, internal send failure, transaction/reference
   destruction, or production interoperability.
+  Eight [target-BYE-response-loss cases](./README.md#lost-target-bye-response-recovery)
+  discard the first received final `200 OK` after target-initiated BYE,
+  under absent/false `Refer-Sub` and both CLI-verified advertisement/progress
+  settings. The synthetic target retries identical BYE bytes, branch and CSeq
+  on its half-second schedule. The recovered response must match the complete
+  discarded parsed status line, headers and body, match the BYE branch,
+  Call-ID and CSeq, and arrive after request retry within two seconds.
+  All eight recovered in 0.500-0.534 seconds. The 40-case focused matrix passed
+  these plus eight cases each of baseline, single-ACK loss, two-ACK loss and
+  final-INVITE-response loss. All 40 echoed 100/100 distinct RTP payloads.
+  Existing CEL verifies one transfer/target execution and outbound channel,
+  target answer/bridge, and all four channels ending.
+  The current runner contains 144 accepted transfers (24 Local-target and
+  120 PJSIP-target), 106 rejection/policy dialogs and 24 preservation cases;
+  the last full validation remains the 136-transfer run above.
+  This is bounded receive-boundary response loss after teardown, not internal
+  send failure, transaction/reference destruction, permanent BYE-response loss,
+  or production interoperability.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

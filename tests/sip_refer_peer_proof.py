@@ -12,10 +12,13 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 class TransferPeer:
     def __init__(self, host, *, busy=False, noanswer=False, lose_first_final=False,
                  lose_cancel_responses=False, lose_cancel_ok=False, lose_invite_487=False,
-                 lose_target_ack=0):
+                 lose_target_ack=0, lose_bye_response=False):
         require(isinstance(lose_target_ack, int) and 0 <= lose_target_ack <= 2,
                 "Target ACK loss count must be zero, one, or two")
         require(not (busy and noanswer), "Target cannot be both busy and ringing")
+        require(not lose_bye_response or (not busy and not noanswer),
+                "BYE response loss needs an answered target")
+        self.lose_bye_response = lose_bye_response
         require(not (noanswer and lose_first_final),
                 "Final-response loss is limited to answered and busy targets")
         require(not (lose_cancel_responses or lose_cancel_ok or lose_invite_487) or noanswer,
@@ -70,7 +73,7 @@ class TransferPeer:
     def receive(self):
         start, headers, body = parse_message(self.sip.recv(65535))
         if start.startswith("SIP/2.0 "):
-            return int(start.split()[1]), headers
+            return int(start.split()[1]), headers, (start, headers, body)
         method = start.split()[0]
         require(method in ("INVITE", "ACK", "BYE", "CANCEL"),
                 f"Unexpected target request: {start}")
@@ -316,17 +319,39 @@ class TransferPeer:
         ]).encode()
         deadline = time.monotonic() + 5
         next_send = 0
+        bye_sends = []
+        discarded_response = None
+        discarded_at = None
         while time.monotonic() < deadline:
             if time.monotonic() >= next_send:
                 self.sip.send(request)
+                bye_sends.append(time.monotonic())
                 next_send = time.monotonic() + 0.5
             if select.select([self.sip], [], [], 0.05)[0]:
                 response = self.receive()
                 if response is not None:
-                    code, headers = response
+                    code, headers, message = response
                     require(headers.get("call-id") == self.dialog["call-id"],
                             "Unexpected target response dialog")
                     if headers.get("cseq") == ["1 BYE"] and code >= 200:
                         require(code == 200, f"Target BYE failed: {code}")
+                        vias = headers.get("via", [])
+                        response_branch = re.search(r";branch=([^;\s]+)", vias[0]) \
+                            if len(vias) == 1 else None
+                        require(response_branch and response_branch[1] == branch,
+                                "Target BYE response did not match request transaction")
+                        if self.lose_bye_response:
+                            if discarded_response is None:
+                                discarded_response = message
+                                discarded_at = time.monotonic()
+                                continue
+                            require(len(bye_sends) >= 2 and bye_sends[1] > discarded_at,
+                                    "Repeated BYE response before request retry")
+                            require(message == discarded_response,
+                                    "Recovered BYE response changed status, headers, or body")
+                            delay = time.monotonic() - discarded_at
+                            require(0 < delay < 2, "Target BYE response recovery exceeded two seconds")
+                            print(f"PASS discarded target BYE response: identical BYE retried, "
+                                  f"identical 200 recovered after {delay:.3f}s")
                         return received
         raise RuntimeError("Timed out awaiting target BYE response")

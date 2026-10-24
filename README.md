@@ -142,8 +142,12 @@ Sixteen consecutive-two-ACK-loss cases also passed a
 48-case focused matrix alongside baseline and single-ACK-loss regressions.
 The complete run then verified these cases alongside all existing scenarios.
 All 48 answered PJSIP-target cases echoed 100/100 distinct post-transfer RTP
-payloads. The current runner and complete validation both cover 136 accepted
+payloads. That complete validation covers 136 accepted
 transfers (24 Local-target and 112 PJSIP-target).
+Eight target-BYE-response-loss cases were subsequently added and passed a
+40-case focused matrix. The current runner contains 144 accepted transfers
+(24 Local-target and 120 PJSIP-target); the full suite was not rerun after
+this addition.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -515,6 +519,28 @@ passed and proof services stopped with persistent data preserved.
 This establishes bounded recovery through two synthetic UAS retries, not
 permanent ACK loss, Asterisk UAS timer behavior, internal send failures,
 transaction/reference destruction, or production interoperability.
+
+### Lost target BYE response recovery
+
+Eight answered PJSIP-target cases discard the first received final `200 OK`
+to the target-initiated BYE. They cover absent/false `Refer-Sub` under both
+CLI-verified advertisement/progress settings. After proving post-transfer
+media, the target sends BYE and retransmits the exact same request bytes,
+including branch and CSeq, on its existing half-second retry schedule.
+
+The recovered final response must match the discarded response's complete
+parsed status line, headers, and body, match the BYE branch, Call-ID and CSeq,
+and arrive after a request retry within two seconds of first response receipt.
+All eight cases recovered in 0.500-0.534 seconds. The 40-case focused matrix
+also passed eight cases each of baseline transfer, single-ACK loss,
+two-consecutive-ACK loss, and final-INVITE-response loss. Every case echoed
+100/100 distinct post-transfer RTP payloads before BYE.
+
+Existing CEL assertions independently verify one transfer, target execution,
+outbound target channel, target answer/bridge, and all four channels ending.
+This is bounded response recovery at the target receive boundary after call
+teardown, not internal send-error injection, transaction/reference destruction,
+permanent BYE-response loss, or production-trunk interoperability.
 
 ### Lost outbound target CANCEL response recovery
 
