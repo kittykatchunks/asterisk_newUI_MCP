@@ -3884,6 +3884,25 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This establishes bounded wire-level INVITE/CANCEL transaction independence,
   not internal state/refcount cleanup, permanent CANCEL-response loss,
   isolated INVITE-487 loss, internal send errors, or reliable transport.
+  Eight [isolated INVITE-487-loss cases](./README.md#isolated-invite-487-loss-after-successful-cancel)
+  complement that result by sending CANCEL `200` immediately while
+  suppressing the first constructed INVITE `487`. The synthetic peer
+  independently schedules the byte-identical `487` after half a second
+  and backs off until matching non-2xx ACK; ACK before the retransmitted
+  response is sent fails the proof. Its first send must be 0.45 to under
+  two seconds after CANCEL. The peer keeps receiving through one second
+  after ACK and requires exactly one CANCEL, establishing bounded cessation
+  of CANCEL retries while INVITE completion still requires `487`/ACK.
+  Absent/false `Refer-Sub` and both CLI-verified advertisement/progress
+  settings are covered. Independent assertions still prove NOANSWER,
+  no target answer/bridge, one transfer/target execution and outbound
+  channel, expected REFER progress, and all four channels ending.
+  Focused validation covers the eight new cases, eight baseline PJSIP
+  timeouts, and 16 earlier cancellation-loss cases. The full runner
+  includes the new cases, but was not rerun in full for this addition.
+  This tests Asterisk's peer-visible recovery, not its UAS retransmission
+  timer implementation, indefinite absence of CANCEL retries, internal
+  transaction/refcount destruction, permanent `487` loss, or send errors.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

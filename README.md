@@ -121,14 +121,15 @@ value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
 On 24 October 2026, the suite comprises 106 rejected-target/policy dialogs,
-96 accepted bridged-transfer dialogs (24 Local-target and 72 PJSIP-target
+104 accepted bridged-transfer dialogs (24 Local-target and 80 PJSIP-target
 cases), and 24 bridged-call preservation dialogs, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
-previous full run passed all cases except the 16 subsequently added
-CANCEL-response-loss cases. Focused validation passed all 16, including
-eight with only CANCEL `200` withheld; an earlier focused run also passed all
+previous full run passed all cases except the 24 subsequently added
+cancellation-response-loss cases. Focused validation passed all 24 plus eight
+baseline PJSIP timeout cases, including isolated CANCEL `200` and INVITE `487`
+loss; an earlier focused run also passed all
 24 baseline answered/busy/timeout PJSIP cases across CLI-verified settings.
-The accepted and preservation totals include 16 CANCEL-response-loss cases,
+The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
 and 16 terminal-NOTIFY acknowledgement-loss cases (eight first-only and
@@ -469,6 +470,35 @@ This proves bounded wire-level independence of the INVITE and CANCEL
 transactions for one suppressed CANCEL response. It does not inspect their
 internal state/refcounts, establish permanent CANCEL-response-loss cleanup,
 or model loss of only INVITE `487`, internal send errors, or reliable transport.
+
+### Isolated INVITE 487 loss after successful CANCEL
+
+Eight complementary cases send CANCEL `200 OK` immediately but suppress
+the first constructed INVITE `487 Request Terminated`. They cover
+absent/false `Refer-Sub` under both CLI-verified advertisement/progress
+settings. The peer schedules retransmission of the byte-identical `487`
+after half a second without waiting for another CANCEL or INVITE.
+Its bounded retransmission loop backs off until the matching non-2xx ACK
+arrives; an ACK before the retransmitted `487` is sent fails the proof.
+
+Each case requires the first `487` retransmission between 0.45 and two
+seconds after CANCEL receipt. The peer continues receiving for one second
+after ACK and requires exactly one CANCEL throughout the observation.
+This checks that receiving CANCEL `200` stops CANCEL retries while the
+original INVITE still needs its own final response and ACK.
+
+Independent CEL and REFER assertions remain unchanged: target NOANSWER,
+no target answer/bridge, one transfer, target execution, and outbound
+channel, all four channels ending, and expected progress signaling including
+terminal `200` despite timeout. Focused validation includes these eight
+cases, eight baseline PJSIP timeouts, and both earlier cancellation-loss
+matrices (16 cases). The full runner includes the new cases; it was not
+rerun in full for this addition.
+
+This is bounded wire-level recovery driven by the synthetic peer's `487`
+retransmission timer. It does not prove Asterisk's own UAS retransmission
+timer implementation, indefinite absence of CANCEL retries, internal
+transaction/refcount destruction, permanent `487` loss, or send failures.
 
 ### Lost outbound target INVITE response recovery
 
