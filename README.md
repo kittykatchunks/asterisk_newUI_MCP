@@ -149,8 +149,8 @@ payloads. The current runner and complete validation both cover 144 accepted
 transfers (24 Local-target and 120 PJSIP-target).
 The eight BYE-loss cases were subsequently strengthened to gate retry on all
 four correlated channel ends. A 40-case focused matrix passed that ordering
-check and related answered-target regressions; the full suite was not rerun
-after this strengthening, and scenario totals are unchanged.
+check and related answered-target regressions. The complete suite then passed
+again with the strengthened ordering check enabled; scenario totals are unchanged.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -555,6 +555,12 @@ unchanged. The 40-case focused run also passed eight cases each of baseline,
 single-ACK loss, two-ACK loss, and final-INVITE-response loss; every case
 echoed 100/100 distinct RTP payloads. The ten-second BYE exchange deadline
 bounds both waiting for channel-end synchronization and response recovery.
+The subsequent complete runner passed all eight ordering-gated cases alongside
+all existing regressions, recovering 0.502-0.506 seconds after observing the
+channel-end signal and 0.503-0.673 seconds after first response receipt.
+Settled CEL remained unchanged in every gated case. All 56 answered PJSIP-target
+cases echoed 100/100 distinct payloads, all correlated cleanup assertions
+passed, and proof services stopped with persistent data preserved.
 
 Existing CEL assertions independently verify one transfer, target execution,
 outbound target channel, target answer/bridge, and all four channels ending.

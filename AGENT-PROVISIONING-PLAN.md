@@ -4008,9 +4008,16 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   observing the channel-end signal and 0.553-0.703 seconds after first response
   receipt. The 40-case focused matrix also passed eight cases each of baseline,
   single-ACK loss, two-ACK loss and final-INVITE-response loss; all 40 echoed
-  100/100 distinct RTP payloads. The full suite was not rerun after this
-  strengthening; scenario totals remain 144 accepted transfers, 106
+  100/100 distinct RTP payloads. The subsequent complete runner also passed
+  all eight ordering-gated cases alongside the existing regressions:
+  144 accepted transfers (24 Local-target and 120 PJSIP-target), 106
   rejection/policy dialogs, 24 preservation cases and six sequencing attempts.
+  Gated recovery took 0.502-0.506 seconds after observing the channel-end
+  signal and 0.503-0.673 seconds after first response receipt; settled CEL
+  remained unchanged. All 56 answered PJSIP-target cases echoed 100/100
+  distinct RTP payloads. Totals were checked against completed runner output,
+  all correlated cleanup assertions passed, and proof services stopped with
+  persistent data preserved.
   This is bounded receive-boundary response loss after teardown, not internal
   send failure, transaction/reference destruction, permanent BYE-response loss,
   or production interoperability. Channel end is not proof of SIP
