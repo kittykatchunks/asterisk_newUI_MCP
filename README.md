@@ -3639,6 +3639,14 @@ may advance on a fresh request rather than only on a 401/407 retry. Confirm
 both build options and inspect the generated header and `nc`
 ([automatic qop-auth regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
 [nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810)).
+The initialization paths also handle failures differently: the qop-less
+`new_auth_for_req()` result is ignored, and a missing qop-auth credential
+skips that cache entry, while an `auth_respond()` error in the qop-auth path
+is returned immediately. Verify request-initialization status and final
+headers for each case; the cached entry alone does not establish that
+Authorization was attached
+([qop-less regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1390-L1415),
+[qop-auth regeneration and errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460)).
 Each counter is scoped to a cached case-insensitive realm/algorithm pair, so
 multiple supported challenge pairs have independent stale-retry budgets rather
 than sharing one request-wide count
