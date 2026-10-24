@@ -101,6 +101,40 @@ WAN networking, and complete tenant isolation remain unverified.
 without these test endpoint mounts when run afterward. Test data volumes are
 shared between these two modes and preserved.
 
+## Rejected-target REFER proof
+
+```powershell
+.\scripts\Test-ReferProof.ps1
+```
+
+This uses [compose.refer-proof.yaml](./compose.refer-proof.yaml), reuses or
+generates customer A's ignored synthetic endpoint credentials, and force-recreates
+only customer A. It interrupts that PBX's synthetic calls. The runner waits for
+health, checks Asterisk 22.11.0 and `norefersub=yes`, explicitly loads
+`res_pjsip_refer`, and stops customer A in a `finally` block. No host ports or
+external SIP accounts are used, and persistent proof data is preserved.
+
+On 24 October 2026, all four authenticated in-dialog UDP cases passed:
+
+| Unknown-target REFER | Final response | Progress |
+| --- | --- | --- |
+| `Refer-Sub: false` | `404` with `Refer-Sub: false` | No NOTIFY during a one-second observation |
+| Implicit subscription (no `Refer-Sub`) | `202` | Terminal sipfrag `404`, subscription `terminated;reason=noresource` |
+| `Require: norefersub` plus `Refer-Sub: false` | Same `404` response | No NOTIFY during a one-second observation |
+| `Require: norefersub`, no `Refer-Sub` | `202` | Same terminal failure NOTIFY |
+
+Every case sends an identical same-key REFER retransmission and checks the
+same final status and To tag, acknowledges NOTIFY requests, and ends the dialog
+with a successful BYE. The subscribed cases directly establish that this
+fixture can create the implicit subscription and send its `202`; the later
+failure NOTIFY does not make `202` target admission or transfer success.
+
+This fixture does not bridge two parties or prove an accepted transfer,
+response-send failure behavior, transaction/reference lifetime, reliable
+transport, or `norefersub=no`. Its negative NOTIFY assertion is bounded by the
+one-second window. The existing SIP/RTP probe also passed after the shared
+message-parser/header changes, echoing 100/100 synthetic frames.
+
 ## Browser WSS and encrypted WebRTC proof
 
 Additional prerequisites: Node.js 24, npm, and Docker Compose 2.24.4+ (network
@@ -3526,6 +3560,10 @@ validate transaction/subscription inputs, not `Require`
 No automatic 420 can be assumed from those paths.
 Test `Require: norefersub` with and without `Refer-Sub: false` under both
 global settings, and capture any 420/`Unsupported` before progress.
+The repeatable [rejected-target proof](#rejected-target-refer-proof) now covers
+both forms with `norefersub=yes`: neither returned `420`; they followed the
+same `404` no-subscription or `202` plus terminal failure-NOTIFY paths as
+requests without `Require`. The disabled setting remains untested.
 RFC 3261 requires that response when a UAS does not support a required option
 ([Require rules](https://www.rfc-editor.org/rfc/rfc3261.html#section-8.2.2.3)).
 Do not infer required-option behavior only from `Supported` advertisement.
@@ -3540,6 +3578,10 @@ A local Asterisk 22.11.0 UDP spot check with `res_pjsip_refer` loaded sent a
 unknown target. The test confirms this response shape for that case only; it
 does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
+The repeatable proof additionally confirmed implicit-subscription `202`
+followed by terminal sipfrag `404`, successful same-key final-response
+retransmission, and BYE cleanup for all four rejected-target cases. These
+results do not establish transaction resource counts or lifetime.
 Asterisk's out-of-dialog REFER client also compares the entire echoed header
 value to `false` rather than parsing RFC 4488 extension parameters. Thus a
 valid `Refer-Sub: false;foo=bar` 2xx echo does not trigger its immediate

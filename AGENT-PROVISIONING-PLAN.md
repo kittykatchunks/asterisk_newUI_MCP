@@ -3628,6 +3628,15 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   whether a 420/`Unsupported` occurs before transfer progress or whether the
   REFER handler processes it. Do not infer required-extension compliance
   solely from presence or absence of `Supported: norefersub`.
+  The repeatable [rejected-target proof](./README.md#rejected-target-refer-proof)
+  passed with the default `norefersub=yes`: with and without `Require`,
+  `Refer-Sub: false` returned `404` with no NOTIFY during one second, while
+  the ordinary implicit-subscription path returned `202` and a terminal
+  sipfrag `404` (`terminated;reason=noresource`). All four cases returned the
+  same final status and To tag on a same-key retransmission and ended with
+  BYE `200`. This directly demonstrates subscription creation/acceptance for
+  those local cases, not successful transfer or resource-lifetime accounting.
+  `norefersub=no` and accepted transfers remain open.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

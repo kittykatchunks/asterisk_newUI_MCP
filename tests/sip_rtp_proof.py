@@ -18,16 +18,21 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def parse_response(data):
+def parse_message(data):
     head, _, body = data.decode("utf-8").partition("\r\n\r\n")
     lines = head.split("\r\n")
-    require(lines[0].startswith("SIP/2.0 "), "Expected SIP response")
     headers = {}
     for line in lines[1:]:
         name, separator, value = line.partition(":")
         require(separator, "Malformed SIP header")
         headers.setdefault(name.lower(), []).append(value.strip())
-    return int(lines[0].split()[1]), headers, body
+    return lines[0], headers, body
+
+
+def parse_response(data):
+    start, headers, body = parse_message(data)
+    require(start.startswith("SIP/2.0 "), "Expected SIP response")
+    return int(start.split()[1]), headers, body
 
 
 def read_password(path):
@@ -84,7 +89,8 @@ class Probe:
         self.rtp.close()
         self.sip.close()
 
-    def request(self, method, *, uri=None, to_value=None, body="", auth=None):
+    def request(self, method, *, uri=None, to_value=None, body="", auth=None,
+                extra_headers=()):
         headers = [
             f"{method} {uri or self.uri} SIP/2.0",
             f"Via: SIP/2.0/UDP {self.ip}:{self.port};branch={self.branch};rport",
@@ -97,6 +103,7 @@ class Probe:
             headers.append(f"Authorization: {auth}")
         if body:
             headers.append("Content-Type: application/sdp")
+        headers.extend(extra_headers)
         headers += [f"Content-Length: {len(body.encode())}", "", body]
         return "\r\n".join(headers).encode()
 
