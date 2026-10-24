@@ -3969,7 +3969,6 @@ no challenge succeeds, the function returns the last failing challenge's
 error, so challenge order can affect the result
 ([challenge loop and completion status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1736-L1844),
 [prior-header removal](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675)).
-([challenge loop and completion status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1736-L1844)).
 For multiple Digest algorithms under the same realm/auth type,
 `PJSIP_AUTH_ALLOW_MULTIPLE_AUTH_HEADER` defaults to 0; a later challenge may
 replace or reject an earlier header depending on nonce/stale values instead of
