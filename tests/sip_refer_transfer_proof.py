@@ -124,12 +124,16 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
 
 
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
-                 lose_response=False, lose_terminal_ack=False, lose_all_terminal_acks=False):
+                 lose_response=False, lose_terminal_ack=False, lose_all_terminal_acks=False,
+                 lose_target_response=False):
     require(not (lose_terminal_ack or lose_all_terminal_acks) or subscribed,
             "NOTIFY acknowledgement loss needs a subscription")
+    require(not lose_target_response or outcome in ("peer", "peer-busy"),
+            "Target response loss needs an answered or busy PJSIP target")
     probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack,
                        lose_all_terminal_acks=lose_all_terminal_acks)
-    peer = TransferPeer(host, busy=outcome == "peer-busy", noanswer=outcome == "peer-timeout") \
+    peer = TransferPeer(host, busy=outcome == "peer-busy", noanswer=outcome == "peer-timeout",
+                        lose_first_final=lose_target_response) \
         if outcome in ("peer", "peer-busy", "peer-timeout") else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
@@ -346,6 +350,9 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
                   "execution, outbound dialog and RTP echo, all channels ended")
         if lose_all_terminal_acks:
             verify_notify_retry_window(probe, linkedid)
+        if lose_target_response:
+            print("PASS lost target INVITE final response: one transfer, target execution "
+                  "and target channel; recovered target outcome and all channels ended")
     finally:
         if executor:
             executor.shutdown(wait=True)
@@ -368,6 +375,9 @@ def main():
         for outcome in ("answered", "busy", "timeout", "unknown", "peer", "peer-busy",
                         "peer-timeout"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome)
+        for outcome in ("peer", "peer-busy"):
+            run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
+                         lose_target_response=True)
         for outcome in ("unknown", "peer"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
                          lose_response=True)

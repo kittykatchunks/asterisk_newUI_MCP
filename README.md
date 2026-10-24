@@ -120,11 +120,12 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs, 64 accepted
-bridged-transfer dialogs (24 Local-target and 40 PJSIP-target cases), and
+On 24 October 2026, all 106 rejected-target/policy dialogs, 80 accepted
+bridged-transfer dialogs (24 Local-target and 56 PJSIP-target cases), and
 24 bridged-call preservation dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
-accepted and preservation totals include 16 controlled lost-response cases
+accepted and preservation totals include 16 target-INVITE response-loss cases,
+16 controlled REFER-response-loss cases,
 and 16 terminal-NOTIFY acknowledgement-loss cases (eight first-only and
 eight permanent-loss cases) described below. The
 unknown-target group covers 48 cases: 12
@@ -404,6 +405,41 @@ outbound PJSIP ringing target and the original Local peer running `Echo()`,
 not only the earlier Local-target fixture retaining synthetic tones.
 The precise frame/callback causing the result remains uninstrumented;
 these observations are not a universal timeout mapping or target-success proof.
+
+### Lost outbound target INVITE response recovery
+
+Sixteen additional accepted-transfer cases discard the synthetic target's
+first constructed final INVITE response: eight answered `200 OK` cases and
+eight `486 Busy Here` cases, covering absent/false `Refer-Sub` under both
+advertisement and blind-progress settings. The peer does not send that first
+response or a provisional response. This models a missing target response
+at the peer's send boundary; it does not inject a socket-send error.
+
+Asterisk must retry the INVITE within two seconds. The complete parsed
+request line, headers (including Via branch, Call-ID, and CSeq), and SDP body
+must match the original. The peer then constructs the response again,
+requires byte-for-byte equality with the discarded final response, sends
+it, and requires the matching ACK. This specifically tests INVITE request
+retransmission while no response has arrived, not a target's autonomous
+2xx retransmission after an ACK is lost.
+
+All 16 cases recovered after two identical INVITEs in the verified run,
+with the first retry 0.467-0.515 seconds after initial receipt.
+
+The answered cases independently prove the original transferee/target
+bridge, post-transfer RTP echo, and target BYE. The busy cases prove actual
+target `486`, a matching non-2xx transaction ACK, no target answer/bridge,
+and transferee `DIALSTATUS=BUSY`. All cases retain one correlated transfer,
+target execution, and outbound target channel, pass the existing REFER
+retransmission/progress checks, and end all four channels.
+
+The expected REFER results remain unchanged: subscribed `202`, terminal
+`200` for answered targets and normal-progress `503` for busy targets, or
+early terminal `200` with progress disabled. No-subscription REFER is `200`
+with `Refer-Sub: false` and no observed NOTIFY regardless of later target
+success or failure. These are bounded synthetic UDP recovery checks, not
+permanent target-response loss, reliable transport, production-trunk
+interoperability, internal send-failure ordering, or transaction/refcount proof.
 
 ### Lost final REFER response recovery
 

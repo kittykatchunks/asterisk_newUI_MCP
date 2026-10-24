@@ -3831,6 +3831,24 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   PJSIP target and an original Local peer running `Echo()`, rather than
   retaining synthetic tones. The exact frame/callback cause remains
   uninstrumented; do not infer a universal timeout mapping or target success.
+  Sixteen [outbound target INVITE-response-loss cases](./README.md#lost-outbound-target-invite-response-recovery)
+  additionally discard the peer's first constructed final response before
+  sending: eight answered `200` cases and eight busy `486` cases under
+  absent/false `Refer-Sub` and both advertisement/progress settings.
+  No provisional response is sent. Asterisk must retransmit INVITE within
+  two seconds with an identical parsed request line, complete headers
+  (including branch, Call-ID, and CSeq), and SDP. The peer reconstructs the
+  final response, requires byte-for-byte equality with the discarded packet,
+  sends it, and verifies ACK. Answered cases prove the original transferee's
+  new bridge and post-transfer RTP echo/target BYE; busy cases prove the
+  actual `486`, matching non-2xx ACK, no target answer/bridge, and transferee
+  `DIALSTATUS=BUSY`. All retain one correlated transfer, target execution,
+  and outbound target channel, unchanged REFER progress semantics, and
+  all four channels ending.
+  This models one missing response at the synthetic target's send boundary,
+  not a socket-send error, permanent target-response loss, autonomous target
+  2xx retransmission after ACK loss, reliable transport, internal
+  response/transfer ordering, or transaction/reference cleanup.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

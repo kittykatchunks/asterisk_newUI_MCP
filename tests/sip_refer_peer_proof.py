@@ -10,8 +10,10 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 
 
 class TransferPeer:
-    def __init__(self, host, *, busy=False, noanswer=False):
+    def __init__(self, host, *, busy=False, noanswer=False, lose_first_final=False):
         require(not (busy and noanswer), "Target cannot be both busy and ringing")
+        require(not (noanswer and lose_first_final),
+                "Final-response loss is limited to answered and busy targets")
         self.server = (socket.gethostbyname(host), 5060)
         self.sip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sip.connect(self.server)
@@ -27,6 +29,10 @@ class TransferPeer:
         self.cancelled = False
         self.invite_received_at = None
         self.cancel_received_at = None
+        self.lose_first_final = lose_first_final
+        self.discarded_final = None
+        self.original_invite = None
+        self.invite_receipts = []
 
     def close(self):
         self.sip.close()
@@ -68,6 +74,13 @@ class TransferPeer:
         if method == "INVITE":
             require(self.dialog is None or headers["cseq"] == self.dialog["cseq"],
                     "Unexpected target re-INVITE")
+            message = (start, headers, body)
+            if self.original_invite is None:
+                self.original_invite = message
+            elif self.lose_first_final:
+                require(message == self.original_invite,
+                        "Retried target INVITE changed request line, headers, or body")
+            self.invite_receipts.append(time.monotonic())
             connection = re.search(r"(?m)^c=IN IP4 ([^\r\n]+)", body)
             media = re.search(r"(?m)^m=audio (\d+) RTP/AVP ([^\r\n]+)", body)
             require(connection and media and "0" in media[2].split(), "Expected target PCMU SDP")
@@ -106,7 +119,15 @@ class TransferPeer:
             response += [f"Contact: <sip:proof-target@{self.ip}:{self.port}>",
                          "Content-Type: application/sdp"]
         response += [f"Content-Length: {len(answer.encode())}", "", answer]
-        self.sip.send("\r\n".join(response).encode())
+        packet = "\r\n".join(response).encode()
+        if self.lose_first_final and headers["cseq"][0].endswith(" INVITE") \
+                and int(status.split()[0]) >= 200:
+            if self.discarded_final is None:
+                self.discarded_final = packet
+                return
+            require(packet == self.discarded_final,
+                    "Retried target INVITE produced a different final response")
+        self.sip.send(packet)
 
     def run(self):
         deadline = time.monotonic() + (12 if self.noanswer else 8)
@@ -114,6 +135,14 @@ class TransferPeer:
             if select.select([self.sip], [], [], 0.05)[0]:
                 self.receive()
         require(self.acked, "Target did not receive INVITE and ACK")
+        if self.lose_first_final:
+            require(self.discarded_final is not None and len(self.invite_receipts) >= 2,
+                    "Missing discarded target final response or retried INVITE")
+            delay = self.invite_receipts[1] - self.invite_receipts[0]
+            require(0 < delay < 2, f"Target INVITE retry outside two seconds: {delay}")
+            print(f"PASS discarded target INVITE final response: "
+                  f"{len(self.invite_receipts)} identical INVITEs, first retry at {delay:.3f}s, "
+                  "identical final response sent and ACK received")
         if self.noanswer:
             require(self.cancelled, "No-answer target was not cancelled")
             duration = self.cancel_received_at - self.invite_received_at
