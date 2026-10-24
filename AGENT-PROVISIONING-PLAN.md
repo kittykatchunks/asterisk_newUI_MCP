@@ -3993,6 +3993,16 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   that internal retry budget without creating a replacement Authorization
   header; record the counter change separately from any retry actually sent
   ([stale check and credential processing](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675)).
+  Pinned pjproject 2.17 header defaults are `PJSIP_AUTH_QOP_SUPPORT=1`,
+  `PJSIP_AUTH_HEADER_CACHING=0`, and `PJSIP_AUTH_AUTO_SEND_NEXT=0`.
+  Asterisk 22.11.0's bundled `config_site.h` explicitly sets
+  `PJSIP_AUTH_ALLOW_MULTIPLE_AUTH_HEADER=0`, matching pjproject's default.
+  These source/build defaults do not establish a deployed binary's effective
+  compiler definitions; inspect its build configuration before applying any
+  conditional cache, regeneration, or multi-header behavior
+  ([pjproject auth defaults](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1202-L1237),
+  [multiple-header default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1368-L1372),
+  [Asterisk bundled override](https://github.com/asterisk/asterisk/blob/22.11.0/third-party/pjproject/patches/config_site.h#L109-L111)).
   In builds with `PJSIP_AUTH_HEADER_CACHING` enabled, request initialization
   can also shallow-clone the cached Digest Authorization header for a
   qop-less cached entry when its method matches. Thus a fresh request may reset

@@ -3639,6 +3639,16 @@ sequence for that challenge, but not across later, freshly created requests.
 When initialization completes its cached-auth loop, it has zeroed every stale
 counter in the session, not just the pair challenged by that request
 ([counter-reset loop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1391)).
+The pjproject 2.17 header defaults `PJSIP_AUTH_QOP_SUPPORT` to 1, while
+`PJSIP_AUTH_HEADER_CACHING` and `PJSIP_AUTH_AUTO_SEND_NEXT` default to 0.
+Asterisk 22.11.0's bundled `config_site.h` explicitly sets
+`PJSIP_AUTH_ALLOW_MULTIPLE_AUTH_HEADER` to 0, matching pjproject's default.
+These are source/build defaults, not proof of a particular deployed binary's
+effective compiler definitions; inspect that build's configuration before
+applying conditional cache, regeneration, or multi-header findings
+([pjproject auth defaults](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1202-L1237),
+[multiple-header default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1368-L1372),
+[Asterisk bundled override](https://github.com/asterisk/asterisk/blob/22.11.0/third-party/pjproject/patches/config_site.h#L109-L111)).
 When `PJSIP_AUTH_HEADER_CACHING` is enabled, that same initialization can
 shallow-clone a cached Digest Authorization header onto the new request when
 the cached entry has no qop and its method matches. Thus a fresh request can
