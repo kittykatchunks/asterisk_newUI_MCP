@@ -3724,10 +3724,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([stack-local session initialization and reinitialization](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L598),
   [temporary auth-session cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L644-L649),
   [REFER dialog setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1443)).
-  Its async handler is opt-in through
-  `pjsip_auth_clt_async_configure()`; do not assume that path is active merely
-  because the pinned library supports it
-  ([async API setup contract](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_auth.h#L637-L755)).
+  pjproject async auth is opt-in through
+  `pjsip_auth_clt_async_configure()`, but a whole-tree search of pinned
+  Asterisk 22.11.0 source finds no call to that API. A new pjproject dialog
+  auth session starts with `async_opt = NULL`; in the REFER evsub challenge
+  handler, the async helper then returns non-success and execution falls
+  through to synchronous `pjsip_auth_clt_reinit_req()`. Therefore the pinned
+  Asterisk source follows the synchronous path unless downstream or runtime
+  code configures async auth
+  ([dialog auth-session defaults](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L912-L945),
+  [async opt-in API](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1866-L1880),
+  [evsub async-to-sync fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1850-L1914)).
   If its synchronous fallback fails, pjproject terminates the subscription
   with the original transaction event; if configured async auth is abandoned,
   pjproject terminates it with a synthetic user event instead

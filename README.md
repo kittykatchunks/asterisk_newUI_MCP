@@ -3599,7 +3599,15 @@ patches or runtime code outside the pinned source
 [REFER dialog setup and endpoint-auth retry](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
 [stack-local endpoint auth session](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L598),
 [temporary auth-session cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L644-L649)).
-Async handling is opt-in and must be confirmed in the deployed configuration.
+Async auth is opt-in, but the pinned Asterisk 22.11.0 source tree contains no
+call to `pjsip_auth_clt_async_configure()`. A new pjproject dialog auth session
+starts with `async_opt = NULL`; for the REFER evsub, the async challenge
+helper then returns non-success and `on_tsx_state_uac()` falls through to
+synchronous `pjsip_auth_clt_reinit_req()`. Thus the pinned source follows the
+synchronous path unless downstream or runtime code configures async auth
+([dialog auth-session defaults](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L912-L945),
+[async opt-in API](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1866-L1880),
+[evsub async-to-sync fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1850-L1914)).
 The transaction callback runs before the internal challenge handler, but
 Asterisk's initial `SENT` subscription state does not enter its later
 `ACTIVE`/`TERMINATED` retry branch. If synchronous auth fails, the terminal
