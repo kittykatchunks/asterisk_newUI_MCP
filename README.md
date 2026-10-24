@@ -3803,10 +3803,13 @@ The cached qop mode is set only while its value is `PJSIP_AUTH_QOP_NONE`; it
 is not reset when a later challenge for the same realm/algorithm omits qop.
 With qop support and auto-send-next enabled, that qop-less challenge can
 replace `last_chal` while the cached mode remains qop-auth. A later request
-then follows the qop-auth regeneration branch using a challenge with no qop,
-which `respond_digest()` does not support. Test a same-cache qop-auth to
-qop-less challenge transition followed by fresh-request initialization, and
-capture its status and headers
+then enters the qop-auth regeneration branch, but `respond_digest()` explicitly
+supports an empty-qop challenge by generating a Digest response without qop,
+`nc`, or `cnonce`. Because the cached mode remains qop-auth, subsequent
+initializations continue through that regeneration branch unless another
+challenge changes the cached state. This is not an unsupported-qop error;
+verify the generated Authorization fields and the cache mode on the deployed
+build
 ([qop-mode assignment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
 [qop-less challenge retention](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L758),
 [fresh-request qop branch](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
