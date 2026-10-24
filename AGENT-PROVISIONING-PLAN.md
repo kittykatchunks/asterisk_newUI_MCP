@@ -3997,9 +3997,24 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   100/100 distinct RTP payloads. Totals were checked against completed runner
   output, all correlated channel-cleanup assertions passed, and proof services
   stopped with persistent data preserved.
+  The BYE-loss fixture was then strengthened without adding scenarios:
+  after discarding the first response it suppresses retries until the main
+  CEL observer verifies all four correlated channel ends and signals the peer.
+  The peer waits a further half-second before retransmitting identical BYE,
+  requires recovery within two seconds of observing that signal, and bounds
+  the complete BYE exchange to ten seconds. Correlated CEL must remain
+  unchanged through recovered response receipt.
+  All eight ordering-gated cases passed, recovering 0.502-0.503 seconds after
+  observing the channel-end signal and 0.553-0.703 seconds after first response
+  receipt. The 40-case focused matrix also passed eight cases each of baseline,
+  single-ACK loss, two-ACK loss and final-INVITE-response loss; all 40 echoed
+  100/100 distinct RTP payloads. The full suite was not rerun after this
+  strengthening; scenario totals remain 144 accepted transfers, 106
+  rejection/policy dialogs, 24 preservation cases and six sequencing attempts.
   This is bounded receive-boundary response loss after teardown, not internal
   send failure, transaction/reference destruction, permanent BYE-response loss,
-  or production interoperability.
+  or production interoperability. Channel end is not proof of SIP
+  dialog/transaction destruction.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

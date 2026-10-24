@@ -9,6 +9,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 from sip_refer_proof import ReferProbe
 from sip_refer_peer_proof import TransferPeer
@@ -140,12 +141,14 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             "CANCEL response loss needs a ringing PJSIP target")
     probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack,
                        lose_all_terminal_acks=lose_all_terminal_acks)
+    channels_ended = Event() if lose_target_bye_response else None
     peer = TransferPeer(host, busy=outcome == "peer-busy", noanswer=outcome == "peer-timeout",
                         lose_first_final=lose_target_response,
                         lose_cancel_responses=lose_cancel_responses,
                         lose_cancel_ok=lose_cancel_ok, lose_invite_487=lose_invite_487,
                         lose_target_ack=lose_target_ack,
-                        lose_bye_response=lose_target_bye_response) \
+                        lose_bye_response=lose_target_bye_response,
+                        channels_ended=channels_ended) \
         if outcome in ("peer", "peer-busy", "peer-timeout") else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
@@ -284,8 +287,14 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
         expected_channels = 4 if peer else 5
         require(len(started) == expected_channels,
                 f"Expected {expected_channels} channels, found {len(started)}")
+        if channels_ended is not None:
+            channels_ended.set()
         if peer:
             frames = peer_result.result()
+            if lose_target_bye_response:
+                require([row for row in events() if row["linkedid"] == linkedid] == related,
+                        "Correlated CEL changed during post-channel-end BYE response recovery")
+                print("PASS target BYE retry after four channel ends: settled CEL unchanged")
             require(peer.dialog["call-id"] != [probe.call_id], "Target reused source SIP dialog")
             peer_markers = [row for row in related if user_event(
                 row, "PROOF_REFER_PEER", peer.dialog["call-id"][0])]

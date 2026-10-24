@@ -147,6 +147,10 @@ before the complete run verified them alongside all existing regressions.
 All 56 answered PJSIP-target cases echoed 100/100 distinct post-transfer RTP
 payloads. The current runner and complete validation both cover 144 accepted
 transfers (24 Local-target and 120 PJSIP-target).
+The eight BYE-loss cases were subsequently strengthened to gate retry on all
+four correlated channel ends. A 40-case focused matrix passed that ordering
+check and related answered-target regressions; the full suite was not rerun
+after this strengthening, and scenario totals are unchanged.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -525,12 +529,17 @@ Eight answered PJSIP-target cases discard the first received final `200 OK`
 to the target-initiated BYE. They cover absent/false `Refer-Sub` under both
 CLI-verified advertisement/progress settings. After proving post-transfer
 media, the target sends BYE and retransmits the exact same request bytes,
-including branch and CSeq, on its existing half-second retry schedule.
+including branch and CSeq. After discarding the first response it pauses
+retries until the CEL observer has verified all four correlated channel ends,
+then waits another half-second before retrying.
 
 The recovered final response must match the discarded response's complete
 parsed status line, headers, and body, match the BYE branch, Call-ID and CSeq,
-and arrive after a request retry within two seconds of first response receipt.
-All eight cases recovered in 0.500-0.534 seconds. The 40-case focused matrix
+and arrive after a request retry within two seconds of the peer observing
+the channel-end signal. Recovery must be at least half a second after that
+observation, and correlated CEL must remain unchanged through recovery.
+Before this explicit ordering gate, all eight cases recovered in
+0.500-0.534 seconds. The 40-case focused matrix
 also passed eight cases each of baseline transfer, single-ACK loss,
 two-consecutive-ACK loss, and final-INVITE-response loss. Every case echoed
 100/100 distinct post-transfer RTP payloads before BYE.
@@ -539,11 +548,19 @@ alongside the existing regressions, recovering in 0.502-0.543 seconds.
 All 56 answered PJSIP-target cases in that run echoed 100/100 distinct
 payloads; all correlated cleanup assertions passed and proof services
 stopped with persistent data preserved.
+After adding the channel-end gate, all eight cases passed again, recovering
+0.502-0.503 seconds after observing the channel-end signal and 0.553-0.703
+seconds after discarding the first response. Settled correlated CEL remained
+unchanged. The 40-case focused run also passed eight cases each of baseline,
+single-ACK loss, two-ACK loss, and final-INVITE-response loss; every case
+echoed 100/100 distinct RTP payloads. The ten-second BYE exchange deadline
+bounds both waiting for channel-end synchronization and response recovery.
 
 Existing CEL assertions independently verify one transfer, target execution,
 outbound target channel, target answer/bridge, and all four channels ending.
 This is bounded response recovery at the target receive boundary after call
-teardown, not internal send-error injection, transaction/reference destruction,
+teardown, not proof that SIP dialogs/transactions are destroyed at channel end,
+internal send-error injection, transaction/reference destruction,
 permanent BYE-response loss, or production-trunk interoperability.
 
 ### Lost outbound target CANCEL response recovery

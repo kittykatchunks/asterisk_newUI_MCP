@@ -12,13 +12,16 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 class TransferPeer:
     def __init__(self, host, *, busy=False, noanswer=False, lose_first_final=False,
                  lose_cancel_responses=False, lose_cancel_ok=False, lose_invite_487=False,
-                 lose_target_ack=0, lose_bye_response=False):
+                 lose_target_ack=0, lose_bye_response=False, channels_ended=None):
         require(isinstance(lose_target_ack, int) and 0 <= lose_target_ack <= 2,
                 "Target ACK loss count must be zero, one, or two")
         require(not (busy and noanswer), "Target cannot be both busy and ringing")
         require(not lose_bye_response or (not busy and not noanswer),
                 "BYE response loss needs an answered target")
+        require(not lose_bye_response or channels_ended is not None,
+                "BYE response loss needs correlated channel-end synchronization")
         self.lose_bye_response = lose_bye_response
+        self.channels_ended = channels_ended
         require(not (noanswer and lose_first_final),
                 "Final-response loss is limited to answered and busy targets")
         require(not (lose_cancel_responses or lose_cancel_ok or lose_invite_487) or noanswer,
@@ -317,12 +320,17 @@ class TransferPeer:
             f"Call-ID: {self.dialog['call-id'][0]}",
             "CSeq: 1 BYE", "Content-Length: 0", "", "",
         ]).encode()
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + (10 if self.lose_bye_response else 5)
         next_send = 0
         bye_sends = []
         discarded_response = None
         discarded_at = None
+        channels_ended_at = None
         while time.monotonic() < deadline:
+            if discarded_response is not None and channels_ended_at is None \
+                    and self.channels_ended.is_set():
+                channels_ended_at = time.monotonic()
+                next_send = channels_ended_at + 0.5
             if time.monotonic() >= next_send:
                 self.sip.send(request)
                 bye_sends.append(time.monotonic())
@@ -344,14 +352,21 @@ class TransferPeer:
                             if discarded_response is None:
                                 discarded_response = message
                                 discarded_at = time.monotonic()
+                                next_send = float("inf")
                                 continue
                             require(len(bye_sends) >= 2 and bye_sends[1] > discarded_at,
                                     "Repeated BYE response before request retry")
+                            require(channels_ended_at is not None
+                                    and bye_sends[1] - channels_ended_at >= 0.5,
+                                    "Target BYE retry preceded settled channel observation")
                             require(message == discarded_response,
                                     "Recovered BYE response changed status, headers, or body")
                             delay = time.monotonic() - discarded_at
-                            require(0 < delay < 2, "Target BYE response recovery exceeded two seconds")
+                            after_end = time.monotonic() - channels_ended_at
+                            require(0.5 <= after_end < 2,
+                                    "Target BYE response recovery outside 0.5-2s after channel end")
                             print(f"PASS discarded target BYE response: identical BYE retried, "
-                                  f"identical 200 recovered after {delay:.3f}s")
+                                  f"identical 200 recovered after {delay:.3f}s; "
+                                  f"{after_end:.3f}s after all channel ends observed")
                         return received
         raise RuntimeError("Timed out awaiting target BYE response")
