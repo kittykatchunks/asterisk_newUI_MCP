@@ -39,6 +39,68 @@ def user_event(row, name, value):
     return json.loads(row["extra"]).get("extra") == value
 
 
+def verify_preserved_call(probe, target, request, code, headers, source, transferee, sdp,
+                          subscribed, blind_progress):
+    require(code == (202 if subscribed else 404), f"Unexpected unknown-target REFER: {code}")
+    require(headers.get("refer-sub") == (None if subscribed else ["false"]),
+            "Unexpected unknown-target Refer-Sub response")
+    repeated, repeated_headers, _ = probe.exchange(request, "REFER")
+    require(repeated == code and repeated_headers.get("to") == headers.get("to")
+            and repeated_headers.get("refer-sub") == headers.get("refer-sub"),
+            "Unknown-target retransmission changed final response")
+    probe.observe_notifications(subscribed)
+    connection = re.search(r"(?m)^c=IN IP4 ([^\r\n]+)", sdp)
+    media = re.search(r"(?m)^m=audio (\d+) RTP/AVP ([^\r\n]+)", sdp)
+    require(connection and media and "0" in media[2].split(), "Expected PCMU RTP SDP")
+    require(connection[1] == probe.server[0], "Unexpected local-proof RTP host")
+    probe.rtp.connect((connection[1], int(media[1])))
+    while select.select([probe.rtp], [], [], 0)[0]:
+        probe.rtp.recv(4096)
+    sequences = set()
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline and len(sequences) < 10:
+        for sock in select.select([probe.sip, probe.rtp], [], [], 0.05)[0]:
+            if sock is probe.sip:
+                probe.receive()
+            else:
+                packet = sock.recv(4096)
+                require(len(packet) >= 172 and packet[0] == 0x80 and packet[1] & 0x7F == 0,
+                        "Unexpected proof RTP packet")
+                sequences.add(int.from_bytes(packet[2:4], "big"))
+    require(len(sequences) >= 10, "Fewer than ten fresh RTP packets after rejected transfer")
+    require(not probe.remote_ended, "Rejected transfer ended the source SIP dialog")
+    related = [row for row in events() if row["linkedid"] == source["linkedid"]]
+    original_ids = {row["uniqueid"] for row in related if row["event"] == "CHAN_START"}
+    require(len(original_ids) == 3 and {source["uniqueid"], transferee["uniqueid"]} <= original_ids,
+            "Rejected transfer created or replaced a channel")
+    require(not any(row["event"] in ("BRIDGE_EXIT", "HANGUP", "CHAN_END", "BLINDTRANSFER",
+                                    "PROOF_REFER_TARGET") for row in related),
+            "Rejected transfer altered the original bridge/channel lifecycle")
+    bridge_id = json.loads(transferee["extra"])["bridge_id"]
+    require(all(any(row["event"] == "BRIDGE_ENTER" and row["uniqueid"] == channel_id
+                    and json.loads(row["extra"])["bridge_id"] == bridge_id for row in related)
+                for channel_id in (source["uniqueid"], transferee["uniqueid"])),
+            "Original bridge identities were not preserved")
+    probe.cseq += 1
+    probe.branch = "z9hG4bK" + uuid.uuid4().hex
+    bye_code, _, _ = probe.exchange(probe.request("BYE", uri=target), "BYE")
+    require(bye_code == 200, f"Preserved source BYE failed: {bye_code}")
+
+    def settled(rows):
+        related = [row for row in rows if row["linkedid"] == source["linkedid"]]
+        ended = {row["uniqueid"] for row in related if row["event"] == "CHAN_END"}
+        return related if ended == original_ids else None
+
+    related = wait_for(probe, "preserved call cleanup", settled)
+    require({row["uniqueid"] for row in related if row["event"] == "CHAN_START"} == original_ids,
+            "Unexpected new channels during preserved-call cleanup")
+    require(not any(row["event"] in ("BLINDTRANSFER", "PROOF_REFER_TARGET") for row in related),
+            "Rejected transfer performed delayed work")
+    mode = "implicit subscription" if subscribed else "Refer-Sub: false"
+    print(f"PASS preserved bridged call, {mode}, refer_blind_progress={blind_progress}: "
+          f"REFER {code}, unchanged bridge, ten fresh RTP packets, BYE, all three channels ended")
+
+
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered"):
     probe = ReferProbe(host)
     token = uuid.uuid4().hex
@@ -46,13 +108,14 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
         "answered": ("target", "answer", "ANSWER"),
         "busy": ("failed", "reject", "BUSY"),
         "timeout": ("timeout", "noanswer", "NOANSWER"),
+        "unknown": ("missing", None, None),
     }[outcome]
     rejected = outcome != "answered"
     extension = f"{prefix}-{token}"
     probe.uri = f"sip:bridge-{token}@{host}"
     probe.to_value = f"<{probe.uri}>"
     try:
-        code, headers, _ = probe.invite(password)
+        code, headers, sdp = probe.invite(password)
         require(code == 200, f"Bridged INVITE failed: {code}")
         probe.to_value = headers["to"][0]
         contact = re.fullmatch(r"<([^>]+)>", headers["contact"][0])
@@ -84,6 +147,10 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
             extra_headers.append("Refer-Sub: false")
         request = probe.request("REFER", uri=target, extra_headers=extra_headers)
         code, headers, _ = probe.exchange(request, "REFER")
+        if outcome == "unknown":
+            verify_preserved_call(probe, target, request, code, headers, source, transferee,
+                                  sdp, subscribed, blind_progress)
+            return
         require(code == (202 if subscribed else 200), f"Unexpected accepted REFER: {code}")
         require(headers.get("refer-sub") == (None if subscribed else ["false"]),
                 "Unexpected accepted Refer-Sub response")
@@ -204,7 +271,7 @@ def main():
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for subscribed in (False, True):
-        for outcome in ("answered", "busy", "timeout"):
+        for outcome in ("answered", "busy", "timeout", "unknown"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome)
 
 

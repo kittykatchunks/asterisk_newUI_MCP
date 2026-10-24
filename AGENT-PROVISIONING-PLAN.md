@@ -3714,6 +3714,20 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   and does not instrument the precise frame/callback responsible for the
   terminal result. This is a fixture-specific observation, not a universal
   timeout mapping or proof of target answer from success-shaped NOTIFY.
+  Eight further [bridged-call preservation cases](./README.md#bridged-call-preservation-after-rejected-refer)
+  reject an unknown extension after the source and Local transferee have
+  joined their original bridge. They cover absent/false `Refer-Sub` and both
+  advertisement/progress settings. After the expected `404` or subscribed
+  `202` plus terminal sipfrag `404`, including identical retransmission,
+  each case drains queued RTP and receives at least ten distinct fresh
+  PCMU sequence numbers from the negotiated PBX address/port within two
+  seconds. CEL shows exactly the original three channels, the original
+  bridge identities, and no bridge exit, hangup, channel end, target
+  execution, or `BLINDTRANSFER` before client BYE. BYE receives `200`;
+  all three channels then end with no new channel or delayed transfer in
+  the collected evidence. This is bounded original-call preservation and
+  inbound RTP delivery, not two-way audio quality, indefinite survival,
+  or preservation after an accepted transfer's target later fails.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

@@ -119,8 +119,8 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs and 24 accepted
-bridged-transfer dialogs passed, with
+On 24 October 2026, all 106 rejected-target/policy dialogs, 24 accepted
+bridged-transfer dialogs, and eight bridged-call preservation dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
@@ -200,6 +200,30 @@ transaction/reference lifetime, or reliable transport.
 Their negative NOTIFY assertion is bounded by the
 one-second window. The existing SIP/RTP probe also passed after the shared
 message-parser/header changes, echoing 100/100 synthetic frames.
+
+### Bridged call preservation after rejected REFER
+
+The runner additionally uses [sip_refer_transfer_proof.py](./tests/sip_refer_transfer_proof.py)
+to reject an unknown target while a PJSIP source is already bridged to a
+Local transferee. Eight cases cover absent/false `Refer-Sub`, both global
+`norefersub` settings, and both `refer_blind_progress` settings.
+No-subscription REFER returns `404` with `Refer-Sub: false`; subscribed REFER
+returns `202` followed by terminal sipfrag `404`. Identical retransmissions
+preserve the status, To tag, and `Refer-Sub` response.
+
+After that result, each case drains queued RTP and receives at least ten
+distinct fresh PCMU RTP sequence numbers from the negotiated PBX address and
+port within two seconds. Correlated CEL still shows exactly the original
+three channel identities, the same source/transferee bridge, no bridge exit,
+hangup, channel end, target execution, or `BLINDTRANSFER`. Client BYE then
+receives `200`, and all three original channels end without any additional
+channel creation or delayed transfer execution in the collected evidence.
+
+This proves bounded original-call preservation and continued inbound RTP
+delivery after rejection, not two-way audio quality, indefinite bridge
+survival, external media, or preservation after an accepted transfer whose
+target later fails. No-subscription NOTIFY absence is observed for one
+second, as in the rejection matrix.
 
 ### Accepted bridged REFER proof
 
