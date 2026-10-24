@@ -3809,7 +3809,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   installed into the dialog's persistent auth session by this helper, and any
   subsequent Asterisk fallback must reconstruct credentials from the endpoint
   configuration rather than inherit the prior helper's auth cache. The
-  `PJSIP_MAX_STALE_COUNT` bound above describes the persistent dialog-auth
+  fresh out-of-dialog REFER dialog also has no auth-session parent: pjproject's
+  dialog constructor initializes `auth_sess` through `pjsip_auth_clt_init()`,
+  which sets `parent = NULL`, and the Asterisk dialog creation/REFER setup
+  path does not attach one. Thus parent credential lookup cannot expose
+  endpoint fallback credentials to the persistent dialog-auth session either
+  ([auth-session initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L912-L945),
+  [dialog constructor](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L104-L114),
+  [Asterisk dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L998-L1074),
+  [REFER setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1434),
+  [explicit parent setter](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L2606-L2610)).
+  The `PJSIP_MAX_STALE_COUNT` bound above describes the persistent dialog-auth
   session's retry chain, not a bound on repeated Asterisk helper invocations.
   If callback re-entry is observed, measure it against Asterisk's separate
   `MAX_RX_CHALLENGES` behavior and the actual requests sent

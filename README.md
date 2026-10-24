@@ -3943,10 +3943,18 @@ challenge realm in the credential passed to pjproject. Its helper supplies at
 most one credential per realm, so duplicate-wildcard list ordering applies
 only to other pjproject callers. If a pjproject auth session has a parent, its
 credentials are searched first and a parent wildcard can precede a child exact
-match; verify whether the deployed REFER dialog-auth session actually has a
-parent before applying this behavior
+match. That parent lookup does not apply to the fresh out-of-dialog REFER
+dialog traced here: pjproject initializes each new dialog auth session with
+`parent = NULL`, and the Asterisk dialog-creation and REFER setup path does
+not attach a parent session. Consequently, this dialog's persistent auth
+session searches only its own credentials; the separate endpoint-auth
+fallback's stack-local session is not its parent
 ([credential lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L843-L901),
-[parent setup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L912-L946)).
+[parent initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L912-L945),
+[dialog auth-session initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L104-L114),
+[Asterisk dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L998-L1074),
+[REFER dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1434),
+[explicit dialog parent setter](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L2606-L2610)).
 Confirm the peer's chosen Authorization header
 ([Asterisk selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L91-L248),
 [per-realm challenge handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L303-L426),
