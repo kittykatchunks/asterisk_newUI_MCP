@@ -3951,6 +3951,26 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This is bounded receive-boundary 2xx ACK recovery against a synthetic UAS
   timer, not internal send failure, Asterisk's own UAS retry timer, permanent
   ACK loss, transaction/reference destruction, or production interoperability.
+  Sixteen [two-consecutive-ACK-loss cases](./README.md#two-consecutive-target-ack-losses)
+  extend the shared fixture to discard two ACKs to answered `200` or busy
+  `486`, under absent/false `Refer-Sub` and both CLI-verified
+  advertisement/progress settings. Recovery requires three identical parsed
+  ACKs, exactly two byte-identical response retries, and one received INVITE.
+  Each repeated ACK must follow its response retry; retry timing must satisfy
+  0.45 to under one second after first ACK receipt, then 0.95 to under two
+  seconds after the first retry. Total recovery must be under three seconds.
+  Answered cases recovered in 1.505-1.632 seconds and busy cases in
+  1.506-1.540 seconds. All 48 focused cases passed: 16 new two-loss,
+  16 single-loss, and 16 baseline answered/busy cases. All 24 answered cases
+  echoed 100/100 distinct RTP payloads and completed target-initiated BYE.
+  Existing transaction/dialog, REFER, CEL outcome, exactly-once transfer/target,
+  and four-channel cleanup assertions remain in force.
+  The current runner contains 136 accepted transfers (24 Local-target and
+  112 PJSIP-target), 106 rejection/policy dialogs, and 24 preservation cases;
+  the complete suite was not rerun after this addition.
+  This is bounded recovery through two synthetic UAS retries, not permanent
+  ACK loss, Asterisk's own UAS timer, internal send failure, transaction/reference
+  destruction, or production interoperability.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

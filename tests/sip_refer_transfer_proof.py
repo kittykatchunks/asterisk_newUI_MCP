@@ -126,7 +126,7 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
                  lose_response=False, lose_terminal_ack=False, lose_all_terminal_acks=False,
                  lose_target_response=False, lose_cancel_responses=False, lose_cancel_ok=False,
-                 lose_invite_487=False, lose_target_ack=False):
+                 lose_invite_487=False, lose_target_ack=0):
     require(not (lose_terminal_ack or lose_all_terminal_acks) or subscribed,
             "NOTIFY acknowledgement loss needs a subscription")
     require(not lose_target_response or outcome in ("peer", "peer-busy"),
@@ -392,6 +392,8 @@ def main():
                          lose_target_response=True)
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
                          lose_target_ack=True)
+            run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
+                         lose_target_ack=2)
         run_transfer(args.host, password, subscribed, args.blind_progress, "peer-timeout",
                      lose_cancel_responses=True)
         run_transfer(args.host, password, subscribed, args.blind_progress, "peer-timeout",

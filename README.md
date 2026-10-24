@@ -138,6 +138,10 @@ After tightening the 2xx ACK branch assertion, all eight answered ACK-loss
 cases passed again. The subsequent complete run verified all these additions
 together with the existing regressions. All 40 answered PJSIP-target cases
 echoed 100/100 distinct post-transfer RTP payloads.
+Sixteen consecutive-two-ACK-loss cases were subsequently added and passed a
+48-case focused matrix alongside baseline and single-ACK-loss regressions.
+The current runner contains 136 accepted transfers (24 Local-target and
+112 PJSIP-target); the complete suite was not rerun after this addition.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -476,6 +480,34 @@ alongside the busy ACK-loss and existing regression matrices, recovering in
 This is bounded 2xx ACK recovery against the synthetic UAS timer, not internal
 Asterisk send-error injection, its own UAS retry timer, permanent ACK loss,
 transaction/reference destruction, or production-trunk interoperability.
+
+### Two consecutive target ACK losses
+
+Sixteen cases extend the shared target ACK-loss fixture to discard the first
+two ACKs to answered `200 OK` or busy `486 Busy Here`. They cover absent/false
+`Refer-Sub` under both CLI-verified advertisement/progress settings. The fixture
+accepts a loss count of zero, one, or two and retains the existing single-loss
+cases in the runner.
+
+The target must receive three identical parsed ACKs and send exactly two
+byte-identical final-response retries before recovery. Each repeated ACK must
+follow a corresponding response retry. The first retry must be sent 0.45 to
+under one second after first ACK receipt; the second must follow 0.95 to under
+two seconds after the first retry. Total recovery must finish within three
+seconds with exactly one received target INVITE. Existing non-2xx transaction
+and 2xx Contact/dialog/branch assertions still apply.
+
+All eight answered cases recovered in 1.505-1.632 seconds and all eight busy
+cases in 1.506-1.540 seconds. Focused validation passed all 48 cases: 16 new
+two-loss cases, 16 single-loss cases, and 16 baseline answered/busy transfers.
+All 24 answered cases echoed 100/100 distinct post-transfer RTP payloads and
+completed target-initiated BYE. Independent CEL still verifies one transfer,
+target execution and outbound channel, the expected answered/bridged or
+BUSY/unanswered outcome, and all four channels ending.
+
+This establishes bounded recovery through two synthetic UAS retries, not
+permanent ACK loss, Asterisk UAS timer behavior, internal send failures,
+transaction/reference destruction, or production interoperability.
 
 ### Lost outbound target CANCEL response recovery
 

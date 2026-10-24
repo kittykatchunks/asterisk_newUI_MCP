@@ -12,7 +12,9 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 class TransferPeer:
     def __init__(self, host, *, busy=False, noanswer=False, lose_first_final=False,
                  lose_cancel_responses=False, lose_cancel_ok=False, lose_invite_487=False,
-                 lose_target_ack=False):
+                 lose_target_ack=0):
+        require(isinstance(lose_target_ack, int) and 0 <= lose_target_ack <= 2,
+                "Target ACK loss count must be zero, one, or two")
         require(not (busy and noanswer), "Target cannot be both busy and ringing")
         require(not (noanswer and lose_first_final),
                 "Final-response loss is limited to answered and busy targets")
@@ -58,6 +60,8 @@ class TransferPeer:
         self.ack_retry_interval = 0.5
         self.ack_response_retried_at = None
         self.discarded_ack_at = None
+        self.target_ack_receipts = []
+        self.ack_response_retries = []
 
     def close(self):
         self.sip.close()
@@ -96,14 +100,16 @@ class TransferPeer:
                             and headers["to"] == [f"{self.dialog['to'][0]};tag={self.tag}"],
                             "2xx target ACK did not match answered Contact/dialog")
                 message = (start, headers, body)
+                require(len(self.ack_response_retries) >= len(self.target_ack_receipts),
+                        "Target ACK repeated before its final-response retry")
+                self.target_ack_receipts.append(time.monotonic())
                 if self.discarded_ack is None:
                     self.discarded_ack = message
-                    self.discarded_ack_at = time.monotonic()
-                    return None
-                require(self.ack_response_retried_at is not None,
-                        "Repeated target ACK before final-response retransmission")
+                    self.discarded_ack_at = self.target_ack_receipts[0]
                 require(message == self.discarded_ack,
                         "Repeated target ACK changed request line, headers, or body")
+                if len(self.target_ack_receipts) <= self.lose_target_ack:
+                    return None
             self.acked = True
             if self.ack_received_at is None:
                 self.ack_received_at = time.monotonic()
@@ -214,6 +220,7 @@ class TransferPeer:
                     and time.monotonic() >= self.next_ack_response:
                 require(self.ack_response is not None, "Missing target final response for retry")
                 self.sip.send(self.ack_response)
+                self.ack_response_retries.append(time.monotonic())
                 if self.ack_response_retried_at is None:
                     self.ack_response_retried_at = time.monotonic()
                 self.ack_retry_interval = min(self.ack_retry_interval * 2, 4)
@@ -229,7 +236,20 @@ class TransferPeer:
             require(self.discarded_ack is not None and self.ack_response_retried_at is not None,
                     "Missing discarded ACK or retransmitted final response")
             delay = self.ack_received_at - self.discarded_ack_at
-            require(0 < delay < 2, f"Target ACK recovery outside two seconds: {delay}")
+            limit = 2 if self.lose_target_ack == 1 else 3
+            require(0 < delay < limit,
+                    f"Target ACK recovery outside {limit} seconds: {delay}")
+            require(len(self.target_ack_receipts) == self.lose_target_ack + 1,
+                    "Unexpected number of target ACK receipts")
+            if self.lose_target_ack == 2:
+                require(len(self.ack_response_retries) == 2,
+                        "Two lost ACKs did not require two final-response retries")
+                first_retry, second_retry = self.ack_response_retries
+                require(0.45 <= first_retry - self.discarded_ack_at < 1
+                        and 0.95 <= second_retry - first_retry < 2,
+                        "Target final-response retries missed half/one-second backoff")
+                print(f"PASS two consecutive {('busy' if self.busy else 'answered')} ACK losses: "
+                      f"three identical ACKs, two final-response retries, recovery {delay:.3f}s")
             require(len(self.invite_receipts) == 1, "Target ACK recovery created another INVITE")
             outcome = "busy" if self.busy else "answered"
             status = 486 if self.busy else 200
