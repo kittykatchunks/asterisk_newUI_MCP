@@ -4031,9 +4031,10 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   retained txdata/pools while the PJSIP module remains loaded. Asterisk
   destroys its pjproject caching pool during `res_pjsip` unload, and
   pjproject's caching-pool teardown explicitly frees pools still on its used
-  list. That teardown therefore reclaims the otherwise-unreleased pools:
-  this is runtime/module-lifetime retention, not an allocation shown to
-  persist beyond teardown
+  list. Since the txdata object itself is allocated from its pool, that
+  teardown also reclaims the unreleased txdata storage without decrementing
+  its reference count. This is runtime/module-lifetime retention, not an
+  allocation shown to persist beyond teardown
   ([Asterisk PJSIP unload and cache destruction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L3793-L3832),
   [pjproject caching-pool destroy](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L97-L129),
   [active pools added to the used list](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L134-L218)).
