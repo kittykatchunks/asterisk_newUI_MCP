@@ -120,11 +120,15 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs, 80 accepted
-bridged-transfer dialogs (24 Local-target and 56 PJSIP-target cases), and
-24 bridged-call preservation dialogs passed, with
+On 24 October 2026, the suite comprises 106 rejected-target/policy dialogs,
+88 accepted bridged-transfer dialogs (24 Local-target and 64 PJSIP-target
+cases), and 24 bridged-call preservation dialogs, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
-accepted and preservation totals include 16 target-INVITE response-loss cases,
+previous full run passed all cases except the eight subsequently added
+CANCEL-response-loss cases; focused validation passed those eight plus all
+24 baseline answered/busy/timeout PJSIP cases across CLI-verified settings.
+The accepted and preservation totals include eight CANCEL-response-loss cases,
+16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
 and 16 terminal-NOTIFY acknowledgement-loss cases (eight first-only and
 eight permanent-loss cases) described below. The
@@ -405,6 +409,38 @@ outbound PJSIP ringing target and the original Local peer running `Echo()`,
 not only the earlier Local-target fixture retaining synthetic tones.
 The precise frame/callback causing the result remains uninstrumented;
 these observations are not a universal timeout mapping or target-success proof.
+
+### Lost outbound target CANCEL response recovery
+
+Eight additional accepted-transfer cases withhold both responses that would
+normally follow the ringing target's first CANCEL: CANCEL `200 OK` and the
+original INVITE's `487 Request Terminated`. They cover absent/false
+`Refer-Sub` under both advertisement and blind-progress settings. Active
+ringing signaling and the five-second Dial timeout remain unchanged.
+
+The peer records the first CANCEL without sending either response. Asterisk
+must retransmit CANCEL within two seconds with the identical parsed request
+line, complete headers (including branch, Call-ID, and CSeq), and body.
+Only then does the peer send CANCEL `200` and INVITE `487` and require a
+matching non-2xx ACK. All eight cases recovered after two identical CANCELs;
+the first retry arrived 0.475-0.501 seconds after initial receipt.
+
+Independent CEL still requires exactly one transfer, target execution,
+and correlated outbound PJSIP channel, no target answer/bridge,
+transferee `DIALSTATUS=NOANSWER`, and all four channels ending. REFER
+retransmission and existing progress checks also pass: normal-progress
+subscriptions report active `180` then terminal `200` despite NOANSWER,
+disabled progress reports early `200`, and no-subscription REFER returns
+`200` without observed NOTIFY. The target never answers or sends media.
+
+Focused regression also passed all 24 baseline PJSIP answered, busy, and
+timeout cases under both effective advertisement/progress settings and
+absent/false `Refer-Sub`; answered cases echoed 100/100 RTP payloads.
+The full runner includes the eight new loss cases for future full runs.
+This models a withheld response pair at the synthetic target's send
+boundary, not internal send failure, permanent cancellation-response loss,
+independent loss of only one response, transaction/reference cleanup, or
+production-trunk behavior.
 
 ### Lost outbound target INVITE response recovery
 

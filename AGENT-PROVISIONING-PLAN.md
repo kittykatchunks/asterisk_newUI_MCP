@@ -3849,6 +3849,24 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   not a socket-send error, permanent target-response loss, autonomous target
   2xx retransmission after ACK loss, reliable transport, internal
   response/transfer ordering, or transaction/reference cleanup.
+  Eight [outbound CANCEL-response-loss cases](./README.md#lost-outbound-target-cancel-response-recovery)
+  additionally withhold both CANCEL `200` and INVITE `487` after the first
+  CANCEL, under absent/false `Refer-Sub` and both advertisement/progress
+  settings. Asterisk must retry CANCEL within two seconds; its parsed
+  request line, complete headers (branch, Call-ID, and CSeq included), and
+  body must match before the peer sends both responses and verifies
+  non-2xx ACK. All eight recovered after two identical CANCELs, with the
+  retry at 0.475-0.501 seconds. Independent CEL still proves NOANSWER,
+  no target answer/bridge, one transfer/target execution and outbound
+  target channel, and all four channels ending. Existing REFER
+  retransmission/progress assertions pass, including success-shaped
+  terminal `200` despite NOANSWER. Focused regression also passed all
+  24 baseline PJSIP answered/busy/timeout cases under CLI-verified settings;
+  answered cases echoed 100/100 payloads. The full runner includes the
+  new cases, but was not rerun in full for this addition.
+  This is withheld peer-response-pair recovery, not internal send failure,
+  permanent cancellation-response loss, isolated loss of just one response,
+  transaction/reference cleanup, or production-trunk interoperability.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
