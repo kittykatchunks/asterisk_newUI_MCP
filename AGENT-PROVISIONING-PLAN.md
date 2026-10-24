@@ -3919,12 +3919,31 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   BUSY, no target answer/bridge, one transfer/target execution and outbound
   channel, and all four channels ending; REFER assertions remain unchanged.
   Focused regression also passed eight baseline busy and eight busy
-  final-response-loss cases. The current runner contains 112 accepted
-  transfers, 106 rejection/policy dialogs, and 24 preservation cases, but
-  was not rerun in full after this addition.
+  final-response-loss cases.
   This is receive-boundary ACK loss and recovery against a synthetic UAS
   timer, not internal Asterisk send failure, its own UAS retry timer,
   permanent ACK loss, transaction/reference destruction, or target media.
+  Eight [answered-target ACK-loss cases](./README.md#lost-answered-target-ack-recovery)
+  extend the shared fixture to target `200 OK`, retaining its complete
+  byte-identical response including SDP for the half-second retry timer.
+  Under absent/false `Refer-Sub` and both CLI-verified advertisement/progress
+  settings, the target discards the first received ACK and requires an
+  identical parsed ACK after response retransmission, within two seconds,
+  with exactly one received INVITE. The 2xx ACK must use a different Via
+  branch from INVITE and match the answered Contact and target To tag.
+  A 48-case focused matrix passed eight answered and eight busy ACK-loss,
+  16 final-response-loss, and 16 baseline answered/busy cases. After tightening
+  the branch-parameter comparison, all eight answered ACK-loss cases passed
+  again, recovering in 0.502-0.567 seconds and echoing 100/100 distinct RTP
+  payloads each before successful target-initiated BYE. Independent CEL
+  proves one transfer/target execution and outbound channel, target answer
+  and bridge, and all four channels ending; REFER assertions remain unchanged.
+  The current runner contains 120 accepted transfers (24 Local-target and
+  96 PJSIP-target), 106 rejection/policy dialogs, and 24 preservation cases;
+  the last complete run remains the 104-transfer suite above.
+  This is bounded receive-boundary 2xx ACK recovery against a synthetic UAS
+  timer, not internal send failure, Asterisk's own UAS retry timer, permanent
+  ACK loss, transaction/reference destruction, or production interoperability.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

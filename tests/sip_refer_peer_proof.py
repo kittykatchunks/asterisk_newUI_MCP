@@ -12,7 +12,7 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 class TransferPeer:
     def __init__(self, host, *, busy=False, noanswer=False, lose_first_final=False,
                  lose_cancel_responses=False, lose_cancel_ok=False, lose_invite_487=False,
-                 lose_busy_ack=False):
+                 lose_target_ack=False):
         require(not (busy and noanswer), "Target cannot be both busy and ringing")
         require(not (noanswer and lose_first_final),
                 "Final-response loss is limited to answered and busy targets")
@@ -20,8 +20,8 @@ class TransferPeer:
                 "CANCEL response loss needs a ringing target")
         require(sum((lose_cancel_responses, lose_cancel_ok, lose_invite_487)) <= 1,
                 "Select only one CANCEL response-loss mode")
-        require(not lose_busy_ack or (busy and not lose_first_final),
-                "Busy ACK loss needs a busy target without final-response loss")
+        require(not lose_target_ack or (not noanswer and not lose_first_final),
+                "ACK loss needs an answered or busy target without final-response loss")
         self.server = (socket.gethostbyname(host), 5060)
         self.sip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sip.connect(self.server)
@@ -51,12 +51,12 @@ class TransferPeer:
         self.next_487 = None
         self.retry_487_interval = 0.5
         self.sent_487_at = None
-        self.lose_busy_ack = lose_busy_ack
+        self.lose_target_ack = lose_target_ack
         self.discarded_ack = None
-        self.busy_response = None
-        self.next_busy_response = None
-        self.busy_retry_interval = 0.5
-        self.busy_response_retried_at = None
+        self.ack_response = None
+        self.next_ack_response = None
+        self.ack_retry_interval = 0.5
+        self.ack_response_retried_at = None
         self.discarded_ack_at = None
 
     def close(self):
@@ -86,16 +86,24 @@ class TransferPeer:
                     "Target ACK before recovery from withheld CANCEL responses")
             require(not self.lose_invite_487 or self.sent_487_at is not None,
                     "Target ACK before withheld INVITE 487 was retransmitted")
-            if self.lose_busy_ack:
+            if self.lose_target_ack:
+                if not self.busy:
+                    ack_branch = re.search(r";branch=([^;\s]+)", headers["via"][0])
+                    invite_branch = re.search(r";branch=([^;\s]+)", self.dialog["via"][0])
+                    require(ack_branch and invite_branch and ack_branch[1] != invite_branch[1],
+                            "2xx target ACK reused INVITE transaction branch")
+                    require(start.split()[1] == f"sip:proof-target@{self.ip}:{self.port}"
+                            and headers["to"] == [f"{self.dialog['to'][0]};tag={self.tag}"],
+                            "2xx target ACK did not match answered Contact/dialog")
                 message = (start, headers, body)
                 if self.discarded_ack is None:
                     self.discarded_ack = message
                     self.discarded_ack_at = time.monotonic()
                     return None
-                require(self.busy_response_retried_at is not None,
-                        "Repeated busy ACK before 486 retransmission")
+                require(self.ack_response_retried_at is not None,
+                        "Repeated target ACK before final-response retransmission")
                 require(message == self.discarded_ack,
-                        "Repeated busy ACK changed request line, headers, or body")
+                        "Repeated target ACK changed request line, headers, or body")
             self.acked = True
             if self.ack_received_at is None:
                 self.ack_received_at = time.monotonic()
@@ -172,14 +180,15 @@ class TransferPeer:
                          "Content-Type: application/sdp"]
         response += [f"Content-Length: {len(answer.encode())}", "", answer]
         packet = "\r\n".join(response).encode()
-        if self.lose_busy_ack and status == "486 Busy Here":
-            if self.busy_response is None:
-                self.busy_response = packet
-                self.next_busy_response = time.monotonic() + self.busy_retry_interval
+        if self.lose_target_ack and headers["cseq"][0].endswith(" INVITE") \
+                and int(status.split()[0]) >= 200:
+            if self.ack_response is None:
+                self.ack_response = packet
+                self.next_ack_response = time.monotonic() + self.ack_retry_interval
             else:
-                require(packet == self.busy_response, "Retransmitted 486 changed bytes")
-                if self.busy_response_retried_at is None:
-                    self.busy_response_retried_at = time.monotonic()
+                require(packet == self.ack_response, "Retransmitted target final response changed bytes")
+                if self.ack_response_retried_at is None:
+                    self.ack_response_retried_at = time.monotonic()
         if self.lose_invite_487 and status == "487 Request Terminated":
             if self.discarded_487 is None:
                 self.discarded_487 = packet
@@ -201,11 +210,14 @@ class TransferPeer:
         deadline = time.monotonic() + (12 if self.noanswer else 8)
         while (not self.acked or (self.lose_cancel_ok and len(self.cancel_receipts) < 2)) \
                 and time.monotonic() < deadline:
-            if self.next_busy_response is not None \
-                    and time.monotonic() >= self.next_busy_response:
-                self.respond("486 Busy Here", self.dialog)
-                self.busy_retry_interval = min(self.busy_retry_interval * 2, 4)
-                self.next_busy_response = time.monotonic() + self.busy_retry_interval
+            if self.next_ack_response is not None \
+                    and time.monotonic() >= self.next_ack_response:
+                require(self.ack_response is not None, "Missing target final response for retry")
+                self.sip.send(self.ack_response)
+                if self.ack_response_retried_at is None:
+                    self.ack_response_retried_at = time.monotonic()
+                self.ack_retry_interval = min(self.ack_retry_interval * 2, 4)
+                self.next_ack_response = time.monotonic() + self.ack_retry_interval
             if self.next_487 is not None and time.monotonic() >= self.next_487:
                 self.respond("487 Request Terminated", self.dialog)
                 self.retry_487_interval = min(self.retry_487_interval * 2, 4)
@@ -213,13 +225,15 @@ class TransferPeer:
             if select.select([self.sip], [], [], 0.05)[0]:
                 self.receive()
         require(self.acked, "Target did not receive INVITE and ACK")
-        if self.lose_busy_ack:
-            require(self.discarded_ack is not None and self.busy_response_retried_at is not None,
-                    "Missing discarded ACK or retransmitted 486")
+        if self.lose_target_ack:
+            require(self.discarded_ack is not None and self.ack_response_retried_at is not None,
+                    "Missing discarded ACK or retransmitted final response")
             delay = self.ack_received_at - self.discarded_ack_at
-            require(0 < delay < 2, f"Busy ACK recovery outside two seconds: {delay}")
-            require(len(self.invite_receipts) == 1, "Busy ACK recovery created another INVITE")
-            print(f"PASS discarded busy ACK: identical 486 retransmitted, "
+            require(0 < delay < 2, f"Target ACK recovery outside two seconds: {delay}")
+            require(len(self.invite_receipts) == 1, "Target ACK recovery created another INVITE")
+            outcome = "busy" if self.busy else "answered"
+            status = 486 if self.busy else 200
+            print(f"PASS discarded {outcome} ACK: identical {status} retransmitted, "
                   f"identical ACK recovered after {delay:.3f}s, one INVITE")
         if self.lose_first_final:
             require(self.discarded_final is not None and len(self.invite_receipts) >= 2,

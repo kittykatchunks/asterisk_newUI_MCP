@@ -130,9 +130,13 @@ preservation, and notification-loss regressions. Scenario totals were checked
 against the completed runner output; all correlated channel-cleanup assertions
 passed and the proof PBX was stopped without removing persistent volumes.
 Eight busy-target ACK-loss cases were subsequently added and passed focused
-validation with 16 existing busy-target cases. The current runner therefore
-contains 112 accepted-transfer cases (24 Local-target and 88 PJSIP-target);
-the complete suite was not rerun after this addition.
+validation with 16 existing busy-target cases. Eight answered-target ACK-loss
+cases were then added; a 48-case focused matrix passed answered/busy ACK loss,
+final-response loss, and baseline transfers across all effective settings.
+After tightening the 2xx ACK branch assertion, all eight answered ACK-loss
+cases passed again. The current runner therefore contains 120 accepted-transfer
+cases (24 Local-target and 96 PJSIP-target); the complete suite was not rerun
+after these additions.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -441,6 +445,32 @@ cases, but was not rerun in full for this addition.
 This tests Asterisk's ACK recovery against the synthetic peer's final-response
 retransmission timer, not Asterisk's own UAS retry timer, internal send errors,
 permanent ACK loss, transaction/reference destruction, or target media.
+
+### Lost answered-target ACK recovery
+
+Eight cases discard the first received ACK to the synthetic target's `200 OK`,
+under absent/false `Refer-Sub` and both CLI-verified advertisement/progress
+settings. The shared target ACK-loss fixture stores the complete final-response
+bytes, including SDP, and retransmits them after half a second with bounded
+backoff until ACK. Loss is injected after Asterisk sends the first ACK.
+
+The recovered ACK must match the first ACK's complete parsed request line,
+headers, and body, arrive after the response retry and within two seconds,
+and leave exactly one received target INVITE. Unlike the non-2xx case, its
+Via branch must differ from the INVITE branch; its Request-URI must match the
+answered Contact and its To header must carry the target's dialog tag.
+
+The 48-case focused matrix passed eight answered ACK-loss, eight busy ACK-loss,
+16 final-response-loss, and 16 baseline answered/busy cases. A subsequent
+eight-case rerun with the explicit branch-parameter comparison recovered in
+0.502-0.567 seconds; each echoed 100/100 distinct post-transfer RTP payloads
+and completed target-initiated BYE. Independent CEL verifies one transfer,
+target execution, outbound target channel, answered target bridge, and all
+four channels ending. Existing REFER progress/retransmission assertions pass.
+
+This is bounded 2xx ACK recovery against the synthetic UAS timer, not internal
+Asterisk send-error injection, its own UAS retry timer, permanent ACK loss,
+transaction/reference destruction, or production-trunk interoperability.
 
 ### Lost outbound target CANCEL response recovery
 
