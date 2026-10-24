@@ -3638,12 +3638,18 @@ destination on later requests
 ([class-specific header creation and method-only cache](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
 [header clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
 The cache lookup is by method, not Request-URI, while the cached Digest
-header's `uri` and response were generated for the original Request-URI.
-For a same-method request whose URI changes, verify whether the cloned header
-is reused unchanged and whether it is accepted; do not assume the digest is
-recomputed for the new URI
+header's `uri` and response were generated for the original Request-URI. For a
+same-method request whose URI changes, the qop-less cache-hit path shallow
+clones that cached header into the new request without regenerating its
+credentials; `PJSIP_AUTH_AUTO_SEND_NEXT` regeneration is reached only when no
+cached header for that method is found. Thus the new request can carry a
+Digest header whose `uri` and response still correspond to the old Request-URI.
+This is a source-confirmed construction result, not evidence the peer accepts
+the credential for the changed URI; confirm the deployed build options and
+capture the emitted header and peer response
 ([cached method key](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1237-L1256),
 [cached header clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1387-L1400),
+[cache-miss-only regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1408-L1422),
 [Digest URI assignment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L650-L672)).
 Separately, when both `PJSIP_AUTH_QOP_SUPPORT` and
 `PJSIP_AUTH_AUTO_SEND_NEXT` are enabled, initialization can regenerate a
