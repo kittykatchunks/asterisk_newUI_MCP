@@ -3764,16 +3764,19 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([pjproject challenge and retry ordering](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
   [Event-based transaction association](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1520-L1688),
   [Asterisk terminal fallback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1318-L1338)).
-  The pjproject reinitializer uses the supplied txdata in place. When a
-  matching prior Authorization header is classified stale, `process_auth()`
-  removes it before credential lookup and digest generation. If either fails,
-  the failed reinitialization does not restore that header. In the evsub
-  challenge path, the supplied txdata is `tsx->last_tx`; Asterisk's later
-  terminal-state fallback also creates its request from that `last_tx`.
-  Inspect the fallback input and emitted headers to confirm the effect of
-  failed internal auth processing rather than assuming the original
-  Authorization header remains present
-  ([pjproject stale-header removal](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675),
+  The pjproject reinitializer operates directly on its supplied txdata
+  (`tdata = old_request`), not on a clone. When a matching prior
+  Authorization header is classified stale, `process_auth()` removes it
+  before credential lookup and digest generation; if either fails, the failed
+  reinitialization does not restore it. The evsub supplies `tsx->last_tx`, and
+  Asterisk's terminal-state fallback passes that same `last_tx` to its
+  endpoint-auth helper. Thus when internal auth classifies the old header
+  stale and then fails, the fallback starts from the mutated request without
+  that header. This mutation and input identity are source-confirmed; runtime
+  validation should capture the fallback's actual emitted header set and
+  result
+  ([in-place reinitializer and challenge loop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1708-L1861),
+  [pjproject stale-header removal](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675),
   [evsub reinitialization input](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1875-L1914),
   [Asterisk fallback input](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1318-L1338)).
   There is a further source-derived retry-lifecycle hazard: this Asterisk retry
