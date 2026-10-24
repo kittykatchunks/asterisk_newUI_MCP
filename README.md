@@ -3956,9 +3956,12 @@ and result at runtime
 [Asterisk fallback input](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1318-L1338)).
 For multiple WWW/Proxy challenges, pjproject processes each challenge and
 continues after an unsupported or uncredentialed challenge. If it creates at
-least one Authorization header, it returns success and retries with only the
-headers it created; failures from the other challenges do not necessarily
-prevent that partial retry. There is an important same-realm interaction:
+least one Authorization header, it returns success and retries the mutated
+original request; failures from the other challenges do not necessarily prevent
+that partial retry. Existing Authorization headers that do not match a
+challenge's class, realm, and scheme can remain alongside newly created
+headers, so inspect the complete final header set. There is an important
+same-realm interaction:
 after one challenge adds a header, a later matching stale challenge in the
 same response can remove it before attempting replacement credentials. If
 that later attempt fails, the success count is not decremented, so
