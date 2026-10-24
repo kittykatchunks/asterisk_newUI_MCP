@@ -3683,9 +3683,10 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   same-key REFER retransmission, and all five channels ending. The
   no-subscription response is `200` with `Refer-Sub: false` and no NOTIFY;
   the subscribed response is `202` followed by terminal sipfrag `200`.
-  Transferer BYE also succeeds. This proves a bounded accepted local transfer,
-  not generation claims/fencing, an external PJSIP target, post-transfer RTP
-  quality, send-failure ordering, or PJSIP transaction/reference cleanup.
+  Transferer BYE also succeeds. These Local-target cases prove a bounded
+  accepted local transfer, not generation claims/fencing, send-failure
+  ordering, or PJSIP transaction/reference cleanup. The later synthetic
+  PJSIP-target cases below separately check target signaling and RTP echo.
   A two-second target-route delay makes the early-success distinction
   measurable: with `refer_blind_progress=no`, each subscribed case received
   terminal sipfrag `200` before CEL showed any target-leg `CHAN_START`.
@@ -3728,6 +3729,23 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   the collected evidence. This is bounded original-call preservation and
   inbound RTP delivery, not two-way audio quality, indefinite survival,
   or preservation after an accepted transfer's target later fails.
+  Eight [outbound PJSIP-target cases](./README.md#outbound-pjsip-target-and-post-transfer-rtp-proof)
+  now cover absent/false `Refer-Sub` and both advertisement/progress settings.
+  An isolated synthetic UDP peer answers the outbound INVITE with PCMU,
+  receives the matching ACK, and completes its own BYE. A pre-dial CEL marker
+  ties its distinct outbound Call-ID to the answered target channel and
+  the bridge shared with the original Local transferee. The Local peer runs
+  `Echo()`; at least 70 of 100 distinct synthetic RTP payloads must return
+  unchanged through that post-transfer bridge within three seconds.
+  All eight cases returned 100/100. Each also verifies exactly one transfer
+  and target execution despite retransmission, source dialog cleanup, and
+  all four correlated channels ending. Disabled-progress terminal `200`
+  still precedes target creation; target answer/bridge/media are independent
+  checks. The shared RTP checker passed the original two-customer
+  authentication, 100/100 echo, CEL, and recording regression as well.
+  This closes the synthetic outbound-PJSIP/media round-trip gap, not real
+  dispatch trunk interoperability, target authentication, TLS/SRTP,
+  production audio quality, long-call stability, or transaction lifetimes.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

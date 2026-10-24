@@ -70,6 +70,45 @@ def authorization(challenge, password, uri):
     return "Digest " + ", ".join(parts)
 
 
+def verify_rtp_echo(sip, rtp, call_id, receive_sip):
+    source = random.Random(call_id)
+    # Restrict bytes to moderate-amplitude PCMU values; no microphone or real audio.
+    payloads = [bytes(source.choice((0xC0, 0xD0, 0xE0, 0x40, 0x50, 0x60)) for _ in range(160))
+                for _ in range(100)]
+    received = set()
+    outbound = set()
+    sequence = 0
+    start = time.monotonic()
+    ssrc = source.getrandbits(32)
+    while time.monotonic() - start < 3:
+        elapsed = time.monotonic() - start
+        if sequence < len(payloads) and elapsed >= sequence * 0.02:
+            payload = payloads[sequence]
+            packet = struct.pack("!BBHII", 0x80, 0, sequence, sequence * 160, ssrc) + payload
+            rtp.send(packet)
+            outbound.add(payload)
+            sequence += 1
+        readable, _, _ = select.select([rtp, sip], [], [], 0.005)
+        for sock in readable:
+            if sock is sip:
+                receive_sip()
+                continue
+            data = sock.recv(4096)
+            require(len(data) >= 12 and data[0] >> 6 == 2, "Malformed RTP packet")
+            require(data[1] & 0x7F == 0, "Unexpected RTP payload type")
+            offset = 12 + 4 * (data[0] & 0x0F)
+            if data[0] & 0x10:
+                require(len(data) >= offset + 4, "Truncated RTP extension")
+                offset += 4 + 4 * struct.unpack("!H", data[offset + 2:offset + 4])[0]
+            end = len(data) - (data[-1] if data[0] & 0x20 else 0)
+            payload = data[offset:end]
+            if payload in outbound:
+                received.add(payload)
+    require(len(received) >= 70,
+            f"Only {len(received)}/100 distinct outbound PCMU frames echoed; require 70")
+    return len(received)
+
+
 class Probe:
     def __init__(self, host):
         self.server = (socket.gethostbyname(host), 5060)
@@ -157,45 +196,14 @@ class Probe:
         address = (connection[1], int(media[1]))
         require(address[0] == self.server[0], "Unexpected media host in local proof")
         self.rtp.connect(address)
-        source = random.Random(self.call_id)
-        # Restrict bytes to moderate-amplitude PCMU values; no microphone or real audio.
-        payloads = [bytes(source.choice((0xC0, 0xD0, 0xE0, 0x40, 0x50, 0x60)) for _ in range(160))
-                    for _ in range(100)]
-        received = set()
-        outbound = set()
-        sequence = 0
-        start = time.monotonic()
-        ssrc = source.getrandbits(32)
+        def receive_sip():
+            code, response, _ = parse_response(self.sip.recv(65535))
+            if code == 200 and response.get("cseq") == [f"{self.cseq} INVITE"]:
+                self.sip.send(self.request("ACK", uri=target))
+
         try:
-            while time.monotonic() - start < 3:
-                elapsed = time.monotonic() - start
-                if sequence < len(payloads) and elapsed >= sequence * 0.02:
-                    payload = payloads[sequence]
-                    packet = struct.pack("!BBHII", 0x80, 0, sequence, sequence * 160, ssrc) + payload
-                    self.rtp.send(packet)
-                    outbound.add(payload)
-                    sequence += 1
-                readable, _, _ = select.select([self.rtp, self.sip], [], [], 0.005)
-                for sock in readable:
-                    if sock is self.sip:
-                        code, response, _ = parse_response(sock.recv(65535))
-                        if code == 200 and response.get("cseq") == [f"{self.cseq} INVITE"]:
-                            self.sip.send(self.request("ACK", uri=target))
-                        continue
-                    data = sock.recv(4096)
-                    require(len(data) >= 12 and data[0] >> 6 == 2, "Malformed RTP packet")
-                    require(data[1] & 0x7F == 0, "Unexpected RTP payload type")
-                    offset = 12 + 4 * (data[0] & 0x0F)
-                    if data[0] & 0x10:
-                        require(len(data) >= offset + 4, "Truncated RTP extension")
-                        offset += 4 + 4 * struct.unpack("!H", data[offset + 2:offset + 4])[0]
-                    end = len(data) - (data[-1] if data[0] & 0x20 else 0)
-                    payload = data[offset:end]
-                    if payload in outbound:
-                        received.add(payload)
-            require(len(received) >= 70,
-                    f"Only {len(received)}/100 distinct outbound PCMU frames echoed; require 70")
-            print(f"PASS authenticated call, PCMU negotiation, and {len(received)}/100 distinct RTP frames echoed")
+            received = verify_rtp_echo(self.sip, self.rtp, self.call_id, receive_sip)
+            print(f"PASS authenticated call, PCMU negotiation, and {received}/100 distinct RTP frames echoed")
         finally:
             self.cseq += 1
             self.branch = "z9hG4bK" + uuid.uuid4().hex

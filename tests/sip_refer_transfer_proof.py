@@ -7,9 +7,11 @@ import re
 import select
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from sip_refer_proof import ReferProbe
+from sip_refer_peer_proof import TransferPeer
 from sip_rtp_proof import read_password, require
 
 
@@ -103,16 +105,20 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
 
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered"):
     probe = ReferProbe(host)
+    peer = TransferPeer(host) if outcome == "peer" else None
+    executor = ThreadPoolExecutor(max_workers=1) if peer else None
+    peer_result = None
     token = uuid.uuid4().hex
     prefix, target_name, dialstatus = {
         "answered": ("target", "answer", "ANSWER"),
         "busy": ("failed", "reject", "BUSY"),
         "timeout": ("timeout", "noanswer", "NOANSWER"),
         "unknown": ("missing", None, None),
+        "peer": ("peer", None, "ANSWER"),
     }[outcome]
-    rejected = outcome != "answered"
-    extension = f"{prefix}-{token}"
-    probe.uri = f"sip:bridge-{token}@{host}"
+    rejected = outcome in ("busy", "timeout")
+    extension = f"peer-{peer.port}-{token}" if peer else f"{prefix}-{token}"
+    probe.uri = f"sip:{'media' if peer else 'bridge'}-{token}@{host}"
     probe.to_value = f"<{probe.uri}>"
     try:
         code, headers, sdp = probe.invite(password)
@@ -136,7 +142,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
                 return None
             bridge_id = json.loads(source_entries[0]["extra"])["bridge_id"]
             return next((row for row in entries if row["uniqueid"] != source_id
-                         and row["channel"].startswith("Local/hold@refer-proof-")
+                         and row["channel"].startswith(
+                             "Local/echo@refer-proof-" if peer else "Local/hold@refer-proof-")
                          and json.loads(row["extra"])["bridge_id"] == bridge_id), None)
 
         transferee = wait_for(probe, "PJSIP/Local shared bridge", original_bridge)
@@ -145,6 +152,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
         extra_headers = [f"Refer-To: <sip:{extension}@{host}>"]
         if not subscribed:
             extra_headers.append("Refer-Sub: false")
+        if peer:
+            peer_result = executor.submit(peer.run)
         request = probe.request("REFER", uri=target, extra_headers=extra_headers)
         code, headers, _ = probe.exchange(request, "REFER")
         if outcome == "unknown":
@@ -167,7 +176,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
                             and row["event"] == "CHAN_START"
                             and row["channel"].startswith(
                                 ("Local/answer@refer-proof-", "Local/reject@refer-proof-",
-                                 "Local/noanswer@refer-proof-"))
+                                 "Local/noanswer@refer-proof-", "PJSIP/proof-client-"))
+                            and row["uniqueid"] != source_id
                             for row in events()),
                     "Target leg started before early NOTIFY observation")
             print("PASS refer_blind_progress=no: terminal NOTIFY 200 observed "
@@ -177,7 +187,9 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
             entries = [row for row in rows if row["linkedid"] == linkedid
                        and row["event"] == "BRIDGE_ENTER"]
             target_entries = [row for row in entries
-                              if row["channel"].startswith("Local/answer@refer-proof-")]
+                              if row["uniqueid"] != source_id
+                              and row["channel"].startswith(
+                                  "PJSIP/proof-client-" if peer else "Local/answer@refer-proof-")]
             return next((row for row in target_entries if any(
                 other["uniqueid"] == transferee["uniqueid"]
                 and json.loads(other["extra"])["bridge_id"]
@@ -211,7 +223,18 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
 
         related = wait_for(probe, "all correlated channels ending", settled)
         started = {row["uniqueid"] for row in related if row["event"] == "CHAN_START"}
-        require(len(started) == 5, f"Expected source and two Local pairs, found {len(started)} channels")
+        expected_channels = 4 if peer else 5
+        require(len(started) == expected_channels,
+                f"Expected {expected_channels} channels, found {len(started)}")
+        if peer:
+            frames = peer_result.result()
+            require(peer.dialog["call-id"] != [probe.call_id], "Target reused source SIP dialog")
+            require(sum(row["uniqueid"] == answered_target["uniqueid"]
+                        and user_event(row, "PROOF_REFER_PEER", peer.dialog["call-id"][0])
+                        for row in related) == 1,
+                    "Outbound SIP Call-ID does not match target bridge channel")
+            print(f"PASS outbound PJSIP target: independent INVITE/ACK/BYE, "
+                  f"{frames}/100 distinct post-transfer RTP frames echoed")
         if rejected:
             target_ids = {row["uniqueid"] for row in related
                           if row["channel"].startswith(f"Local/{target_name}@refer-proof-")}
@@ -259,9 +282,17 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
         print(f"PASS accepted {mode}, refer_blind_progress={blind_progress}: "
               f"REFER {refer_code}, original transferee reached target, "
               f"{result}, one BLINDTRANSFER after retransmission, "
-              "transferer BYE, all five channels ended")
+              f"transferer BYE, all {expected_channels} channels ended")
     finally:
-        probe.close()
+        if executor:
+            executor.shutdown(wait=True)
+        try:
+            if peer_result:
+                peer_result.result()
+        finally:
+            if peer:
+                peer.close()
+            probe.close()
 
 
 def main():
@@ -271,7 +302,7 @@ def main():
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for subscribed in (False, True):
-        for outcome in ("answered", "busy", "timeout", "unknown"):
+        for outcome in ("answered", "busy", "timeout", "unknown", "peer"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome)
 
 

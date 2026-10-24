@@ -18,6 +18,16 @@ function Assert-Match {
     if ($Actual -notmatch $Pattern) { throw "$Message`n$Actual" }
 }
 
+function Enable-ReferProofModules {
+    foreach ($module in @('res_pjsip_refer.so', 'func_cut.so')) {
+        Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', "module load $module") | Write-Host
+        $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', "module show like $module")
+        Assert-Match $modules "$([regex]::Escape($module))[^\r\n]+Running" "$module is not running."
+    }
+}
+
 $directory = Join-Path $root '.local-proof\customer-a'
 New-Item -ItemType Directory -Force -Path $directory | Out-Null
 $path = Join-Path $directory 'pjsip.conf'
@@ -47,11 +57,7 @@ try {
         $version = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
             'asterisk', '-rx', 'core show version')
         Assert-Match $version 'Asterisk 22\.11\.0' 'Unexpected Asterisk version.'
-        Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-            'asterisk', '-rx', 'module load res_pjsip_refer.so') | Write-Host
-        $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-            'asterisk', '-rx', 'module show like res_pjsip_refer.so')
-        Assert-Match $modules 'res_pjsip_refer\.so[^\r\n]+Running' 'REFER module is not running.'
+        Enable-ReferProofModules
         $settings = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
             'asterisk', '-rx', 'pjsip show settings')
         Assert-Match $settings "(?m)^\s*norefersub\s*:\s*$setting\s*$" "Expected norefersub=$setting."
@@ -69,11 +75,7 @@ try {
             [Text.UTF8Encoding]::new($false))
         Invoke-Docker -DockerArguments @('up', '-d', '--force-recreate', '--wait',
             '--wait-timeout', '90', 'customer-a') | Write-Host
-        Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-            'asterisk', '-rx', 'module load res_pjsip_refer.so') | Write-Host
-        $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-            'asterisk', '-rx', 'module show like res_pjsip_refer.so')
-        Assert-Match $modules 'res_pjsip_refer\.so[^\r\n]+Running' 'REFER module is not running.'
+        Enable-ReferProofModules
         $endpoint = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
             'asterisk', '-rx', 'pjsip show endpoint proof-client')
         Assert-Match $endpoint '(?m)^\s*allow_transfer\s*:\s*true\s*$' 'Transfers were not enabled.'
@@ -86,11 +88,7 @@ try {
             [Text.UTF8Encoding]::new($false))
         Invoke-Docker -DockerArguments @('up', '-d', '--force-recreate', '--wait',
             '--wait-timeout', '90', 'customer-a') | Write-Host
-        Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-            'asterisk', '-rx', 'module load res_pjsip_refer.so') | Write-Host
-        $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-            'asterisk', '-rx', 'module show like res_pjsip_refer.so')
-        Assert-Match $modules 'res_pjsip_refer\.so[^\r\n]+Running' 'REFER module is not running.'
+        Enable-ReferProofModules
         $endpoint = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
             'asterisk', '-rx', 'pjsip show endpoint proof-client')
         Assert-Match $endpoint '(?m)^\s*allow_transfer\s*:\s*false\s*$' 'Transfers were not disabled.'
