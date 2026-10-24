@@ -3631,6 +3631,14 @@ build option, method, and resulting header rather than treating request
 initialization as a counter reset alone
 ([header caching on Digest response](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
 [header reuse on request initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
+Separately, when both `PJSIP_AUTH_QOP_SUPPORT` and
+`PJSIP_AUTH_AUTO_SEND_NEXT` are enabled, initialization can regenerate a
+qop-auth Digest header for a later request from the cached challenge.
+`auth_respond()` runs the nonce-count update during that generation, so `nc`
+may advance on a fresh request rather than only on a 401/407 retry. Confirm
+both build options and inspect the generated header and `nc`
+([automatic qop-auth regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
+[nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810)).
 Each counter is scoped to a cached case-insensitive realm/algorithm pair, so
 multiple supported challenge pairs have independent stale-retry budgets rather
 than sharing one request-wide count
