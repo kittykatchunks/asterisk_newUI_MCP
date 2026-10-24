@@ -10,7 +10,7 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 
 
 class TransferPeer:
-    def __init__(self, host):
+    def __init__(self, host, *, busy=False):
         self.server = (socket.gethostbyname(host), 5060)
         self.sip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sip.connect(self.server)
@@ -21,6 +21,7 @@ class TransferPeer:
         self.dialog = None
         self.acked = False
         self.remote_ended = False
+        self.busy = busy
 
     def close(self):
         self.sip.close()
@@ -40,6 +41,9 @@ class TransferPeer:
             require(self.dialog is not None, "Target ACK before INVITE")
             require(headers["cseq"] == [self.dialog["cseq"][0].replace("INVITE", "ACK")],
                     "Unexpected target ACK CSeq")
+            if self.busy:
+                require(headers["via"] == self.dialog["via"],
+                        "Busy target ACK did not match INVITE transaction")
             self.acked = True
             return None
         answer = ""
@@ -60,7 +64,10 @@ class TransferPeer:
             )
         else:
             self.remote_ended = True
-        response = ["SIP/2.0 200 OK"]
+        if method == "INVITE" and self.busy:
+            answer = ""
+        response = ["SIP/2.0 486 Busy Here" if method == "INVITE" and self.busy
+                    else "SIP/2.0 200 OK"]
         for name in ("via", "from", "to", "call-id", "cseq"):
             value = headers[name][0]
             if name == "to" and ";tag=" not in value:
@@ -79,6 +86,9 @@ class TransferPeer:
             if select.select([self.sip], [], [], 0.05)[0]:
                 self.receive()
         require(self.acked, "Target did not receive INVITE and ACK")
+        if self.busy:
+            return 0
+
         def receive_sip():
             self.receive()
             require(not self.remote_ended, "Target ended before media proof")

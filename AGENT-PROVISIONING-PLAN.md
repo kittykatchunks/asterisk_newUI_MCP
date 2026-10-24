@@ -3798,6 +3798,21 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   destruction, reference-count cleanup, timeout-callback execution, or leak
   freedom. Permanent REFER-response loss, internal send errors, reliable
   transport, and indefinite silence remain outside this evidence.
+  Eight [outbound PJSIP busy-rejection cases](./README.md#outbound-pjsip-busy-rejection)
+  additionally reject the target INVITE with actual SIP `486 Busy Here`,
+  under absent/false `Refer-Sub` and both advertisement/progress settings.
+  The peer verifies the non-2xx ACK's Call-ID, CSeq number, and original
+  Via transaction branch. Its outbound Call-ID maps through the pre-dial CEL
+  marker to exactly one distinct target PJSIP channel, which never answers
+  or enters a bridge. The transferee ends with `DIALSTATUS=BUSY`; one matching
+  transfer/target execution occurs despite REFER retransmission, the source
+  dialog cleans up, and all four channels end. Subscribed REFER remains
+  `202`; normal-progress terminal sipfrag is `503` despite target SIP `486`,
+  while disabled progress reports early `200` before target creation.
+  No-subscription REFER remains `200` with `Refer-Sub: false` and no observed
+  NOTIFY despite the later rejection. This confirms the Local busy
+  observation with independent outbound SIP evidence, not a universal
+  failure mapping or a media proof for the unanswered target.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

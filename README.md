@@ -120,8 +120,8 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs, 48 accepted
-bridged-transfer dialogs (24 Local-target and 24 PJSIP-target cases), and
+On 24 October 2026, all 106 rejected-target/policy dialogs, 56 accepted
+bridged-transfer dialogs (24 Local-target and 32 PJSIP-target cases), and
 24 bridged-call preservation dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 accepted and preservation totals include 16 controlled lost-response cases
@@ -285,6 +285,7 @@ occur despite REFER retransmission. The fixture observes:
 | --- | --- | --- |
 | Answered target | `yes` | `200` |
 | Busy target, no answer | `yes` | `503` |
+| Outbound PJSIP target rejects INVITE with `486 Busy Here` | `yes` | `503` |
 | Ringing target that times out without answer | `yes` | Active `180`, then terminal `200` |
 | Any of these target outcomes | `no` | Early `200`, before target-leg creation |
 
@@ -346,6 +347,31 @@ This establishes bounded media round-trip delivery through a synthetic
 outbound PJSIP target, not a real dispatch trunk, production audio quality,
 TLS/SRTP, target authentication, long-call stability, generation fencing,
 or transaction/reference cleanup.
+
+### Outbound PJSIP busy rejection
+
+Eight additional accepted-transfer cases make the synthetic PJSIP peer
+reject its outbound INVITE with `486 Busy Here` instead of answering.
+They cover absent/false `Refer-Sub` under both advertisement and
+blind-progress settings, reusing the original Local echo transferee and
+the same two-second target-route delay.
+
+The peer verifies that the subsequent ACK has the INVITE Call-ID, matching
+CSeq number, and the original Via transaction branch. A CEL pre-dial marker
+correlates that outbound Call-ID to exactly one distinct target PJSIP
+channel. CEL must show no target ANSWER or BRIDGE_ENTER, the original
+transferee's `DIALSTATUS=BUSY`, exactly one matching `BLINDTRANSFER` and
+target execution despite REFER retransmission, and all four channels ending.
+There is no target media proof in these cases because the target never answers.
+
+The subscribed REFER returns `202`. With normal blind progress its terminal
+sipfrag is `503`, despite the target's actual SIP `486`; with progress disabled
+it is early `200` before target-channel creation. Without a subscription,
+REFER returns `200` with `Refer-Sub: false` and no observed NOTIFY despite
+the later target rejection. These results match the Local busy case but
+add independent outbound SIP rejection evidence. They are fixture-specific,
+not a universal SIP failure mapping or proof of target success from REFER
+acceptance. Source dialog cleanup also succeeds in every case.
 
 ### Lost final REFER response recovery
 
@@ -3886,9 +3912,11 @@ unknown target. The test confirms this response shape for that case only; it
 does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
 The later accepted bridged proof separately covers eight answered Local-target,
-eight busy-target, eight no-answer, and eight outbound PJSIP-target transfers.
-The latter additionally verifies correlated target signaling and post-transfer
-RTP echo; response-reference and transaction-lifetime measurements remain open.
+eight busy-target, eight no-answer, and outbound PJSIP-target transfers with
+both answered and SIP `486`-rejected outcomes, plus controlled loss cases.
+The answered PJSIP cases additionally verify correlated target signaling and
+post-transfer RTP echo; response-reference and transaction-lifetime measurements
+remain open.
 The repeatable proof additionally confirmed implicit-subscription `202`
 followed by terminal sipfrag `404`, successful same-key final-response
 retransmission, and BYE cleanup for the 48 unknown-target cases. An additional

@@ -129,7 +129,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             "NOTIFY acknowledgement loss needs a subscription")
     probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack,
                        lose_all_terminal_acks=lose_all_terminal_acks)
-    peer = TransferPeer(host) if outcome == "peer" else None
+    peer = TransferPeer(host, busy=outcome == "peer-busy") \
+        if outcome in ("peer", "peer-busy") else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
     token = uuid.uuid4().hex
@@ -139,8 +140,9 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
         "timeout": ("timeout", "noanswer", "NOANSWER"),
         "unknown": ("missing", None, None),
         "peer": ("peer", None, "ANSWER"),
+        "peer-busy": ("peer", None, "BUSY"),
     }[outcome]
-    rejected = outcome in ("busy", "timeout")
+    rejected = outcome in ("busy", "timeout", "peer-busy")
     extension = f"peer-{peer.port}-{token}" if peer else f"{prefix}-{token}"
     probe.uri = f"sip:{'media' if peer else 'bridge'}-{token}@{host}"
     probe.to_value = f"<{probe.uri}>"
@@ -245,7 +247,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             code, _, _ = probe.exchange(probe.request("BYE", uri=target), "BYE")
             require(code == 200, f"Transferer BYE failed: {code}")
         if subscribed:
-            expected_terminal = 503 if outcome == "busy" and blind_progress == "yes" else 200
+            expected_terminal = 503 if outcome in ("busy", "peer-busy") \
+                and blind_progress == "yes" else 200
             wait_for(probe, f"terminal NOTIFY {expected_terminal}", lambda rows: any(
                 state.split(";", 1)[0] == "terminated" and status == expected_terminal
                 for state, status in probe.notifications.values()))
@@ -267,16 +270,25 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
         if peer:
             frames = peer_result.result()
             require(peer.dialog["call-id"] != [probe.call_id], "Target reused source SIP dialog")
-            require(sum(row["uniqueid"] == answered_target["uniqueid"]
-                        and user_event(row, "PROOF_REFER_PEER", peer.dialog["call-id"][0])
-                        for row in related) == 1,
-                    "Outbound SIP Call-ID does not match target bridge channel")
-            print(f"PASS outbound PJSIP target: independent INVITE/ACK/BYE, "
-                  f"{frames}/100 distinct post-transfer RTP frames echoed")
+            peer_markers = [row for row in related if user_event(
+                row, "PROOF_REFER_PEER", peer.dialog["call-id"][0])]
+            require(len(peer_markers) == 1, "Expected one outbound SIP Call-ID marker")
+            peer_id = peer_markers[0]["uniqueid"]
+            require(peer_id != source_id and peer_markers[0]["channel"].startswith(
+                "PJSIP/proof-client-"), "Outbound SIP Call-ID does not identify a target channel")
+            if rejected:
+                print("PASS outbound PJSIP target: INVITE rejected with 486 Busy Here, "
+                      "matching transaction ACK, no answered target")
+            else:
+                require(peer_id == answered_target["uniqueid"],
+                        "Outbound SIP Call-ID does not match target bridge channel")
+                print(f"PASS outbound PJSIP target: independent INVITE/ACK/BYE, "
+                      f"{frames}/100 distinct post-transfer RTP frames echoed")
         if rejected:
-            target_ids = {row["uniqueid"] for row in related
-                          if row["channel"].startswith(f"Local/{target_name}@refer-proof-")}
-            require(len(target_ids) == 2, "Expected rejecting target Local pair")
+            target_ids = {peer_id} if peer else {
+                row["uniqueid"] for row in related
+                if row["channel"].startswith(f"Local/{target_name}@refer-proof-")}
+            require(len(target_ids) == (1 if peer else 2), "Unexpected rejecting target channels")
             require(not any(row["uniqueid"] in target_ids
                             and row["event"] in ("ANSWER", "BRIDGE_ENTER") for row in related),
                     "Rejecting target unexpectedly answered or bridged")
@@ -348,7 +360,7 @@ def main():
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for subscribed in (False, True):
-        for outcome in ("answered", "busy", "timeout", "unknown", "peer"):
+        for outcome in ("answered", "busy", "timeout", "unknown", "peer", "peer-busy"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome)
         for outcome in ("unknown", "peer"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
