@@ -3816,15 +3816,16 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   per-operation count and, while that count is below `MAX_RX_CHALLENGES`
   (defined as 10), asks the endpoint outbound-auth configuration to create a
   request from the transaction's `last_tx`. The counter increments before
-  request creation, and the condition is pre-increment `< 10`, so at most nine
-  eligible callbacks enter this Asterisk retry branch; failed request
-  construction still consumes a count. This branch-local threshold must not
+  checking endpoint availability or creating a request, and the condition is
+  pre-increment `< 10`, so at most nine qualifying callbacks enter this Asterisk
+  retry branch; a missing endpoint or failed request construction still
+  consumes a count. This branch-local threshold must not
   be described as nine sequential wire retries: because the first fallback is
   sent after termination and is skipped by the terminated no-event-id evsub
   association described above, its response may not re-enter this callback at
   all. The counter is not necessarily a ceiling on all wire attempts because
   pjproject has its separate challenge handling
-  ([limit definition](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L108),
+  ([limit definition](https://github.com/asterisk/asterisk/blob/22.11.0/include/asterisk/res_pjsip.h#L105-L108),
   [Asterisk retry branch](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
   Asterisk's endpoint-auth helper initializes a fresh stack-local
   `pjsip_auth_clt_sess` for each invocation before setting credentials and

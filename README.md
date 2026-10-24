@@ -3925,9 +3925,10 @@ repeated callbacks against Asterisk's separate
 [REFER callback limit](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
 If configured async auth is abandoned, pjproject instead reports a synthetic
 event, which Asterisk handles as terminal failure.
-Asterisk's counter allows at most nine callback retry attempts; it increments
-before request creation, so failed construction consumes the budget and fewer
-than nine retries may be sent. This is only a callback-branch threshold, not
+Asterisk's counter allows at most nine qualifying callback attempts; it
+increments before checking endpoint availability or creating a request, so a
+missing endpoint or failed construction consumes the budget and fewer than
+nine retries may be sent. This is only a callback-branch threshold, not
 necessarily a limit on sequential wire retries: the terminal-state retry may
 not remain associated with a live evsub, so its response may not reach
 Asterisk's callback. This does not bound pjproject's separate attempts.
