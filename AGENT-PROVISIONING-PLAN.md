@@ -3965,9 +3965,15 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   echoed 100/100 distinct RTP payloads and completed target-initiated BYE.
   Existing transaction/dialog, REFER, CEL outcome, exactly-once transfer/target,
   and four-channel cleanup assertions remain in force.
-  The current runner contains 136 accepted transfers (24 Local-target and
-  112 PJSIP-target), 106 rejection/policy dialogs, and 24 preservation cases;
-  the complete suite was not rerun after this addition.
+  The subsequent complete runner passed 136 accepted transfers (24 Local-target
+  and 112 PJSIP-target), 106 rejection/policy dialogs, 24 preservation cases,
+  and six additional branch/CSeq sequencing attempts. All 16 two-loss cases
+  passed alongside the existing regressions; answered recovery took
+  1.517-1.683 seconds and busy recovery took 1.507-1.544 seconds.
+  All 48 answered PJSIP-target cases echoed 100/100 distinct RTP payloads.
+  Totals were checked against completed runner output, all correlated
+  channel-cleanup assertions passed, and proof services stopped with
+  persistent data preserved.
   This is bounded recovery through two synthetic UAS retries, not permanent
   ACK loss, Asterisk's own UAS timer, internal send failure, transaction/reference
   destruction, or production interoperability.
