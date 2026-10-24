@@ -4104,10 +4104,17 @@ may leave another transaction registered and increase dialog-held resources.
 Measure repeated retries and prove every attempt is bounded or terminated;
 an operation latch prevents duplicate transfer work but does not by itself
 clean up leaked PJSIP transactions.
-The NULL-transaction response-send guard also returns before PJSIP releases
-the created transmit-data reference, while Asterisk ignores the error and
-does not release that buffer; inspect its reference/lifetime on the exact
-callback path before calling it a measured leak.
+For the `Refer-Sub: false` final-response path, if the callback's cloned
+request has no transaction module data, the source confirms a leaked response
+txdata reference: Asterisk creates the response and passes it with a NULL
+transaction, `pjsip_dlg_send_response()` returns `PJ_EINVAL` at its argument
+guard before its send-error decrement, and the caller ignores the result
+without releasing `tdata`. Runtime validation remains necessary to establish
+whether the deployed callback clone reaches this condition and to measure its
+operational impact
+([Asterisk response creation and send](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088),
+[response allocation/refcount](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L479-L523),
+[dialog send guard and decrement](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1642-L1713)).
 The same clone constraint applies to `pjsip_dlg_respond()`: it needs a dialog
 transaction and returns `PJ_EINVALIDOP` before response creation when the
 transaction is unavailable or belongs to a different dialog

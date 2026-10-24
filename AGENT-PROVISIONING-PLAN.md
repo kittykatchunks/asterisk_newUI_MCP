@@ -4377,9 +4377,11 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([response allocation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L479-L523),
   [send and release path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1642-L1713)).
   The Asterisk caller neither checks the result nor releases `tdata`, so if
-  the clone has no transaction, this path also appears to leave the response
-  buffer's initial reference outstanding. Confirm txdata reference/lifetime
-  behavior on the deployed callback before treating this as a measured leak.
+  the clone has no transaction, the source confirms the response buffer's
+  initial reference remains outstanding on this path. Runtime validation
+  needs to establish whether the deployed callback clone reaches this
+  condition and measure its operational impact
+  ([Asterisk response creation and send](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)).
   Consequently, source order permits the bridge transfer to be queued even
   though the REFER final response is not submitted; do not treat the absent
   response as proof that the operation was rejected or retry it as a new
