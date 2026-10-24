@@ -4060,23 +4060,36 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Since this failure precedes transaction creation, `pending_tsx` remains
   zero; pjproject's terminated-state path then destroys the evsub and releases
   the evsub-owned dialog session. Asterisk's REFER-object destructor also
-  calls `pjsip_dlg_dec_session()`. However, the traced outgoing REFER setup
-  does not show a matching explicit `pjsip_dlg_inc_session()` for that REFER
-  object: evsub creation separately increments its own dialog session, while
-  the REFER code stores the dialog pointer and later decrements a session.
-  The matching ownership/count for Asterisk's decrement remains unresolved,
-  so this trace does not confirm final dialog destruction. Neither cleanup
-  path releases the separate txdata reference
+  calls `pjsip_dlg_dec_session()`. The traced count sequence exposes a likely
+  mismatched decrement: UAC dialog creation starts from zeroed session state,
+  Asterisk's `ast_sip_create_dialog_uac()` only temporarily increments and
+  then drops `sess_count`, and evsub creation adds its own dialog session.
+  The REFER object stores the dialog pointer without a matching session
+  increment, but its destructor decrements a dialog session. On request-init
+  failure, `ao2_cleanup(refer)` runs before `pjsip_evsub_terminate(sub,
+  PJ_FALSE)`; the destructor's servant task executes inline on a servant or is
+  synchronously waited for, so that decrement finishes before the evsub
+  termination call. Source therefore suggests the REFER destructor can
+  consume the evsub's only session hold and destroy the dialog before
+  `pjsip_evsub_terminate()` next accesses `sub->dlg`. This is a
+  premature-dialog-destruction/use-after-free candidate, not a
+  runtime-confirmed crash; do not assert the exact failure manifestation
+  without runtime reproduction. These callbacks also do not release the
+  separate txdata reference
   ([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
+  [REFER-object dialog decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252),
+  [synchronous servant decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L2150-L2158),
+  [Asterisk temporary dialog session hold](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L998-L1074),
+  [zero-initialized dialog state](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L80-L130),
+  [evsub session increment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L935-L957),
+  [dialog destruction at zero sessions](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1040-L1084),
+  [evsub termination accesses dialog](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1077-L1097),
   [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
-  [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
-  [Asterisk REFER-object dialog decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252),
-  [evsub session increment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L935-L957)).
+  [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590)).
   Any Digest nonce-count changes during this failed request initialization are
   confined to its dialog auth session. Asterisk creates a new UAC dialog for
   each out-of-dialog REFER, so the changed `nc` is not carried into a later
-  REFER's newly created dialog, regardless of this dialog's unresolved final
-  destruction
+  REFER's newly created dialog, regardless of this dialog's final lifetime
   ([per-REFER dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1434),
   [dialog-owned auth-session initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L111-L128)).
   The cached qop mode is assigned only when its current value is
