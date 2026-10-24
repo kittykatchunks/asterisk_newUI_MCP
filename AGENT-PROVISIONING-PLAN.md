@@ -4066,6 +4066,15 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
   [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
   [Asterisk dialog reference release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
+  Any Digest nonce-count changes during this failed request initialization are
+  confined to its dialog auth session. Asterisk creates a new UAC dialog for
+  each out-of-dialog REFER, and pjproject deinitializes the dialog-owned auth
+  session when that dialog is destroyed. Consequently, the changed `nc` is
+  not carried into a later REFER's new dialog
+  ([per-REFER dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1434),
+  [dialog-owned auth-session initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L111-L128),
+  [dialog auth-session deinitialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L150-L160),
+  [Asterisk dialog session release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
   The cached qop mode is assigned only when its current value is
   `PJSIP_AUTH_QOP_NONE`; a later same-realm/algorithm challenge without qop
   does not reset it. With qop support and auto-send-next enabled, that

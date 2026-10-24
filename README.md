@@ -3731,6 +3731,15 @@ and dialog cleanup paths do not release the separate txdata reference
 [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
 [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
 [Asterisk dialog reference release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
+Any Digest nonce-count changes made while initializing this failed REFER are
+local to its dialog auth session: Asterisk creates a new UAC dialog for each
+out-of-dialog REFER, and dialog destruction deinitializes that dialog's auth
+session. Thus this initialization failure does not carry its updated `nc`
+into a later REFER's newly created dialog
+([per-REFER dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1434),
+[dialog-owned auth-session initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L111-L128),
+[dialog auth-session deinitialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L150-L160),
+[Asterisk dialog session release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
 The cached qop mode is set only while its value is `PJSIP_AUTH_QOP_NONE`; it
 is not reset when a later challenge for the same realm/algorithm omits qop.
 With qop support and auto-send-next enabled, that qop-less challenge can
