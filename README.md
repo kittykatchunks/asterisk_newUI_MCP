@@ -3688,6 +3688,14 @@ header
 ([lookup key](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L814-L840),
 [cache creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1771-L1796),
 [stale-state check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675)).
+For qop-enabled Digest, the shared entry also holds `cnonce`, `nc`, and the
+last challenge. Sequential same-realm/same-algorithm 401 and 407 challenges
+can therefore advance or reset the same nonce-count state even though each
+response produces a different Authorization header class. With an unchanged
+nonce the count advances; a changed nonce resets it. Capture `nc`, nonce, and
+header class independently across the proxy/server hop
+([shared qop state](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810),
+[challenge-class-specific header creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1220)).
 The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
 deployed value: the counter increments before its `>=` check, so the default
 allows two stale retries, and a third stale challenge ends pjproject's retry
