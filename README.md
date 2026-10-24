@@ -129,6 +129,10 @@ CANCEL `200` and INVITE `487` loss, alongside the rejection, transfer,
 preservation, and notification-loss regressions. Scenario totals were checked
 against the completed runner output; all correlated channel-cleanup assertions
 passed and the proof PBX was stopped without removing persistent volumes.
+Eight busy-target ACK-loss cases were subsequently added and passed focused
+validation with 16 existing busy-target cases. The current runner therefore
+contains 112 accepted-transfer cases (24 Local-target and 88 PJSIP-target);
+the complete suite was not rerun after this addition.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -411,6 +415,32 @@ outbound PJSIP ringing target and the original Local peer running `Echo()`,
 not only the earlier Local-target fixture retaining synthetic tones.
 The precise frame/callback causing the result remains uninstrumented;
 these observations are not a universal timeout mapping or target-success proof.
+
+### Lost busy-target ACK recovery
+
+Eight cases discard the first received ACK to the synthetic target's
+`486 Busy Here`, covering absent/false `Refer-Sub` under both CLI-verified
+advertisement/progress settings. Asterisk successfully sends that ACK;
+the loss is injected at the target's receive boundary.
+
+The target retransmits its byte-identical `486` after half a second, with
+bounded exponential backoff until ACK. The recovered ACK must match the
+discarded ACK's complete parsed request line, headers, and body, including
+the original INVITE transaction branch and CSeq number. It must arrive
+after the `486` retransmission and within two seconds of first ACK receipt.
+Exactly one target INVITE must have been received.
+
+All eight recovered in 0.502-0.548 seconds. Independent CEL still proves
+BUSY, no target answer/bridge, one transfer, target execution, and outbound
+channel, and all four channels ending. Existing REFER response,
+retransmission, and progress assertions remain unchanged. Focused validation
+also passed eight baseline busy cases and eight busy final-response-loss
+cases across the same effective settings; the full runner includes the new
+cases, but was not rerun in full for this addition.
+
+This tests Asterisk's ACK recovery against the synthetic peer's final-response
+retransmission timer, not Asterisk's own UAS retry timer, internal send errors,
+permanent ACK loss, transaction/reference destruction, or target media.
 
 ### Lost outbound target CANCEL response recovery
 

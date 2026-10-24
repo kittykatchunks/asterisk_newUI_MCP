@@ -126,11 +126,12 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
                  lose_response=False, lose_terminal_ack=False, lose_all_terminal_acks=False,
                  lose_target_response=False, lose_cancel_responses=False, lose_cancel_ok=False,
-                 lose_invite_487=False):
+                 lose_invite_487=False, lose_busy_ack=False):
     require(not (lose_terminal_ack or lose_all_terminal_acks) or subscribed,
             "NOTIFY acknowledgement loss needs a subscription")
     require(not lose_target_response or outcome in ("peer", "peer-busy"),
             "Target response loss needs an answered or busy PJSIP target")
+    require(not lose_busy_ack or outcome == "peer-busy", "Busy ACK loss needs a busy PJSIP target")
     require(not (lose_cancel_responses or lose_cancel_ok or lose_invite_487)
             or outcome == "peer-timeout",
             "CANCEL response loss needs a ringing PJSIP target")
@@ -139,7 +140,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
     peer = TransferPeer(host, busy=outcome == "peer-busy", noanswer=outcome == "peer-timeout",
                         lose_first_final=lose_target_response,
                         lose_cancel_responses=lose_cancel_responses,
-                        lose_cancel_ok=lose_cancel_ok, lose_invite_487=lose_invite_487) \
+                        lose_cancel_ok=lose_cancel_ok, lose_invite_487=lose_invite_487,
+                        lose_busy_ack=lose_busy_ack) \
         if outcome in ("peer", "peer-busy", "peer-timeout") else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
@@ -387,6 +389,8 @@ def main():
         for outcome in ("peer", "peer-busy"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
                          lose_target_response=True)
+        run_transfer(args.host, password, subscribed, args.blind_progress, "peer-busy",
+                     lose_busy_ack=True)
         run_transfer(args.host, password, subscribed, args.blind_progress, "peer-timeout",
                      lose_cancel_responses=True)
         run_transfer(args.host, password, subscribed, args.blind_progress, "peer-timeout",

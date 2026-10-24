@@ -3907,6 +3907,24 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This tests Asterisk's peer-visible recovery, not its UAS retransmission
   timer implementation, indefinite absence of CANCEL retries, internal
   transaction/refcount destruction, permanent `487` loss, or send errors.
+  Eight [busy-target ACK-loss cases](./README.md#lost-busy-target-ack-recovery)
+  additionally discard the first received ACK to actual target `486`, under
+  absent/false `Refer-Sub` and both CLI-verified advertisement/progress
+  settings. The synthetic target retransmits byte-identical `486` after
+  half a second with bounded backoff until ACK. The recovered ACK must
+  match the discarded parsed request line, complete headers/body and
+  original INVITE branch/CSeq, arrive after response retransmission and
+  within two seconds, and leave exactly one received target INVITE.
+  All eight recovered in 0.502-0.548 seconds. Independent CEL proves
+  BUSY, no target answer/bridge, one transfer/target execution and outbound
+  channel, and all four channels ending; REFER assertions remain unchanged.
+  Focused regression also passed eight baseline busy and eight busy
+  final-response-loss cases. The current runner contains 112 accepted
+  transfers, 106 rejection/policy dialogs, and 24 preservation cases, but
+  was not rerun in full after this addition.
+  This is receive-boundary ACK loss and recovery against a synthetic UAS
+  timer, not internal Asterisk send failure, its own UAS retry timer,
+  permanent ACK loss, transaction/reference destruction, or target media.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
