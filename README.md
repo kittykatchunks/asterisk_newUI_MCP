@@ -3776,27 +3776,23 @@ review of the txdata-list cleanup path
 ([pjproject option default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1544-L1548),
 [conditional list insertion](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L525-L530),
 [Asterisk bundled config](https://github.com/asterisk/asterisk/blob/22.11.0/third-party/pjproject/patches/config_site.h)).
-Subscription termination is expected on this branch: Asterisk releases its
-REFER object, clears the evsub module data, and terminates the subscription
-without notification. Because no request transaction was sent,
-the evsub has no pending transaction; pjproject's terminal-state cleanup then
-destroys it and decrements the evsub-owned dialog session. Asterisk's
-REFER-object destructor also calls `pjsip_dlg_dec_session()`. However, the
-traced count sequence exposes a likely mismatched decrement: UAC dialog
-creation starts from zeroed session state, Asterisk's
-`ast_sip_create_dialog_uac()` only temporarily increments and then drops
-`sess_count`, and evsub creation adds its own dialog session. The REFER object
-stores the dialog pointer without a matching session increment, but its
-destructor decrements a dialog session. On the request-init failure branch,
-`ao2_cleanup(refer)` runs before `pjsip_evsub_terminate(sub, PJ_FALSE)`; the
-destructor's servant task executes inline on a servant or is synchronously
-waited for, so that decrement finishes before the evsub termination call.
-Source therefore suggests the REFER destructor can consume the evsub's only
-session hold and destroy the dialog before `pjsip_evsub_terminate()` next
-accesses `sub->dlg`. This is a premature-dialog-destruction/use-after-free
-candidate, not a runtime-confirmed crash; do not assert the exact failure
-manifestation without a runtime reproduction. These callbacks also do not
-release the separate txdata reference
+Subscription cleanup is separate from the potentially unreturned txdata
+reference. On request-init failure, Asterisk releases the REFER object, clears
+the evsub module data, and terminates the subscription without notification.
+No request transaction was sent, so `pending_tsx` remains zero. The new UAC
+dialog's temporary Asterisk session hold has already been dropped, and evsub
+creation adds the only remaining dialog session hold. The REFER object stores
+the dialog pointer without acquiring another session, but its destructor
+calls `pjsip_dlg_dec_session()`. On this branch, `ao2_cleanup(refer)` runs
+before `pjsip_evsub_terminate(sub, PJ_FALSE)`; the destructor's servant task
+runs inline or is synchronously waited for. With the traced one-session,
+zero-transaction state, that decrement reaches zero and pjproject's dialog
+unlock path calls `unregister_and_destroy_dialog()` before the subsequent
+evsub termination accesses `sub->dlg`. The premature dialog destruction and
+resulting use-after-free sequence are source-confirmed for this state; runtime
+reproduction is still needed to establish whether the deployed build manifests
+a crash. This dialog-lifetime issue is distinct from the separate unreturned
+txdata reference; the same cleanup callbacks do not release that reference
 ([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
 [REFER-object dialog decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252),
 [synchronous servant decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L2150-L2158),

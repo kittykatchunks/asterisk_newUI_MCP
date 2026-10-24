@@ -4114,30 +4114,28 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   evsub module data, and terminates the subscription without notification.
   Since this failure precedes transaction creation, `pending_tsx` remains
   zero; pjproject's terminated-state path then destroys the evsub and releases
-  the evsub-owned dialog session. Asterisk's REFER-object destructor also
-  calls `pjsip_dlg_dec_session()`. The traced count sequence exposes a likely
-  mismatched decrement: UAC dialog creation starts from zeroed session state,
-  Asterisk's `ast_sip_create_dialog_uac()` only temporarily increments and
-  then drops `sess_count`, and evsub creation adds its own dialog session.
-  The REFER object stores the dialog pointer without a matching session
-  increment, but its destructor decrements a dialog session. On request-init
-  failure, `ao2_cleanup(refer)` runs before `pjsip_evsub_terminate(sub,
-  PJ_FALSE)`; the destructor's servant task executes inline on a servant or is
-  synchronously waited for, so that decrement finishes before the evsub
-  termination call. Source therefore suggests the REFER destructor can
-  consume the evsub's only session hold and destroy the dialog before
-  `pjsip_evsub_terminate()` next accesses `sub->dlg`. This is a
-  premature-dialog-destruction/use-after-free candidate, not a
-  runtime-confirmed crash; do not assert the exact failure manifestation
-  without runtime reproduction. These callbacks also do not release the
-  separate txdata reference
+  the evsub-owned dialog session. The new UAC dialog's temporary Asterisk
+  session hold has already been dropped, and evsub creation adds the only
+  remaining dialog session hold. The REFER object stores the dialog pointer
+  without acquiring another session, but its destructor calls
+  `pjsip_dlg_dec_session()`. On request-init failure,
+  `ao2_cleanup(refer)` runs before `pjsip_evsub_terminate(sub, PJ_FALSE)`; the
+  destructor's servant task runs inline or is synchronously waited for. With
+  the traced one-session, zero-transaction state, that decrement reaches zero
+  and pjproject's dialog unlock path calls `unregister_and_destroy_dialog()`
+  before the subsequent evsub termination accesses `sub->dlg`. The premature
+  dialog destruction and resulting use-after-free sequence are source-
+  confirmed for this state; runtime reproduction is still needed to establish
+  whether the deployed build manifests a crash. The evsub cleanup and
+  separate txdata reference remain distinct
   ([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
   [REFER-object dialog decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252),
   [synchronous servant decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L2150-L2158),
   [Asterisk temporary dialog session hold](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L998-L1074),
   [zero-initialized dialog state](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L80-L130),
   [evsub session increment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L935-L957),
-  [dialog destruction at zero sessions](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1040-L1084),
+  [dialog destruction at zero sessions](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1035-L1084),
+  [zero-session dialog unregister/destroy](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L884-L910),
   [evsub termination accesses dialog](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1077-L1097),
   [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
   [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590)).
