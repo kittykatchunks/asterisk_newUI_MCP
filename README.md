@@ -3662,6 +3662,13 @@ request separately before concluding that a challenge uses only one retry path
 [initial request auth initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1270),
 [evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
 [default stale retry count](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1244-L1249)).
+For a stale challenge that matches a prior Authorization header, pjproject
+increments and checks the stale counter before looking up credentials or
+generating a replacement digest. Missing credentials or a digest-generation
+error can therefore consume the internal stale budget without producing a
+replacement Authorization header; measure actual retries separately from
+counter advancement
+([stale check and credential processing](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675)).
 This retry budget is distinct from Digest qop `nc`: with qop enabled and the
 same nonce, `update_digest_session()` increments the nonce-count even when the
 challenge explicitly says `stale=true`; a changed nonce resets `nc` to 1.
