@@ -117,7 +117,8 @@ of `Supported: norefersub` on each INVITE `200`, and stops customer A between
 settings and in a `finally` block. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 68 authenticated in-dialog UDP cases passed. The
+On 24 October 2026, all 70 authenticated in-dialog UDP dialogs passed, with
+six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
 global advertisement settings. The baseline cases had these results:
@@ -153,9 +154,24 @@ retransmission, emitted no NOTIFY during one second, and accepted BYE.
 This confirms peer-visible early rejection for those inputs; the fixture
 does not instrument subscription allocation or operation claims.
 
-Every case sends an identical same-key REFER retransmission and checks the
-same final status, To tag, and `Refer-Sub` response, acknowledges NOTIFY requests, and ends the dialog
-with a successful BYE. The subscribed cases directly establish that this
+Two additional dialogs (one per advertisement setting) start with a
+no-subscription unknown-target REFER, then exercise transaction sequencing:
+
+| Next REFER attempt in that dialog | Final response |
+| --- | --- |
+| Same Via branch, higher CSeq | `400`, no `Refer-Sub` |
+| New Via branch, unchanged CSeq | `500`, no `Refer-Sub` |
+| New Via branch, higher CSeq | `404`, `Refer-Sub: false` |
+
+All six sequencing attempts emitted no NOTIFY during their one-second
+observation windows, and both dialogs accepted BYE. These wire results match
+the source-derived transaction/dialog rejection paths. They do not instrument
+supplement invocation counts or prove custom claim serialization.
+
+Every dialog's baseline REFER is retransmitted with the identical transaction
+key and checked for the same final status, To tag, and `Refer-Sub` response.
+The fixture acknowledges NOTIFY requests and ends every dialog with a
+successful BYE. The subscribed cases directly establish that this
 fixture can create the implicit subscription and send its `202`; the later
 failure NOTIFY does not make `202` target admission or transfer success.
 

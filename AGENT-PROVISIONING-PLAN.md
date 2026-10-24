@@ -4516,6 +4516,13 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   dialog's stateless `500` response path before session supplements
   ([branch/CSeq transaction handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L937-L998),
   [dialog CSeq check](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1782-L1803)).
+  The repeatable rejected-target proof now confirms these three wire results
+  under both `norefersub` settings: after a no-subscription REFER `404`,
+  same-branch/higher-CSeq returned `400`, new-branch/unchanged-CSeq returned
+  `500`, and new-branch/higher-CSeq returned the handler's `404` with
+  `Refer-Sub: false`. No NOTIFY appeared in each one-second window, and BYE
+  succeeded. Supplement invocation counts and custom claims were not
+  instrumented; those invariants still require their own proof.
   PJSIP holds the dialog lock across each usage callback, serializing those
   callbacks, but this does not prevent a valid later operation from arriving
   while the prior transfer is still pending. The admission owner still needs

@@ -98,9 +98,29 @@ class ReferProbe(Probe):
                     "Suppressed subscription emitted NOTIFY")
         require(not subscribed, "Missing terminal failure NOTIFY")
 
+    def verify_sequencing(self, target, extra_headers):
+        original_cseq = self.cseq
+        original_branch = self.branch
+        attempts = (
+            ("same branch with higher CSeq", original_cseq + 1, original_branch, 400),
+            ("new branch with unchanged CSeq", original_cseq, "z9hG4bK" + uuid.uuid4().hex, 500),
+            ("new branch with higher CSeq", original_cseq + 1, "z9hG4bK" + uuid.uuid4().hex, 404),
+        )
+        for label, cseq, branch, expected in attempts:
+            self.cseq = cseq
+            self.branch = branch
+            request = self.request("REFER", uri=target, extra_headers=extra_headers)
+            code, headers, _ = self.exchange(request, "REFER")
+            require(code == expected, f"{label}: expected {expected}, received {code}")
+            expected_header = ["false"] if code == 404 else None
+            require(headers.get("refer-sub") == expected_header,
+                    f"{label}: unexpected Refer-Sub response")
+            self.observe_notifications(False)
+            print(f"PASS REFER sequencing: {label} returned {code}, no NOTIFY")
+
 
 def run_case(host, password, *, label, values, subscribed, require_option, advertised,
-             refer_to=None):
+             refer_to=None, check_sequencing=False):
     probe = ReferProbe(host)
     target = None
     try:
@@ -145,6 +165,8 @@ def run_case(host, password, *, label, values, subscribed, require_option, adver
         setting = "yes" if advertised else "no"
         print(f"PASS norefersub={setting}, {label}{option}: "
               f"REFER {code}, same-key retransmission{result}")
+        if check_sequencing:
+            probe.verify_sequencing(target, extra_headers)
     finally:
         try:
             if target is not None:
@@ -172,6 +194,9 @@ def main():
             run_case(args.host, password, label=f"{label}, Refer-Sub {mode}",
                      values=values, subscribed=False, require_option=False,
                      advertised=args.norefersub == "yes", refer_to=targets)
+    run_case(args.host, password, label="transaction sequencing baseline",
+             values=("false",), subscribed=False, require_option=False,
+             advertised=args.norefersub == "yes", check_sequencing=True)
 
 
 if __name__ == "__main__":
