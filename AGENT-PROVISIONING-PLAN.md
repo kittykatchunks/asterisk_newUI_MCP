@@ -3795,9 +3795,12 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   does not clear module data or call the Asterisk REFER-object destructor.
   Therefore no cleanup for that initial AO2 reference or the destructor's
   dialog-session decrement is visible in the pinned source on this branch.
-  This is a source-derived object/dialog-session retention leak candidate
-  whenever fallback request creation succeeds, whether or not fallback send
-  succeeds; confirm runtime lifetimes and check downstream cleanup hooks
+  The missing cleanup is source-confirmed in the pinned control flow; the
+  resulting object/dialog-session retention is a leak candidate whenever
+  fallback request creation succeeds, whether or not fallback send succeeds.
+  Runtime validation should measure the retained object and dialog-session
+  lifetime; no downstream cleanup hook is visible in the pinned
+  Asterisk/pjproject paths
   ([Asterisk retry callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
   [REFER module-data setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1426-L1461),
   [REFER UAC no-event-id option](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L173-L200),
@@ -3806,8 +3809,8 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   [evsub destruction behavior](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
   [Asterisk retained-dialog destructor](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
   Runtime validation should capture the fallback's final response/timeout,
-  prove whether any callback observes it, track the REFER object's AO2 lifetime
-  and dialog session count, and check cleanup after both retry success and
+  prove whether any callback observes it, and measure the REFER object's AO2
+  lifetime and dialog session count after request creation and send success or
   failure.
   In Asterisk's callback, a received 401/407 for REFER increments its own
   per-operation count and, while that count is below `MAX_RX_CHALLENGES`

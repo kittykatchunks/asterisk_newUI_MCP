@@ -3622,11 +3622,13 @@ counted as pending while the terminal callback runs; when it later terminates,
 pjproject decrements the pending count and destroys the already-terminated
 evsub without another Asterisk state callback. `evsub_destroy()` does not
 clear module data or call the Asterisk REFER-object destructor. The retained
-REFER object therefore has no source-visible cleanup on this branch and its
-destructor's dialog-session decrement is not reached. This is a source-derived
-object/dialog-session retention leak candidate whenever fallback request
-creation succeeds, regardless of whether the fallback send succeeds; confirm
-runtime object and dialog lifetimes and check for downstream cleanup hooks
+REFER object therefore has no cleanup in the pinned source control flow on
+this branch, and its destructor's dialog-session decrement is not reached.
+The missing cleanup is source-confirmed; the resulting object/dialog-session
+retention is a leak candidate whenever fallback request creation succeeds,
+regardless of whether the fallback send succeeds. Runtime validation should
+measure the retained object and dialog-session lifetime; no downstream cleanup
+hook is visible in the pinned Asterisk/pjproject paths
 ([pjproject subscription lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1591-L1688),
 [Asterisk retry callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
 [REFER module-data setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1426-L1461),
