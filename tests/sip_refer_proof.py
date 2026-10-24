@@ -10,6 +10,22 @@ from pathlib import Path
 from sip_rtp_proof import Probe, parse_message, read_password, require
 
 
+REFER_SUB_CASES = (
+    ("absent", (), True),
+    ("false", ("false",), False),
+    ("uppercase false", ("FALSE",), False),
+    ("parameterized false", ("false;foo=bar",), False),
+    ("true", ("true",), True),
+    ("mixed-case true", ("TrUe",), True),
+    ("parameterized true", ("true;foo=bar",), True),
+    ("invalid true prefix", ("trueX",), True),
+    ("short invalid value", ("tru",), False),
+    ("empty value", ("",), False),
+    ("duplicate false then true", ("false", "true"), False),
+    ("duplicate true then false", ("true", "false"), True),
+)
+
+
 class ReferProbe(Probe):
     def __init__(self, host):
         super().__init__(host)
@@ -75,7 +91,7 @@ class ReferProbe(Probe):
         require(not subscribed, "Missing terminal failure NOTIFY")
 
 
-def run_case(host, password, *, subscribed, require_option, advertised):
+def run_case(host, password, *, label, values, subscribed, require_option, advertised):
     probe = ReferProbe(host)
     target = None
     try:
@@ -95,25 +111,25 @@ def run_case(host, password, *, subscribed, require_option, advertised):
         probe.cseq += 1
         probe.branch = "z9hG4bK" + uuid.uuid4().hex
         extra_headers = [f"Refer-To: <sip:missing-{uuid.uuid4().hex}@{host}>"]
-        if not subscribed:
-            extra_headers.append("Refer-Sub: false")
+        extra_headers.extend(f"Refer-Sub: {value}" for value in values)
         if require_option:
             extra_headers.append("Require: norefersub")
         request = probe.request("REFER", uri=target, extra_headers=extra_headers)
         code, headers, _ = probe.exchange(request, "REFER")
         expected = 202 if subscribed else 404
-        require(code == expected, f"Expected REFER {expected}, received {code}")
-        require(headers.get("refer-sub") == (None if subscribed else ["false"]),
-                "Unexpected Refer-Sub response header")
+        require(code == expected, f"{label}: expected REFER {expected}, received {code}")
+        expected_header = (["true"] if values else None) if subscribed else ["false"]
+        require(headers.get("refer-sub") == expected_header,
+                f"{label}: unexpected Refer-Sub response header: {headers.get('refer-sub')}")
         repeated, repeated_headers, _ = probe.exchange(request, "REFER")
-        require(repeated == code and repeated_headers.get("to") == headers.get("to"),
+        require(repeated == code and repeated_headers.get("to") == headers.get("to")
+                and repeated_headers.get("refer-sub") == expected_header,
                 "Same-key REFER retransmission changed final response")
         probe.observe_notifications(subscribed)
-        mode = "implicit subscription" if subscribed else "Refer-Sub: false"
         option = " with Require: norefersub" if require_option else ""
         result = " and terminal NOTIFY 404" if subscribed else " and no NOTIFY"
         setting = "yes" if advertised else "no"
-        print(f"PASS norefersub={setting}, {mode}{option}: "
+        print(f"PASS norefersub={setting}, Refer-Sub {label}{option}: "
               f"REFER {code}, same-key retransmission{result}")
     finally:
         try:
@@ -133,8 +149,8 @@ def main():
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for require_option in (False, True):
-        for subscribed in (False, True):
-            run_case(args.host, password, subscribed=subscribed,
+        for label, values, subscribed in REFER_SUB_CASES:
+            run_case(args.host, password, label=label, values=values, subscribed=subscribed,
                      require_option=require_option, advertised=args.norefersub == "yes")
 
 

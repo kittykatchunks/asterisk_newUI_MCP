@@ -117,9 +117,9 @@ of `Supported: norefersub` on each INVITE `200`, and stops customer A between
 settings and in a `finally` block. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all eight authenticated in-dialog UDP cases passed: the
-four rows below ran under each global advertisement setting with identical
-REFER/NOTIFY results.
+On 24 October 2026, all 48 authenticated in-dialog UDP cases passed: 12
+`Refer-Sub` forms, each with and without `Require: norefersub`, under both
+global advertisement settings. The baseline cases had these results:
 
 | Unknown-target REFER | Final response | Progress |
 | --- | --- | --- |
@@ -128,8 +128,24 @@ REFER/NOTIFY results.
 | `Require: norefersub` plus `Refer-Sub: false` | Same `404` response | No NOTIFY during a one-second observation |
 | `Require: norefersub`, no `Refer-Sub` | `202` | Same terminal failure NOTIFY |
 
+The extended header cases behaved identically across both settings and both
+`Require` forms:
+
+| `Refer-Sub` field value(s), in wire order | Final response | Progress |
+| --- | --- | --- |
+| `FALSE` or `false;foo=bar` | `404`, echo `false` | No NOTIFY during one second |
+| `true`, `TrUe`, `true;foo=bar`, or invalid `trueX` | `202`, echo `true` | Terminal sipfrag `404` |
+| Invalid `tru` or an empty field value | `404`, echo `false` | No NOTIFY during one second |
+| Two fields: `false` then `true` | `404`, echo `false` | No NOTIFY during one second |
+| Two fields: `true` then `false` | `202`, echo `true` | Terminal sipfrag `404` |
+
+These observations confirm the pinned handler's permissive four-character
+`true` prefix check and first-header selection. Accepting malformed/duplicate
+inputs in this fixture is descriptive, not the policy for a future admission
+gate; that gate must reject ambiguous or invalid inputs.
+
 Every case sends an identical same-key REFER retransmission and checks the
-same final status and To tag, acknowledges NOTIFY requests, and ends the dialog
+same final status, To tag, and `Refer-Sub` response, acknowledges NOTIFY requests, and ends the dialog
 with a successful BYE. The subscribed cases directly establish that this
 fixture can create the implicit subscription and send its `202`; the later
 failure NOTIFY does not make `202` target admission or transfer success.
@@ -3542,6 +3558,9 @@ case-insensitively with `true`; `trueX` enables it, while a short value such as
 values, or reject forms outside the explicitly supported set
 ([lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_msg.c#L374-L387),
 [value check](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L553-L569)).
+The repeatable rejected-target proof now confirms these branches for both
+advertisement settings, including mixed casing, valid extension parameters,
+`trueX`, `tru`, an empty value, and conflicting duplicates in both orders.
 Without a final 2xx echo, do not treat subscription suppression as negotiated.
 Asterisk advertises `Supported: norefersub` by default through the global
 `norefersub=yes` setting
@@ -3587,7 +3606,7 @@ does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
 The repeatable proof additionally confirmed implicit-subscription `202`
 followed by terminal sipfrag `404`, successful same-key final-response
-retransmission, and BYE cleanup for all eight rejected-target cases. These
+retransmission, and BYE cleanup for all 48 rejected-target cases. These
 results do not establish transaction resource counts or lifetime.
 Asterisk's out-of-dialog REFER client also compares the entire echoed header
 value to `false` rather than parsing RFC 4488 extension parameters. Thus a

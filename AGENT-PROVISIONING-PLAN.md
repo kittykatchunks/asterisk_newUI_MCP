@@ -3641,6 +3641,14 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   enabled, but neither setting produced a `420` for these required-option
   REFERs. Accepted transfers remain open; this result is not a general
   required-extension compliance proof.
+  The expanded proof also passed the full 48-case matrix (12 header forms,
+  with/without `Require`, under both settings). `FALSE` and
+  `false;foo=bar` suppressed subscriptions; `true`, `TrUe`, `true;foo=bar`,
+  and even invalid `trueX` enabled them and echoed `true`. Invalid `tru` and
+  empty values suppressed them. Conflicting duplicate fields used the first
+  value: `false` then `true` suppressed the subscription, while reversed
+  order enabled it. These are observed pinned-handler behaviors, not
+  permission for the admission gate to accept malformed or ambiguous input.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
