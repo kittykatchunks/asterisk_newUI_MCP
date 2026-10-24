@@ -507,6 +507,13 @@ adding more low-level SIP scenarios. Simulated booking integration follows that
 slice; real Autocab behavior must be based on the supplied API YAML and test access,
 not guessed provider operations.
 
+The selected next deliverable is now the
+[bounded customer/agent workflow specification](./MILESTONE-1.md#selected-next-increment-customer-and-agent-workflow):
+three screen responsibilities, explicit assignment/reservation/recovery states,
+and twelve acceptance checks (AW-01 through AW-12). Implement that UI increment
+using existing APIs before opening further scope. This specification is not a
+claim that the revised screens or acceptance checks are complete.
+
 - Customer setup and agent-console screen specifications.
 - Aggregate capacity, production sizing, and provider quotas.
 - IONOS networking/topology comparison.

@@ -575,6 +575,119 @@ or shell commands. Engineering access follows scoped support authorisation.
 An AI handover panel is reserved in the console design but not populated with
 fabricated AI content.
 
+### Selected next increment: customer and agent workflow
+
+Scope selected after freezing the synthetic REFER investigation: define a useful
+agent workspace around the existing application session, own assignment and device
+reservation APIs. This is a workflow specification, not evidence that the new UI
+has been implemented or that Milestone 1 is complete. The acceptance checklist
+below is the finite exit for the next UI increment; the broader M1 criteria remain
+separate.
+
+#### Three screen responsibilities
+
+| Screen | Next-increment behaviour | Explicitly excluded |
+|---|---|---|
+| Customer entry/sign-in | Open the customer-bound agent URL, identify the selected customer, use the existing fixed agent-workspace login, and show sign-in or session-connection failure with explicit retry. | Customer creation, membership administration, arbitrary runtime selection or switching customer inside an authenticated session. |
+| Own agent workspace | Show customer, agent display name and extension; explain the next available action; separate assignment, device reservation and disabled phone capability. Explicit refresh clears stale assignment data before loading. | Other agents' assignments, editable extensions, SIP secrets, registration, microphone requests, queue availability, call controls or invented call/booking data. |
+| Reservation and recovery | Within the workspace, expose explicit reserve, renew and release; show confirmed expiry, conflicts, uncertain outcomes and request references; explain reload, expiry and sign-out consequences. | Automatic acquisition, heartbeat, takeover, retry, release-on-close, provisioning, or treating a reservation as a connected phone. |
+
+The third responsibility is a workspace section, not a new route or modal
+requirement. Reuse the existing HTML/JavaScript and authenticated endpoints; do not
+introduce a frontend framework, database, new service or aggregate status API for
+this increment. Customer configuration and insert-only assignment provisioning stay
+operator-managed through existing tools. A future management-write UI requires a
+separate permission, conflict, validation and audit contract.
+
+#### Happy path and roaming boundary
+
+1. The agent opens `/agent/{customer}` and signs in through the existing
+   application-session flow. URL customer selection is not authorisation.
+2. The server verifies membership and `agent:access`; the UI loads only the
+   signed-in agent's own display name and extension. Identity remains
+   issuer + verified subject + customer, not extension or browser storage.
+3. The workspace explains that assignment is provisioned but phone capability
+   is disabled. The agent explicitly reserves the current page's device identity.
+4. A successful response shows the confirmed reservation expiry, capped by the
+   current application session and the existing 60-second limit. Renew is explicit.
+5. Before moving to another device/page, the agent explicitly releases, waits for
+   confirmation, then signs out. The new page gets a new device UUID and must
+   authenticate, load its assignment and acquire its own reservation.
+6. If release is not confirmed, do not promise that another page can acquire.
+   The second page may receive a conflict and must release at the owner or wait
+   for expiry. No takeover or automatic recovery is offered.
+
+This proves only reservation-level roaming, not moving an active call, SIP
+registration or queue membership. The future live-phone sign-out policy remains
+stop new offers, finish the current call, then release; this UI must not implement
+that policy by hanging up calls or imply it already exists.
+
+#### State and action contract
+
+Assignment and reservation are independent state dimensions. A failed assignment
+refresh must clear displayed profile data and prevent new acquisition, but must
+not discard an already-known lease handle needed for an explicit release attempt.
+All mutations remain subject to current server authorisation and assignment checks;
+the UI cannot guarantee release if those checks now deny it.
+
+| Observed state | User-visible meaning and allowed recovery |
+|---|---|
+| Session checking / signed out | No assignment or reservation is represented as confirmed. Sign in or explicitly retry session connection. |
+| Session unavailable / mismatched | Clear sensitive workspace data, show an actionable error and request reference where available. Do not retry in the background. |
+| Assignment loading / unavailable / forbidden / missing | Distinguish checking, connection failure, denied access and no provisioned assignment. Offer explicit refresh where the session permits it; never fabricate a profile. |
+| Assignment loaded, no confirmed reservation | Show own profile and explicit reserve. Phone remains disabled. |
+| Reservation request pending | Disable reservation actions to prevent duplicate concurrent mutations; retain context without declaring success. |
+| Reservation confirmed | Show server-confirmed expiry and explicit renew/release. This is not phone readiness or queue availability. |
+| Reservation conflict | Do not acquire or replace another owner; explain owner release or expiry and allow an explicit retry. |
+| Reservation change uncertain | Explain that the server may have applied it. Retain the same device identity and any known lease ID for explicit retry; no success-shaped fallback. |
+| Reservation expired locally | Remove confirmed reservation state and renewal/release controls for the expired ID. Explain that a new explicit acquisition checks server ownership. Local time alone is not PBX revocation evidence. |
+| Released | Show release only after a validated server response. A new acquisition is explicit. |
+| Session expired / confirmed sign-out | Clear assignment and local reservation data; late responses cannot restore them. Explain that server reservation release is not confirmed and may await expiry. |
+| Sign-out uncertain | Do not claim logout. Retain explicit retry and warn that the application session may still be active; do not extend the original session deadline. |
+
+#### Permissions, evidence and presentation
+
+- Session/customer binding, existing `agent:access`, own-assignment lookup, and
+  same-origin CSRF on mutations remain enforced by the backend. Browser controls
+  are not an access boundary; bearer-only lease mutations remain denied.
+- Display only existing allowlisted profile/lease fields. Use literal text for
+  identity and server-derived values; never render them as HTML or expose secrets.
+- A request reference helps investigation, not proof of success. Existing lease
+  mutation audit records are requested intents, not verified provisioning receipts.
+- Use semantic headings, labelled sections, status/alert announcements and
+  keyboard-operable controls. Instructions and next actions must not rely on colour.
+- Preserve the existing no-storage policy for page device/lease IDs and credentials.
+  Reload creates a new page identity; it must not silently restore ownership.
+
+#### Finite acceptance checklist for the next UI increment
+
+All items below start **pending implementation verification** for the revised
+workflow UI. Existing tests are reusable evidence inputs, not automatic passes.
+Use browser tests for presentation and race behaviour, existing backend tests for
+authorisation/ownership, and the existing local launcher proof for the real-session
+happy path. Add no new SIP scenarios.
+
+| ID | Required evidence |
+|---|---|
+| AW-01 | Customer entry identifies the customer; valid login returns only to the fixed agent workspace. Wrong-customer/session data is rejected and cleared. |
+| AW-02 | Own assignment renders literal hostile-text fixtures safely. Missing assignment, forbidden access and unavailable service have distinct guidance; no foreign profile is disclosed. |
+| AW-03 | Workspace separates assignment, reservation and disabled phone capability. No state displays ready/registered/available-to-queue merely because assignment or reservation exists. |
+| AW-04 | Landing and refresh cause no lease mutation. Reserve issues one explicit request; valid success displays the confirmed expiry and exposes renew/release. |
+| AW-05 | Renew retains device/lease identity and respects server session/60-second bounds. Local expiry clears confirmed state without automatic renewal, release or takeover. |
+| AW-06 | Confirmed release clears ownership display. Failed, lost or malformed acquire/renew/release responses show uncertainty and request references without false success; explicit retries retain applicable IDs. |
+| AW-07 | A second page/device cannot replace an unexpired owner. Explicit owner release or actual expiry permits a new lease; stale owner IDs cannot mutate its replacement. Cover with existing store/API tests and a browser conflict flow. |
+| AW-08 | Assignment refresh failure clears stale profile and blocks acquisition while preserving a known lease handle for attempted release. Backend denial is shown, not bypassed. |
+| AW-09 | Session expiry, 401 and confirmed logout clear workspace data. Held responses arriving afterward cannot restore profile/reservation; sign-out failure never claims success or extends session life. |
+| AW-10 | Cross-customer, missing-permission, bearer-only mutation and missing/invalid-CSRF cases remain denied by backend tests; the UI exposes no new administrative or PBX authority. |
+| AW-11 | Keyboard use can reach and operate visible actions; status/error text is discoverable through semantic roles. No SIP credential delivery, microphone access, registration, queue or calling request occurs. |
+| AW-12 | Existing real-session launcher flow demonstrates sign-in, own assignment, explicit reserve/renew/release and sign-out, with denied-user coverage. Record actual commands/results, limitations, and stopped proof services; typecheck and focused regressions pass. |
+
+Stop when AW-01 through AW-12 have recorded evidence or an explicit unresolved
+blocker. Fix defects in scope, but do not grow this checklist with unrelated
+telephony experiments. The next decision is whether to open the separately gated
+phone-activation work or specify the simulated booking workflow; neither is
+implicitly approved by completing this UI increment.
+
 ## 5. Proposed acceptance criteria
 
 Tests use synthetic numbers/names and documented expected outcomes. Record actual
