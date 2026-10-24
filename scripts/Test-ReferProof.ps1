@@ -28,22 +28,33 @@ if (-not (Test-Path -LiteralPath $path)) {
         [Text.UTF8Encoding]::new($false))
 }
 
-Invoke-Docker -DockerArguments @('config', '--quiet') | Out-Null
+$referDirectory = Join-Path $root '.local-proof\refer'
+New-Item -ItemType Directory -Force -Path $referDirectory | Out-Null
+$baseConfig = Get-Content -Raw -LiteralPath (Join-Path $root 'local\asterisk\pjsip.conf')
+Assert-Match $baseConfig '(?m)^\[global\]\s*$' 'Missing proof global configuration section.'
 try {
-    Invoke-Docker -DockerArguments @('up', '-d', '--force-recreate', '--wait',
-        '--wait-timeout', '90', 'customer-a') | Write-Host
-    $version = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-        'asterisk', '-rx', 'core show version')
-    Assert-Match $version 'Asterisk 22\.11\.0' 'Unexpected Asterisk version.'
-    Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-        'asterisk', '-rx', 'module load res_pjsip_refer.so') | Write-Host
-    $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-        'asterisk', '-rx', 'module show like res_pjsip_refer.so')
-    Assert-Match $modules 'res_pjsip_refer\.so[^\r\n]+Running' 'REFER module is not running.'
-    $settings = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
-        'asterisk', '-rx', 'pjsip show settings')
-    Assert-Match $settings '(?m)^\s*norefersub\s*:\s*yes\s*$' 'Expected default norefersub=yes.'
-    Invoke-Docker -DockerArguments @('run', '--rm', '--no-deps', 'refer-test-a') | Write-Host
+    foreach ($setting in @('yes', 'no')) {
+        $config = $baseConfig.Replace('[global]', "[global]`nnorefersub = $setting").Replace("`r`n", "`n")
+        [IO.File]::WriteAllText((Join-Path $referDirectory 'pjsip.conf'), $config,
+            [Text.UTF8Encoding]::new($false))
+        Invoke-Docker -DockerArguments @('config', '--quiet') | Out-Null
+        Invoke-Docker -DockerArguments @('up', '-d', '--force-recreate', '--wait',
+            '--wait-timeout', '90', 'customer-a') | Write-Host
+        $version = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'core show version')
+        Assert-Match $version 'Asterisk 22\.11\.0' 'Unexpected Asterisk version.'
+        Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'module load res_pjsip_refer.so') | Write-Host
+        $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'module show like res_pjsip_refer.so')
+        Assert-Match $modules 'res_pjsip_refer\.so[^\r\n]+Running' 'REFER module is not running.'
+        $settings = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'pjsip show settings')
+        Assert-Match $settings "(?m)^\s*norefersub\s*:\s*$setting\s*$" "Expected norefersub=$setting."
+        Invoke-Docker -DockerArguments @('run', '--rm', '--no-deps', 'refer-test-a',
+            '--host', 'customer-a', '--norefersub', $setting) | Write-Host
+        Invoke-Docker -DockerArguments @('stop', 'customer-a') | Write-Host
+    }
 }
 finally {
     Invoke-Docker -DockerArguments @('stop', 'customer-a') | Write-Host

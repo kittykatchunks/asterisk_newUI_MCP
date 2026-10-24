@@ -3603,7 +3603,8 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Asterisk rejects or ignores a request containing `Refer-Sub: false`. Verify
   actual behavior with the option both enabled and disabled, separately
   capturing `Supported`, response status/header, and transfer/subscription
-  effects; treat this as source-derived until tested on the deployed build.
+  effects. The local rejected-target fixture now covers both settings; repeat
+  on any different deployed build.
   RFC 4488 says `Require: norefersub` should be used only when recipient
   capability is known, and RFC 3261 requires a 420 with `Unsupported` when a
   UAS does not support a required option
@@ -3629,14 +3630,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   REFER handler processes it. Do not infer required-extension compliance
   solely from presence or absence of `Supported: norefersub`.
   The repeatable [rejected-target proof](./README.md#rejected-target-refer-proof)
-  passed with the default `norefersub=yes`: with and without `Require`,
+  passed under both `norefersub=yes` and `norefersub=no`: with and without `Require`,
   `Refer-Sub: false` returned `404` with no NOTIFY during one second, while
   the ordinary implicit-subscription path returned `202` and a terminal
-  sipfrag `404` (`terminated;reason=noresource`). All four cases returned the
+  sipfrag `404` (`terminated;reason=noresource`). All eight cases returned the
   same final status and To tag on a same-key retransmission and ended with
   BYE `200`. This directly demonstrates subscription creation/acceptance for
   those local cases, not successful transfer or resource-lifetime accounting.
-  `norefersub=no` and accepted transfers remain open.
+  The INVITE `200` advertised `Supported: norefersub` only with the option
+  enabled, but neither setting produced a `420` for these required-option
+  REFERs. Accepted transfers remain open; this result is not a general
+  required-extension compliance proof.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

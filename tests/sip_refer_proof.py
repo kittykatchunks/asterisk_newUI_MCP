@@ -75,12 +75,17 @@ class ReferProbe(Probe):
         require(not subscribed, "Missing terminal failure NOTIFY")
 
 
-def run_case(host, password, *, subscribed, require_option):
+def run_case(host, password, *, subscribed, require_option, advertised):
     probe = ReferProbe(host)
     target = None
     try:
         code, headers, _ = probe.invite(password)
         require(code == 200, f"Authenticated INVITE failed: {code}")
+        supported = {option.strip().lower()
+                     for value in headers.get("supported", [])
+                     for option in value.split(",")}
+        require(("norefersub" in supported) == advertised,
+                f"Unexpected Supported: norefersub advertisement: {supported}")
         probe.to_value = headers["to"][0]
         contact = re.fullmatch(r"<([^>]+)>", headers["contact"][0])
         require(contact is not None, "Unexpected dialog Contact")
@@ -107,7 +112,9 @@ def run_case(host, password, *, subscribed, require_option):
         mode = "implicit subscription" if subscribed else "Refer-Sub: false"
         option = " with Require: norefersub" if require_option else ""
         result = " and terminal NOTIFY 404" if subscribed else " and no NOTIFY"
-        print(f"PASS {mode}{option}: REFER {code}, same-key retransmission{result}")
+        setting = "yes" if advertised else "no"
+        print(f"PASS norefersub={setting}, {mode}{option}: "
+              f"REFER {code}, same-key retransmission{result}")
     finally:
         try:
             if target is not None:
@@ -122,12 +129,13 @@ def run_case(host, password, *, subscribed, require_option):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", required=True)
+    parser.add_argument("--norefersub", required=True, choices=("yes", "no"))
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for require_option in (False, True):
         for subscribed in (False, True):
             run_case(args.host, password, subscribed=subscribed,
-                     require_option=require_option)
+                     require_option=require_option, advertised=args.norefersub == "yes")
 
 
 if __name__ == "__main__":

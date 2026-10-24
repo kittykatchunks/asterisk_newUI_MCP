@@ -110,11 +110,16 @@ shared between these two modes and preserved.
 This uses [compose.refer-proof.yaml](./compose.refer-proof.yaml), reuses or
 generates customer A's ignored synthetic endpoint credentials, and force-recreates
 only customer A. It interrupts that PBX's synthetic calls. The runner waits for
-health, checks Asterisk 22.11.0 and `norefersub=yes`, explicitly loads
-`res_pjsip_refer`, and stops customer A in a `finally` block. No host ports or
+health, checks Asterisk 22.11.0, explicitly loads `res_pjsip_refer`, and tests
+both `norefersub=yes` and `norefersub=no` using an ignored proof-only
+configuration mount. It verifies both the CLI setting and the presence/absence
+of `Supported: norefersub` on each INVITE `200`, and stops customer A between
+settings and in a `finally` block. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all four authenticated in-dialog UDP cases passed:
+On 24 October 2026, all eight authenticated in-dialog UDP cases passed: the
+four rows below ran under each global advertisement setting with identical
+REFER/NOTIFY results.
 
 | Unknown-target REFER | Final response | Progress |
 | --- | --- | --- |
@@ -130,8 +135,8 @@ fixture can create the implicit subscription and send its `202`; the later
 failure NOTIFY does not make `202` target admission or transfer success.
 
 This fixture does not bridge two parties or prove an accepted transfer,
-response-send failure behavior, transaction/reference lifetime, reliable
-transport, or `norefersub=no`. Its negative NOTIFY assertion is bounded by the
+response-send failure behavior, transaction/reference lifetime, or reliable
+transport. Its negative NOTIFY assertion is bounded by the
 one-second window. The existing SIP/RTP probe also passed after the shared
 message-parser/header changes, echoing 100/100 synthetic frames.
 
@@ -3561,9 +3566,11 @@ No automatic 420 can be assumed from those paths.
 Test `Require: norefersub` with and without `Refer-Sub: false` under both
 global settings, and capture any 420/`Unsupported` before progress.
 The repeatable [rejected-target proof](#rejected-target-refer-proof) now covers
-both forms with `norefersub=yes`: neither returned `420`; they followed the
+both forms under both settings: none returned `420`; they followed the
 same `404` no-subscription or `202` plus terminal failure-NOTIFY paths as
-requests without `Require`. The disabled setting remains untested.
+requests without `Require`. The INVITE responses separately confirmed that
+`Supported: norefersub` was present only when the setting was enabled. This
+is evidence for this pinned fixture, not general required-option compliance.
 RFC 3261 requires that response when a UAS does not support a required option
 ([Require rules](https://www.rfc-editor.org/rfc/rfc3261.html#section-8.2.2.3)).
 Do not infer required-option behavior only from `Supported` advertisement.
@@ -3580,7 +3587,7 @@ does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
 The repeatable proof additionally confirmed implicit-subscription `202`
 followed by terminal sipfrag `404`, successful same-key final-response
-retransmission, and BYE cleanup for all four rejected-target cases. These
+retransmission, and BYE cleanup for all eight rejected-target cases. These
 results do not establish transaction resource counts or lifetime.
 Asterisk's out-of-dialog REFER client also compares the entire echoed header
 value to `false` rather than parsing RFC 4488 extension parameters. Thus a
