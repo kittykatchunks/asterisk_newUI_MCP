@@ -151,6 +151,9 @@ The eight BYE-loss cases were subsequently strengthened to gate retry on all
 four correlated channel ends. A 40-case focused matrix passed that ordering
 check and related answered-target regressions. The complete suite then passed
 again with the strengthened ordering check enabled; scenario totals are unchanged.
+A later eight-case extension sends a new BYE transaction after recovery.
+It passed alongside eight baseline cases in focused validation; the full
+suite was not rerun after that extension, and transfer totals are unchanged.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -568,6 +571,32 @@ This is bounded response recovery at the target receive boundary after call
 teardown, not proof that SIP dialogs/transactions are destroyed at channel end,
 internal send-error injection, transaction/reference destruction,
 permanent BYE-response loss, or production-trunk interoperability.
+
+### New BYE transaction after channel end
+
+The eight ordering-gated BYE-loss cases now also send a new BYE with a fresh
+Via branch and CSeq `2 BYE` after recovering the original CSeq `1 BYE` response.
+The Call-ID, dialog tags and Request-URI remain unchanged. This distinguishes
+a new request transaction from an identical retransmission of the original BYE.
+The fixture sends that new request again and requires the complete parsed
+final response to remain identical, with the new branch, Call-ID and CSeq.
+Each response exchange has a two-second deadline and half-second request retries.
+
+An initial `481` expectation failed: the pinned runtime returned `200 OK`.
+All eight CLI-verified advertisement/progress/subscription combinations then
+consistently returned `200` for the new transaction and its identical retry.
+The 16-case focused run passed those eight extensions and eight baseline
+answered transfers; every case echoed 100/100 distinct RTP payloads.
+Correlated CEL remained unchanged through both original-response recovery
+and the new BYE transaction/retry.
+
+Pinned pjproject 2.17's
+[disconnected-state handler](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L6241-L6273)
+explicitly handles incoming BYE with `200 OK`. That is consistent with this
+wire result, but the exact runtime dispatch path is not instrumented here.
+Neither channel end nor a success response to a later BYE proves an active
+media call, dialog destruction, transaction destruction, reference-count
+cleanup, or the eventual response after all SIP retention timers expire.
 
 ### Lost outbound target CANCEL response recovery
 

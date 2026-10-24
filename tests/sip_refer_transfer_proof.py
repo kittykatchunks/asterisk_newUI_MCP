@@ -293,7 +293,7 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             frames = peer_result.result()
             if lose_target_bye_response:
                 require([row for row in events() if row["linkedid"] == linkedid] == related,
-                        "Correlated CEL changed during post-channel-end BYE response recovery")
+                        "Correlated CEL changed during post-channel-end BYE recovery/new transaction")
                 print("PASS target BYE retry after four channel ends: settled CEL unchanged")
             require(peer.dialog["call-id"] != [probe.call_id], "Target reused source SIP dialog")
             peer_markers = [row for row in related if user_event(

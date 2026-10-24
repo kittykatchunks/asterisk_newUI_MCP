@@ -368,5 +368,48 @@ class TransferPeer:
                             print(f"PASS discarded target BYE response: identical BYE retried, "
                                   f"identical 200 recovered after {delay:.3f}s; "
                                   f"{after_end:.3f}s after all channel ends observed")
+                            self.verify_post_channel_bye(request, branch)
                         return received
         raise RuntimeError("Timed out awaiting target BYE response")
+
+    def verify_post_channel_bye(self, original_bye, original_branch):
+        branch = "z9hG4bK" + uuid.uuid4().hex
+        request = original_bye.replace(original_branch.encode(), branch.encode()).replace(
+            b"CSeq: 1 BYE\r\n", b"CSeq: 2 BYE\r\n")
+        first_response = None
+        for attempt in range(2):
+            deadline = time.monotonic() + 2
+            next_send = 0
+            while time.monotonic() < deadline:
+                if time.monotonic() >= next_send:
+                    self.sip.send(request)
+                    next_send = time.monotonic() + 0.5
+                if not select.select([self.sip], [], [], 0.05)[0]:
+                    continue
+                response = self.receive()
+                if response is None:
+                    continue
+                code, headers, message = response
+                require(headers.get("call-id") == self.dialog["call-id"],
+                        "Post-channel-end BYE response changed Call-ID")
+                if headers.get("cseq") == ["1 BYE"]:
+                    require(code == 200, "Original BYE retry changed final status")
+                    continue
+                require(headers.get("cseq") == ["2 BYE"],
+                        "Unexpected post-channel-end BYE response CSeq")
+                vias = headers.get("via", [])
+                response_branch = re.search(r";branch=([^;\s]+)", vias[0]) \
+                    if len(vias) == 1 else None
+                require(response_branch and response_branch[1] == branch,
+                        "Post-channel-end BYE response changed transaction branch")
+                require(code == 200, f"New BYE after channel end returned {code}, not 200")
+                if attempt == 0:
+                    first_response = message
+                else:
+                    require(message == first_response,
+                            "Retried post-channel-end BYE changed final response")
+                break
+            else:
+                raise RuntimeError("Timed out awaiting post-channel-end BYE 200")
+        print("PASS post-channel-end new BYE: new branch/higher CSeq returned 200, "
+              "identical request retry recovered identical 200 after original BYE recovery")

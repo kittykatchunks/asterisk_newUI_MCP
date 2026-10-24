@@ -4022,6 +4022,25 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   send failure, transaction/reference destruction, permanent BYE-response loss,
   or production interoperability. Channel end is not proof of SIP
   dialog/transaction destruction.
+  The eight BYE-loss cases were further extended with a
+  [new post-channel-end BYE transaction](./README.md#new-bye-transaction-after-channel-end)
+  after original-response recovery: fresh Via branch, CSeq `2 BYE`, and
+  unchanged Call-ID, dialog tags and Request-URI. Its identical request retry
+  must recover an identical parsed final response matching that new branch
+  and CSeq. Each exchange is bounded to two seconds with half-second retries.
+  Initial validation rejected a `481` expectation because the actual result
+  was `200 OK`. All eight effective-setting/subscription combinations then
+  consistently returned `200` for the new transaction and its retry.
+  The 16-case focused matrix passed those eight extensions plus eight baseline
+  answered transfers, all echoing 100/100 RTP payloads. Correlated CEL remained
+  unchanged through original recovery and the new transaction/retry.
+  Pinned pjproject's
+  [disconnected-state handler](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_inv.c#L6241-L6273)
+  explicitly answers incoming BYE with `200`, consistent with this result;
+  the exact runtime dispatch path remains uninstrumented. This does not
+  establish an active media call, dialog/transaction destruction, refcount
+  cleanup or behavior after retention timers expire. Transfer totals remain
+  unchanged; the complete suite was not rerun after this extension.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
