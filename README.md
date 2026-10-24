@@ -3677,13 +3677,21 @@ may advance on a fresh request rather than only on a 401/407 retry. Confirm
 both build options and inspect the generated header and `nc`
 ([automatic qop-auth regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
 [nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810)).
-The initialization paths also handle failures differently: the qop-less
-`new_auth_for_req()` result is ignored, and a missing qop-auth credential
-skips that cache entry, while an `auth_respond()` error in the qop-auth path
-is returned immediately. Verify request-initialization status and final
-headers for each case; the cached entry alone does not establish that
-Authorization was attached
-([qop-less regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1390-L1415),
+The initialization paths also handle failures differently. On a qop-less
+cache miss, `new_auth_for_req()` generates a header against the current
+Request-URI and adds it directly only after successful credential lookup and
+digest generation. Its status is ignored by `pjsip_auth_clt_init_req()`;
+missing credentials, a missing previous challenge, or an `auth_respond()`
+error therefore does not itself fail request initialization and leaves that
+auth entry without a generated Authorization header. This remains true when
+header caching is disabled, where every qop-less entry takes the regeneration
+path. By contrast, a missing qop-auth credential skips that cache entry, while
+an `auth_respond()` error in the qop-auth path is returned immediately. These
+are source-confirmed status/header-construction differences; runtime
+validation need only establish deployed build options and the resulting
+request or wire headers
+([qop-less generator and direct header add](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1278-L1308),
+[ignored cache-miss status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1392-L1422),
 [qop-auth regeneration and errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460)).
 Because that qop-auth error returns from inside the cache loop, entries later
 in the list have not yet had their stale counters reset, and any headers
