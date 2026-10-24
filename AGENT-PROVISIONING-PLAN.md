@@ -4028,8 +4028,15 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
   Each failed request leaves its txdata object and separately allocated pool
   with the initial reference outstanding, so repeated failures can accumulate
-  retained txdata/pools. The source trace does not establish whether endpoint
-  or allocator teardown reclaims these unreleased allocations.
+  retained txdata/pools while the PJSIP module remains loaded. Asterisk
+  destroys its pjproject caching pool during `res_pjsip` unload, and
+  pjproject's caching-pool teardown explicitly frees pools still on its used
+  list. That teardown therefore reclaims the otherwise-unreleased pools:
+  this is runtime/module-lifetime retention, not an allocation shown to
+  persist beyond teardown
+  ([Asterisk PJSIP unload and cache destruction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L3793-L3832),
+  [pjproject caching-pool destroy](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L97-L129),
+  [active pools added to the used list](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L134-L218)).
   The subscription cleanup is a separate lifecycle from the potentially
   unreturned txdata reference. Asterisk releases the REFER object, clears the
   evsub module data, and terminates the subscription without notification.

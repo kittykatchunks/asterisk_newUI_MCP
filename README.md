@@ -3693,8 +3693,15 @@ allocation persists in a running endpoint
 [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
 Each failed request therefore leaves its txdata object and separately
 allocated pool with the initial reference outstanding; repeated occurrences
-can accumulate retained txdata/pools. The source trace does not establish
-whether endpoint or allocator teardown reclaims these unreleased allocations.
+can accumulate retained txdata/pools while the PJSIP module remains loaded.
+Asterisk destroys its pjproject caching pool during `res_pjsip` unload, and
+pjproject's caching-pool teardown explicitly frees pools still on its used
+list, so that teardown reclaims these otherwise-unreleased pools. This is
+therefore a runtime/module-lifetime retention issue, not an allocation shown
+to persist beyond that teardown
+([Asterisk PJSIP unload and cache destruction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L3793-L3832),
+[pjproject caching-pool destroy](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L97-L129),
+[active pools added to the used list](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L134-L218)).
 Separate subscription/dialog cleanup is expected on this branch: Asterisk
 releases its REFER object, clears the evsub module data, and terminates the
 subscription without notification. Because no request transaction was sent,
