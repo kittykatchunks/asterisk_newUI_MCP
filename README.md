@@ -120,12 +120,13 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs, 44 accepted
-bridged-transfer dialogs (24 Local-target and 20 PJSIP-target cases), and
-20 bridged-call preservation dialogs passed, with
+On 24 October 2026, all 106 rejected-target/policy dialogs, 48 accepted
+bridged-transfer dialogs (24 Local-target and 24 PJSIP-target cases), and
+24 bridged-call preservation dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 accepted and preservation totals include 16 controlled lost-response cases
-and eight terminal-NOTIFY acknowledgement-loss cases described below. The
+and 16 terminal-NOTIFY acknowledgement-loss cases (eight first-only and
+eight permanent-loss cases) described below. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
 global advertisement settings. The baseline cases had these results:
@@ -402,6 +403,37 @@ This establishes bounded UDP terminal-notification retry after a deliberately
 withheld peer acknowledgement. It does not establish permanent-loss timeout
 cleanup, subscription/transaction reference lifetimes, reliable-transport
 behavior, or failure of an internal Asterisk send operation.
+
+### Permanently withheld terminal NOTIFY acknowledgements
+
+Eight further subscribed cases never acknowledge a terminal NOTIFY, covering
+an unknown target and an answered synthetic PJSIP target under both
+advertisement/progress settings. Active progress requests and BYE are still
+acknowledged. Every terminal retry must match the original parsed request
+line, complete header map (including branch and CSeq), and body.
+
+The source SIP socket remains open for 40 seconds from first terminal
+receipt, including after the source dialog and all correlated channels have
+ended. Each case requires at least six identical terminal requests, the last
+receipt between 20 and 35 seconds, and at least five seconds of final
+silence. The verified cases observed 11 identical requests each, with the
+last approximately 31.5 seconds after the first. These are receive-boundary
+timings on this pinned UDP fixture, not exact internal timer measurements.
+
+Before that observation completes, the unknown-target cases prove original
+bridge preservation and ten fresh inbound RTP packets, then successful
+client BYE and all three channels ending. The accepted cases independently
+prove one transfer/target execution, one answered outbound PJSIP dialog,
+post-transfer RTP echo, and all four channels ending. The complete correlated
+CEL rows must remain unchanged throughout the remaining retry observation:
+no delayed channel or transfer work may appear after the channels settle.
+
+This establishes bounded retry cessation on the wire and channel cleanup
+despite permanently withheld terminal acknowledgements. It does not inspect
+subscription objects, PJSIP transaction state, reference counts, or timeout
+callbacks, and therefore does not prove their destruction or leak freedom.
+It also does not cover permanent REFER-response loss, internal send errors,
+reliable transport, or indefinite absence of later traffic.
 
 ## Browser WSS and encrypted WebRTC proof
 

@@ -3779,6 +3779,25 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This proves bounded UDP retry after a withheld peer acknowledgement,
   not permanent-loss timeout cleanup, subscription/transaction reference
   lifetimes, reliable transport, or internal send failures.
+  Eight [permanent terminal-acknowledgement-loss cases](./README.md#permanently-withheld-terminal-notify-acknowledgements)
+  separately never acknowledge a terminal request, covering unknown-target
+  and answered PJSIP-target transfers under both advertisement/progress
+  settings. Active progress and BYE remain acknowledged. Every terminal
+  retry must match the complete original parsed message. The source socket
+  stays open for 40 seconds from first terminal receipt, after dialog/channel
+  cleanup as well. Each case requires at least six identical requests,
+  the last between 20 and 35 seconds, and at least five seconds of final
+  silence. The verified cases observed 11 requests each, ending at about
+  31.5 seconds. Rejected cases first prove original bridge/inbound RTP
+  preservation and end all three channels; accepted cases prove one
+  transfer/target execution, an answered outbound PJSIP dialog and RTP echo,
+  and all four channels ending. The complete correlated CEL rows remain
+  unchanged through the rest of the retry observation.
+  This proves bounded wire retry cessation and channel cleanup despite
+  permanently withheld acknowledgements, not subscription/transaction
+  destruction, reference-count cleanup, timeout-callback execution, or leak
+  freedom. Permanent REFER-response loss, internal send errors, reliable
+  transport, and indefinite silence remain outside this evidence.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

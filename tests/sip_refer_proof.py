@@ -35,14 +35,16 @@ INVALID_TARGET_CASES = (
 
 
 class ReferProbe(Probe):
-    def __init__(self, host, *, lose_terminal_ack=False):
+    def __init__(self, host, *, lose_terminal_ack=False, lose_all_terminal_acks=False):
         super().__init__(host)
         self.notifications = {}
         self.remote_ended = False
-        self.lose_terminal_ack = lose_terminal_ack
+        self.lose_terminal_ack = lose_terminal_ack or lose_all_terminal_acks
+        self.lose_all_terminal_acks = lose_all_terminal_acks
         self.unacknowledged_terminal = None
         self.terminal_retry_acked = False
         self.terminal_received_at = None
+        self.terminal_receipts = []
 
     def receive(self):
         start, headers, body = parse_message(self.sip.recv(65535))
@@ -71,6 +73,7 @@ class ReferProbe(Probe):
                     "Retransmitted NOTIFY changed its result")
             self.notifications[key] = value
             if self.lose_terminal_ack and value[0].split(";", 1)[0] == "terminated":
+                self.terminal_receipts.append(time.monotonic())
                 message = (start, headers, body)
                 if self.unacknowledged_terminal is None:
                     self.unacknowledged_terminal = message
@@ -78,6 +81,8 @@ class ReferProbe(Probe):
                     return None
                 require(message == self.unacknowledged_terminal,
                         "Retransmitted terminal NOTIFY changed transaction, headers, or body")
+                if self.lose_all_terminal_acks:
+                    return None
         self.sip.send("\r\n".join(response).encode())
         if method == "BYE":
             self.remote_ended = True

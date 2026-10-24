@@ -41,6 +41,26 @@ def user_event(row, name, value):
     return json.loads(row["extra"]).get("extra") == value
 
 
+def verify_notify_retry_window(probe, linkedid):
+    require(probe.terminal_received_at is not None, "Missing unacknowledged terminal NOTIFY")
+    before = [row for row in events() if row["linkedid"] == linkedid]
+    deadline = probe.terminal_received_at + 40
+    while time.monotonic() < deadline:
+        if select.select([probe.sip], [], [], max(0, min(0.1, deadline - time.monotonic())))[0]:
+            probe.receive()
+    require(not probe.terminal_retry_acked, "Permanent-loss case acknowledged a terminal NOTIFY")
+    receipts = probe.terminal_receipts
+    require(len(receipts) >= 6, f"Expected repeated terminal NOTIFY attempts, found {len(receipts)}")
+    last = receipts[-1] - receipts[0]
+    require(20 <= last < 35, f"Last terminal NOTIFY outside 20-35s window: {last}")
+    require(time.monotonic() - receipts[-1] >= 5, "Terminal NOTIFY retries did not become quiet")
+    after = [row for row in events() if row["linkedid"] == linkedid]
+    require(after == before, "Correlated channel/transfer CEL changed after channels settled")
+    print(f"PASS permanently withheld terminal NOTIFY acknowledgements: "
+          f"{len(receipts)} identical requests, last at {last:.3f}s, "
+          "40s observation with at least 5s final silence; settled CEL unchanged")
+
+
 def verify_preserved_call(probe, target, request, code, headers, source, transferee, sdp,
                           subscribed, blind_progress):
     require(code == (202 if subscribed else 404), f"Unexpected unknown-target REFER: {code}")
@@ -104,9 +124,11 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
 
 
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
-                 lose_response=False, lose_terminal_ack=False):
-    require(not lose_terminal_ack or subscribed, "NOTIFY acknowledgement loss needs a subscription")
-    probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack)
+                 lose_response=False, lose_terminal_ack=False, lose_all_terminal_acks=False):
+    require(not (lose_terminal_ack or lose_all_terminal_acks) or subscribed,
+            "NOTIFY acknowledgement loss needs a subscription")
+    probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack,
+                       lose_all_terminal_acks=lose_all_terminal_acks)
     peer = TransferPeer(host) if outcome == "peer" else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
@@ -173,6 +195,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             if lose_terminal_ack:
                 print("PASS lost terminal NOTIFY acknowledgement: rejected transfer "
                       "preserved original bridge and RTP")
+            if lose_all_terminal_acks:
+                verify_notify_retry_window(probe, linkedid)
             return
         require(code == (202 if subscribed else 200), f"Unexpected accepted REFER: {code}")
         require(headers.get("refer-sub") == (None if subscribed else ["false"]),
@@ -303,6 +327,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
         if lose_terminal_ack:
             print("PASS lost terminal NOTIFY acknowledgement: one transfer and target "
                   "execution, outbound dialog and RTP echo, all channels ended")
+        if lose_all_terminal_acks:
+            verify_notify_retry_window(probe, linkedid)
     finally:
         if executor:
             executor.shutdown(wait=True)
@@ -330,6 +356,8 @@ def main():
             if subscribed:
                 run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
                              lose_terminal_ack=True)
+                run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
+                             lose_all_terminal_acks=True)
 
 
 if __name__ == "__main__":
