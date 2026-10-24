@@ -3614,13 +3614,25 @@ Asterisk's initial `SENT` subscription state does not enter its later
 callback can expose the original challenge to Asterisk's separate endpoint-auth
 retry. That retry is initiated after the subscription is already terminated;
 pjproject skips terminated no-event-id UAC subscriptions when associating
-transactions, so the retry response may not reach the REFER callback. The
-Asterisk callback also leaves its module-data reference in place on the retry
-branch; verify dialog-session cleanup instead of assuming the response or
-cleanup is observed
+transactions, so the retry response does not get that subscription's state
+callback. When Asterisk successfully creates fallback txdata, its callback
+`goto out` leaves `res` clear and does not release the initial AO2 reference
+stored as evsub module data. The original challenged transaction remains
+counted as pending while the terminal callback runs; when it later terminates,
+pjproject decrements the pending count and destroys the already-terminated
+evsub without another Asterisk state callback. `evsub_destroy()` does not
+clear module data or call the Asterisk REFER-object destructor. The retained
+REFER object therefore has no source-visible cleanup on this branch and its
+destructor's dialog-session decrement is not reached. This is a source-derived
+object/dialog-session retention leak candidate whenever fallback request
+creation succeeds, regardless of whether the fallback send succeeds; confirm
+runtime object and dialog lifetimes and check for downstream cleanup hooks
 ([pjproject subscription lookup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1591-L1688),
 [Asterisk retry callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
-[retained-dialog destructor](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
+[REFER module-data setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1426-L1461),
+[retained-dialog destructor](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252),
+[pending transaction and subscription destruction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2433-L2467),
+[evsub destruction behavior](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590)).
 This association gap applies to Asterisk's terminal fallback, not
 pjproject's own dialog-auth retry: pjproject attempts that retry before
 terminating the evsub, so its new transaction can still be associated by

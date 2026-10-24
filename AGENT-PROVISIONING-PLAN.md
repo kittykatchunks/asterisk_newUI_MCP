@@ -3782,23 +3782,29 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   `pjsip_evsub`'s transaction association explicitly skips a terminated UAC
   subscription created with `PJSIP_EVSUB_NO_EVENT_ID` (the option used by the
   REFER UAC constructor). The authenticated retry transaction therefore has
-  no REFER event-subscription state callback through that subscription. The
-  callback's `goto out` also leaves the `refer_out_of_dialog` module data
-  reference untouched, while pjproject destroys the terminated subscription
-  after its pending transaction count reaches zero. Its destructor is the
-  cleanup that releases the retained dialog session. This makes both the
-  authenticated retry's final result and the corresponding dialog/reference
-  cleanup unproven by the Asterisk callback path; treat retention as a
-  source-derived risk pending runtime/lifetime confirmation, not as proof of an
-  indefinite leak
+  no REFER event-subscription state callback through that subscription.
+  When Asterisk successfully creates fallback txdata, its callback takes
+  `goto out` with `res` still clear and does not release the initial AO2
+  reference stored as evsub module data. The original challenged transaction
+  remains counted as pending while this terminal callback runs; when it later
+  terminates, pjproject decrements the pending count and destroys the already
+  terminated evsub without another Asterisk state callback. `evsub_destroy()`
+  does not clear module data or call the Asterisk REFER-object destructor.
+  Therefore no cleanup for that initial AO2 reference or the destructor's
+  dialog-session decrement is visible in the pinned source on this branch.
+  This is a source-derived object/dialog-session retention leak candidate
+  whenever fallback request creation succeeds, whether or not fallback send
+  succeeds; confirm runtime lifetimes and check downstream cleanup hooks
   ([Asterisk retry callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
+  [REFER module-data setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1426-L1461),
   [REFER UAC no-event-id option](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-ua/sip_xfer.c#L173-L200),
   [terminated subscription association skip](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1591-L1688),
-  [subscription destruction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2433-L2467),
+  [pending transaction and subscription destruction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L2433-L2467),
+  [evsub destruction behavior](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
   [Asterisk retained-dialog destructor](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
-  Capture the authenticated retry's final response/timeout, whether any
-  callback observes it, the subscription association, retained module-data
-  lifetime, dialog session count, and cleanup after both retry success and
+  Runtime validation should capture the fallback's final response/timeout,
+  prove whether any callback observes it, track the REFER object's AO2 lifetime
+  and dialog session count, and check cleanup after both retry success and
   failure.
   In Asterisk's callback, a received 401/407 for REFER increments its own
   per-operation count and, while that count is below `MAX_RX_CHALLENGES`
