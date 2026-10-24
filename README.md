@@ -3676,12 +3676,15 @@ capture its status and headers
 [fresh-request qop branch](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
 [qop response generation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L670-L714)).
 With `PJSIP_AUTH_HEADER_CACHING` disabled, an already initialized qop
-session's `update_digest_session()` updates cached nonce-count and, on nonce
-change, nonce/opaque, but does not replace the cached challenge's qop offer.
-If `PJSIP_AUTH_AUTO_SEND_NEXT` is enabled, a later fresh request can therefore
-regenerate from an older qop offer than the most recently processed challenge.
-Compare repeated challenges whose qop offers change, with both header-caching
-build settings, and inspect the later generated header
+session's `update_digest_session()` increments `nc` for an unchanged nonce
+without refreshing `last_chal`. On a nonce change, it copies only nonce and
+changed opaque into `last_chal`, not the rest of the new challenge fields
+(such as qop, domain, or stale). If `PJSIP_AUTH_AUTO_SEND_NEXT` is enabled,
+later request initialization can therefore regenerate from stale cached
+challenge fields even though the just-processed challenge had different
+values. Compare same-nonce challenges with changed fields and changed-nonce
+challenges with changed qop/domain, using both header-caching build settings;
+inspect cached challenge state and any later generated header
 ([selective cached challenge update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L779-L810),
 [header-caching challenge refresh](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1240-L1268),
 [fresh-request regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460)).
