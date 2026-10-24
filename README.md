@@ -3623,6 +3623,14 @@ and zeroes every stale counter, so initializing any later request in that
 session resets all cached realm/algorithm budgets, not just the pair challenged
 by that request
 ([counter-reset loop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1391)).
+When `PJSIP_AUTH_HEADER_CACHING` is enabled, that same initialization can
+shallow-clone a cached Digest Authorization header onto the new request when
+the cached entry has no qop and its method matches. Thus a fresh request can
+both reset the stale budget and reuse a cached header; verify the deployed
+build option, method, and resulting header rather than treating request
+initialization as a counter reset alone
+([header caching on Digest response](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
+[header reuse on request initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
 Each counter is scoped to a cached case-insensitive realm/algorithm pair, so
 multiple supported challenge pairs have independent stale-retry budgets rather
 than sharing one request-wide count
