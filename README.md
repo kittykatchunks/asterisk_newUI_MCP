@@ -3554,9 +3554,11 @@ are possible
 ([successful refresh handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1917-L1973)).
 Test repeated refresh and eventual termination separately from transfer
 completion.
-If that refresh receives 481 or another non-2xx response, pjproject terminates
-the UAC subscription and Asterisk treats it as a failed REFER subscription;
-that is not target-call failure or ownership settlement
+If that refresh receives 481 or another non-2xx response, pjproject normally
+terminates the UAC subscription and Asterisk treats it as a failed REFER
+subscription; status 490 (`Request Updated`) is explicitly ignored by this
+path and must be tested separately. A terminated refresh subscription is not
+evidence of target-call failure or ownership settlement
 ([pjproject handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1975-L2008),
 [Asterisk callback](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1309-L1385)).
 Test refresh responses and cleanup separately from transfer outcome.
