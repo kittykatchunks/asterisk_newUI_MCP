@@ -3723,12 +3723,18 @@ the challenged request unchanged
 For multiple WWW/Proxy challenges, pjproject processes each challenge and
 continues after an unsupported or uncredentialed challenge. If it creates at
 least one Authorization header, it returns success and retries with only the
-headers it created; failures from the other challenges do not prevent that
-partial retry. If none succeeds, the function returns the error from the last
-failing challenge encountered, so the response's challenge-header order can
-affect the reported error. A transmitted retry therefore need not satisfy
-every challenge. Capture generated headers, the final status, and unresolved
-challenges separately
+headers it created; failures from the other challenges do not necessarily
+prevent that partial retry. There is an important same-realm interaction:
+after one challenge adds a header, a later matching stale challenge in the
+same response can remove it before attempting replacement credentials. If
+that later attempt fails, the success count is not decremented, so
+reinitialization can still return success even though that earlier header is
+no longer present. Asterisk may then attempt to send the mutated request;
+capture the final header set rather than infer it from the success status. If
+no challenge succeeds, the function returns the last failing challenge's
+error, so challenge order can affect the result
+([challenge loop and completion status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1736-L1844),
+[prior-header removal](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675)).
 ([challenge loop and completion status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1736-L1844)).
 For multiple Digest algorithms under the same realm/auth type,
 `PJSIP_AUTH_ALLOW_MULTIPLE_AUTH_HEADER` defaults to 0; a later challenge may
