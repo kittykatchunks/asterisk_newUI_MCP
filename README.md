@@ -3585,10 +3585,20 @@ RFC negotiation
 using dialog auth when credentials are configured in that dialog session.
 The REFER path associates the endpoint with the dialog but does not copy its
 `outbound_auths` vector there; Asterisk's separate retry explicitly uses that
-vector. Confirm any other dialog credential wiring before assuming pjproject's
-auth retry is credentialed
+vector. In the complete Asterisk 22.11.0 source tree, the outbound-auth helper
+initializes and populates a stack-local `pjsip_auth_clt_sess`, uses it to
+reinitialize the challenged txdata, then deinitializes it; the REFER setup
+does not attach it to the dialog. A source-tree search finds no Asterisk call
+to `pjsip_dlg_set_auth_sess()` or `pjsip_auth_clt_set_parent()`, and the only
+call to `pjsip_auth_clt_set_credentials()` is in that endpoint-auth helper.
+Thus the pinned Asterisk source provides no endpoint-credential wiring into
+this REFER dialog's persistent auth session. This does not rule out downstream
+patches or runtime code outside the pinned source
 ([Asterisk dialog construction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L962-L1074),
-[endpoint association](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_distributor.c#L291-L317)).
+[endpoint association](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_distributor.c#L291-L317),
+[REFER dialog setup and endpoint-auth retry](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338),
+[stack-local endpoint auth session](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L598),
+[temporary auth-session cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L644-L649)).
 Async handling is opt-in and must be confirmed in the deployed configuration.
 The transaction callback runs before the internal challenge handler, but
 Asterisk's initial `SENT` subscription state does not enter its later

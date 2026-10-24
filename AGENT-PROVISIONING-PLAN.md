@@ -3713,9 +3713,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([dialog construction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L962-L1074),
   [endpoint association](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip/pjsip_distributor.c#L291-L317),
   [explicit endpoint-auth retry](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
-  Do not assume pjproject's generic auth capability means this particular
-  dialog already has endpoint credentials; confirm any additional credential
-  wiring in the deployed source/configuration.
+  A whole-tree search of pinned Asterisk 22.11.0 source finds no call to
+  `pjsip_dlg_set_auth_sess()` or `pjsip_auth_clt_set_parent()`, and the only
+  call to `pjsip_auth_clt_set_credentials()` is inside the endpoint-auth
+  helper. That helper initializes and populates a stack-local auth session,
+  reinitializes the challenged txdata with it, then deinitializes it; REFER
+  setup does not attach it to the dialog. Therefore this pinned source has no
+  endpoint-credential wiring into the REFER dialog's persistent auth session.
+  Do not extend that source result to downstream patches or runtime code
+  ([stack-local session initialization and reinitialization](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L598),
+  [temporary auth-session cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L644-L649),
+  [REFER dialog setup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1443)).
   Its async handler is opt-in through
   `pjsip_auth_clt_async_configure()`; do not assume that path is active merely
   because the pinned library supports it
