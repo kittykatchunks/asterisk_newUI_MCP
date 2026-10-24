@@ -3981,8 +3981,6 @@ retained alongside the new header. Verify both challenge orders, counter
 effects, the deployed compile-time setting, and emitted headers
 ([header handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1584-L1675),
 [default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1365-L1372)).
-Confirm the peer's challenge-selection result separately; generated headers
-alone do not prove which credential the server accepts.
 Asterisk's endpoint-auth helper prefers a case-insensitive exact realm match
 even if a wildcard auth object appeared earlier; among duplicate exact or
 wildcard matches, the first eligible object wins. It also deduplicates
