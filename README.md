@@ -3717,6 +3717,11 @@ nonce the count advances; a changed nonce resets it. Capture `nc`, nonce, and
 header class independently across the proxy/server hop
 ([shared qop state](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810),
 [challenge-class-specific header creation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1220)).
+When a cached qop session receives a changed nonce, pjproject resets `nc` to
+1 but does not regenerate `cnonce`; that value is initialized only when the
+cache's cnonce is empty. Verify emitted `cnonce` alongside nonce and `nc`
+across changed-nonce challenges, including class changes
+([cnonce initialization and nonce-count reset](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L753-L810)).
 The pjproject 2.17 default is 3 unless overridden at build time. Confirm the
 deployed value: the counter increments before its `>=` check, so the default
 allows two stale retries, and a third stale challenge ends pjproject's retry
