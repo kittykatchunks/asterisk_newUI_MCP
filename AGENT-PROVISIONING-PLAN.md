@@ -4046,6 +4046,14 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([Asterisk PJSIP unload and cache destruction](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip.c#L3793-L3832),
   [pjproject caching-pool destroy](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L97-L129),
   [active pools added to the used list](https://github.com/pjsip/pjproject/blob/2.17/pjlib/src/pj/pool_caching.c#L134-L218)).
+  The optional transport-manager txdata tracking list adds no separate
+  retained-list concern in the pinned default configuration: pjproject
+  defaults `PJSIP_HAS_TX_DATA_LIST` to `0`, and Asterisk's bundled
+  `config_site.h` does not override it. Builds enabling the option need
+  separate review of txdata-list cleanup
+  ([pjproject option default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1544-L1548),
+  [conditional list insertion](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L525-L530),
+  [Asterisk bundled config](https://github.com/asterisk/asterisk/blob/22.11.0/third-party/pjproject/patches/config_site.h)).
   The subscription cleanup is a separate lifecycle from the potentially
   unreturned txdata reference. Asterisk releases the REFER object, clears the
   evsub module data, and terminates the subscription without notification.
