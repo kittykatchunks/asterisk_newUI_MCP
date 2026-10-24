@@ -4054,27 +4054,31 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([pjproject option default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1544-L1548),
   [conditional list insertion](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L525-L530),
   [Asterisk bundled config](https://github.com/asterisk/asterisk/blob/22.11.0/third-party/pjproject/patches/config_site.h)).
-  The subscription cleanup is a separate lifecycle from the potentially
+  Subscription termination is a separate lifecycle from the potentially
   unreturned txdata reference. Asterisk releases the REFER object, clears the
   evsub module data, and terminates the subscription without notification.
   Since this failure precedes transaction creation, `pending_tsx` remains
   zero; pjproject's terminated-state path then destroys the evsub and releases
-  its dialog session. The REFER object's destructor releases Asterisk's
-  separate dialog-session reference. These paths support expected subscription
-  and dialog cleanup, but do not release the separate txdata reference
+  the evsub-owned dialog session. Asterisk's REFER-object destructor also
+  calls `pjsip_dlg_dec_session()`. However, the traced outgoing REFER setup
+  does not show a matching explicit `pjsip_dlg_inc_session()` for that REFER
+  object: evsub creation separately increments its own dialog session, while
+  the REFER code stores the dialog pointer and later decrements a session.
+  The matching ownership/count for Asterisk's decrement remains unresolved,
+  so this trace does not confirm final dialog destruction. Neither cleanup
+  path releases the separate txdata reference
   ([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
   [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
   [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
-  [Asterisk dialog reference release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
+  [Asterisk REFER-object dialog decrement](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252),
+  [evsub session increment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L935-L957)).
   Any Digest nonce-count changes during this failed request initialization are
   confined to its dialog auth session. Asterisk creates a new UAC dialog for
-  each out-of-dialog REFER, and pjproject deinitializes the dialog-owned auth
-  session when that dialog is destroyed. Consequently, the changed `nc` is
-  not carried into a later REFER's new dialog
+  each out-of-dialog REFER, so the changed `nc` is not carried into a later
+  REFER's newly created dialog, regardless of this dialog's unresolved final
+  destruction
   ([per-REFER dialog creation](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1430-L1434),
-  [dialog-owned auth-session initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L111-L128),
-  [dialog auth-session deinitialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L150-L160),
-  [Asterisk dialog session release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
+  [dialog-owned auth-session initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L111-L128)).
   The cached qop mode is assigned only when its current value is
   `PJSIP_AUTH_QOP_NONE`; a later same-realm/algorithm challenge without qop
   does not reset it. With qop support and auto-send-next enabled, that
