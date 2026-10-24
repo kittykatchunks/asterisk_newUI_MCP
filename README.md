@@ -3665,7 +3665,14 @@ Because that qop-auth error returns from inside the cache loop, entries later
 in the list have not yet had their stale counters reset, and any headers
 already queued in the local `added` list are not attached before the return.
 Test a failing qop-auth cache entry followed by another cached realm/algorithm
-entry and inspect both counters and the initialized request headers.
+entry and inspect both counters and the initialized request headers. If an
+earlier qop-auth entry regenerated successfully, its cached `nc` may already
+have advanced before a later entry aborts initialization, even though the
+queued Authorization header is never attached; distinguish this state change
+from a request sent on the wire
+([qop-auth iteration and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
+[nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810),
+[deferred header attachment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1460-L1508)).
 The cached qop mode is set only while its value is `PJSIP_AUTH_QOP_NONE`; it
 is not reset when a later challenge for the same realm/algorithm omits qop.
 With qop support and auto-send-next enabled, that qop-less challenge can
