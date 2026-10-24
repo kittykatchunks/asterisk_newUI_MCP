@@ -121,22 +121,23 @@ value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
 On 24 October 2026, the complete runner passed 106 rejected-target/policy dialogs,
-104 accepted bridged-transfer dialogs (24 Local-target and 80 PJSIP-target
+120 accepted bridged-transfer dialogs (24 Local-target and 96 PJSIP-target
 cases), and 24 bridged-call preservation dialogs, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
-full run includes all 24 cancellation-response-loss cases, including isolated
+full run includes all 16 answered/busy target ACK-loss cases and all 24
+cancellation-response-loss cases, including isolated
 CANCEL `200` and INVITE `487` loss, alongside the rejection, transfer,
 preservation, and notification-loss regressions. Scenario totals were checked
 against the completed runner output; all correlated channel-cleanup assertions
 passed and the proof PBX was stopped without removing persistent volumes.
-Eight busy-target ACK-loss cases were subsequently added and passed focused
+Before this complete run, eight busy-target ACK-loss cases were added and passed focused
 validation with 16 existing busy-target cases. Eight answered-target ACK-loss
 cases were then added; a 48-case focused matrix passed answered/busy ACK loss,
 final-response loss, and baseline transfers across all effective settings.
 After tightening the 2xx ACK branch assertion, all eight answered ACK-loss
-cases passed again. The current runner therefore contains 120 accepted-transfer
-cases (24 Local-target and 96 PJSIP-target); the complete suite was not rerun
-after these additions.
+cases passed again. The subsequent complete run verified all these additions
+together with the existing regressions. All 40 answered PJSIP-target cases
+echoed 100/100 distinct post-transfer RTP payloads.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -439,8 +440,9 @@ BUSY, no target answer/bridge, one transfer, target execution, and outbound
 channel, and all four channels ending. Existing REFER response,
 retransmission, and progress assertions remain unchanged. Focused validation
 also passed eight baseline busy cases and eight busy final-response-loss
-cases across the same effective settings; the full runner includes the new
-cases, but was not rerun in full for this addition.
+cases across the same effective settings. The subsequent complete runner
+passed all eight ACK-loss cases again, recovering in 0.502-0.535 seconds,
+alongside all other REFER scenarios.
 
 This tests Asterisk's ACK recovery against the synthetic peer's final-response
 retransmission timer, not Asterisk's own UAS retry timer, internal send errors,
@@ -467,6 +469,9 @@ eight-case rerun with the explicit branch-parameter comparison recovered in
 and completed target-initiated BYE. Independent CEL verifies one transfer,
 target execution, outbound target channel, answered target bridge, and all
 four channels ending. Existing REFER progress/retransmission assertions pass.
+The subsequent complete runner passed all eight answered ACK-loss cases
+alongside the busy ACK-loss and existing regression matrices, recovering in
+0.472-0.557 seconds; each again echoed 100/100 payloads.
 
 This is bounded 2xx ACK recovery against the synthetic UAS timer, not internal
 Asterisk send-error injection, its own UAS retry timer, permanent ACK loss,
