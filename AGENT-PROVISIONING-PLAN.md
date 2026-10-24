@@ -4011,18 +4011,21 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([header caching on Digest response](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
   [header reuse during request initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
   The method-keyed cached header does not distinguish WWW from Proxy
-  authorization. If qop-less challenges for the same realm and algorithm
-  arrive as both 401 and 407, a later successful challenge can replace that
-  method's cached header with the other authorization class, which a later
-  initialized request may clone. Test challenge order and inspect header type
-  and destination on subsequent requests
+  authorization. With header caching enabled, qop-less challenges for the
+  same realm and algorithm arriving as both 401 and 407 use the same cached
+  auth entry; a later successful challenge replaces that method's cached
+  header with the other authorization class, which a later initialized
+  request clones. This replacement/reuse is source-confirmed; runtime
+  validation should capture the deployed build setting, request destination,
+  and peer response
   ([class-specific header creation and method-only cache](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
   [header clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
   The cache is selected by method, not Request-URI, while the cached Digest
   header's URI and response were generated for the original request URI. For
-  a new request with the same method but a different URI, inspect whether the
-  header is cloned unchanged and accepted; do not assume the digest is
-  recomputed
+  a new request with the same method but a different URI, source confirms the
+  cached header is cloned unchanged; runtime validation should capture the
+  deployed build setting, emitted header, and peer response rather than
+  rediscovering whether it was recomputed
   ([cached method key](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1237-L1256),
   [cached header clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1387-L1400),
   [Digest URI assignment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L650-L672)).

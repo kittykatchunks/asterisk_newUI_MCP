@@ -3658,11 +3658,13 @@ initialization as a counter reset alone
 ([header caching on Digest response](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
 [header reuse on request initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
 That method-keyed cached header does not distinguish WWW from Proxy
-authorization. If qop-less challenges for the same realm and algorithm arrive
-as both 401 and 407, a later successful response can replace the cached
-method's header with the other class; a subsequent initialized request may
-clone that class-specific header. Verify challenge order, header type, and
-destination on later requests
+authorization. With header caching enabled, qop-less challenges for the same
+realm and algorithm arriving as both 401 and 407 use the same cached auth
+entry; a later successful response replaces the cached method's header with
+the other class, and a subsequent initialized request clones that
+class-specific header. This cache replacement/reuse is source-confirmed;
+runtime validation should capture the deployed build setting, request
+destination, and peer response
 ([class-specific header creation and method-only cache](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
 [header clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
 The cache lookup is by method, not Request-URI, while the cached Digest
