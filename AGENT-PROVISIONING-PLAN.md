@@ -4011,8 +4011,16 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   returns the error, `pjsip_evsub_initiate()` propagates it, and Asterisk
   takes the REFER request-creation failure cleanup path. This is not a
   received 401/407 and does not enter the response-driven endpoint-auth
-  fallback. There is a source-derived txdata ownership concern: the dialog
-  request helper's auth-init error path leaves its initial txdata reference
+  fallback. There is also a dialog-sequence boundary: `pjsip_evsub_initiate()`
+  returns immediately when dialog request creation fails, before the request
+  is sent. `pjsip_dlg_send_request()` is where pjproject updates the outgoing
+  CSeq (`dlg->local.cseq++`), so this pre-send auth-init failure does not
+  consume a dialog CSeq
+  ([evsub initiate error return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1160),
+  [dialog request creation return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
+  [CSeq update during dialog send](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1360-L1410)).
+  Separately, the dialog request helper's auth-init error path leaves its
+  initial txdata reference
   unreleased. `pjsip_endpt_create_request_from_hdr()` initializes the created
   txdata's reference count to one; `dlg_create_request_throw()` returns the
   auth-init error before assigning its local txdata to the output pointer; and

@@ -3678,9 +3678,18 @@ created or the request is sent: dialog request creation returns the status,
 `pjsip_evsub_initiate()` propagates it, and Asterisk takes its REFER
 request-creation failure cleanup path. This is not a received 401/407, so it
 does not enter the response-driven endpoint-auth fallback. There is also a
-source-confirmed unreleased txdata reference: request construction initializes
-the new txdata's reference count to one, and `dlg_create_request_throw()`
-returns on auth-init error before assigning it to its output pointer. The
+dialog-sequence boundary: `pjsip_evsub_initiate()` returns immediately when
+dialog request creation fails, before any request is sent.
+`pjsip_dlg_send_request()` is where pjproject updates the outgoing CSeq
+(`dlg->local.cseq++`), so this pre-send auth-init failure does not consume a
+dialog CSeq.
+([evsub initiate error return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1160),
+[dialog request creation return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
+[CSeq update during dialog send](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1360-L1410)).
+Separately, the source confirms an unreleased txdata reference: request
+construction initializes the new txdata's reference count to one, and
+`dlg_create_request_throw()` returns on auth-init error before assigning it
+to its output pointer. The
 outer `pjsip_dlg_create_request()` only decrements txdata when that pointer is
 non-NULL, so the request's initial reference is not released on this path.
 This confirms the lost reference in source; the cache-pool teardown below
