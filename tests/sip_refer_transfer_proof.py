@@ -103,7 +103,8 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
           f"REFER {code}, unchanged bridge, ten fresh RTP packets, BYE, all three channels ended")
 
 
-def run_transfer(host, password, subscribed, blind_progress, outcome="answered"):
+def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
+                 lose_response=False):
     probe = ReferProbe(host)
     peer = TransferPeer(host) if outcome == "peer" else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
@@ -155,10 +156,12 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
         if peer:
             peer_result = executor.submit(peer.run)
         request = probe.request("REFER", uri=target, extra_headers=extra_headers)
-        code, headers, _ = probe.exchange(request, "REFER")
+        code, headers, _ = probe.exchange(request, "REFER", discard_first_final=lose_response)
         if outcome == "unknown":
             verify_preserved_call(probe, target, request, code, headers, source, transferee,
                                   sdp, subscribed, blind_progress)
+            if lose_response:
+                print("PASS lost REFER response: original bridged call and RTP preserved")
             return
         require(code == (202 if subscribed else 200), f"Unexpected accepted REFER: {code}")
         require(headers.get("refer-sub") == (None if subscribed else ["false"]),
@@ -283,6 +286,9 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered")
               f"REFER {refer_code}, original transferee reached target, "
               f"{result}, one BLINDTRANSFER after retransmission, "
               f"transferer BYE, all {expected_channels} channels ended")
+        if lose_response:
+            print("PASS lost REFER response: exactly one transfer, target execution, "
+                  "outbound target dialog, and post-transfer RTP echo")
     finally:
         if executor:
             executor.shutdown(wait=True)
@@ -304,6 +310,9 @@ def main():
     for subscribed in (False, True):
         for outcome in ("answered", "busy", "timeout", "unknown", "peer"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome)
+        for outcome in ("unknown", "peer"):
+            run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
+                         lose_response=True)
 
 
 if __name__ == "__main__":

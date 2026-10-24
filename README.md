@@ -120,10 +120,12 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs, 32 accepted
-bridged-transfer dialogs (24 Local-target and eight PJSIP-target cases), and
-eight bridged-call preservation dialogs passed, with
+On 24 October 2026, all 106 rejected-target/policy dialogs, 40 accepted
+bridged-transfer dialogs (24 Local-target and 16 PJSIP-target cases), and
+16 bridged-call preservation dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
+accepted and preservation totals include 16 controlled lost-response cases
+described below. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
 global advertisement settings. The baseline cases had these results:
@@ -343,6 +345,36 @@ This establishes bounded media round-trip delivery through a synthetic
 outbound PJSIP target, not a real dispatch trunk, production audio quality,
 TLS/SRTP, target authentication, long-call stability, generation fencing,
 or transaction/reference cleanup.
+
+### Lost final REFER response recovery
+
+The same runner adds 16 controlled response-loss cases: an unknown target
+and an answered synthetic PJSIP target, each with absent/false `Refer-Sub`
+under both advertisement and blind-progress settings. The client deliberately
+discards the first matching final REFER response rather than returning it
+to the scenario. It retains that parsed response only for comparison and
+continues the existing half-second retransmission schedule with the identical
+request bytes, branch, and CSeq. NOTIFY and BYE handling remain active.
+
+Every case recovered after exactly two request transmissions in the verified
+run. The recovered status, complete parsed header map, and body must equal
+the discarded response; a second response before request retransmission or
+failure to recover within the five-second exchange deadline fails the test.
+Another explicit same-key retransmission is still checked afterward.
+
+The eight unknown-target cases additionally verify original bridge/channel
+preservation, ten fresh inbound RTP packets, the expected subscription
+outcome, successful BYE, and all three original channels ending. The eight
+accepted cases verify exactly one target execution and `BLINDTRANSFER`,
+one correlated outbound PJSIP dialog and answered bridge, post-transfer RTP
+echo (100/100 distinct payloads in all eight cases), and all four channels
+ending.
+
+This injects application-visible loss at the test client's receive boundary.
+Asterisk successfully sent the discarded datagram. It does **not** inject
+an internal response-helper/transport-send error, prove response-send versus
+transfer-enqueue ordering, measure transaction reference lifetimes, or cover
+permanent loss, reliable transport, or production network behavior.
 
 ## Browser WSS and encrypted WebRTC proof
 

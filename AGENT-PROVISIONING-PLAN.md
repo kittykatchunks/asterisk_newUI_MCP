@@ -3746,6 +3746,23 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This closes the synthetic outbound-PJSIP/media round-trip gap, not real
   dispatch trunk interoperability, target authentication, TLS/SRTP,
   production audio quality, long-call stability, or transaction lifetimes.
+  Sixteen [lost-final-response cases](./README.md#lost-final-refer-response-recovery)
+  additionally cover an unknown target and an answered PJSIP target with
+  absent/false `Refer-Sub` under both advertisement/progress settings.
+  The test client deliberately discards the first matching final response,
+  retaining its parsed status/headers/body only for comparison, and continues
+  its half-second identical-request retransmission schedule. All recovered
+  after two request transmissions; the complete parsed response must match
+  and recovery must occur within five seconds. NOTIFY/BYE processing remains
+  active. Unknown-target cases preserve the original bridge and inbound RTP
+  and end all three original channels. Accepted cases still produce exactly
+  one transfer/target execution and one correlated outbound PJSIP dialog,
+  echo 100/100 distinct post-transfer RTP payloads, and end all four channels.
+  A further same-key retransmission is also checked in each case.
+  This is receive-boundary application-visible response loss, not failure
+  of Asterisk's response helper or transport send: the discarded datagram
+  reached the client. Internal send-failure ordering, permanent loss,
+  reliable transport, and transaction reference lifetimes remain unproven.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

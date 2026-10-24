@@ -71,13 +71,18 @@ class ReferProbe(Probe):
         self.notifications[key] = value
         return None
 
-    def exchange(self, request, method):
+    def exchange(self, request, method, *, discard_first_final=False):
+        require(not discard_first_final or method == "REFER",
+                "Response-loss injection is restricted to REFER")
         deadline = time.monotonic() + 5
         next_send = 0
+        discarded = None
+        sends = 0
         while time.monotonic() < deadline:
             now = time.monotonic()
             if now >= next_send:
                 self.sip.send(request)
+                sends += 1
                 next_send = now + 0.5
             if not select.select([self.sip], [], [], 0.1)[0]:
                 continue
@@ -86,6 +91,15 @@ class ReferProbe(Probe):
                 continue
             code, headers, body = response
             if headers.get("cseq") == [f"{self.cseq} {method}"] and code >= 200:
+                if discard_first_final:
+                    if discarded is None:
+                        discarded = (code, headers, body)
+                        continue
+                    require(sends >= 2, "Recovered final response before request retransmission")
+                    require(response == discarded,
+                            "Recovered REFER response differs from discarded final response")
+                    print(f"PASS discarded first REFER {code}: identical final response "
+                          f"recovered after {sends} request transmissions")
                 return code, headers, body
         raise RuntimeError(f"Timed out awaiting {method} final response")
 
