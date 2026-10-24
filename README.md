@@ -3835,6 +3835,14 @@ That Asterisk helper also keys the challenge-header class to status: its
 401 path scans `WWW-Authenticate`, while 407 scans `Proxy-Authenticate`.
 Test those pairings and any opposite-class challenge separately
 ([status/header selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L44-L61)).
+pjproject's dialog-auth reinitializer differs: after accepting either 401 or
+407, it scans both `WWW-Authenticate` and `Proxy-Authenticate` headers without
+filtering by response status. An opposite-class challenge with usable
+credentials can therefore produce the other Authorization header class in
+pjproject's retry, while Asterisk's endpoint fallback selects only the class
+associated with the status. Test the two retry paths separately
+([pjproject status guard and challenge scan](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1720-L1755),
+[Asterisk status/header selection](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L44-L61)).
 Its UAC challenge lookup does not use the global default realm; it requires
 matching endpoint outbound-auth credentials (exact or wildcard). A global
 default realm alone is not a substitute
