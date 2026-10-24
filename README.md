@@ -114,10 +114,12 @@ health, checks Asterisk 22.11.0, explicitly loads `res_pjsip_refer`, and tests
 both `norefersub=yes` and `norefersub=no` using an ignored proof-only
 configuration mount. It verifies both the CLI setting and the presence/absence
 of `Supported: norefersub` on each INVITE `200`, and stops customer A between
-settings and in a `finally` block. No host ports or
+settings and in a `finally` block. For each setting it also recreates the PBX
+with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
+value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 70 authenticated in-dialog UDP dialogs passed, with
+On 24 October 2026, all 94 authenticated in-dialog UDP dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
@@ -167,6 +169,14 @@ All six sequencing attempts emitted no NOTIFY during their one-second
 observation windows, and both dialogs accepted BYE. These wire results match
 the source-derived transaction/dialog rejection paths. They do not instrument
 supplement invocation counts or prove custom claim serialization.
+
+Another 24 dialogs repeat the unknown and five invalid target forms with
+`allow_transfer=no`, absent/false `Refer-Sub`, and both advertisement settings.
+All returned `603` without `Refer-Sub`, repeated the same final response on
+retransmission, emitted no NOTIFY during one second, and accepted BYE. This
+matches the endpoint-policy check running before target validation and progress
+setup. It does not prove every transfer mechanism is disabled or satisfy the
+product's required blind-transfer path.
 
 Every dialog's baseline REFER is retransmitted with the identical transaction
 key and checked for the same final status, To tag, and `Refer-Sub` response.

@@ -3255,6 +3255,16 @@ setting controls SIP REFER; disabling it is not a demonstrated way to preserve
 the Milestone 1 transfer requirement or to disable every possible transfer
 mechanism.
 
+The repeatable [rejected-target proof](./README.md#rejected-target-refer-proof)
+now verifies the endpoint-disabled REFER branch on the pinned local image.
+With CLI-confirmed `allow_transfer=false`, 24 authenticated dialogs covering
+unknown, missing, empty, malformed, `tel:`, and `https:` targets under both
+`norefersub` settings and absent/false `Refer-Sub` returned `603` without a
+`Refer-Sub` response header. Same-key retransmissions repeated the final
+response, no NOTIFY appeared during one second, and BYE succeeded. These
+results match the early endpoint-policy check; they do not demonstrate
+generation-aware admission or authorization of other transfer mechanisms.
+
 For a permitted blind transfer while a generation is open, ownership must
 cover the new target leg before signaling and preserve the existing call if
 admission fails. Once the generation is fenced, a transfer that creates a new

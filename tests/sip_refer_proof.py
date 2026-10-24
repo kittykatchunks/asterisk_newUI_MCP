@@ -120,7 +120,7 @@ class ReferProbe(Probe):
 
 
 def run_case(host, password, *, label, values, subscribed, require_option, advertised,
-             refer_to=None, check_sequencing=False):
+             refer_to=None, check_sequencing=False, transfers_disabled=False):
     probe = ReferProbe(host)
     target = None
     try:
@@ -146,7 +146,10 @@ def run_case(host, password, *, label, values, subscribed, require_option, adver
             extra_headers.append("Require: norefersub")
         request = probe.request("REFER", uri=target, extra_headers=extra_headers)
         code, headers, _ = probe.exchange(request, "REFER")
-        if refer_to is None:
+        if transfers_disabled:
+            expected = 603
+            expected_header = None
+        elif refer_to is None:
             expected = 202 if subscribed else 404
             expected_header = (["true"] if values else None) if subscribed else ["false"]
         else:
@@ -182,8 +185,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", required=True)
     parser.add_argument("--norefersub", required=True, choices=("yes", "no"))
+    parser.add_argument("--transfers-disabled", action="store_true")
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
+    if args.transfers_disabled:
+        for label, targets in (("unknown target", None), *INVALID_TARGET_CASES):
+            for values in ((), ("false",)):
+                mode = "absent" if not values else "false"
+                run_case(args.host, password, label=f"disabled transfer, {label}, Refer-Sub {mode}",
+                         values=values, subscribed=False, require_option=False,
+                         advertised=args.norefersub == "yes", refer_to=targets,
+                         transfers_disabled=True)
+        return
     for require_option in (False, True):
         for label, values, subscribed in REFER_SUB_CASES:
             run_case(args.host, password, label=f"Refer-Sub {label}", values=values, subscribed=subscribed,

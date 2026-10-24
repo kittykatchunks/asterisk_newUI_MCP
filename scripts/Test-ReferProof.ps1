@@ -53,6 +53,21 @@ try {
         Assert-Match $settings "(?m)^\s*norefersub\s*:\s*$setting\s*$" "Expected norefersub=$setting."
         Invoke-Docker -DockerArguments @('run', '--rm', '--no-deps', 'refer-test-a',
             '--host', 'customer-a', '--norefersub', $setting) | Write-Host
+        [IO.File]::WriteAllText((Join-Path $referDirectory 'pjsip.conf'),
+            "$config`n[proof-client](+)`nallow_transfer = no`n",
+            [Text.UTF8Encoding]::new($false))
+        Invoke-Docker -DockerArguments @('up', '-d', '--force-recreate', '--wait',
+            '--wait-timeout', '90', 'customer-a') | Write-Host
+        Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'module load res_pjsip_refer.so') | Write-Host
+        $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'module show like res_pjsip_refer.so')
+        Assert-Match $modules 'res_pjsip_refer\.so[^\r\n]+Running' 'REFER module is not running.'
+        $endpoint = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'pjsip show endpoint proof-client')
+        Assert-Match $endpoint '(?m)^\s*allow_transfer\s*:\s*false\s*$' 'Transfers were not disabled.'
+        Invoke-Docker -DockerArguments @('run', '--rm', '--no-deps', 'refer-test-a',
+            '--host', 'customer-a', '--norefersub', $setting, '--transfers-disabled') | Write-Host
         Invoke-Docker -DockerArguments @('stop', 'customer-a') | Write-Host
     }
 }
