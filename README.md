@@ -3678,14 +3678,16 @@ created or the request is sent: dialog request creation returns the status,
 `pjsip_evsub_initiate()` propagates it, and Asterisk takes its REFER
 request-creation failure cleanup path. This is not a received 401/407, so it
 does not enter the response-driven endpoint-auth fallback. There is also a
-source-derived txdata ownership concern: `dlg_create_request_throw()` creates
-txdata locally, but on auth-init error returns before assigning it to the
-output pointer. The outer `pjsip_dlg_create_request()` only decrements txdata
-when that output pointer is non-NULL, so this path appears to lose the
-created txdata's reference. Confirm the txdata refcount/destruction at runtime
-before characterizing it as a leak
+source-confirmed unreleased txdata reference: request construction initializes
+the new txdata's reference count to one, and `dlg_create_request_throw()`
+returns on auth-init error before assigning it to its output pointer. The
+outer `pjsip_dlg_create_request()` only decrements txdata when that pointer is
+non-NULL, so the request's initial reference is not released on this path.
+This confirms the lost reference in source; it does not establish how long the
+allocation persists in a running endpoint
 ([dialog request construction and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1225-L1284),
 [outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
+[request txdata initialization and error cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L399-L473),
 [evsub initiate propagation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1210),
 [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
 Separate subscription/dialog cleanup is expected on this branch: Asterisk
@@ -3693,8 +3695,8 @@ releases its REFER object, clears the evsub module data, and terminates the
 subscription without notification. Because no request transaction was sent,
 the evsub has no pending transaction; pjproject's terminal-state cleanup then
 destroys it and decrements its dialog session. Asterisk's REFER-object
-destructor also releases its own dialog session reference. Verify these
-lifetime events independently from the possibly unreturned txdata reference
+destructor also releases its own dialog session reference. These subscription
+and dialog cleanup paths do not release the separate txdata reference
 ([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
 [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
 [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),

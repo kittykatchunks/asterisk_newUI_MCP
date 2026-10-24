@@ -4012,14 +4012,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   takes the REFER request-creation failure cleanup path. This is not a
   received 401/407 and does not enter the response-driven endpoint-auth
   fallback. There is a source-derived txdata ownership concern: the dialog
-  request helper creates txdata locally but returns from the auth-init error
-  path before assigning it to the output pointer; the outer helper decrements
-  txdata only when that pointer is non-NULL. The created txdata reference may
-  therefore be lost. Verify reference ownership/destruction at runtime before
-  calling this a confirmed leak, and distinguish this setup failure from a
-  wire challenge
+  request helper's auth-init error path leaves its initial txdata reference
+  unreleased. `pjsip_endpt_create_request_from_hdr()` initializes the created
+  txdata's reference count to one; `dlg_create_request_throw()` returns the
+  auth-init error before assigning its local txdata to the output pointer; and
+  the outer `pjsip_dlg_create_request()` only decrements txdata when that
+  output pointer is non-NULL. This confirms the lost reference in source,
+  though not how long the allocation persists in a running endpoint. Keep it
+  distinct from a wire challenge
   ([dialog request construction and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1225-L1284),
   [outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
+  [request txdata initialization and error cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L399-L473),
   [evsub initiate propagation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1210),
   [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
   The subscription cleanup is a separate lifecycle from the potentially
@@ -4029,8 +4032,7 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   zero; pjproject's terminated-state path then destroys the evsub and releases
   its dialog session. The REFER object's destructor releases Asterisk's
   separate dialog-session reference. These paths support expected subscription
-  and dialog cleanup, but do not establish whether the local txdata reference
-  is released
+  and dialog cleanup, but do not release the separate txdata reference
   ([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
   [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
   [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
