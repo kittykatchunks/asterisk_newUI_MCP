@@ -4022,6 +4022,19 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   [outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
   [evsub initiate propagation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1210),
   [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
+  The subscription cleanup is a separate lifecycle from the potentially
+  unreturned txdata reference. Asterisk releases the REFER object, clears the
+  evsub module data, and terminates the subscription without notification.
+  Since this failure precedes transaction creation, `pending_tsx` remains
+  zero; pjproject's terminated-state path then destroys the evsub and releases
+  its dialog session. The REFER object's destructor releases Asterisk's
+  separate dialog-session reference. These paths support expected subscription
+  and dialog cleanup, but do not establish whether the local txdata reference
+  is released
+  ([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
+  [evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
+  [evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
+  [Asterisk dialog reference release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
   The cached qop mode is assigned only when its current value is
   `PJSIP_AUTH_QOP_NONE`; a later same-realm/algorithm challenge without qop
   does not reset it. With qop support and auto-send-next enabled, that

@@ -3688,6 +3688,17 @@ before characterizing it as a leak
 [outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
 [evsub initiate propagation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1210),
 [Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
+Separate subscription/dialog cleanup is expected on this branch: Asterisk
+releases its REFER object, clears the evsub module data, and terminates the
+subscription without notification. Because no request transaction was sent,
+the evsub has no pending transaction; pjproject's terminal-state cleanup then
+destroys it and decrements its dialog session. Asterisk's REFER-object
+destructor also releases its own dialog session reference. Verify these
+lifetime events independently from the possibly unreturned txdata reference
+([Asterisk failure cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1483-L1491),
+[evsub terminal destruction condition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L684-L705),
+[evsub session release](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L560-L590),
+[Asterisk dialog reference release](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1235-L1252)).
 The cached qop mode is set only while its value is `PJSIP_AUTH_QOP_NONE`; it
 is not reset when a later challenge for the same realm/algorithm omits qop.
 With qop support and auto-send-next enabled, that qop-less challenge can
