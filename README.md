@@ -4099,7 +4099,11 @@ an idempotency key or must reject a second unresolved operation; separately
 verify cleanup/lifetime of the unanswered transaction. Source inspection
 shows the UAS `TRYING` path does not arm the normal final-response timeout;
 exact retransmissions are ignored without scheduling a response. Test whether
-the transaction remains registered beyond 64*T1 with the dialog still open.
+the transaction remains registered beyond 64*T1 on unreliable transport, and
+confirm separately that reliable transport also has no timeout while the
+transaction remains in `TRYING`. The ordinary non-INVITE Timer J is started
+only after a final response is successfully sent; it is 64*T1 on unreliable
+transport and zero on reliable transport.
 The transaction layer unregisters only after `DESTROYED`, while the dialog
 counts the transaction until `TERMINATED` and cannot destroy itself while that
 count remains nonzero

@@ -4415,6 +4415,12 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   ([initial UAS transition](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L2910-L2943),
   [TRYING handler](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L3104-L3143),
   [final response timer](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L3315-L3349)).
+  For a successfully sent non-INVITE final response, Timer J is 64*T1 on
+  unreliable transport and zero on reliable transport; neither value is
+  scheduled for the unanswered `TRYING` transaction. Test retention beyond
+  64*T1 on unreliable transport and separately confirm that reliable
+  transport does not gain a `TRYING` timeout merely because its Timer J
+  duration would be zero.
   The transaction layer unregisters a transaction only when it reaches
   `DESTROYED`; that state follows `TERMINATED`, whose normal entry in this
   non-INVITE UAS path follows the response timeout, while explicit
@@ -4432,9 +4438,11 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   count even after other session users release their references. This is a
   source-derived retention hazard, not proof of an indefinite production leak:
   verify all PJSIP/Asterisk termination paths and hold the dialog open in a
-  lifecycle test beyond 64*T1. Do not assume dialog close alone cleans up the
-  active transaction; endpoint transaction-layer shutdown is another explicit
-  cleanup route
+  lifecycle test beyond 64*T1 on unreliable transport; test reliable transport
+  separately because its post-final-response Timer J is zero, while the
+  unanswered `TRYING` state still schedules no timer. Do not assume dialog
+  close alone cleans up the active transaction; endpoint transaction-layer
+  shutdown is another explicit cleanup route
   ([layer stop](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transaction.c#L800-L829)).
   If each client timeout is followed by a distinct higher-CSeq/new-branch
   retry and each response attempt fails on the same cloned-data path, the
