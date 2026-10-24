@@ -3736,11 +3736,18 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   [async opt-in API](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1866-L1880),
   [evsub async-to-sync fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1850-L1914)).
   If its synchronous fallback fails, pjproject terminates the subscription
-  with the original transaction event; if configured async auth is abandoned,
-  pjproject terminates it with a synthetic user event instead
+  with the original transaction event. If configured async auth is abandoned,
+  the evsub abandonment callback terminates the subscription with a NULL
+  event; `set_state()` substitutes a dummy `PJSIP_EVENT_USER` for callback
+  safety. Asterisk maps that non-transaction event to status 500, handles it
+  as terminal failure, and does not enter the 401/407 fallback branch because
+  that branch requires a received transaction response. Since the evsub is
+  already terminated, Asterisk also does not initiate the zero-expiry
+  SUBSCRIBE from its terminal-status path
   ([pjproject challenge handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
   [async abandonment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L605-L626),
-  [state callback event substitution](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L632-L684)).
+  [state callback event substitution](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L632-L684),
+  [Asterisk response and terminal handling](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1318-L1378)).
   pjproject invokes the transaction callback before its own UAC challenge
   handler. On the initial REFER challenge the subscription is still `SENT`,
   so Asterisk's state callback does not take its `ACTIVE`/`TERMINATED` branch;

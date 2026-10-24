@@ -3923,8 +3923,14 @@ repeated callbacks against Asterisk's separate
 ([Asterisk auth helper](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L470-L598),
 [temporary auth session cleanup](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_outbound_authenticator_digest.c#L644-L649),
 [REFER callback limit](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1326-L1338)).
-If configured async auth is abandoned, pjproject instead reports a synthetic
-event, which Asterisk handles as terminal failure.
+If configured async auth is abandoned, pjproject terminates the evsub and
+substitutes a dummy `PJSIP_EVENT_USER` for the NULL event. Asterisk maps that
+non-transaction event to status 500 and handles it as terminal failure; it
+does not enter the 401/407 fallback branch or send a zero-expiry SUBSCRIBE
+because the subscription is already terminated. This is distinct from a
+transaction-response event
+([pjproject abandonment and event substitution](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L618-L684),
+[Asterisk event handling and terminal-state behavior](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1318-L1378)).
 Asterisk's counter allows at most nine qualifying callback attempts; it
 increments before checking endpoint availability or creating a request, so a
 missing endpoint or failed construction consumes the budget and fewer than
