@@ -119,7 +119,7 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs and four accepted
+On 24 October 2026, all 106 rejected-target/policy dialogs and eight accepted
 bridged-transfer dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
@@ -204,14 +204,15 @@ message-parser/header changes, echoing 100/100 synthetic frames.
 ### Accepted bridged REFER proof
 
 The same runner also executes [sip_refer_transfer_proof.py](./tests/sip_refer_transfer_proof.py)
-with `allow_transfer=yes` and `refer_blind_progress=yes` verified through the
-CLI. A proof-only dialplan include creates a PJSIP-to-Local bridge, then
+with `allow_transfer=yes` and both `refer_blind_progress` settings verified
+through the CLI. A proof-only dialplan include creates a PJSIP-to-Local bridge, then
 redirects the original Local transferee to a unique target extension that
 dials and bridges an answered second Local pair. Synthetic tones keep the
 local media paths active; no external endpoint or real caller is involved.
 The tester mounts the PBX's existing CEL volume read-only.
 
-Four cases passed: absent/false `Refer-Sub` under both `norefersub` settings.
+Eight cases passed: absent/false `Refer-Sub` under both `norefersub` settings
+and both `refer_blind_progress` settings.
 The no-subscription path returned `200` with `Refer-Sub: false` and no NOTIFY;
 the subscribed path returned `202` and a terminal sipfrag `200`.
 Each case independently verifies:
@@ -226,6 +227,14 @@ Each case independently verifies:
   and target extension.
 - The transferer dialog ends through BYE and all five correlated channels
   have both `CHAN_START` and `CHAN_END`.
+
+The target route waits two seconds before creating its outgoing Local pair.
+With `refer_blind_progress=no`, both subscribed cases observed terminal
+NOTIFY `200` while CEL still showed no target-leg `CHAN_START`. They then
+independently verified the later target answer, bridge, and cleanup. This
+demonstrates that the early success sipfrag is not target-answer evidence;
+the CEL observation is bounded to this fixture, not an instrumented proof of
+the callback's exact instruction ordering.
 
 This establishes a bounded accepted local blind transfer, not generation
 claims/fencing, external PJSIP target answer, post-transfer RTP quality,
@@ -3683,7 +3692,7 @@ A local Asterisk 22.11.0 UDP spot check with `res_pjsip_refer` loaded sent a
 unknown target. The test confirms this response shape for that case only; it
 does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
-The later accepted bridged proof separately covers four local successful
+The later accepted bridged proof separately covers eight local successful
 transfer cases; response-reference and transaction-lifetime measurements remain
 open.
 The repeatable proof additionally confirmed implicit-subscription `202`

@@ -3673,8 +3673,8 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This validates these target forms on the fixture, not TLS or target-call
   admission/signaling.
   The later [accepted bridged proof](./README.md#accepted-bridged-refer-proof)
-  passed four local cases with CLI-confirmed `allow_transfer=yes` and
-  `refer_blind_progress=yes`: absent/false `Refer-Sub` under both advertisement
+  passed eight local cases with CLI-confirmed `allow_transfer=yes` and
+  both `refer_blind_progress` values: absent/false `Refer-Sub` under both advertisement
   settings. A PJSIP source first shares a bridge with a Local transferee;
   the same transferee then executes a unique target and bridges with an
   answered second Local pair. Read-only CEL evidence correlates the SIP
@@ -3686,6 +3686,12 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   Transferer BYE also succeeds. This proves a bounded accepted local transfer,
   not generation claims/fencing, an external PJSIP target, post-transfer RTP
   quality, send-failure ordering, or PJSIP transaction/reference cleanup.
+  A two-second target-route delay makes the early-success distinction
+  measurable: with `refer_blind_progress=no`, each subscribed case received
+  terminal sipfrag `200` before CEL showed any target-leg `CHAN_START`.
+  Later target answer/bridge and channel cleanup were verified independently.
+  This proves early signaling in this fixture, not target answer from NOTIFY
+  or the exact callback/bridge-enqueue instruction order.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

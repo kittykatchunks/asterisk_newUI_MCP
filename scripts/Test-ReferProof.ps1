@@ -65,6 +65,23 @@ try {
             'python3', 'refer-test-a', '-B', '/tests/sip_refer_transfer_proof.py',
             '--host', 'customer-a') | Write-Host
         [IO.File]::WriteAllText((Join-Path $referDirectory 'pjsip.conf'),
+            "$config`n[proof-client](+)`nrefer_blind_progress = no`n",
+            [Text.UTF8Encoding]::new($false))
+        Invoke-Docker -DockerArguments @('up', '-d', '--force-recreate', '--wait',
+            '--wait-timeout', '90', 'customer-a') | Write-Host
+        Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'module load res_pjsip_refer.so') | Write-Host
+        $modules = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'module show like res_pjsip_refer.so')
+        Assert-Match $modules 'res_pjsip_refer\.so[^\r\n]+Running' 'REFER module is not running.'
+        $endpoint = Invoke-Docker -DockerArguments @('exec', '-T', 'customer-a',
+            'asterisk', '-rx', 'pjsip show endpoint proof-client')
+        Assert-Match $endpoint '(?m)^\s*allow_transfer\s*:\s*true\s*$' 'Transfers were not enabled.'
+        Assert-Match $endpoint '(?m)^\s*refer_blind_progress\s*:\s*false\s*$' 'Blind progress was not disabled.'
+        Invoke-Docker -DockerArguments @('run', '--rm', '--no-deps', '--entrypoint',
+            'python3', 'refer-test-a', '-B', '/tests/sip_refer_transfer_proof.py',
+            '--host', 'customer-a', '--blind-progress', 'no') | Write-Host
+        [IO.File]::WriteAllText((Join-Path $referDirectory 'pjsip.conf'),
             "$config`n[proof-client](+)`nallow_transfer = no`n",
             [Text.UTF8Encoding]::new($false))
         Invoke-Docker -DockerArguments @('up', '-d', '--force-recreate', '--wait',

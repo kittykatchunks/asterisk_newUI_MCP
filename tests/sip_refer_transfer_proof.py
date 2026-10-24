@@ -39,7 +39,7 @@ def user_event(row, name, value):
     return json.loads(row["extra"]).get("extra") == value
 
 
-def run_transfer(host, password, subscribed):
+def run_transfer(host, password, subscribed, blind_progress):
     probe = ReferProbe(host)
     token = uuid.uuid4().hex
     probe.uri = f"sip:bridge-{token}@{host}"
@@ -85,6 +85,17 @@ def run_transfer(host, password, subscribed):
              and user_event(row, "PROOF_REFER_TARGET", f"target-{token}")), None))
         require(destination["uniqueid"] == transferee["uniqueid"],
                 "Target marker does not belong to original bridged transferee")
+        if subscribed and blind_progress == "no":
+            wait_for(probe, "early terminal success NOTIFY", lambda rows: any(
+                state.split(";", 1)[0] == "terminated" and status == 200
+                for state, status in probe.notifications.values()))
+            require(not any(row["linkedid"] == linkedid
+                            and row["event"] == "CHAN_START"
+                            and row["channel"].startswith("Local/answer@refer-proof-")
+                            for row in events()),
+                    "Target leg started before early NOTIFY observation")
+            print("PASS refer_blind_progress=no: terminal NOTIFY 200 observed "
+                  "before any target leg started")
 
         def target_bridge(rows):
             entries = [row for row in rows if row["linkedid"] == linkedid
@@ -143,7 +154,8 @@ def run_transfer(host, password, subscribed):
             require(not probe.notifications, "No-subscription transfer emitted NOTIFY")
         mode = "implicit subscription" if subscribed else "Refer-Sub: false"
         refer_code = 202 if subscribed else 200
-        print(f"PASS accepted {mode}: REFER {refer_code}, original transferee reached target, "
+        print(f"PASS accepted {mode}, refer_blind_progress={blind_progress}: "
+              f"REFER {refer_code}, original transferee reached target, "
               "answered target bridge, one BLINDTRANSFER after retransmission, "
               "transferer BYE, all five channels ended")
     finally:
@@ -153,10 +165,11 @@ def run_transfer(host, password, subscribed):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", required=True)
+    parser.add_argument("--blind-progress", choices=("yes", "no"), default="yes")
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for subscribed in (False, True):
-        run_transfer(args.host, password, subscribed)
+        run_transfer(args.host, password, subscribed, args.blind_progress)
 
 
 if __name__ == "__main__":
