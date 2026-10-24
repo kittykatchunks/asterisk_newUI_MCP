@@ -661,8 +661,8 @@ the UI cannot guarantee release if those checks now deny it.
 
 #### Finite acceptance checklist for the next UI increment
 
-All items below start **pending implementation verification** for the revised
-workflow UI. Existing tests are reusable evidence inputs, not automatic passes.
+The checklist below defines implementation verification for the revised
+workflow UI. The executed evidence table following it records the current result.
 Use browser tests for presentation and race behaviour, existing backend tests for
 authorisation/ownership, and the existing local launcher proof for the real-session
 happy path. Add no new SIP scenarios.
@@ -687,6 +687,38 @@ blocker. Fix defects in scope, but do not grow this checklist with unrelated
 telephony experiments. The next decision is whether to open the separately gated
 phone-activation work or specify the simulated booking workflow; neither is
 implicitly approved by completing this UI increment.
+
+#### Executed workflow UI evidence
+
+The bounded workflow increment is implemented using the existing console and
+APIs: selected-customer context, a separate next-step section, explicit
+reservation-level roaming guidance, and independent assignment/reservation/phone
+descriptions. A failed assignment refresh preserves a known lease for release but
+hides acquisition; the server can still deny the release. No live phone or
+management-write capability was added.
+
+| Check | Recorded evidence |
+|---|---|
+| AW-01 | Browser tests reject mismatched sessions and display the selected customer. Real Keycloak application-session and launcher proofs verify fixed agent-workspace login/return. |
+| AW-02 | Browser tests render hostile names literally and distinguish 403, 404, 503 and malformed/mismatched profile data. Profile API tests deny foreign access. |
+| AW-03 | The workspace exposes separate assignment, device and disabled-phone sections; next-step assertions explicitly retain disabled phone capability before and after reservation. |
+| AW-04 | Browser tests assert no landing mutation, explicit acquisition and confirmed expiry; real-session tests exercise the controls. |
+| AW-05 | Browser local-expiry/no-heartbeat checks and store/API identity/session-bound renewal checks pass. |
+| AW-06 | Browser tests cover confirmed release, server/network/malformed response failures, request references and stable retry identity; no uncertainty is represented as release. |
+| AW-07 | Store tests verify separate-process exclusivity, replacement/stale-ID denial and expiry. Browser conflict guidance and real launcher restart-conflict checks pass. |
+| AW-08 | New browser sequence denies profile refresh with a held lease, verifies stale profile clearing and hidden acquisition, then attempts release and displays server 403 while retaining the lease handle. |
+| AW-09 | Browser tests cover expiry, 401, failed/confirmed logout and held responses across logout; backend session tests cover rotation, expiry and audited logout gates. |
+| AW-10 | Device HTTP/profile tests verify session/customer/permission/assignment/CSRF boundaries and bearer-only mutation denial. No new endpoint or authority was introduced. |
+| AW-11 | Browser tests exercise keyboard activation of reservation controls, semantic status/alert/region selectors, and an explicit allowed-request list; microphone access throws a test failure and WebSocket creation is recorded as unexpected. This is not a comprehensive accessibility audit. |
+| AW-12 | Typecheck, the focused agent/session suites, and the existing real Keycloak identity/application-session/launcher proofs passed. Application-session proof exercises reserve/renew/release/logout; launcher proof verifies opt-in, denied user and persistent conflict. Owned identity services were removed afterward. |
+
+Reproduce the focused checks with `npm run typecheck` and
+`node --test .\tests\agent-console.test.ts .\tests\agent-profile.test.ts .\tests\agent-device-http.test.ts .\tests\agent-device-lease.test.ts .\tests\local-agent-launcher.test.ts .\tests\application-session.test.ts`.
+The real-session run uses `.\scripts\Test-IdentityProof.ps1`; it rotates only
+synthetic identity fixture credentials and cleans up its owned identity deployment.
+This closes the bounded UI checklist, not the broader M1 acceptance criteria,
+production readiness, actual phone roaming or call-aware draining. REFER tests
+were not expanded or rerun.
 
 ## 5. Proposed acceptance criteria
 

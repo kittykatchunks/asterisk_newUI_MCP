@@ -5,11 +5,17 @@
 <title>Agent console</title>
 <main>
   <h1>Agent console</h1>
+  <p>Selected customer: <strong id="selected-customer"></strong>. Customer selection does not grant access.</p>
   <p id="session-status" role="status">Checking application session...</p>
   <p id="session-warning" role="status" hidden></p>
   <a id="sign-in" hidden>Sign in</a>
   <button id="sign-out" hidden>Sign out</button>
   <button id="retry-session" hidden>Retry session connection</button>
+  <section aria-label="Workspace guidance">
+    <h2>Your next step</h2>
+    <p id="workflow-guidance" role="status">Wait for your application session to be checked.</p>
+    <p>Assignment, device reservation and phone availability are separate. A reservation never means that you are registered or available to a queue.</p>
+  </section>
   <section aria-label="Agent assignment">
     <h2>Your assignment</h2>
     <p id="assignment-status" role="status">No assignment loaded.</p>
@@ -20,6 +26,7 @@
     <h2>Device reservation (not a phone connection)</h2>
     <p>Reserve this page's device identity for up to 60 seconds. Renew explicitly; there is no automatic heartbeat. Reloading creates a new device identity.</p>
     <p>Release before sign-out to avoid waiting for expiry. Sign-out or closing this page does not confirm release. No calls or SIP credentials are enabled.</p>
+    <p>Moving to another page or device? Release here and wait for confirmation, then sign out. Sign in on the new page and reserve there. There is no automatic takeover.</p>
     <p id="device-status" role="status">No device reservation confirmed.</p>
     <button id="reserve-device">Reserve this device</button>
     <button id="renew-device" hidden>Renew reservation</button>

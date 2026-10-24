@@ -22,6 +22,7 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
   const requestId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
   const leaseId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
   const errors: string[] = [];
+  const unexpectedRequests: string[] = [];
   const calls: { path: string; body: { deviceId: string; leaseId?: string } }[] = [];
   let mode = "valid";
   let finishHeld: (() => void) | undefined;
@@ -29,6 +30,16 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
   let releaseHeld: (() => void) | undefined;
   try {
     page.on("pageerror", (error) => errors.push(error.message));
+    page.on("websocket", (socket) => unexpectedRequests.push(socket.url()));
+    page.on("request", (request) => {
+      if (!/^\/(?:agent\/(?:customer-a|console\.js)|auth\/(?:session|logout)|api\/customers\/customer-a\/agent\/(?:profile|device-lease(?:\/(?:renew|release))?))$/.test(
+        new URL(request.url()).pathname)) unexpectedRequests.push(request.url());
+    });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+        value: () => { throw new Error("Agent workspace must not request microphone access"); },
+      });
+    });
     await page.clock.install();
     await page.route("**/auth/session", (route) => route.fulfill({
       contentType: "application/json", body: JSON.stringify({
@@ -59,7 +70,7 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
         return;
       }
       if (snapshot === "network") { await route.abort("failed"); return; }
-      await route.fulfill({ status: snapshot === "conflict" ? 409 : snapshot === "failed" ? 503 :
+      await route.fulfill({ status: snapshot === "conflict" ? 409 : snapshot === "forbidden" ? 403 : snapshot === "failed" ? 503 :
         snapshot === "unauthenticated" ? 401 : 200,
       contentType: "application/json", headers: { "X-Request-Id": requestId },
       body: JSON.stringify({ customer: snapshot === "mismatch" ? "customer-b" : "customer-a",
@@ -70,20 +81,45 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     await page.route("**/auth/logout", (route) => route.fulfill({ status: 200, body: "{}" }));
     await page.goto(origin + "/agent/customer-a");
     await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+    assert.equal(await page.locator("#selected-customer").textContent(), "customer-a");
+    assert.match(await page.getByRole("region", { name: "Workspace guidance" }).textContent() ?? "",
+      /explicitly reserve.*Phone connection remains disabled/);
     assert.equal(calls.length, 0, "Landing must not auto-acquire");
     const reserve = page.getByRole("button", { name: "Reserve this device", exact: true });
     const renew = page.getByRole("button", { name: "Renew reservation", exact: true });
     const release = page.getByRole("button", { name: "Release reservation", exact: true });
-    await reserve.click();
+    await reserve.focus();
+    await page.keyboard.press("Enter");
     await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
     const firstDevice = calls[0].body.deviceId;
     assert.equal(await reserve.isVisible(), false);
-    await renew.click();
-    await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
-    assert.equal(calls[1].body.deviceId, firstDevice);
-    assert.equal(calls[1].body.leaseId, leaseId);
-    mode = "failed";
+    assert.match(await page.locator("#workflow-guidance").textContent() ?? "", /release this reservation/);
+    assert.match(await page.getByRole("region", { name: "Phone availability" }).textContent() ?? "",
+      /Phone connection is not enabled/);
+    profileAllowed = false;
+    await page.getByRole("button", { name: "Refresh assignment" }).click();
+    await page.getByRole("alert").filter({ hasText: "Agent access is not permitted." }).waitFor();
+    assert.equal(await page.locator("#assignment dd").count(), 0);
+    assert.equal(await reserve.isVisible(), false);
+    assert.equal(await release.isVisible(), true, "Failed profile refresh preserves known lease for release");
+    assert.match(await page.locator("#workflow-guidance").textContent() ?? "", /assignment is not confirmed/);
+    mode = "forbidden";
     await release.click();
+    await page.getByRole("alert").filter({ hasText: "Device reservation access is not permitted." }).waitFor();
+    assert.equal(calls.at(-1)?.body.leaseId, leaseId);
+    assert.equal(await release.isVisible(), true, "Denied release must not clear the retry handle");
+    profileAllowed = true;
+    mode = "valid";
+    await page.getByRole("button", { name: "Refresh assignment" }).click();
+    await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+    await renew.focus();
+    await page.keyboard.press("Enter");
+    await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
+    assert.equal(calls.at(-1)?.body.deviceId, firstDevice);
+    assert.equal(calls.at(-1)?.body.leaseId, leaseId);
+    mode = "failed";
+    await release.focus();
+    await page.keyboard.press("Enter");
     await page.getByRole("alert").filter({ hasText: "Reservation change not confirmed" }).waitFor();
     assert.equal(await release.isVisible(), true, "Uncertain release retains retry handle");
     assert.ok((await page.locator("#device-status").textContent())?.includes(requestId));
@@ -136,6 +172,7 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     await page.getByRole("alert").filter({ hasText: "Agent access is not permitted." }).waitFor();
     assert.equal(await page.locator("#device-reservation").isHidden(), true);
     assert.deepEqual(errors, []);
+    assert.deepEqual(unexpectedRequests, [], "Workspace must not initiate SIP, queue, calling or other API requests");
   } finally {
     await page.close(); await browser.close();
     server.closeAllConnections();
@@ -175,7 +212,8 @@ test("agent console renders literal profiles, clears stale data, guards session 
       profileReads++;
       if (mode === "held-logout") await new Promise<void>((resolve) => { releaseProfile = resolve; });
       if (mode === "held") await new Promise((resolve) => setTimeout(resolve, 500));
-      await route.fulfill({ status: mode === "failed" ? 503 : mode === "unauthorized" ? 401 : 200,
+      await route.fulfill({ status: mode === "failed" ? 503 : mode === "forbidden" ? 403 :
+        mode === "missing" ? 404 : mode === "unauthorized" ? 401 : 200,
         contentType: "application/json", headers: { "X-Request-Id": requestId },
         body: JSON.stringify({ customer: mode === "mismatch" ? "customer-b" : "customer-a",
           agent: { extension: "1001", displayName: "<img src=x onerror=alert(1)>" } }) });
@@ -201,6 +239,15 @@ test("agent console renders literal profiles, clears stale data, guards session 
     const reads = profileReads;
     await page.waitForTimeout(100);
     assert.equal(profileReads, reads, "Failures must not cause automatic retries");
+    for (const [value, message] of [
+      ["missing", "No agent assignment is provisioned."],
+      ["forbidden", "Agent access is not permitted."],
+    ]) {
+      mode = value;
+      await page.getByRole("button", { name: "Refresh assignment" }).click();
+      await page.getByRole("alert").filter({ hasText: message }).waitFor();
+      assert.equal(await page.locator("#assignment dd").count(), 0);
+    }
     mode = "mismatch";
     await page.getByRole("button", { name: "Refresh assignment" }).click();
     await page.getByRole("alert").filter({ hasText: "Invalid agent assignment response" }).waitFor();

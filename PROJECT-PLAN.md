@@ -512,7 +512,11 @@ The selected next deliverable is now the
 three screen responsibilities, explicit assignment/reservation/recovery states,
 and twelve acceptance checks (AW-01 through AW-12). Implement that UI increment
 using existing APIs before opening further scope. This specification is not a
-claim that the revised screens or acceptance checks are complete.
+claim of production readiness. The
+[executed workflow evidence](./MILESTONE-1.md#executed-workflow-ui-evidence)
+now closes AW-01 through AW-12 for the bounded existing-API UI increment.
+The next scope decision is separately gated phone activation versus a simulated
+booking workflow; neither is automatically enabled by this result.
 
 - Customer setup and agent-console screen specifications.
 - Aggregate capacity, production sizing, and provider quotas.

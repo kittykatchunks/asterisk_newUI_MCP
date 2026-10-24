@@ -10,6 +10,8 @@ function element(id) {
   return value;
 }
 const status = element("session-status");
+element("selected-customer").textContent = customer;
+const guidance = element("workflow-guidance");
 const warning = element("session-warning");
 const login = element("sign-in");
 const logout = element("sign-out");
@@ -62,16 +64,24 @@ function end(message) {
   refresh.hidden = true;
   login.hidden = false;
   status.textContent = message;
+  guidance.textContent = "Sign in to load your own assignment. Any server reservation may remain until expiry; signing out does not confirm release.";
 }
 let deadline = 0;
 function deviceControls() {
   deviceSection.hidden = ended || (!assigned && !lease);
-  reserve.hidden = !!lease;
+  reserve.hidden = !!lease || !assigned;
   renew.hidden = !lease;
   release.hidden = !lease;
   for (const button of [reserve, renew, release]) {
     if (deviceBusy) button.setAttribute("disabled", "");
     else button.removeAttribute("disabled");
+  }
+  if (!ended) {
+    guidance.textContent = deviceBusy ? "Wait for the reservation result before taking another reservation action." :
+      lease && !assigned ? "Your assignment is not confirmed. Refresh it or attempt to release the known reservation; server checks still apply." :
+      lease ? "Renew explicitly if needed. To move devices, release this reservation and wait for confirmation before signing out." :
+      assigned ? "You can explicitly reserve this page's device. Phone connection remains disabled." :
+      "Load your own assignment using Refresh assignment. If it is missing or access is denied, contact your administrator.";
   }
 }
 function checkLease() {

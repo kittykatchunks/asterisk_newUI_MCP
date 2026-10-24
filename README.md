@@ -1925,7 +1925,23 @@ sign-out with durable logout audits and rejected session-cookie replay. Console
 landing requests only the scoped profile, without browser bearer tokens or
 engineering data. This is an authenticated assignment screen, not yet a phone console.
 
-#### Backend device-lease foundation (not connected to the console)
+#### Bounded agent workspace workflow
+
+The console now identifies the selected customer before sign-in and separates
+next-step guidance from assignment, reservation and disabled phone capability.
+Guidance explains explicit acquisition, renewal, release-before-device-move and
+the absence of automatic takeover. If assignment refresh fails while a lease is
+known, the profile clears and acquisition is hidden, but release remains available
+for an explicit server-authorised attempt; denial does not discard the retry handle.
+
+The [AW-01 through AW-12 evidence](./MILESTONE-1.md#executed-workflow-ui-evidence)
+records focused browser/backend checks and the real Keycloak/session/launcher run.
+Tests cover customer context, denied/missing/unavailable assignment states,
+keyboard reservation actions, retained lease recovery, no unexpected API/WebSocket
+traffic and no microphone request. This is not an accessibility certification or
+live phone readiness. Existing session, profile and lease APIs are unchanged.
+
+#### Backend device-lease foundation (subsequently connected to the console)
 
 The agreed device policy is one active device per issuer/subject/customer: a second
 device is rejected until explicit release or expiry, with no automatic takeover.
