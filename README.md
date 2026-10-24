@@ -3658,9 +3658,16 @@ returns `PJSIP_EFAILEDCREDENTIAL` without incrementing the stale counter. Test
 the initial no-header case, each subsequent combination, exhaustion, and a new
 request separately before concluding that a challenge uses only one retry path
 ([auth reinitializer errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1559-L1705),
+[stale retry classification](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1580-L1675),
 [initial request auth initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1270),
 [evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
 [default stale retry count](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1244-L1249)).
+This retry budget is distinct from Digest qop `nc`: with qop enabled and the
+same nonce, `update_digest_session()` increments the nonce-count even when the
+challenge explicitly says `stale=true`; a changed nonce resets `nc` to 1.
+Verify the emitted `nc` independently from the stale retry count
+([nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810),
+[qop response generation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1220)).
 This stale counter belongs to pjproject's persistent dialog-auth session.
 Asterisk's endpoint-auth fallback initializes a fresh stack-local auth session
 per helper invocation, so repeated fallback callbacks (if observed) do not
