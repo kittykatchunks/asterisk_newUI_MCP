@@ -790,3 +790,11 @@ Unexecuted tests remain unverified, not implicitly passed.
 Next milestone: voice AI through a simulated dispatch connector, tested queue/IVR
 fallback, evidence-cited diagnostic AI, and initial permission-controlled MCP tools.
 Autocab can then be implemented against supplied API documentation and test access.
+
+The selected immediate increment after the bounded agent workspace is the
+[deterministic backend booking simulation](./PROJECT-PLAN.md#selected-next-increment-deterministic-booking-simulation),
+not live voice integration. BS-01 through BS-10 define its finite exit: synthetic
+details, revision-bound confirmation, durable outcomes, duplicate prevention and
+explicit uncertain-outcome reconciliation. All are pending implementation.
+This parallel business-workflow increment does not waive unfinished M1 calling,
+isolation, publication or production-readiness gates.

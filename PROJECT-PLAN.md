@@ -184,6 +184,112 @@ create another taxi merely because the previous response was lost.
 - Reconcile booking operations even when the caller disconnects.
 - Do not claim that an accepted booking means a vehicle has been allocated.
 
+### Selected next increment: deterministic booking simulation
+
+Following completion of the bounded agent workspace, the selected next scope is
+a **synthetic backend booking workflow**, before voice AI or any real dispatch
+integration. This is an implementation specification; no booking implementation
+or passing evidence is claimed yet. It does not complete the remaining live-phone
+or Milestone 1 acceptance gates.
+
+#### Boundary and first deliverable
+
+- Implement a small TypeScript domain module, deterministic in-process connector
+  and dedicated local SQLite store, with automated tests. Reuse existing database
+  validation/transaction conventions where applicable; do not reuse the agent
+  lease or evidence database as booking storage.
+- Expose trusted in-process functions only. No HTTP route, MCP tool, browser
+  booking form, scheduler, external network call, vendor credentials or deployment
+  service is included. A later user-facing surface needs an explicit booking
+  permission/CSRF/audit contract; `agent:access` is not booking authority.
+- Require a validated customer scope on every operation/read. Test two synthetic
+  customers and independent conversations. Caller number is data, not identity.
+- Use deterministic test fixtures and injected time/IDs where useful. The
+  simulator implements only the contract below, not imagined Autocab operations.
+  All output and examples must identify themselves as simulation.
+
+#### Synthetic journey and confirmation
+
+The initial supported intent is one UK "book now" journey per operation:
+pickup and destination chosen from fixed, customer-scoped synthetic location IDs,
+synthetic passenger name/contact and integer passenger count from one to eight.
+Location labels come from the fixture, not a model or arbitrary coordinates.
+Use only clearly synthetic data in tests and examples.
+
+Advance bookings, time-zone conversion, fares, vehicle availability/ETA, driver
+allocation, payments, accounts, extra stops, amendments/cancellations and real
+personal data are excluded. Unsupported requests produce a structured handover
+reason, not silently dropped requirements or invented availability.
+
+1. Collect a validated draft, bound to customer and conversation correlation.
+2. Produce a canonical material-details summary with a revision identifier.
+3. Record explicit confirmation of that exact revision. Changing material details
+   invalidates confirmation; an old confirmation cannot authorise a new draft.
+4. Commit a unique operation ID, immutable confirmed payload and submitting state
+   before invoking the simulator. Operations are distinct from conversations:
+   a conversation can have multiple explicitly confirmed operations.
+5. Return the actual operation outcome, always labelled simulated. Accepted means
+   simulated booking acceptance only, not vehicle allocation or a real booking.
+
+#### Durable outcome and duplicate contract
+
+Use `collecting -> awaiting confirmation -> submitting -> accepted / rejected /
+outcome unknown`. The store must retain current state and ordered transition
+records with operation/customer/conversation correlation, confirmed revision and
+safe reason codes. Reopening the database must preserve those records.
+
+The simulator supports exactly four scripted cases:
+
+| Case | Simulator effect | Application result / recovery |
+|---|---|---|
+| Accept | Persist one simulated acceptance/reference for the operation. | `accepted`, simulated reference, no allocation/ETA claim. |
+| Reject | Persist a stable business rejection for the operation. | `rejected`, safe reason and handover context; no success message. |
+| Accept then lose reply | Persist acceptance, then raise a specific uncertain-outcome error. | `outcome unknown`; explicit reconciliation by the same operation ID returns the persisted acceptance without another create. |
+| Remain unresolved | Persist no acceptance or authoritative rejection and report uncertainty. | Stay `outcome unknown`; reconciliation cannot infer rejection from absence and must not resubmit automatically. |
+
+Durably key simulator results by customer + operation ID and the canonical
+confirmed payload. Repeating the same ID/payload returns its stored outcome
+without another booking effect; a changed payload conflicts explicitly. A foreign
+customer cannot read or replay another customer's operation. Do not permit unknown
+operations to be recreated under a new ID as a retry shortcut.
+
+Serialize state changes and reject concurrent submissions/reconciliations that
+would duplicate work. On restart, a persisted `submitting` operation has an uncertain
+outcome until reconciled; never automatically create it again. Tests must cover a
+crash boundary between simulator effect and application receipt persistence.
+Only a defined simulator uncertainty error becomes `outcome unknown`; unexpected
+storage/programming errors propagate explicitly rather than becoming success or
+a fabricated business rejection. This local protocol is not evidence that Autocab
+supports idempotency or lookup by our operation ID.
+
+Handover is a structured result, not an actual queue transfer. It includes customer,
+conversation and operation correlation, collected synthetic details, confirmed
+revision where present, safe reason and actual booking state/reference. Unknown
+must remain unknown in the handover. Caller disconnect does not cancel an operation
+or establish failure; reconciliation can continue through an explicit harness call.
+
+#### Finite acceptance checklist
+
+All checks start **pending**. Add tests and record actual evidence when implementing;
+do not expand this checklist with unrelated telephony or vendor research.
+
+| ID | Required evidence |
+|---|---|
+| BS-01 | Validate customer/conversation scope, fixture location ownership, synthetic field shape and passenger-count boundaries; reject invalid input without a simulator effect. |
+| BS-02 | Submission requires explicit current-revision confirmation; material edits invalidate it and stale confirmations fail. |
+| BS-03 | Accept records exactly one simulated result and correct correlations; output cannot imply a real booking, allocation, fare or ETA. |
+| BS-04 | Stable rejection remains rejected with a safe reason and truthful handover; no acceptance/reference is fabricated. |
+| BS-05 | Accept-then-lose-reply becomes unknown; explicit same-ID reconciliation recovers the one stored acceptance without creating again. |
+| BS-06 | Unresolved reconciliation stays unknown, including handover after caller disconnect; absence is never treated as permission to resubmit. |
+| BS-07 | Same-ID/same-payload replay is idempotent; different payload conflicts; concurrent callers cannot create duplicate effects. |
+| BS-08 | Two-customer read/mutation/replay substitution is denied. Two operations in one conversation remain independently correlated. |
+| BS-09 | Close/reopen and injected crash-after-effect preserve evidence; submitting state recovers through reconciliation only. Corrupt/unrelated stores and unexpected errors fail explicitly. |
+| BS-10 | Typecheck and focused tests pass; document reproducible harness usage, actual results and limitations. No HTTP/MCP/phone/network/vendor credential surface is introduced. |
+
+Stop at recorded evidence for BS-01 through BS-10 or an explicit blocker.
+The next decision is a separately authorised simulation UI or voice integration;
+real Autocab work remains dependent on supplied API YAML and test access.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:
@@ -515,8 +621,11 @@ using existing APIs before opening further scope. This specification is not a
 claim of production readiness. The
 [executed workflow evidence](./MILESTONE-1.md#executed-workflow-ui-evidence)
 now closes AW-01 through AW-12 for the bounded existing-API UI increment.
-The next scope decision is separately gated phone activation versus a simulated
-booking workflow; neither is automatically enabled by this result.
+The selected next scope is the
+[deterministic booking simulation](#selected-next-increment-deterministic-booking-simulation),
+with ten finite backend acceptance checks (BS-01 through BS-10). Phone activation
+remains separately gated and disabled; implementing this simulation does not
+authorise a real booking or new user-facing mutation surface.
 
 - Customer setup and agent-console screen specifications.
 - Aggregate capacity, production sizing, and provider quotas.
