@@ -121,11 +121,12 @@ value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
 On 24 October 2026, the complete runner passed 106 rejected-target/policy dialogs,
-136 accepted bridged-transfer dialogs (24 Local-target and 112 PJSIP-target
+144 accepted bridged-transfer dialogs (24 Local-target and 120 PJSIP-target
 cases), and 24 bridged-call preservation dialogs, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 full run includes all 32 answered/busy target ACK-loss cases (16 single-loss
-and 16 consecutive-two-loss cases) and all 24
+and 16 consecutive-two-loss cases), all eight target-BYE-response-loss cases,
+and all 24
 cancellation-response-loss cases, including isolated
 CANCEL `200` and INVITE `487` loss, alongside the rejection, transfer,
 preservation, and notification-loss regressions. Scenario totals were checked
@@ -141,13 +142,11 @@ together with the existing regressions.
 Sixteen consecutive-two-ACK-loss cases also passed a
 48-case focused matrix alongside baseline and single-ACK-loss regressions.
 The complete run then verified these cases alongside all existing scenarios.
-All 48 answered PJSIP-target cases echoed 100/100 distinct post-transfer RTP
-payloads. That complete validation covers 136 accepted
-transfers (24 Local-target and 112 PJSIP-target).
-Eight target-BYE-response-loss cases were subsequently added and passed a
-40-case focused matrix. The current runner contains 144 accepted transfers
-(24 Local-target and 120 PJSIP-target); the full suite was not rerun after
-this addition.
+Eight target-BYE-response-loss cases also passed a 40-case focused matrix
+before the complete run verified them alongside all existing regressions.
+All 56 answered PJSIP-target cases echoed 100/100 distinct post-transfer RTP
+payloads. The current runner and complete validation both cover 144 accepted
+transfers (24 Local-target and 120 PJSIP-target).
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -535,6 +534,11 @@ All eight cases recovered in 0.500-0.534 seconds. The 40-case focused matrix
 also passed eight cases each of baseline transfer, single-ACK loss,
 two-consecutive-ACK loss, and final-INVITE-response loss. Every case echoed
 100/100 distinct post-transfer RTP payloads before BYE.
+The subsequent complete runner passed all eight BYE-response-loss cases
+alongside the existing regressions, recovering in 0.502-0.543 seconds.
+All 56 answered PJSIP-target cases in that run echoed 100/100 distinct
+payloads; all correlated cleanup assertions passed and proof services
+stopped with persistent data preserved.
 
 Existing CEL assertions independently verify one transfer, target execution,
 outbound target channel, target answer/bridge, and all four channels ending.

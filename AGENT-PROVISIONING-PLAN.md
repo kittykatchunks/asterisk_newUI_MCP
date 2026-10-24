@@ -3989,9 +3989,14 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   final-INVITE-response loss. All 40 echoed 100/100 distinct RTP payloads.
   Existing CEL verifies one transfer/target execution and outbound channel,
   target answer/bridge, and all four channels ending.
-  The current runner contains 144 accepted transfers (24 Local-target and
-  120 PJSIP-target), 106 rejection/policy dialogs and 24 preservation cases;
-  the last full validation remains the 136-transfer run above.
+  The subsequent complete runner passed 144 accepted transfers (24 Local-target
+  and 120 PJSIP-target), 106 rejection/policy dialogs, 24 preservation cases,
+  and six additional branch/CSeq sequencing attempts. All eight
+  BYE-response-loss cases passed alongside the existing regressions,
+  recovering in 0.502-0.543 seconds. All 56 answered PJSIP-target cases echoed
+  100/100 distinct RTP payloads. Totals were checked against completed runner
+  output, all correlated channel-cleanup assertions passed, and proof services
+  stopped with persistent data preserved.
   This is bounded receive-boundary response loss after teardown, not internal
   send failure, transaction/reference destruction, permanent BYE-response loss,
   or production interoperability.
