@@ -3649,10 +3649,14 @@ deployed value: the counter increments before its `>=` check, so the default
 allows two stale retries, and a third stale challenge ends pjproject's retry
 path. A challenge's `stale=true` flag permits that retry even if its nonce is
 unchanged; only when `stale` is false does pjproject use a changed nonce as an
-alternative stale signal. With `stale=false` and the same nonce, it returns
-`PJSIP_EFAILEDCREDENTIAL` without incrementing the stale counter. Test each
-combination, exhaustion, and a new request separately before concluding that a
-challenge uses only one retry path
+alternative stale signal. This stale evaluation and counter increment happen
+only when the challenged request already contains a matching Authorization
+header; an initial `stale=true` challenge with no prior matching header does
+not consume the stale budget and may still produce the first credentialed
+request. With a matching prior header, `stale=false` and an unchanged nonce
+returns `PJSIP_EFAILEDCREDENTIAL` without incrementing the stale counter. Test
+the initial no-header case, each subsequent combination, exhaustion, and a new
+request separately before concluding that a challenge uses only one retry path
 ([auth reinitializer errors](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1559-L1705),
 [initial request auth initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1270),
 [evsub auth fallback](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1825-L1914),
