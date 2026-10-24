@@ -3703,6 +3703,17 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   `202`; no-subscription REFER remains `200` with no NOTIFY despite later
   target failure. This directly demonstrates why acceptance and disabled-
   progress success signaling cannot settle a transfer operation as successful.
+  Eight no-answer cases additionally use a ringing Local target and a
+  three-second `Dial()` timeout. CEL verifies `DIALSTATUS=NOANSWER`, no target
+  answer/bridge, a target-pair lifetime of 2.5 to under five seconds, and
+  all five correlated channels ending after exactly one transfer/target
+  execution despite retransmission. With normal blind progress, subscribed
+  cases observe active sipfrag `180` followed by terminal `200` despite that
+  no-answer result; with progress disabled, early `200` still precedes target
+  creation. The fixture retains synthetic tones on the original Local peer
+  and does not instrument the precise frame/callback responsible for the
+  terminal result. This is a fixture-specific observation, not a universal
+  timeout mapping or proof of target answer from success-shaped NOTIFY.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

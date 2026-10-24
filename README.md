@@ -119,7 +119,7 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs and 16 accepted
+On 24 October 2026, all 106 rejected-target/policy dialogs and 24 accepted
 bridged-transfer dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
@@ -211,17 +211,19 @@ dials and bridges an answered second Local pair. Synthetic tones keep the
 local media paths active; no external endpoint or real caller is involved.
 The tester mounts the PBX's existing CEL volume read-only.
 
-Sixteen cases passed: answered/busy targets with absent/false `Refer-Sub`
+Twenty-four cases passed: answered/busy/no-answer targets with absent/false `Refer-Sub`
 under both `norefersub` settings and both `refer_blind_progress` settings.
 Eight cases have an answered target.
 The no-subscription path returned `200` with `Refer-Sub: false` and no NOTIFY;
-the subscribed path returned `202` and a terminal sipfrag `200`.
+the subscribed path returned `202`. Answered targets produced terminal sipfrag
+`200`; failed-target notifications are distinguished below.
 Each case independently verifies:
 
 - The source SIP Call-ID maps to the source CEL unique ID and linked ID.
 - The source and original transferee entered the same bridge before REFER.
-- That exact transferee executes the unique target and bridges with an
-  answered target leg.
+- That exact transferee executes the unique target; answered cases also
+  prove a shared bridge with an answered target leg, while failure cases
+  prove the target pair never answers or enters a bridge.
 - An identical REFER retransmission returns the same final response and
   creates neither a second target execution nor a second `BLINDTRANSFER`.
 - The `BLINDTRANSFER` event names the correct source, transferee, context,
@@ -230,9 +232,9 @@ Each case independently verifies:
   have both `CHAN_START` and `CHAN_END`.
 
 The target route waits two seconds before creating its outgoing Local pair.
-With `refer_blind_progress=no`, both subscribed cases observed terminal
+With `refer_blind_progress=no`, the subscribed cases observed terminal
 NOTIFY `200` while CEL still showed no target-leg `CHAN_START`. They then
-independently verified the later target answer, bridge, and cleanup. This
+independently verified the later target outcome and cleanup. This
 demonstrates that the early success sipfrag is not target-answer evidence;
 the CEL observation is bounded to this fixture, not an instrumented proof of
 the callback's exact instruction ordering.
@@ -243,7 +245,7 @@ send-failure ordering, multi-party fallback, or PJSIP transaction/refcount
 cleanup. Terminal NOTIFY alone remains insufficient proof: this test relies
 on the independently correlated target bridge and CEL lifecycle.
 
-The other eight accepted-transfer cases redirect to a Local target running
+Eight accepted-transfer cases redirect to a Local target running
 `Busy(1)`. CEL verifies that the rejecting Local pair never answers or enters
 a bridge, the original transferee finishes with `DIALSTATUS=BUSY`, and all
 five channels end. Exactly one correlated transfer and target execution still
@@ -253,13 +255,25 @@ occur despite REFER retransmission. The fixture observes:
 | --- | --- | --- |
 | Answered target | `yes` | `200` |
 | Busy target, no answer | `yes` | `503` |
-| Either target outcome | `no` | Early `200`, before target-leg creation |
+| Ringing target that times out without answer | `yes` | Active `180`, then terminal `200` |
+| Any of these target outcomes | `no` | Early `200`, before target-leg creation |
 
 The `503` is this fixture's observed progress result, not a claim that every
 busy target maps to SIP `503`. In both modes the subscribed REFER itself
 returns `202`; without a subscription it returns `200` and no NOTIFY even
 when the target later fails. Thus neither REFER acceptance nor the disabled-
 progress terminal `200` proves target success.
+
+Eight additional cases use a Local target that rings but does not answer,
+with a three-second `Dial()` timeout. CEL confirms `DIALSTATUS=NOANSWER`,
+no target answer/bridge, and a target-pair lifetime of at least 2.5 and under
+five seconds. All five correlated channels end; retransmission still creates
+exactly one transfer and target execution. Normal-progress subscribed cases
+observed active sipfrag `180` followed by terminal `200` despite the verified
+no-answer outcome. The fixture retains synthetic tones on the original
+Local peer; it does not instrument which frame/callback produces this terminal
+result. Do not generalize this to every timeout or infer a target answer from
+the sipfrag, even with normal blind progress enabled.
 
 ## Browser WSS and encrypted WebRTC proof
 
@@ -3712,7 +3726,7 @@ unknown target. The test confirms this response shape for that case only; it
 does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
 The later accepted bridged proof separately covers eight answered-target and
-eight busy-target transfers; response-reference and transaction-lifetime measurements remain
+eight busy-target and eight no-answer transfers; response-reference and transaction-lifetime measurements remain
 open.
 The repeatable proof additionally confirmed implicit-subscription `202`
 followed by terminal sipfrag `404`, successful same-key final-response

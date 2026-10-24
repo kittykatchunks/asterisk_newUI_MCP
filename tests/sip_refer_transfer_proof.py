@@ -39,10 +39,16 @@ def user_event(row, name, value):
     return json.loads(row["extra"]).get("extra") == value
 
 
-def run_transfer(host, password, subscribed, blind_progress, rejected=False):
+def run_transfer(host, password, subscribed, blind_progress, outcome="answered"):
     probe = ReferProbe(host)
     token = uuid.uuid4().hex
-    extension = f"{'failed' if rejected else 'target'}-{token}"
+    prefix, target_name, dialstatus = {
+        "answered": ("target", "answer", "ANSWER"),
+        "busy": ("failed", "reject", "BUSY"),
+        "timeout": ("timeout", "noanswer", "NOANSWER"),
+    }[outcome]
+    rejected = outcome != "answered"
+    extension = f"{prefix}-{token}"
     probe.uri = f"sip:bridge-{token}@{host}"
     probe.to_value = f"<{probe.uri}>"
     try:
@@ -93,7 +99,8 @@ def run_transfer(host, password, subscribed, blind_progress, rejected=False):
             require(not any(row["linkedid"] == linkedid
                             and row["event"] == "CHAN_START"
                             and row["channel"].startswith(
-                                ("Local/answer@refer-proof-", "Local/reject@refer-proof-"))
+                                ("Local/answer@refer-proof-", "Local/reject@refer-proof-",
+                                 "Local/noanswer@refer-proof-"))
                             for row in events()),
                     "Target leg started before early NOTIFY observation")
             print("PASS refer_blind_progress=no: terminal NOTIFY 200 observed "
@@ -121,7 +128,7 @@ def run_transfer(host, password, subscribed, blind_progress, rejected=False):
             code, _, _ = probe.exchange(probe.request("BYE", uri=target), "BYE")
             require(code == 200, f"Transferer BYE failed: {code}")
         if subscribed:
-            expected_terminal = 503 if rejected and blind_progress == "yes" else 200
+            expected_terminal = 503 if outcome == "busy" and blind_progress == "yes" else 200
             wait_for(probe, f"terminal NOTIFY {expected_terminal}", lambda rows: any(
                 state.split(";", 1)[0] == "terminated" and status == expected_terminal
                 for state, status in probe.notifications.values()))
@@ -140,15 +147,22 @@ def run_transfer(host, password, subscribed, blind_progress, rejected=False):
         require(len(started) == 5, f"Expected source and two Local pairs, found {len(started)} channels")
         if rejected:
             target_ids = {row["uniqueid"] for row in related
-                          if row["channel"].startswith("Local/reject@refer-proof-")}
+                          if row["channel"].startswith(f"Local/{target_name}@refer-proof-")}
             require(len(target_ids) == 2, "Expected rejecting target Local pair")
             require(not any(row["uniqueid"] in target_ids
                             and row["event"] in ("ANSWER", "BRIDGE_ENTER") for row in related),
                     "Rejecting target unexpectedly answered or bridged")
             require(any(row["uniqueid"] == transferee["uniqueid"]
                         and row["event"] == "HANGUP"
-                        and json.loads(row["extra"]).get("dialstatus") == "BUSY"
-                        for row in related), "Missing transferee BUSY dial result")
+                        and json.loads(row["extra"]).get("dialstatus") == dialstatus
+                        for row in related), f"Missing transferee {dialstatus} dial result")
+            if outcome == "timeout":
+                target_start = min(float(row["time"]) for row in related
+                                   if row["uniqueid"] in target_ids and row["event"] == "CHAN_START")
+                target_end = max(float(row["time"]) for row in related
+                                 if row["uniqueid"] in target_ids and row["event"] == "CHAN_END")
+                require(2.5 <= target_end - target_start < 5,
+                        f"No-answer target duration outside 2.5-5 seconds: {target_end - target_start}")
         else:
             require(any(row["event"] == "ANSWER" and row["uniqueid"] == answered_target["uniqueid"]
                         for row in related), "Target bridge leg has no ANSWER evidence")
@@ -166,14 +180,18 @@ def run_transfer(host, password, subscribed, blind_progress, rejected=False):
             terminal = [status for state, status in probe.notifications.values()
                         if state.split(";", 1)[0] == "terminated"]
             require(terminal == [expected_terminal], f"Unexpected terminal NOTIFY outcomes: {terminal}")
+            if outcome == "timeout" and blind_progress == "yes":
+                require(any(state.split(";", 1)[0] == "active" and status == 180
+                            for state, status in probe.notifications.values()),
+                        "Missing active ringing NOTIFY for no-answer target")
         else:
             require(not probe.notifications, "No-subscription transfer emitted NOTIFY")
         mode = "implicit subscription" if subscribed else "Refer-Sub: false"
         refer_code = 202 if subscribed else 200
-        outcome = "rejected busy target without answer" if rejected else "answered target bridge"
+        result = f"{dialstatus} target without answer" if rejected else "answered target bridge"
         print(f"PASS accepted {mode}, refer_blind_progress={blind_progress}: "
               f"REFER {refer_code}, original transferee reached target, "
-              f"{outcome}, one BLINDTRANSFER after retransmission, "
+              f"{result}, one BLINDTRANSFER after retransmission, "
               "transferer BYE, all five channels ended")
     finally:
         probe.close()
@@ -186,8 +204,8 @@ def main():
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for subscribed in (False, True):
-        run_transfer(args.host, password, subscribed, args.blind_progress)
-        run_transfer(args.host, password, subscribed, args.blind_progress, rejected=True)
+        for outcome in ("answered", "busy", "timeout"):
+            run_transfer(args.host, password, subscribed, args.blind_progress, outcome)
 
 
 if __name__ == "__main__":
