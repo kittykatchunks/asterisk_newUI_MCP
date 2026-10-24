@@ -129,8 +129,8 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             "NOTIFY acknowledgement loss needs a subscription")
     probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack,
                        lose_all_terminal_acks=lose_all_terminal_acks)
-    peer = TransferPeer(host, busy=outcome == "peer-busy") \
-        if outcome in ("peer", "peer-busy") else None
+    peer = TransferPeer(host, busy=outcome == "peer-busy", noanswer=outcome == "peer-timeout") \
+        if outcome in ("peer", "peer-busy", "peer-timeout") else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
     token = uuid.uuid4().hex
@@ -141,8 +141,9 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
         "unknown": ("missing", None, None),
         "peer": ("peer", None, "ANSWER"),
         "peer-busy": ("peer", None, "BUSY"),
+        "peer-timeout": ("peer", None, "NOANSWER"),
     }[outcome]
-    rejected = outcome in ("busy", "timeout", "peer-busy")
+    rejected = outcome in ("busy", "timeout", "peer-busy", "peer-timeout")
     extension = f"peer-{peer.port}-{token}" if peer else f"{prefix}-{token}"
     probe.uri = f"sip:{'media' if peer else 'bridge'}-{token}@{host}"
     probe.to_value = f"<{probe.uri}>"
@@ -277,7 +278,9 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             require(peer_id != source_id and peer_markers[0]["channel"].startswith(
                 "PJSIP/proof-client-"), "Outbound SIP Call-ID does not identify a target channel")
             if rejected:
-                print("PASS outbound PJSIP target: INVITE rejected with 486 Busy Here, "
+                result = "ringing INVITE cancelled with 487" if peer.noanswer \
+                    else "INVITE rejected with 486 Busy Here"
+                print(f"PASS outbound PJSIP target: {result}, "
                       "matching transaction ACK, no answered target")
             else:
                 require(peer_id == answered_target["uniqueid"],
@@ -296,13 +299,15 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
                         and row["event"] == "HANGUP"
                         and json.loads(row["extra"]).get("dialstatus") == dialstatus
                         for row in related), f"Missing transferee {dialstatus} dial result")
-            if outcome == "timeout":
+            if outcome in ("timeout", "peer-timeout"):
                 target_start = min(float(row["time"]) for row in related
                                    if row["uniqueid"] in target_ids and row["event"] == "CHAN_START")
                 target_end = max(float(row["time"]) for row in related
                                  if row["uniqueid"] in target_ids and row["event"] == "CHAN_END")
-                require(2.5 <= target_end - target_start < 5,
-                        f"No-answer target duration outside 2.5-5 seconds: {target_end - target_start}")
+                minimum, maximum = (4.5, 7) if peer else (2.5, 5)
+                require(minimum <= target_end - target_start < maximum,
+                        f"No-answer target duration outside {minimum}-{maximum} seconds: "
+                        f"{target_end - target_start}")
         else:
             require(any(row["event"] == "ANSWER" and row["uniqueid"] == answered_target["uniqueid"]
                         for row in related), "Target bridge leg has no ANSWER evidence")
@@ -320,7 +325,7 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
             terminal = [status for state, status in probe.notifications.values()
                         if state.split(";", 1)[0] == "terminated"]
             require(terminal == [expected_terminal], f"Unexpected terminal NOTIFY outcomes: {terminal}")
-            if outcome == "timeout" and blind_progress == "yes":
+            if outcome in ("timeout", "peer-timeout") and blind_progress == "yes":
                 require(any(state.split(";", 1)[0] == "active" and status == 180
                             for state, status in probe.notifications.values()),
                         "Missing active ringing NOTIFY for no-answer target")
@@ -360,7 +365,8 @@ def main():
     args = parser.parse_args()
     password = read_password(Path("/run/proof/pjsip.conf"))
     for subscribed in (False, True):
-        for outcome in ("answered", "busy", "timeout", "unknown", "peer", "peer-busy"):
+        for outcome in ("answered", "busy", "timeout", "unknown", "peer", "peer-busy",
+                        "peer-timeout"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome)
         for outcome in ("unknown", "peer"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome,

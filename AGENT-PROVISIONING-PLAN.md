@@ -3813,6 +3813,24 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   NOTIFY despite the later rejection. This confirms the Local busy
   observation with independent outbound SIP evidence, not a universal
   failure mapping or a media proof for the unanswered target.
+  Eight [outbound PJSIP ringing-timeout cases](./README.md#outbound-pjsip-ringing-timeout-and-cancel)
+  additionally send target `180 Ringing` without answering under absent/false
+  `Refer-Sub` and both advertisement/progress settings. The peer verifies
+  CANCEL 4.5 to under seven seconds after INVITE, matching the INVITE
+  Call-ID, CSeq number, and Via branch; it responds `200` to CANCEL and
+  `487` to INVITE, then verifies the matching non-2xx ACK. The target
+  never sends an answer SDP or media. Independent CEL correlates the
+  outbound Call-ID, proves no target answer/bridge, a 4.5-to-under-seven-second
+  target-channel lifetime, transferee `DIALSTATUS=NOANSWER`, one transfer
+  and target execution despite retransmission, and all four channels ending.
+  Normal-progress subscribed REFER still reports active sipfrag `180` then
+  terminal `200` despite the timeout/INVITE `487`. Disabled progress reports
+  early `200` before target creation; no-subscription REFER returns `200`
+  with no observed NOTIFY despite the later timeout.
+  This reproduces success-shaped no-answer progress with an actual outbound
+  PJSIP target and an original Local peer running `Echo()`, rather than
+  retaining synthetic tones. The exact frame/callback cause remains
+  uninstrumented; do not infer a universal timeout mapping or target success.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

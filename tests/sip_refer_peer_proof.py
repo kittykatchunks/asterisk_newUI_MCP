@@ -10,7 +10,8 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 
 
 class TransferPeer:
-    def __init__(self, host, *, busy=False):
+    def __init__(self, host, *, busy=False, noanswer=False):
+        require(not (busy and noanswer), "Target cannot be both busy and ringing")
         self.server = (socket.gethostbyname(host), 5060)
         self.sip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sip.connect(self.server)
@@ -22,6 +23,10 @@ class TransferPeer:
         self.acked = False
         self.remote_ended = False
         self.busy = busy
+        self.noanswer = noanswer
+        self.cancelled = False
+        self.invite_received_at = None
+        self.cancel_received_at = None
 
     def close(self):
         self.sip.close()
@@ -32,7 +37,8 @@ class TransferPeer:
         if start.startswith("SIP/2.0 "):
             return int(start.split()[1]), headers
         method = start.split()[0]
-        require(method in ("INVITE", "ACK", "BYE"), f"Unexpected target request: {start}")
+        require(method in ("INVITE", "ACK", "BYE", "CANCEL"),
+                f"Unexpected target request: {start}")
         for name in ("via", "from", "to", "call-id", "cseq"):
             require(len(headers.get(name, [])) == 1, f"Missing/ambiguous target {name}")
         if self.dialog is not None:
@@ -41,10 +47,22 @@ class TransferPeer:
             require(self.dialog is not None, "Target ACK before INVITE")
             require(headers["cseq"] == [self.dialog["cseq"][0].replace("INVITE", "ACK")],
                     "Unexpected target ACK CSeq")
-            if self.busy:
+            if self.busy or self.noanswer:
                 require(headers["via"] == self.dialog["via"],
-                        "Busy target ACK did not match INVITE transaction")
+                        "Non-2xx target ACK did not match INVITE transaction")
+            require(not self.noanswer or self.cancelled, "Ringing target ACK before CANCEL")
             self.acked = True
+            return None
+        if method == "CANCEL":
+            require(self.noanswer and self.dialog is not None, "Unexpected target CANCEL")
+            require(headers["via"] == self.dialog["via"]
+                    and headers["cseq"] == [self.dialog["cseq"][0].replace("INVITE", "CANCEL")],
+                    "Target CANCEL does not match INVITE transaction")
+            if not self.cancelled:
+                self.cancel_received_at = time.monotonic()
+            self.cancelled = True
+            self.respond("200 OK", headers)
+            self.respond("487 Request Terminated", self.dialog)
             return None
         answer = ""
         if method == "INVITE":
@@ -55,6 +73,8 @@ class TransferPeer:
             require(connection and media and "0" in media[2].split(), "Expected target PCMU SDP")
             require(connection[1] == self.server[0], "Unexpected target media host")
             self.rtp.connect((connection[1], int(media[1])))
+            if self.dialog is None:
+                self.invite_received_at = time.monotonic()
             self.dialog = headers
             answer = (
                 f"v=0\r\no=peer 1 1 IN IP4 {self.ip}\r\ns=synthetic\r\n"
@@ -64,10 +84,19 @@ class TransferPeer:
             )
         else:
             self.remote_ended = True
-        if method == "INVITE" and self.busy:
+        if method == "INVITE" and (self.busy or self.noanswer):
             answer = ""
-        response = ["SIP/2.0 486 Busy Here" if method == "INVITE" and self.busy
-                    else "SIP/2.0 200 OK"]
+        status = "200 OK"
+        if method == "INVITE":
+            if self.busy:
+                status = "486 Busy Here"
+            elif self.noanswer:
+                status = "487 Request Terminated" if self.cancelled else "180 Ringing"
+        self.respond(status, headers, answer)
+        return None
+
+    def respond(self, status, headers, answer=""):
+        response = [f"SIP/2.0 {status}"]
         for name in ("via", "from", "to", "call-id", "cseq"):
             value = headers[name][0]
             if name == "to" and ";tag=" not in value:
@@ -78,15 +107,20 @@ class TransferPeer:
                          "Content-Type: application/sdp"]
         response += [f"Content-Length: {len(answer.encode())}", "", answer]
         self.sip.send("\r\n".join(response).encode())
-        return None
 
     def run(self):
-        deadline = time.monotonic() + 8
+        deadline = time.monotonic() + (12 if self.noanswer else 8)
         while not self.acked and time.monotonic() < deadline:
             if select.select([self.sip], [], [], 0.05)[0]:
                 self.receive()
         require(self.acked, "Target did not receive INVITE and ACK")
-        if self.busy:
+        if self.noanswer:
+            require(self.cancelled, "No-answer target was not cancelled")
+            duration = self.cancel_received_at - self.invite_received_at
+            require(4.5 <= duration < 7, f"Target CANCEL outside 4.5-7s window: {duration}")
+            print(f"PASS ringing PJSIP target: CANCEL after {duration:.3f}s, "
+                  "CANCEL 200, INVITE 487 and matching ACK")
+        if self.busy or self.noanswer:
             return 0
 
         def receive_sip():

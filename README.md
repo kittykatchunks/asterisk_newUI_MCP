@@ -120,8 +120,8 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 106 rejected-target/policy dialogs, 56 accepted
-bridged-transfer dialogs (24 Local-target and 32 PJSIP-target cases), and
+On 24 October 2026, all 106 rejected-target/policy dialogs, 64 accepted
+bridged-transfer dialogs (24 Local-target and 40 PJSIP-target cases), and
 24 bridged-call preservation dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 accepted and preservation totals include 16 controlled lost-response cases
@@ -287,6 +287,7 @@ occur despite REFER retransmission. The fixture observes:
 | Busy target, no answer | `yes` | `503` |
 | Outbound PJSIP target rejects INVITE with `486 Busy Here` | `yes` | `503` |
 | Ringing target that times out without answer | `yes` | Active `180`, then terminal `200` |
+| Outbound PJSIP target rings until Dial timeout/CANCEL | `yes` | Active `180`, then terminal `200` |
 | Any of these target outcomes | `no` | Early `200`, before target-leg creation |
 
 The `503` is this fixture's observed progress result, not a claim that every
@@ -372,6 +373,37 @@ the later target rejection. These results match the Local busy case but
 add independent outbound SIP rejection evidence. They are fixture-specific,
 not a universal SIP failure mapping or proof of target success from REFER
 acceptance. Source dialog cleanup also succeeds in every case.
+
+### Outbound PJSIP ringing timeout and CANCEL
+
+Eight additional accepted-transfer cases have the synthetic PJSIP target
+send `180 Ringing` without answering. They cover absent/false `Refer-Sub`
+under both advertisement and blind-progress settings. The existing target
+route has a five-second `Dial()` timeout after its two-second route delay.
+
+The peer requires Asterisk to send CANCEL between 4.5 and seven seconds
+after receiving the INVITE. CANCEL must match the INVITE Call-ID, CSeq number,
+and Via transaction branch. The peer responds `200 OK` to CANCEL and
+`487 Request Terminated` to the original INVITE, then verifies a matching
+non-2xx ACK. It never sends an answer SDP or target media.
+
+The outbound SIP Call-ID is independently correlated to its target PJSIP
+channel through CEL. Each case requires no target ANSWER or BRIDGE_ENTER,
+`DIALSTATUS=NOANSWER` on the original transferee, a target-channel CEL
+lifetime between 4.5 and seven seconds, exactly one matching transfer and
+target execution despite REFER retransmission, source dialog cleanup, and
+all four correlated channels ending.
+
+With normal blind progress, subscribed REFER returns `202`, emits active
+sipfrag `180`, and ends with terminal `200` despite the verified no-answer
+outcome and INVITE `487`. With progress disabled, terminal `200` arrives
+before target-channel creation. No-subscription REFER returns `200` with
+`Refer-Sub: false` and no observed NOTIFY despite the later timeout.
+The success-shaped terminal result therefore also occurs with an actual
+outbound PJSIP ringing target and the original Local peer running `Echo()`,
+not only the earlier Local-target fixture retaining synthetic tones.
+The precise frame/callback causing the result remains uninstrumented;
+these observations are not a universal timeout mapping or target-success proof.
 
 ### Lost final REFER response recovery
 
@@ -3913,7 +3945,8 @@ does not exercise an accepted transfer, measure response reference counts, or
 validate transaction lifetime.
 The later accepted bridged proof separately covers eight answered Local-target,
 eight busy-target, eight no-answer, and outbound PJSIP-target transfers with
-both answered and SIP `486`-rejected outcomes, plus controlled loss cases.
+answered, SIP `486`-rejected, and ringing timeout/CANCEL outcomes, plus
+controlled loss cases.
 The answered PJSIP cases additionally verify correlated target signaling and
 post-transfer RTP echo; response-reference and transaction-lifetime measurements
 remain open.
