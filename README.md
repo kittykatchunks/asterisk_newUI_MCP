@@ -120,15 +120,15 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, the suite comprises 106 rejected-target/policy dialogs,
+On 24 October 2026, the complete runner passed 106 rejected-target/policy dialogs,
 104 accepted bridged-transfer dialogs (24 Local-target and 80 PJSIP-target
 cases), and 24 bridged-call preservation dialogs, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
-previous full run passed all cases except the 24 subsequently added
-cancellation-response-loss cases. Focused validation passed all 24 plus eight
-baseline PJSIP timeout cases, including isolated CANCEL `200` and INVITE `487`
-loss; an earlier focused run also passed all
-24 baseline answered/busy/timeout PJSIP cases across CLI-verified settings.
+full run includes all 24 cancellation-response-loss cases, including isolated
+CANCEL `200` and INVITE `487` loss, alongside the rejection, transfer,
+preservation, and notification-loss regressions. Scenario totals were checked
+against the completed runner output; all correlated channel-cleanup assertions
+passed and the proof PBX was stopped without removing persistent volumes.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -438,7 +438,8 @@ disabled progress reports early `200`, and no-subscription REFER returns
 Focused regression also passed all 24 baseline PJSIP answered, busy, and
 timeout cases under both effective advertisement/progress settings and
 absent/false `Refer-Sub`; answered cases echoed 100/100 RTP payloads.
-The full runner includes the eight new loss cases for future full runs.
+The subsequent complete runner also passed all eight paired-response-loss
+cases alongside the rest of the suite.
 This models a withheld response pair at the synthetic target's send
 boundary, not internal send failure, permanent cancellation-response loss,
 independent loss of only one response, transaction/reference cleanup, or
@@ -463,8 +464,8 @@ All cases independently verify `DIALSTATUS=NOANSWER`, no target answer or
 bridge, one correlated transfer, target execution, and outbound channel,
 existing REFER retransmission/progress results, and all four channels ending.
 The eight paired-response-loss cases also passed again. These 16 focused
-checks ran under CLI-verified settings; the full suite was not rerun for
-this addition, but its runner includes the new cases.
+checks ran under CLI-verified settings. The subsequent complete runner also
+passed this matrix alongside both other cancellation-response-loss matrices.
 
 This proves bounded wire-level independence of the INVITE and CANCEL
 transactions for one suppressed CANCEL response. It does not inspect their
@@ -492,8 +493,8 @@ no target answer/bridge, one transfer, target execution, and outbound
 channel, all four channels ending, and expected progress signaling including
 terminal `200` despite timeout. Focused validation includes these eight
 cases, eight baseline PJSIP timeouts, and both earlier cancellation-loss
-matrices (16 cases). The full runner includes the new cases; it was not
-rerun in full for this addition.
+matrices (16 cases). The subsequent complete runner passed all these cases
+alongside the rejection, transfer, preservation, and notification-loss cases.
 
 This is bounded wire-level recovery driven by the synthetic peer's `487`
 retransmission timer. It does not prove Asterisk's own UAS retransmission

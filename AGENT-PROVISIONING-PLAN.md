@@ -3862,8 +3862,8 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   retransmission/progress assertions pass, including success-shaped
   terminal `200` despite NOANSWER. Focused regression also passed all
   24 baseline PJSIP answered/busy/timeout cases under CLI-verified settings;
-  answered cases echoed 100/100 payloads. The full runner includes the
-  new cases, but was not rerun in full for this addition.
+  answered cases echoed 100/100 payloads. The subsequent complete runner
+  passed this matrix alongside all other REFER proof cases.
   This is withheld peer-response-pair recovery, not internal send failure,
   permanent cancellation-response loss, isolated loss of just one response,
   transaction/reference cleanup, or production-trunk interoperability.
@@ -3879,8 +3879,8 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   transfer/target execution and outbound channel, and all four channels
   ending; existing REFER retransmission/progress assertions also pass.
   The eight paired-response-loss cases passed again under CLI-verified
-  settings. The full runner includes the new cases; validation for this
-  addition was these 16 focused cases, not a new full-suite run.
+  settings. Initial validation covered these 16 focused cases; the subsequent
+  complete runner also passed this matrix alongside all other REFER cases.
   This establishes bounded wire-level INVITE/CANCEL transaction independence,
   not internal state/refcount cleanup, permanent CANCEL-response loss,
   isolated INVITE-487 loss, internal send errors, or reliable transport.
@@ -3898,8 +3898,12 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   no target answer/bridge, one transfer/target execution and outbound
   channel, expected REFER progress, and all four channels ending.
   Focused validation covers the eight new cases, eight baseline PJSIP
-  timeouts, and 16 earlier cancellation-loss cases. The full runner
-  includes the new cases, but was not rerun in full for this addition.
+  timeouts, and 16 earlier cancellation-loss cases. The subsequent complete
+  runner passed all 24 cancellation-loss cases alongside the rest of the
+  suite: 106 rejection/policy dialogs, 104 accepted-transfer cases, 24
+  call-preservation cases, and six additional branch/CSeq attempts in total.
+  Totals were checked against completed runner output; all correlated channel
+  cleanup assertions passed and the proof PBX stopped with data preserved.
   This tests Asterisk's peer-visible recovery, not its UAS retransmission
   timer implementation, indefinite absence of CANCEL retries, internal
   transaction/refcount destruction, permanent `487` loss, or send errors.
