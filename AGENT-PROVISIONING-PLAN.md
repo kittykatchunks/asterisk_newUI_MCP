@@ -4389,14 +4389,18 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   [send and release path](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1642-L1713)).
   The Asterisk caller neither checks the result nor releases `tdata`, so if
   the clone has no transaction, the source confirms the response buffer's
-  initial reference remains outstanding on this path. Runtime validation
-  needs to establish whether the deployed callback clone reaches this
-  condition and measure its operational impact
+  initial reference remains outstanding on this path. A local Asterisk
+  22.11.0 UDP spot check with `res_pjsip_refer` loaded returned `404` plus
+  `Refer-Sub: false` for an authenticated in-dialog REFER to an unknown
+  target. This confirms a response on that unknown-target path, but does not
+  expose the cloned request's transaction data or response reference count;
+  those conditions and operational impact still require runtime instrumentation
   ([Asterisk response creation and send](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)).
-  Consequently, source order permits the bridge transfer to be queued even
-  though the REFER final response is not submitted; do not treat the absent
-  response as proof that the operation was rejected or retry it as a new
-  transaction without first resolving the original operation.
+  On a path where response submission fails after bridge handling is queued,
+  source order permits the transfer to proceed without a submitted REFER final
+  response; do not treat that absent response as proof the operation was
+  rejected or retry it as a new transaction without first resolving the
+  original operation.
   An exact retransmission with the same transaction key reaches the existing
   UAS transaction; while it remains in `TRYING`, pjproject ignores the request
   event because there is no saved response to resend, and does not redispatch

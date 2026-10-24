@@ -3533,6 +3533,11 @@ adds `Refer-Sub: false` without restricting it to 2xx
 ([response path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L2069-L2088)),
 although RFC 4488 defines that response header for 2xx only. A non-2xx echo
 does not establish successful negotiation.
+A local Asterisk 22.11.0 UDP spot check with `res_pjsip_refer` loaded sent a
+`404` plus `Refer-Sub: false` for an authenticated in-dialog REFER to an
+unknown target. The test confirms this response shape for that case only; it
+does not exercise an accepted transfer, prove the cloned request's transaction
+data or response reference count, or validate transaction lifetime.
 Asterisk's out-of-dialog REFER client also compares the entire echoed header
 value to `false` rather than parsing RFC 4488 extension parameters. Thus a
 valid `Refer-Sub: false;foo=bar` 2xx echo does not trigger its immediate
