@@ -3695,7 +3695,13 @@ challenge
 For multiple Digest algorithms under the same realm/auth type,
 `PJSIP_AUTH_ALLOW_MULTIPLE_AUTH_HEADER` defaults to 0; a later challenge may
 replace or reject an earlier header depending on nonce/stale values instead of
-retaining both. Verify the deployed compile-time setting and emitted headers
+retaining both. Without the option, previous-header matching checks class,
+realm, and scheme but not Digest algorithm; a different-algorithm challenge
+can therefore compare stale/nonce state against the earlier algorithm's header
+and increment the new algorithm's cached counter. With the option enabled,
+different-algorithm headers are skipped by that prior-attempt check and can be
+retained alongside the new header. Verify both challenge orders, counter
+effects, the deployed compile-time setting, and emitted headers
 ([header handling](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1584-L1675),
 [default](https://github.com/pjsip/pjproject/blob/2.17/pjsip/include/pjsip/sip_config.h#L1365-L1372)).
 Confirm the peer's challenge-selection result separately; generated headers
