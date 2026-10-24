@@ -3667,6 +3667,16 @@ capture its status and headers
 [qop-less challenge retention](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L758),
 [fresh-request qop branch](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
 [qop response generation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L670-L714)).
+With `PJSIP_AUTH_HEADER_CACHING` disabled, an already initialized qop
+session's `update_digest_session()` updates cached nonce-count and, on nonce
+change, nonce/opaque, but does not replace the cached challenge's qop offer.
+If `PJSIP_AUTH_AUTO_SEND_NEXT` is enabled, a later fresh request can therefore
+regenerate from an older qop offer than the most recently processed challenge.
+Compare repeated challenges whose qop offers change, with both header-caching
+build settings, and inspect the later generated header
+([selective cached challenge update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L779-L810),
+[header-caching challenge refresh](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1240-L1268),
+[fresh-request regeneration](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460)).
 Each counter is scoped to a cached case-insensitive realm/algorithm pair, so
 multiple supported challenge pairs have independent stale-retry budgets rather
 than sharing one request-wide count
