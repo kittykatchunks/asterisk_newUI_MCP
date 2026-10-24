@@ -4018,8 +4018,8 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   auth-init error before assigning its local txdata to the output pointer; and
   the outer `pjsip_dlg_create_request()` only decrements txdata when that
   output pointer is non-NULL. This confirms the lost reference in source,
-  though not how long the allocation persists in a running endpoint. Keep it
-  distinct from a wire challenge
+  while the caching-pool teardown below establishes the pool's maximum
+  lifetime in the Asterisk unload path. Keep it distinct from a wire challenge
   ([dialog request construction and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1225-L1284),
   [outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
   [request txdata pool creation and refcounted destruction](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_transport.c#L490-L589),

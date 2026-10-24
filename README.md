@@ -3683,8 +3683,8 @@ the new txdata's reference count to one, and `dlg_create_request_throw()`
 returns on auth-init error before assigning it to its output pointer. The
 outer `pjsip_dlg_create_request()` only decrements txdata when that pointer is
 non-NULL, so the request's initial reference is not released on this path.
-This confirms the lost reference in source; it does not establish how long the
-allocation persists in a running endpoint
+This confirms the lost reference in source; the cache-pool teardown below
+establishes the pool's maximum lifetime in the Asterisk unload path
 ([dialog request construction and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1225-L1284),
 [outer request cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1293-L1335),
 [request txdata initialization and error cleanup](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_util.c#L399-L473),
