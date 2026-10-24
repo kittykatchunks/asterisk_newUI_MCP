@@ -3631,6 +3631,14 @@ build option, method, and resulting header rather than treating request
 initialization as a counter reset alone
 ([header caching on Digest response](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1204-L1256),
 [header reuse on request initialization](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1373-L1428)).
+The cache lookup is by method, not Request-URI, while the cached Digest
+header's `uri` and response were generated for the original Request-URI.
+For a same-method request whose URI changes, verify whether the cloned header
+is reused unchanged and whether it is accepted; do not assume the digest is
+recomputed for the new URI
+([cached method key](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1237-L1256),
+[cached header clone](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1387-L1400),
+[Digest URI assignment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L650-L672)).
 Separately, when both `PJSIP_AUTH_QOP_SUPPORT` and
 `PJSIP_AUTH_AUTO_SEND_NEXT` are enabled, initialization can regenerate a
 qop-auth Digest header for a later request from the cached challenge.
