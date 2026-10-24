@@ -3665,6 +3665,13 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   `Refer-Sub`, repeated that response on a same-key retransmission, emitted no
   NOTIFY during one second, and accepted BYE. Allocation counts and custom
   operation-claim behavior were not instrumented.
+  Twelve additional dialogs confirmed valid target forms: a bare SIP URI,
+  angle-bracketed SIPS URI, and compact `r` header naming an unknown local
+  extension, each with absent/false `Refer-Sub` under both settings. All
+  reached subscribed `202` plus terminal sipfrag `404` or no-subscription
+  `404` with `Refer-Sub: false`, and passed retransmission/BYE checks.
+  This validates these target forms on the fixture, not TLS or target-call
+  admission/signaling.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

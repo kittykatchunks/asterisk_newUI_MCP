@@ -119,7 +119,7 @@ with a proof-only `allow_transfer=no` endpoint override and verifies the CLI
 value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
-On 24 October 2026, all 94 authenticated in-dialog UDP dialogs passed, with
+On 24 October 2026, all 106 authenticated in-dialog UDP dialogs passed, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
 unknown-target group covers 48 cases: 12
 `Refer-Sub` forms, each with and without `Require: norefersub`, under both
@@ -155,6 +155,15 @@ Another 20 cases cover missing `Refer-To`, an empty field, malformed
 retransmission, emitted no NOTIFY during one second, and accepted BYE.
 This confirms peer-visible early rejection for those inputs; the fixture
 does not instrument subscription allocation or operation claims.
+
+Another 12 dialogs use a bare SIP URI (without angle brackets), an
+angle-bracketed SIPS URI, or the compact `r` header, each naming an unknown
+local extension with absent/false `Refer-Sub` under both advertisement
+settings. All reached the same unknown-target outcome: subscribed `202`
+followed by terminal sipfrag `404`, or no-subscription `404` with
+`Refer-Sub: false`. Retransmissions and BYE passed. Accepting a SIPS target
+here is a parsing/routing observation, not evidence of TLS transport or
+successful target signaling.
 
 Two additional dialogs (one per advertisement setting) start with a
 no-subscription unknown-target REFER, then exercise transaction sequencing:

@@ -120,7 +120,8 @@ class ReferProbe(Probe):
 
 
 def run_case(host, password, *, label, values, subscribed, require_option, advertised,
-             refer_to=None, check_sequencing=False, transfers_disabled=False):
+             refer_to=None, check_sequencing=False, transfers_disabled=False,
+             valid_target=False, refer_to_name="Refer-To"):
     probe = ReferProbe(host)
     target = None
     try:
@@ -140,7 +141,7 @@ def run_case(host, password, *, label, values, subscribed, require_option, adver
         probe.cseq += 1
         probe.branch = "z9hG4bK" + uuid.uuid4().hex
         targets = (f"<sip:missing-{uuid.uuid4().hex}@{host}>",) if refer_to is None else refer_to
-        extra_headers = [f"Refer-To: {value}" for value in targets]
+        extra_headers = [f"{refer_to_name}: {value}" for value in targets]
         extra_headers.extend(f"Refer-Sub: {value}" for value in values)
         if require_option:
             extra_headers.append("Require: norefersub")
@@ -149,7 +150,7 @@ def run_case(host, password, *, label, values, subscribed, require_option, adver
         if transfers_disabled:
             expected = 603
             expected_header = None
-        elif refer_to is None:
+        elif refer_to is None or valid_target:
             expected = 202 if subscribed else 404
             expected_header = (["true"] if values else None) if subscribed else ["false"]
         else:
@@ -207,6 +208,19 @@ def main():
             run_case(args.host, password, label=f"{label}, Refer-Sub {mode}",
                      values=values, subscribed=False, require_option=False,
                      advertised=args.norefersub == "yes", refer_to=targets)
+    missing = f"missing-{uuid.uuid4().hex}"
+    target_forms = (
+        ("bare SIP URI", "Refer-To", f"sip:{missing}@{args.host}"),
+        ("SIPS URI", "Refer-To", f"<sips:{missing}@{args.host}>"),
+        ("compact r header", "r", f"<sip:{missing}@{args.host}>"),
+    )
+    for label, header_name, uri in target_forms:
+        for values in ((), ("false",)):
+            mode = "absent" if not values else "false"
+            run_case(args.host, password, label=f"{label}, Refer-Sub {mode}",
+                     values=values, subscribed=not values, require_option=False,
+                     advertised=args.norefersub == "yes", refer_to=(uri,),
+                     valid_target=True, refer_to_name=header_name)
     run_case(args.host, password, label="transaction sequencing baseline",
              values=("false",), subscribed=False, require_option=False,
              advertised=args.norefersub == "yes", check_sequencing=True)
