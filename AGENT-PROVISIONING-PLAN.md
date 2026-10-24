@@ -4040,7 +4040,18 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   the exact runtime dispatch path remains uninstrumented. This does not
   establish an active media call, dialog/transaction destruction, refcount
   cleanup or behavior after retention timers expire. Transfer totals remain
-  unchanged; the complete suite was not rerun after this extension.
+  unchanged. The final complete runner also passed all eight extensions,
+  alongside 144 accepted transfers, 106 rejection/policy dialogs, 24
+  preservation cases and six sequencing attempts. All 56 answered PJSIP-target
+  cases echoed 100/100 distinct RTP payloads. Settled CEL remained unchanged
+  through the new transaction/retry, counts matched completed runner output,
+  and proof services stopped with persistent data preserved.
+  This completes the current bounded synthetic investigation round:
+  [the REFER matrix is frozen](./README.md#refer-investigation-stopping-point).
+  Exact no-answer notification causality, permanent-loss/internal lifetime
+  measurements and internal response-creation/send-failure injection are
+  deferred, not satisfied. Further exploratory permutations require an explicit
+  scope decision; retain current coverage for relevant regressions.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;

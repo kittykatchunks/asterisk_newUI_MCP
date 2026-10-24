@@ -152,8 +152,9 @@ four correlated channel ends. A 40-case focused matrix passed that ordering
 check and related answered-target regressions. The complete suite then passed
 again with the strengthened ordering check enabled; scenario totals are unchanged.
 A later eight-case extension sends a new BYE transaction after recovery.
-It passed alongside eight baseline cases in focused validation; the full
-suite was not rerun after that extension, and transfer totals are unchanged.
+It passed alongside eight baseline cases in focused validation. The final
+complete run also passed all eight extensions, including unchanged settled
+CEL through the new transaction and its retry; transfer totals are unchanged.
 The accepted and preservation totals include 24 cancellation-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
@@ -809,6 +810,34 @@ subscription objects, PJSIP transaction state, reference counts, or timeout
 callbacks, and therefore does not prove their destruction or leak freedom.
 It also does not cover permanent REFER-response loss, internal send errors,
 reliable transport, or indefinite absence of later traffic.
+
+### REFER investigation stopping point
+
+The current synthetic REFER matrix is frozen for this development round.
+The final complete run passed 106 rejection/policy dialogs, 144 accepted
+transfers (24 Local-target and 120 PJSIP-target), 24 preservation dialogs,
+six additional sequencing attempts, and all eight post-channel-end new-BYE
+extensions. All 56 answered PJSIP-target cases echoed 100/100 distinct RTP
+payloads. Counts were checked against runner output; all correlated cleanup
+assertions passed and proof services stopped with persistent data preserved.
+
+Do not add further REFER permutations or rerun this full suite automatically
+as the next development increment. Retain the tests as a regression baseline;
+rerun relevant coverage when related code changes or a concrete defect requires it.
+Reopening exploratory scope requires an explicit decision.
+
+Deferred, not completed:
+
+- Instrument the exact cause of success-shaped no-answer terminal notifications.
+- Measure permanent-loss behavior and internal SIP transaction/dialog/reference
+  lifetimes; wire silence and channel cleanup are not destruction evidence.
+- Inject internal response-creation and transport-send failures.
+
+Real dispatch/trunk interoperability, production TLS/SRTP, capacity and deployment
+remain separate acceptance gates. This freeze is not production approval.
+The next functional priority is the existing
+[management and roaming-agent vertical slice](./PROJECT-PLAN.md#15-delivery-sequence-and-next-planning-work),
+followed by a simulated booking connector before real Autocab integration.
 
 ## Browser WSS and encrypted WebRTC proof
 

@@ -496,6 +496,17 @@ before declaring these tests passed.
 
 Next detailed planning work:
 
+Current priority after the final synthetic REFER regression: resume step 3,
+the management and roaming-agent vertical slice. The
+[REFER investigation is frozen](./README.md#refer-investigation-stopping-point);
+its deferred instrumentation work is not a prerequisite for another automatic
+test-expansion cycle and is not marked complete. Existing phone-activation and
+admission safety gates remain in force; this change does not enable live calling.
+Define the bounded customer/agent workflow and its acceptance criteria before
+adding more low-level SIP scenarios. Simulated booking integration follows that
+slice; real Autocab behavior must be based on the supplied API YAML and test access,
+not guessed provider operations.
+
 - Customer setup and agent-console screen specifications.
 - Aggregate capacity, production sizing, and provider quotas.
 - IONOS networking/topology comparison.
