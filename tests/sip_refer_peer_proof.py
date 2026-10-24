@@ -11,12 +11,14 @@ from sip_rtp_proof import parse_message, require, verify_rtp_echo
 
 class TransferPeer:
     def __init__(self, host, *, busy=False, noanswer=False, lose_first_final=False,
-                 lose_cancel_responses=False):
+                 lose_cancel_responses=False, lose_cancel_ok=False):
         require(not (busy and noanswer), "Target cannot be both busy and ringing")
         require(not (noanswer and lose_first_final),
                 "Final-response loss is limited to answered and busy targets")
-        require(not lose_cancel_responses or noanswer,
+        require(not (lose_cancel_responses or lose_cancel_ok) or noanswer,
                 "CANCEL response loss needs a ringing target")
+        require(not (lose_cancel_responses and lose_cancel_ok),
+                "Select only one CANCEL response-loss mode")
         self.server = (socket.gethostbyname(host), 5060)
         self.sip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sip.connect(self.server)
@@ -39,6 +41,8 @@ class TransferPeer:
         self.lose_cancel_responses = lose_cancel_responses
         self.original_cancel = None
         self.cancel_receipts = []
+        self.lose_cancel_ok = lose_cancel_ok
+        self.ack_received_at = None
 
     def close(self):
         self.sip.close()
@@ -66,6 +70,8 @@ class TransferPeer:
             require(not self.lose_cancel_responses or len(self.cancel_receipts) >= 2,
                     "Target ACK before recovery from withheld CANCEL responses")
             self.acked = True
+            if self.ack_received_at is None:
+                self.ack_received_at = time.monotonic()
             return None
         if method == "CANCEL":
             require(self.noanswer and self.dialog is not None, "Unexpected target CANCEL")
@@ -76,15 +82,18 @@ class TransferPeer:
                 self.cancel_received_at = time.monotonic()
             self.cancelled = True
             self.cancel_receipts.append(time.monotonic())
-            if self.lose_cancel_responses:
+            if self.lose_cancel_responses or self.lose_cancel_ok:
                 message = (start, headers, body)
                 if self.original_cancel is None:
                     self.original_cancel = message
+                    if self.lose_cancel_ok:
+                        self.respond("487 Request Terminated", self.dialog)
                     return None
                 require(message == self.original_cancel,
                         "Retried target CANCEL changed request line, headers, or body")
             self.respond("200 OK", headers)
-            self.respond("487 Request Terminated", self.dialog)
+            if not self.lose_cancel_ok:
+                self.respond("487 Request Terminated", self.dialog)
             return None
         answer = ""
         if method == "INVITE":
@@ -147,7 +156,8 @@ class TransferPeer:
 
     def run(self):
         deadline = time.monotonic() + (12 if self.noanswer else 8)
-        while not self.acked and time.monotonic() < deadline:
+        while (not self.acked or (self.lose_cancel_ok and len(self.cancel_receipts) < 2)) \
+                and time.monotonic() < deadline:
             if select.select([self.sip], [], [], 0.05)[0]:
                 self.receive()
         require(self.acked, "Target did not receive INVITE and ACK")
@@ -165,13 +175,18 @@ class TransferPeer:
             require(4.5 <= duration < 7, f"Target CANCEL outside 4.5-7s window: {duration}")
             print(f"PASS ringing PJSIP target: CANCEL after {duration:.3f}s, "
                   "CANCEL 200, INVITE 487 and matching ACK")
-            if self.lose_cancel_responses:
+            if self.lose_cancel_responses or self.lose_cancel_ok:
                 require(len(self.cancel_receipts) >= 2, "Missing retried CANCEL")
                 delay = self.cancel_receipts[1] - self.cancel_receipts[0]
                 require(0 < delay < 2, f"Target CANCEL retry outside two seconds: {delay}")
                 print(f"PASS withheld first CANCEL responses: "
                       f"{len(self.cancel_receipts)} identical CANCELs, first retry at {delay:.3f}s, "
                       "CANCEL 200 and INVITE 487 sent, matching ACK received")
+                if self.lose_cancel_ok:
+                    require(self.ack_received_at < self.cancel_receipts[1],
+                            "INVITE ACK did not precede CANCEL retry")
+                    print("PASS isolated CANCEL 200 loss: INVITE 487 ACK received before "
+                          "identical CANCEL retry; retried CANCEL answered 200")
         if self.busy or self.noanswer:
             return 0
 

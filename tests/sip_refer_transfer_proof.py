@@ -125,18 +125,19 @@ def verify_preserved_call(probe, target, request, code, headers, source, transfe
 
 def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
                  lose_response=False, lose_terminal_ack=False, lose_all_terminal_acks=False,
-                 lose_target_response=False, lose_cancel_responses=False):
+                 lose_target_response=False, lose_cancel_responses=False, lose_cancel_ok=False):
     require(not (lose_terminal_ack or lose_all_terminal_acks) or subscribed,
             "NOTIFY acknowledgement loss needs a subscription")
     require(not lose_target_response or outcome in ("peer", "peer-busy"),
             "Target response loss needs an answered or busy PJSIP target")
-    require(not lose_cancel_responses or outcome == "peer-timeout",
+    require(not (lose_cancel_responses or lose_cancel_ok) or outcome == "peer-timeout",
             "CANCEL response loss needs a ringing PJSIP target")
     probe = ReferProbe(host, lose_terminal_ack=lose_terminal_ack,
                        lose_all_terminal_acks=lose_all_terminal_acks)
     peer = TransferPeer(host, busy=outcome == "peer-busy", noanswer=outcome == "peer-timeout",
                         lose_first_final=lose_target_response,
-                        lose_cancel_responses=lose_cancel_responses) \
+                        lose_cancel_responses=lose_cancel_responses,
+                        lose_cancel_ok=lose_cancel_ok) \
         if outcome in ("peer", "peer-busy", "peer-timeout") else None
     executor = ThreadPoolExecutor(max_workers=1) if peer else None
     peer_result = None
@@ -356,7 +357,7 @@ def run_transfer(host, password, subscribed, blind_progress, outcome="answered",
         if lose_target_response:
             print("PASS lost target INVITE final response: one transfer, target execution "
                   "and target channel; recovered target outcome and all channels ended")
-        if lose_cancel_responses:
+        if lose_cancel_responses or lose_cancel_ok:
             print("PASS lost CANCEL responses: one transfer, target execution and target "
                   "channel; NOANSWER without target answer/bridge, all channels ended")
     finally:
@@ -386,6 +387,8 @@ def main():
                          lose_target_response=True)
         run_transfer(args.host, password, subscribed, args.blind_progress, "peer-timeout",
                      lose_cancel_responses=True)
+        run_transfer(args.host, password, subscribed, args.blind_progress, "peer-timeout",
+                     lose_cancel_ok=True)
         for outcome in ("unknown", "peer"):
             run_transfer(args.host, password, subscribed, args.blind_progress, outcome,
                          lose_response=True)

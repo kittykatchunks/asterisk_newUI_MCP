@@ -121,13 +121,14 @@ value before running the disabled-transfer cases. No host ports or
 external SIP accounts are used, and persistent proof data is preserved.
 
 On 24 October 2026, the suite comprises 106 rejected-target/policy dialogs,
-88 accepted bridged-transfer dialogs (24 Local-target and 64 PJSIP-target
+96 accepted bridged-transfer dialogs (24 Local-target and 72 PJSIP-target
 cases), and 24 bridged-call preservation dialogs, with
 six additional branch/CSeq sequencing attempts inside two of those dialogs. The
-previous full run passed all cases except the eight subsequently added
-CANCEL-response-loss cases; focused validation passed those eight plus all
+previous full run passed all cases except the 16 subsequently added
+CANCEL-response-loss cases. Focused validation passed all 16, including
+eight with only CANCEL `200` withheld; an earlier focused run also passed all
 24 baseline answered/busy/timeout PJSIP cases across CLI-verified settings.
-The accepted and preservation totals include eight CANCEL-response-loss cases,
+The accepted and preservation totals include 16 CANCEL-response-loss cases,
 16 target-INVITE response-loss cases,
 16 controlled REFER-response-loss cases,
 and 16 terminal-NOTIFY acknowledgement-loss cases (eight first-only and
@@ -441,6 +442,33 @@ This models a withheld response pair at the synthetic target's send
 boundary, not internal send failure, permanent cancellation-response loss,
 independent loss of only one response, transaction/reference cleanup, or
 production-trunk behavior.
+
+### Isolated CANCEL 200 loss and transaction independence
+
+Eight further cases withhold only the first CANCEL `200 OK`, while sending
+INVITE `487 Request Terminated` immediately. They cover absent/false
+`Refer-Sub` under both effective advertisement and blind-progress settings.
+The peer must receive the matching non-2xx ACK **before** the next CANCEL:
+completing the INVITE transaction must not prevent independent CANCEL retry.
+
+The peer keeps its SIP socket open after ACK, requires a second CANCEL
+with an identical parsed request line, complete headers, and body, and
+answers that retry with `200` without resending INVITE `487`. The retry
+must arrive within two seconds; all eight observed two identical CANCELs,
+with the retry at 0.455-0.501 seconds. This ordering is explicitly asserted,
+not inferred from a completed call or a final progress notification.
+
+All cases independently verify `DIALSTATUS=NOANSWER`, no target answer or
+bridge, one correlated transfer, target execution, and outbound channel,
+existing REFER retransmission/progress results, and all four channels ending.
+The eight paired-response-loss cases also passed again. These 16 focused
+checks ran under CLI-verified settings; the full suite was not rerun for
+this addition, but its runner includes the new cases.
+
+This proves bounded wire-level independence of the INVITE and CANCEL
+transactions for one suppressed CANCEL response. It does not inspect their
+internal state/refcounts, establish permanent CANCEL-response-loss cleanup,
+or model loss of only INVITE `487`, internal send errors, or reliable transport.
 
 ### Lost outbound target INVITE response recovery
 

@@ -3867,6 +3867,23 @@ Pinned source exposes two relevant PJSIP session-supplement callbacks:
   This is withheld peer-response-pair recovery, not internal send failure,
   permanent cancellation-response loss, isolated loss of just one response,
   transaction/reference cleanup, or production-trunk interoperability.
+  Eight [isolated CANCEL-200-loss cases](./README.md#isolated-cancel-200-loss-and-transaction-independence)
+  separately withhold only the first CANCEL `200` while immediately sending
+  INVITE `487`. Under absent/false `Refer-Sub` and both effective
+  advertisement/progress settings, the peer requires the matching non-2xx
+  ACK before a second CANCEL, then answers that identical CANCEL retry
+  with `200` without resending `487`. It keeps receiving after ACK until
+  CANCEL retry is handled, rather than treating ACK alone as recovery.
+  All eight retries arrived at 0.455-0.501 seconds (required within two).
+  Independent CEL still proves NOANSWER, no target answer/bridge, one
+  transfer/target execution and outbound channel, and all four channels
+  ending; existing REFER retransmission/progress assertions also pass.
+  The eight paired-response-loss cases passed again under CLI-verified
+  settings. The full runner includes the new cases; validation for this
+  addition was these 16 focused cases, not a new full-suite run.
+  This establishes bounded wire-level INVITE/CANCEL transaction independence,
+  not internal state/refcount cleanup, permanent CANCEL-response loss,
+  isolated INVITE-487 loss, internal send errors, or reliable transport.
   This branch returns from `refer_progress_alloc()`
   before `pjsip_xfer_accept()`, so it does not submit the implicit-subscription
   `202` through that path. It still creates the progress object and serializer;
