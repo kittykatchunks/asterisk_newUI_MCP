@@ -3673,6 +3673,15 @@ from a request sent on the wire
 ([qop-auth iteration and early return](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1428-L1460),
 [nonce-count update](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L719-L810),
 [deferred header attachment](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_auth_client.c#L1460-L1508)).
+For a later outgoing REFER, this init error occurs before a transaction is
+created or the request is sent: dialog request creation releases the txdata
+and returns the status, `pjsip_evsub_initiate()` propagates it, and Asterisk
+takes its REFER request-creation failure cleanup path. This is not a received
+401/407, so it does not enter the response-driven endpoint-auth fallback.
+Verify this separately from authentication failures after a wire challenge
+([dialog request cleanup and auth-init status](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip/sip_dialog.c#L1265-L1284),
+[evsub initiate propagation](https://github.com/pjsip/pjproject/blob/2.17/pjsip/src/pjsip-simple/evsub.c#L1136-L1210),
+[Asterisk REFER creation failure path](https://github.com/asterisk/asterisk/blob/22.11.0/res/res_pjsip_refer.c#L1458-L1491)).
 The cached qop mode is set only while its value is `PJSIP_AUTH_QOP_NONE`; it
 is not reset when a later challenge for the same realm/algorithm omits qop.
 With qop support and auto-send-next enabled, that qop-less challenge can
