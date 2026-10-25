@@ -2619,6 +2619,13 @@ primary-exception preservation were then improved **offline only**; another
 runtime attempt requires approval. Gate A/Gate C and production authority
 remain unchanged.
 
+Read-only follow-up found Docker Desktop explicitly logged the approved
+network-create request waking its idle engine; the default bridge creation
+timestamp falls inside that startup. This supports engine reinitialization
+as the ID-change explanation, not equivalence of old/new bridge settings.
+The [retained investigation](./local/asterisk-build/sip-bridge-investigation.json)
+adds no runtime attempt and does not resolve the missing contact assertion.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

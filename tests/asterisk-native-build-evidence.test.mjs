@@ -19,6 +19,27 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("read-only bridge follow-up binds engine wake timeline without granting retry or changing failed evidence", () => {
+  const investigation = read(`${directory}/sip-bridge-investigation.json`);
+  assert.equal(hash(`${directory}/sip-proof-attempt-1-report.json`), investigation.originalAttemptReportSha256);
+  const report = read(`${directory}/sip-proof-attempt-1-report.json`);
+  assert.equal(investigation.runtimeAttemptsAdded, 0);
+  assert.equal(investigation.findings.engineWakeLogged, true);
+  assert.match(investigation.selectedHostLogLines[0], /idle -> busy.*networks\/create/);
+  const bridge = investigation.currentBridgeObservation;
+  assert(report.finalInventory.networks.includes(`${bridge.id} bridge`));
+  const starting = investigation.selectedHostLogLines[2].slice(1, 31);
+  const running = investigation.selectedHostLogLines[3].slice(1, 31);
+  assert(starting < bridge.created && bridge.created < running);
+  assert.equal(bridge.attachedContainerCount, 0);
+  for (const flag of ["retryAuthorized", "networkCreatedDuringInvestigation",
+    "containerStartedDuringInvestigation", "dockerSettingsChanged", "foreignResourcesRepaired",
+    "runtimeApplyAuthorized", "gateCAuthorized"]) {
+    assert.equal(investigation[flag], false, flag);
+  }
+  assert.equal(report.passed, false);
+});
+
 test("failed SIP attempt preserves partial registration, unproven discrepancies and cleanup without success authority", () => {
   const validation = read(`${directory}/sip-proof-validation.json`);
   for (const [name, evidence] of Object.entries(validation.evidence)) {

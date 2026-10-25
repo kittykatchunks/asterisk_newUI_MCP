@@ -5067,6 +5067,46 @@ inventory checks until the default-bridge discrepancy is understood. No
 Gate A completion, Gate C, production SIP/media quality, redistribution or
 deployment authority follows from this partial attempt.
 
+##### Read-only investigation: Docker Desktop woke before bridge replacement
+
+After attempt 1, a separately selected read-only investigation compared
+current bridge metadata with bounded Docker Desktop host/VM log entries.
+[The retained excerpts and observations](./local/asterisk-build/sip-bridge-investigation.json)
+show the following sequence on 25 October 2026 (UTC):
+
+1. **16:28:00.820:** Desktop reports idle-to-busy after 12 minutes idle,
+   explicitly citing one `networks/create` request from the Docker client.
+2. **16:28:00.821:** its Linux/WSL engine changes stopped to starting.
+3. **16:28:07.291:** current default bridge metadata records creation.
+4. **16:28:07.758:** daemon initialization completes.
+5. **16:28:07.761:** Desktop reports its engine running.
+
+The new bridge ID matches the original attempt's final inventory and remained
+the same across two observations in this investigation. It is currently the
+default non-internal bridge with zero attached containers. Four pre-existing
+containers retain their original IDs/names/stopped states.
+
+This strongly supports engine startup/reinitialization, triggered by the
+approved private-network creation, as the explanation for bridge replacement.
+It does **not** establish equivalence with the old bridge's settings or
+attachments: those were not captured. The original inventory failure is
+correct and remains unchanged, as does the failed registration acceptance.
+Do not describe the attempt as having no host-engine lifecycle effects.
+The missing contact row still prevents attribution of the primary SIP failure.
+
+The historical network-events API request did not finish within the bounded
+observation and was terminated; no inference is made from its missing output.
+No containers/networks were created or started, no settings were changed,
+no foreign resources repaired and no protocol attempt added.
+
+Recommended **separately approved** next preparation: explicitly wake and
+verify the engine with a bounded Python-carrier preflight, then capture the
+baseline bridge identity/configuration/attachments before creating the proof
+network. Retain strict drift checks rather than ignoring the built-in bridge.
+Another diagnostic SIP attempt still requires approval and must retain the
+actual contact CLI output. This investigation alone grants no runtime retry,
+Gate C or deployment authority.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

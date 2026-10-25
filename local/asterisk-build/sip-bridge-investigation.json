@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "stage": "read-only-post-attempt-bridge-investigation",
+  "runtimeAttemptsAdded": 0,
+  "retryAuthorized": false,
+  "originalAttemptReportSha256": "5b37f43ba1c6e1b4f805ae656bc1236a823dba100f4571c1958bf2a55edd120a",
+  "sources": {
+    "hostLog": "%LOCALAPPDATA%\\Docker\\log\\host\\com.docker.backend.exe.log",
+    "vmLog": "%LOCALAPPDATA%\\Docker\\log\\vm\\init.log",
+    "method": "Read-only bounded timestamp/engine-event selection. Only the following relevant excerpts are retained; no full host logs are exported.",
+    "eventsApi": "Historical network-event request did not finish within the bounded observation and was terminated; no conclusion is drawn from missing event output."
+  },
+  "selectedHostLogLines": [
+    "[2026-10-25T16:28:00.820127400Z][com.docker.backend.exe.idle] idle -> busy (was idle for 12m3.3426493s; reason: [1 calls to /v1.55/networks/create from Docker-Client/29.6.2 (windows)])",
+    "[2026-10-25T16:28:00.820127400Z][com.docker.backend.exe.idle] starting VM",
+    "[2026-10-25T16:28:00.821178200Z][com.docker.backend.exe.engines] setting engine linux/wsl state stopped -> starting",
+    "[2026-10-25T16:28:07.761936400Z][com.docker.backend.exe.engines] setting engine linux/wsl state starting -> running"
+  ],
+  "selectedVmLogEvents": [
+    {
+      "time": "2026-10-25T16:28:06.503292776Z",
+      "component": "command",
+      "message": "Starting up"
+    },
+    {
+      "time": "2026-10-25T16:28:07.758430737Z",
+      "component": "command",
+      "message": "Daemon has completed initialization"
+    }
+  ],
+  "currentBridgeObservation": {
+    "name": "bridge",
+    "id": "ff9770c2e4cc0abac065bbcac3b0d7e720cc5e7012e49a82bdc301536d536097",
+    "created": "2026-10-25T16:28:07.291018707Z",
+    "driver": "bridge",
+    "internal": false,
+    "defaultBridge": true,
+    "attachedContainerCount": 0,
+    "matchesAttemptFinalBridgeId": true,
+    "sameIdentityObservedTwiceDuringInvestigation": true
+  },
+  "findings": {
+    "engineWakeLogged": true,
+    "wakeTrigger": "Docker Desktop explicitly attributes idle-to-busy transition to networks/create at the approved attempt's network-creation boundary.",
+    "bridgeCreatedDuringEngineStartup": true,
+    "interpretation": "The replacement default bridge was created during Docker Desktop engine startup triggered by private-network creation. This strongly supports engine startup/reinitialization, rather than an explicit default-bridge mutation by the harness, as the explanation for the ID discrepancy.",
+    "limits": [
+      "The original report still correctly fails its strict before/after network identity assertion.",
+      "No before-wake bridge configuration or attachment snapshot exists; equivalence cannot be established.",
+      "Do not claim the proof had no host-engine lifecycle effects: the approved network create woke the idle engine.",
+      "The actual failed contact CLI row is unavailable. No contact-parser root cause is established.",
+      "No new SIP, INVITE, unregistration or RTP proof was executed."
+    ]
+  },
+  "existingFourContainerIdsNamesStatesUnchanged": true,
+  "networkCreatedDuringInvestigation": false,
+  "containerStartedDuringInvestigation": false,
+  "dockerSettingsChanged": false,
+  "foreignResourcesRepaired": false,
+  "recommendedNextScope": "Separately approve implementing an explicit bounded Python-carrier preflight to wake/verify the engine before baseline inventory, then snapshot bridge identity/configuration/attachments and stop on subsequent drift. Preserve strict inventory comparison; do not merely ignore default bridge ID changes. One further protocol attempt still requires approval and should retain contact CLI output.",
+  "runtimeApplyAuthorized": false,
+  "gateCAuthorized": false
+}

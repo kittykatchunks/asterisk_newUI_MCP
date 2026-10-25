@@ -597,8 +597,11 @@ REGISTER with 401, and the client received correct-secret REGISTER 200 with
 was not retained, so its root cause remains unproven. **No INVITE or RTP was
 reached, and the registration proof did not pass.** Both owned containers,
 network and credentials were removed; the four existing containers remain
-stopped. Docker's default bridge ID unexpectedly changed; its cause and
-attribution are unproven and it was not repaired. No retry occurred or is
+stopped. Docker's default bridge ID unexpectedly changed; a subsequent
+[read-only investigation](./local/asterisk-build/sip-bridge-investigation.json)
+found that the approved network-create request woke Docker Desktop's idle
+engine, and the bridge was created during that startup. Original bridge
+configuration equivalence remains unproven; no repair was attempted. No retry occurred or is
 authorized. [Exact failed evidence](./local/asterisk-build/sip-proof-validation.json)
 preserves both failures; follow-up diagnostic changes were offline-tested only.
 
