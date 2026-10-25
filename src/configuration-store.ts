@@ -2,6 +2,7 @@ import { isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { compileConfiguration, configurationHash, configurationObject, configurationScope,
   parseConfigurationModel, type ConfigurationScope } from "./configuration-model.ts";
+import { parseConfigurationReview, type ConfigurationReview } from "./configuration-review.ts";
 
 export class ConfigurationConflict extends Error {}
 export interface ConfigurationOperator { operator: string; reason: string }
@@ -135,6 +136,10 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
       if (!validation || value.validationSha256 !== validation.sha256 ||
           value.sameAuthorPermitted !== true || value.sameAuthor !== (value.attribution.operator === d.attribution.operator) ||
           value.runtimeApplyAuthorized !== false || value.identityBasis !== "trusted-local-operator-reference") throw new Error("Corrupt configuration approval");
+      if (value.inspectionReview !== undefined) {
+        const review = parseConfigurationReview(value.inspectionReview);
+        if (review.customer !== scope.customer || review.runtime !== scope.runtime) throw new Error("Corrupt approval inspection scope");
+      }
     }
     return { sequence: Number(row.sequence), document: value, sha256: String(row.sha256) };
   }
@@ -220,13 +225,19 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
         });
       });
     },
-    approve(scope: ConfigurationScope, revision: number, hash: string, validationHash: string, attribution: ConfigurationOperator) {
+    approve(scope: ConfigurationScope, revision: number, hash: string, validationHash: string, attribution: ConfigurationOperator,
+      inspectionReview?: ConfigurationReview) {
       return transaction(() => {
         const d = draft(scope, revision), validation = receipt(scope, revision, "validated");
         if (hash !== d.sha256 || !validation || validation.sha256 !== validationHash) throw new ConfigurationConflict("Exact validated draft required");
+        const review = inspectionReview === undefined ? undefined : parseConfigurationReview(inspectionReview);
+        if (review && (review.customer !== scope.customer || review.runtime !== scope.runtime)) {
+          throw new ConfigurationConflict("Approval inspection review scope mismatch");
+        }
         return insertReceipt(d, "approved", attribution, { validationSha256: validation.sha256,
           sameAuthorPermitted: true, sameAuthor: attribution.operator === d.attribution.operator,
-          identityBasis: "trusted-local-operator-reference", runtimeApplyAuthorized: false });
+          identityBasis: "trusted-local-operator-reference", runtimeApplyAuthorized: false,
+          ...(review ? { inspectionReview: review } : {}) });
       });
     },
     claim(scope: ConfigurationScope, revision: number, approvalHash: string, baseRevision: number, id: string, attribution: ConfigurationOperator) {

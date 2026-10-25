@@ -154,7 +154,7 @@ Run the owned two-customer proof:
 .\scripts\Test-ConfigurationInspection.ps1
 ```
 
-It runs typecheck, **77 focused tests** (9 new inspector tests plus the existing
+It now runs typecheck, **85 focused tests** (8 review, 9 inspector and the existing
 68-test foundation/regression set), then **CI-01 through CI-10** on a unique
 project using the already available pinned image with `--pull never --no-build`.
 It proves scope/mount denial, disk-only versus loaded-only drift, unsupported
@@ -174,11 +174,76 @@ retarget or rewrite them to bypass identity/restart checks.
 Limits: sampled reads are **not an atomic runtime snapshot or boot attestation**.
 `queue show` proves the observed inventory/strategy/empty member/caller display,
 not all loaded queue policies such as timeout/joinempty. No nonempty published
-state, live apply, reload safety, canary, rollback or runtime-bound approval
+state, live apply, reload safety, canary, rollback or runtime apply-authorization
 contract is implemented. Binding files and their checksums are trusted-local
 provisioning, not tamper-resistant customer authentication. Next is a separate
 scope decision for the executor/verification/recovery contract; there is no
 automatic progression to runtime effects.
+
+### Inspection-bound offline approval review and queue-policy blocker
+
+The [review CLI](./scripts/Review-ConfigurationInspection.ts) can attach an
+immutable [inspection review](./src/configuration-review.ts) **when initially
+approving a validated, still-unapproved draft**. It binds the existing exact
+draft/validation/output tuple to full binding hash, exact observation hash,
+observed time and a separate stable baseline fingerprint. Both the review and
+approval retain `runtimeApplyAuthorized:false`. Existing approvals cannot be
+upgraded or rewritten; make a new draft if a reviewed approval is required.
+For an existing validated draft, replace the ordinary approval step with:
+
+```powershell
+node .\scripts\Review-ConfigurationInspection.ts approve $db C:\absolute\owned\customer-a.binding.json customer-a customer-a-proof $draft.result.revision $draft.result.sha256 $validation.result.sha256 operator-a "Review exact empty baseline"
+node .\scripts\Review-ConfigurationInspection.ts check $db C:\absolute\owned\customer-a.binding.json customer-a customer-a-proof $draft.result.revision
+```
+
+The draft scope must match the binding. `approve` samples the runtime before a
+short receipt transaction; it does not hold a database transaction across Docker
+reads. `check` opens the existing store read-only and samples again, comparing
+the original binding and stable baseline, not requiring timestamp-identical
+samples. Drift, outage, restart, wrong scope/binding and missing review fail
+explicitly without changing approval. There is no expiry policy or atomic
+inspection-to-effect fencing; neither command executes or authorizes apply.
+The observation digest records the exact sample identity, not authenticated or
+tamper-resistant attestation; the receipt retains the digest, not a complete
+historical runtime report.
+
+Every current inspector report now includes:
+
+```json
+{"queuePolicy":{"status":"unsupported","unobservedFields":["timeout","joinempty","leavewhenempty"]}}
+```
+
+This is deliberate, not a default claiming those values. The pinned runtime's
+`queue show` and `QUEUE_VARIABLES` help, and the documented
+[AMI QueueParams fields](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Events/QueueParams/),
+do not establish these three loaded settings. The proof does not evaluate
+channel functions, enable AMI or claim to have exhausted every possible API.
+
+Run the extended bounded proof:
+
+```powershell
+.\scripts\Test-ConfigurationInspection.ps1 -WithReviewPolicy
+```
+
+It adds **CQ-01 through CQ-04**: pinned help capture, both-customer real CLI
+reviewed approvals/current checks, immutable approval rejection after drift/
+restart, and a cold-bootstrap counterexample. A is booted with timeout **7**
+instead of **2**, `joinempty=no` instead of `yes`, and `leavewhenempty=yes`
+instead of `no`; disk is then restored without reload. The queue display digest
+is unchanged and matches the original empty display. That is not independent
+evidence of those loaded policy values: they remain explicitly unsupported.
+No call, reload, apply or shared PBX mutation occurs.
+
+Recorded extended run `run-k6u3PD` / `asterisk-inspection-k6u3pd`: typecheck,
+85 focused tests, ten CI and four CQ checks pass; generated configuration/
+credentials and owned Docker resources are absent. Only binding metadata,
+offline review SQLite and the result report are retained.
+
+**Executor remains blocked under the selected exact-verification contract.**
+Next requires either proving a suitable independent loaded-policy surface, or an
+explicit decision to narrow that contract. Matching disk, successful review,
+queue display and a future single canary cannot silently substitute for exact
+policy verification.
 
 ## Isolated PBX boot-epoch recovery proof
 

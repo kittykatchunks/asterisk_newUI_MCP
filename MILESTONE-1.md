@@ -1866,12 +1866,51 @@ exist; this batch does not prove every symlink/filesystem race. Exact dialplan
 inventory is compared, but `queue show` does **not** reveal every loaded queue
 policy (timeout/joinempty/etc.). Empty-baseline include loading at bootstrap does
 not prove scoped reload or safe publication. There is no nonempty published-state
-inspector, runtime-bound approval tuple, staging, executor, canary, last-verified
+inspector, runtime apply-authorization tuple, staging, executor, canary, last-verified
 pointer, conditional recovery/rollback or automatic rebind.
 
 CI adds **partial empty-baseline evidence** for CP-04/05/09/10; all full CP checks
-remain unverified. Next requires a separate executor/verification/recovery scope
-decision, first resolving exact loaded policy and binding/approval fencing.
+remain unverified.
+
+#### Pre-executor CQ batch: bound offline review and queue-policy limit
+
+An optional immutable review now binds a still-unapproved draft's approval to
+the exact full binding, exact observation digest/time and stable baseline
+fingerprint. Existing ordinary approvals cannot be upgraded or rewritten.
+[Review CLI](./scripts/Review-ConfigurationInspection.ts) `approve` inspects
+outside the short SQLite receipt transaction; `check` reads the existing DB
+read-only and resamples without updating approval. Both remain explicitly offline,
+`runtimeApplyAuthorized:false`. Unsupported loaded policy is not approved as fact.
+
+| Check | Measured result |
+|---|---|
+| CQ-01 | Fixed pinned runtime `queue show`, `QUEUE_VARIABLES`, `QUEUE_EXISTS` help captured read-only. No AMI enabled or channel-function evaluation; no timeout/join/leave field established. |
+| CQ-02 | Both customer actual CLI workflows persist exact draft/validation/binding/observation-bound reviews. Fresh read-only checks match stable baseline despite distinct sample times; receipt/database bytes are unchanged by check. Disk drift fails the check without mutating approval. |
+| CQ-03 | Restarted bound runtime makes current review check fail; no automatic refresh/rebind of existing reviewed approval. |
+| CQ-04 | Different cold-bootstrap inputs (timeout 2->7, joinempty yes->no, leavewhenempty no->yes), followed by disk restoration without reload, yield an identical queue-display digest. Independently loaded values remain unsupported, not inferred from disk or assumed green. B remains responsive. |
+
+All inspector reports explicitly list unobserved `timeout`, `joinempty` and
+`leavewhenempty` with `queuePolicy.status:unsupported`. Consult
+[QueueParams](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Events/QueueParams/)
+and [QUEUE_VARIABLES](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Functions/QUEUE_VARIABLES/)
+for the documented summary fields; this proof bounds tested surfaces, not every
+possible API. No privileged debugger, custom module, reload, call or apply.
+
+Extended run **`run-k6u3PD`** / **`asterisk-inspection-k6u3pd`** passes typecheck,
+**85 focused tests** (eight CQR plus the prior 77), ten CI and four CQ runtime
+checks. `.\scripts\Test-ConfigurationInspection.ps1 -WithReviewPolicy` reproduces
+it with the local pinned image. Owned resources and generated credential/config
+copies are removed; only synthetic bindings, review SQLite and report retained.
+No schema migration, dependency/permission change, live phone, shared PBX,
+ordinary routing or REFER rerun.
+
+This is partial CP-02/03/04/09/10 evidence, not complete publication acceptance.
+There is no inspection expiry policy, atomic inspect-to-effect fence, full
+historical report persistence in approval, runtime executor, verification pointer
+or recovery. **The exact loaded-policy blocker is not closed.** Next needs an
+explicit choice: preserve exact verification and investigate a suitable independent
+read-only surface, or deliberately narrow the contract before authorizing any
+executor. A matching baseline/review/disk hash or single canary is not a substitute.
 If exact loaded-state facts
 or safe scoped application cannot be verified on the pinned runtime, implementation
 must stop/narrow the contract rather than substitute a green file hash.

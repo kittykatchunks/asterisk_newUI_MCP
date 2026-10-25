@@ -66,6 +66,7 @@ test("CIU-01: exact known empty loaded inventory is parsed, compared and never r
   const fake = transport(), report = await inspectConfigurationBinding(binding, scope, fake.read);
   assert.equal(report.status, "empty-baseline-observed"); assert.equal(report.baseRevision, 0);
   assert.equal(report.publicationVerified, false); assert.equal(report.executorEnabled, false);
+  assert.deepEqual(report.queuePolicy, { status: "unsupported", unobservedFields: ["timeout", "joinempty", "leavewhenempty"] });
   assert.equal(report.loaded.reservedContextCount, 0); assert.equal(report.loaded.priorityCount, 18);
   assert.deepEqual(report.issues, []);
   assert.deepEqual(fake.calls.map((args) => args[0]), ["inspect", "image", "exec", "inspect"]);

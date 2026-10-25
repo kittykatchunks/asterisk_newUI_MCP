@@ -1402,17 +1402,70 @@ not authenticated customer identity or production boot attestation. Queue
 display does not establish all loaded policy fields (timeout/joinempty/etc.).
 Symlink no-follow guards exist, but the CI runtime batch specifically measures
 nonregular-directory rejection, not every filesystem race or symlink variant.
-The offline approvals still do not bind an owned-project/binding hash or
-preflight observation; do not wire these into apply without designing that exact
-tuple. CP-04/05/09/10 gain only bounded partial evidence; all full CP checks
+The original offline approvals did not bind a project or observation. The
+following optional immutable inspection review adds those hashes, but is not
+runtime apply authorization or atomic preflight-to-effect fencing.
+CP-04/05/09/10 gain only bounded partial evidence; all full CP checks
 remain unverified. No staging, scoped reload, canary, verified pointer,
 conditional recovery/rollback or web surface is implemented.
 
-Next is a separately authorized executor/verification/recovery increment. It
-must first resolve exact loaded queue-policy inspection and revision/binding/
-preflight approval fencing, then prove scoped reload behavior and every
-external-effect boundary. A green empty-baseline report alone is never apply
-readiness or authority.
+#### Inspection-bound review and verified capability limit
+
+The next pre-executor increment adds an optional immutable inspection review
+through [Review-ConfigurationInspection](./scripts/Review-ConfigurationInspection.ts),
+[review comparison](./src/configuration-review.ts) and
+[eight CQR tests](./tests/configuration-review.test.ts). Approval still binds
+the exact scoped revision/base/model/compiler/output/diff/validation tuple;
+the optional review additionally binds full canonical provisioned binding,
+exact sampled observation digest/time and stable disk/loaded baseline digest.
+It is explicit trusted-local attribution, never authenticated runtime authority.
+All current reviews carry `queuePolicyStatus:unsupported` and
+`runtimeApplyAuthorized:false`. Existing ordinary approvals cannot be upgraded;
+new draft/approval is required. No schema migration or existing receipt rewrite.
+
+The real CLI samples outside the SQLite transaction, then atomically persists
+the one approval receipt with the review. The read-only `check` samples again
+and compares exact binding/stable baseline while retaining both sample hashes.
+It rejects changed boot/project/mount/binding, drift, older samples, foreign
+scope and absent review; it never refreshes the approved tuple or clears a
+claim. It has no expiry or atomic preflight-to-effect fence, and the digest alone
+does not store a full historical observation report. Runtime apply remains
+absent and must not consume this as a complete authorized apply preflight.
+
+The same increment reproduces CI-01 through CI-10 plus CQ-01 through CQ-04 on
+fresh pinned owned PBXs, with runtime help for `queue show`, `QUEUE_VARIABLES`
+and `QUEUE_EXISTS`. The inspected help exposes queue summary/metrics/existence,
+not timeout/joinempty/leavewhenempty. Published
+[QueueParams](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Events/QueueParams/)
+and [QUEUE_VARIABLES](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Functions/QUEUE_VARIABLES/)
+documentation likewise does not supply those loaded fields. No AMI is enabled,
+channel function evaluated, custom runtime module installed or call generated.
+This bounds the examined surfaces, not a claim that all possible APIs are
+incapable.
+
+The counterexample explicitly cold-boots A with timeout 2->7, joinempty yes->no
+and leavewhenempty no->yes, then restores the original disk without reload.
+The same exact queue-display digest and matching disk are still observed;
+neither establishes the independent loaded values. All inspector reports now
+name these three fields as `queuePolicy.status:unsupported`. A successful
+empty-baseline observation or reviewed-baseline match does not erase that
+limitation. B remains independent. Explicit test restoration is not a proven
+configuration recovery procedure.
+
+`run-k6u3PD` / `asterisk-inspection-k6u3pd`: typecheck, **85 focused tests**,
+ten CI and four CQ checks pass; reviewed approvals persist for both customers,
+read-only current comparisons leave the DB unchanged and restart checks cannot
+rewrite approval. Owned Docker resources and generated configuration/credentials
+are removed; only bindings, offline review database and result report remain.
+No ordinary/shared PBX, permission/dependency, live phone or REFER change.
+
+**The executor is still blocked by the selected exact-verification requirement.**
+The next decision must retain that contract and investigate a suitable independent
+read-only policy surface, or explicitly narrow supported policy/verification
+claims. No implicit fallback to disk hashes, queue summary or one canary.
+Only afterward separately authorize executor/reload/canary/recovery work, with
+complete revision/binding/current-base fencing and every external-effect boundary.
+A green baseline or optional review alone is never apply readiness or authority.
 
 ## 8. AI assistance, MCP, reports, and wallboards
 

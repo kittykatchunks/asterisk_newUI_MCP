@@ -7,8 +7,12 @@ import { promisify } from "node:util";
 import { CONFIGURATION_COMPILER, configurationHash, configurationNamespace, configurationObject, compileConfiguration } from "../../src/configuration-model.ts";
 import { CONFIGURATION_FILES, CONFIGURATION_PROOF_LABEL, CONFIGURATION_PROOF_IMAGE, inspectConfigurationBinding, parseConfigurationBinding,
   writeConfigurationBinding, readConfigurationBinding, type ConfigurationBinding } from "../../src/configuration-inspector.ts";
+import { openConfigurationStore } from "../../src/configuration-store.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
+const args = process.argv.slice(2);
+if (args.length > 1 || (args.length === 1 && args[0] !== "--review-policy")) throw new Error("Only --review-policy is supported");
+const reviewPolicy = args[0] === "--review-policy";
 const parent = join(root, ".local-proof", "configuration-inspection");
 await mkdir(parent, { recursive: true });
 const directory = await mkdtemp(join(parent, "run-"));
@@ -25,8 +29,11 @@ const bindings = new Map<string, ConfigurationBinding>();
 const observations: Awaited<ReturnType<typeof inspectConfigurationBinding>>[] = [];
 report.observations = observations;
 const checks: { id: string; passed: true }[] = [];
+const reviewChecks: { id: string; passed: true }[] = [];
 report.checks = checks;
+report.reviewChecks = reviewChecks;
 const pass = (id: string) => { checks.push({ id, passed: true }); console.log(`PASS ${id}`); };
+const reviewPass = (id: string) => { reviewChecks.push({ id, passed: true }); console.log(`PASS ${id}`); };
 let attempted = false;
 const repositoryFiles = new Map<string, Buffer>();
 function singleObject(text: string) {
@@ -103,6 +110,45 @@ try {
   }
   pass("CI-02: real read-only operator CLI reloads persistent scoped binding without changing it or publishing");
   const a = bindings.get("customer-a")!, b = bindings.get("customer-b")!;
+  if (reviewPolicy) {
+    const capabilities: Record<string, string> = {};
+    for (const command of ["core show help queue show", "core show function QUEUE_VARIABLES", "core show function QUEUE_EXISTS"]) {
+      capabilities[command] = await docker([...compose, "exec", "-T", "customer-a", "asterisk", "-rx", command]);
+    }
+    assert.match(capabilities["core show function QUEUE_VARIABLES"], /QUEUESTRATEGY/);
+    assert.doesNotMatch(capabilities["core show function QUEUE_VARIABLES"], /QUEUETIMEOUT|JOINEMPTY|LEAVEWHENEMPTY/i);
+    report.queueCapabilities = capabilities;
+    reviewPass("CQ-01: pinned runtime read-only help and queue function fields captured; no channel, AMI privilege or function evaluation");
+    const database = join(directory, "review.sqlite");
+    const prepared: { binding: ConfigurationBinding; revision: number; draftHash: string; validationHash: string }[] = [];
+    const store = openConfigurationStore(database);
+    try {
+      for (const binding of [a, b]) {
+        const actor = { operator: "proof-reviewer", reason: "Explicit bound offline inspection review" };
+        const d = store.createDraft(binding, JSON.stringify({ schemaVersion: 1, routeId: "inbound", queueId: "waiting", waitSeconds: 2 }), 0, actor);
+        const v = store.validate(binding, d.revision, d.sha256, actor);
+        prepared.push({ binding, revision: d.revision, draftHash: d.sha256, validationHash: v.sha256 });
+      }
+    } finally { store.close(); }
+    for (const item of prepared) {
+      const bindingPath = join(directory, `${item.binding.customer}.binding.json`);
+      const prefix = [join(root, "scripts", "Review-ConfigurationInspection.ts")];
+      const output = await execute(process.execPath, [...prefix, "approve", database, bindingPath, item.binding.customer, item.binding.runtime,
+        String(item.revision), item.draftHash, item.validationHash, "proof-reviewer", "Explicit bound offline inspection review"], { timeout: 30000 });
+      const approved: unknown = JSON.parse(output.stdout); configurationObject(approved); configurationObject(approved.result);
+      configurationObject(approved.result.document);
+      assert.equal(approved.result.document.runtimeApplyAuthorized, false);
+      assert.ok(approved.result.document.inspectionReview);
+      const before = await readFile(database);
+      const current = await execute(process.execPath, [...prefix, "check", database, bindingPath,
+        item.binding.customer, item.binding.runtime, String(item.revision)], { timeout: 30000 });
+      const compared: unknown = JSON.parse(current.stdout); configurationObject(compared); configurationObject(compared.result);
+      assert.equal(compared.result.status, "reviewed-baseline-matches");
+      assert.equal(compared.result.runtimeApplyAuthorized, false);
+      assert.deepEqual(await readFile(database), before);
+    }
+    reviewPass("CQ-02: both customer real CLI approvals durably bind exact draft/validation/binding/observation hashes; fresh check is read-only, not apply authority");
+  }
   await assert.rejects(inspectConfigurationBinding(a, b), /does not match provisioned binding/);
   await assert.rejects(inspectConfigurationBinding({ ...a, containerId: b.containerId }, a), /identity changed/);
   await assert.rejects(inspectConfigurationBinding({ ...a, mountSource: `${a.mountSource}-foreign` }, a), /mount changed/);
@@ -121,6 +167,12 @@ try {
       return JSON.parse(error.stdout);
     });
   assert.equal(blockedCli.status, "blocked");
+  if (reviewPolicy) {
+    const before = await readFile(join(directory, "review.sqlite"));
+    await assert.rejects(execute(process.execPath, [join(root, "scripts", "Review-ConfigurationInspection.ts"), "check",
+      join(directory, "review.sqlite"), join(directory, "customer-a.binding.json"), a.customer, a.runtime, "1"], { timeout: 30000 }));
+    assert.deepEqual(await readFile(join(directory, "review.sqlite")), before);
+  }
   assert.equal((await observe(b)).status, "empty-baseline-observed");
   await writeFile(managed, "");
   pass("CI-04: disk-only managed drift blocks, CLI exits 2, loaded state and other customer remain unchanged");
@@ -179,10 +231,37 @@ try {
   await docker([...compose, "up", "-d", "--wait", "--wait-timeout", "90", "--pull", "never", "--no-build", "customer-a"], 120000);
   await assert.rejects(inspectConfigurationBinding(a, a), /restarted/);
   const restoredCandidate = await candidate("customer-a", a.files);
-  assert.equal((await observe(restoredCandidate)).status, "empty-baseline-observed");
+  const restoredObservation = await observe(restoredCandidate);
+  assert.equal(restoredObservation.status, "empty-baseline-observed");
   assert.deepEqual(await readConfigurationBinding(join(directory, "customer-a.binding.json")), a);
   pass("CI-08: PBX restart invalidates original binding; clean cold baseline does not automatically rebind or verify publication");
 
+  if (reviewPolicy) {
+    const reviewBefore = await readFile(join(directory, "review.sqlite"));
+    await assert.rejects(execute(process.execPath, [join(root, "scripts", "Review-ConfigurationInspection.ts"), "check",
+      join(directory, "review.sqlite"), join(directory, "customer-a.binding.json"), a.customer, a.runtime, "1"], { timeout: 30000 }));
+    assert.deepEqual(await readFile(join(directory, "review.sqlite")), reviewBefore);
+    reviewPass("CQ-03: durable reviewed approval cannot survive a restarted binding by silently refreshing its evidence");
+    const queueFile = join(directory, "customer-a", "queues.conf"), originalQueue = await readFile(queueFile);
+    await docker([...compose, "stop", "--timeout", "5", "customer-a"], 30000);
+    const altered = originalQueue.toString().replace("timeout = 2", "timeout = 7")
+      .replace("joinempty = yes", "joinempty = no").replace("leavewhenempty = no", "leavewhenempty = yes");
+    assert.notEqual(altered, originalQueue.toString());
+    await writeFile(queueFile, altered);
+    await docker([...compose, "up", "-d", "--wait", "--wait-timeout", "90", "--pull", "never", "--no-build", "customer-a"], 120000);
+    const policyCandidate = await candidate("customer-a", a.files);
+    await writeFile(queueFile, originalQueue);
+    const policy = await observe(policyCandidate);
+    assert.equal(policy.status, "empty-baseline-observed");
+    assert.equal(policy.loaded.loadedQueuesSha256, restoredObservation.loaded.loadedQueuesSha256);
+    assert.deepEqual(policy.queuePolicy, { status: "unsupported", unobservedFields: ["timeout", "joinempty", "leavewhenempty"] });
+    assert.equal(policy.publicationVerified, false);
+    report.queuePolicyCounterexample = { coldBootstrapChanges: { timeout: [2, 7], joinempty: ["yes", "no"], leavewhenempty: ["no", "yes"] },
+      independentLoadedPolicyRead: "unsupported", restoredDiskMatches: true, queueDisplayUnchanged: true,
+      noReloadOrCall: true };
+    assert.equal((await observe(b)).status, "empty-baseline-observed");
+    reviewPass("CQ-04: differing cold-bootstrap timeout/join/leave inputs plus restored disk yield identical queue display; all three loaded values remain explicitly unsupported");
+  }
   for (const customer of customers) {
     const binding = bindings.get(customer)!;
     for (const name of CONFIGURATION_FILES) {
@@ -205,12 +284,15 @@ try {
   for (const customer of customers) await rm(join(directory, customer), { recursive: true, force: true });
   await rm(override, { force: true });
   if (report.checksBeforeCleanupPassed) {
-    assert.deepEqual((await readdir(directory)).sort(), ["customer-a.binding.json", "customer-b.binding.json"]);
+    assert.deepEqual((await readdir(directory)).sort(), reviewPolicy ?
+      ["customer-a.binding.json", "customer-b.binding.json", "review.sqlite"] :
+      ["customer-a.binding.json", "customer-b.binding.json"]);
     report.generatedFilesRemoved = true;
-    pass("CI-10: owned resources and generated credentials/config absent; repository baseline unchanged; only binding metadata/report retained");
+    pass("CI-10: owned resources and generated credentials/config absent; repository baseline unchanged; only synthetic binding/review/report evidence retained");
   }
-  report.passed = report.passed === true && checks.length === 10;
+  report.passed = report.passed === true && checks.length === 10 && (!reviewPolicy || reviewChecks.length === 4);
   await writeFile(join(directory, "result.json"), JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ directory, project, passed: report.passed, checks: checks.length,
+  if (report.checksBeforeCleanupPassed) assert.equal(report.passed, true, "Acceptance check count does not match the selected proof");
+  console.log(JSON.stringify({ directory, project, passed: report.passed, checks: checks.length, reviewChecks: reviewChecks.length,
     ownedResourceAbsenceVerified: report.ownedResourceAbsenceVerified }));
 }

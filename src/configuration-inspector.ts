@@ -8,6 +8,7 @@ import { CONFIGURATION_COMPILER, configurationHash, configurationNamespace, conf
 export const CONFIGURATION_PROOF_IMAGE = "andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d";
 export const CONFIGURATION_PROOF_REPOSITORY_DIGEST = CONFIGURATION_PROOF_IMAGE.replace(/:[^:@]+@/, "@");
 export const CONFIGURATION_PROOF_LABEL = "empty-inspection-v1";
+export const CONFIGURATION_UNOBSERVED_QUEUE_POLICIES = ["timeout", "joinempty", "leavewhenempty"] as const;
 export const CONFIGURATION_FILES = ["acl.conf", "asterisk.conf", "ccss.conf", "cdr.conf", "cel.conf", "cel_custom.conf",
   "cp-extensions.conf", "cp-queues.conf", "extensions.conf", "features.conf", "health.sh", "http.conf", "indications.conf",
   "logger.conf", "manager.conf", "modules.conf", "pjproject.conf", "pjsip.conf", "queues.conf", "rtp.conf", "start.sh", "udptl.conf"] as const;
@@ -308,6 +309,7 @@ export async function inspectConfigurationBinding(input: ConfigurationBinding, s
     baseline: binding.baseline, baseRevision: 0, startedAt, observedAt: new Date().toISOString(),
     status: issues.length ? "blocked" as const : "empty-baseline-observed" as const,
     executorEnabled: false as const, publicationVerified: false as const, issues,
+    queuePolicy: { status: "unsupported" as const, unobservedFields: [...CONFIGURATION_UNOBSERVED_QUEUE_POLICIES] },
     disk: { files, expectedFiles: binding.files }, loaded: { loadedDialplanSha256, expectedDialplanSha256,
       loadedQueuesSha256: configurationHash(queueOutput), expectedQueuesSha256: configurationHash(EMPTY_PROOF_QUEUE),
       contexts: [...new Set(priorities.map((p) => p.context))].sort(),
