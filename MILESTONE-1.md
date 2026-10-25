@@ -2517,6 +2517,18 @@ Only JSON evidence was exported and the dedicated builder is stopped.
 This is not a hermetic filesystem/container image, license closure,
 redistribution approval, SIP/media proof, deployment or Gate C.
 
+### Container recipe and validation harness prepared only
+
+The user selected **prepare-only**. A
+[scratch Dockerfile](./local/asterisk-build/runtime.Dockerfile) and
+[opt-in preparation/validation harness](./local/asterisk-build/runtime_image.py)
+now target the exact verified bundle. Fourteen offline tests pass, including
+mocked smoke success/failure, launch timeout, resource-setting rejection and
+ownership-safe cleanup. No real context, image, container, builder restart or
+binary export occurred. Actual container compatibility remains untested;
+image creation and smoke need separately approved execution/environment scope.
+See the [preparation handoff](./PROJECT-PLAN.md#container-recipe-and-validation-harness-prepared-only).
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

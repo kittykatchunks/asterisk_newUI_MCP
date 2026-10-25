@@ -1,6 +1,24 @@
 {
   "schemaVersion": 1,
   "stage": "gate-b-local-runtime-bundle-smoke-verified",
+  "containerPreparation": {
+    "stage": "recipe-and-validation-harness-prepared-only",
+    "authorization": "User selected prepare-only: prepare container recipe and validation harness; no image build, binary export or container execution.",
+    "dockerfile": "../asterisk-build/runtime.Dockerfile",
+    "harness": "../asterisk-build/runtime_image.py",
+    "tests": "../../tests/asterisk-runtime-image.test.py",
+    "bundleManifestSha256": "1d83ef928916419a836e4297addc7e56c91b75a69314f2ded15035c9b859dffd",
+    "offlineTestsPassed": 14,
+    "realBuildContextPrepared": false,
+    "imageBuildAuthorized": false,
+    "imageBuilt": false,
+    "imageSmokeAuthorized": false,
+    "imageSmokeExecuted": false,
+    "hostExported": false,
+    "redistributionApproved": false,
+    "licenseClosureComplete": false,
+    "runtimeApplyAuthorized": false
+  },
   "localRuntimeBundle": {
     "authorization": "User approved local staging and isolated bundle smoke; no host binary export, container image build or redistribution.",
     "validation": "../asterisk-build/runtime-bundle-validation.json",

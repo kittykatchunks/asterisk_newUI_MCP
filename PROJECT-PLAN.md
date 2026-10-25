@@ -4306,6 +4306,98 @@ PBX operation, Gate C, runtime publication or remaining Gate A acceptance
 is implied. The next packaging scope needs an explicit bounded decision
 before producing/exporting an image or exercising calls.
 
+##### Container recipe and validation harness prepared only
+
+The user selected **prepare-only**: implement the recipe and validation
+harness, without building an image or exporting binaries. The dedicated
+builder remains stopped. No actual build context, image, container or new
+runtime evidence has been produced; the successful native bundle smoke
+above remains the latest executed runtime result.
+
+The [Dockerfile](./local/asterisk-build/runtime.Dockerfile) uses `FROM scratch`,
+no downloads, shell, package installation, exposed ports or mutable tag.
+It copies the complete reviewed bundle (including notices/sources/build
+records), adds exactly 41 module aliases, sets the locale/conversion paths,
+uses numeric non-root identity 10001:10001 and launches the copied loader
+directly. Its default command explicitly requires the isolated fixture
+configuration; it is **not** a production service configuration. An empty
+scratch filesystem can still expose previously unseen runtime dependencies:
+neither image construction nor actual container startup has been verified.
+
+The [standard-library Python harness](./local/asterisk-build/runtime_image.py)
+provides three explicit commands:
+
+- `prepare --approve-context-preparation --bundle <bundle> --output <new-context>`:
+  Linux-only; verify the pinned manifest plus exact file inventory, all SHA256
+  hashes/sizes/modes and absence of payload symlinks/special files before
+  copying. Refuse source/output overlap and existing output. Copy the recipe,
+  an allowlisted build context, all original payload files and exact module
+  aliases; then reverify. This **copies binaries**, so running it on the real
+  bundle is a future separately approved operation, not part of this step.
+- `verify --context <context>`: read-only verification of the prepared
+  payload, recipe, aliases and honest preparation flags. No Docker call.
+- `smoke --approve-image-smoke --image sha256:<64-hex-local-image-id>
+  --work-dir <new-short-path>`: future opt-in integration smoke using only an
+  existing immutable image ID. It never builds or pulls. It requires an
+  unprivileged Linux caller with Docker access and a same-host Linux amd64
+  daemon reachable through a local Unix socket; Docker Desktop/remote
+  bind-mount translation and rootless UID mappings are not supported/proven.
+  The image metadata must match the reviewed loader/command/user/environment
+  and bundle label. These checks **do not independently prove image payload
+  contents**; the eventual image result records that limitation explicitly.
+
+The tool directory must retain the harness, recipe, pinned bundle manifest,
+module plan and bundle smoke report together. No files were staged into the
+guest in this preparation-only step. Future execution must select an approved
+Linux Docker environment, its image/build cache/storage budget and external
+five-minute watchdog. Image creation must explicitly select `linux/amd64`;
+the recipe has no architecture-specific base image to infer that target.
+The existing builder has not been provisioned as a
+Docker host; no Docker installation or socket exposure is authorized here.
+Do not infer an aggregate disk quota from Docker memory/CPU flags.
+
+The future smoke constructs private disabled-AMI/HTTP/PJSIP-object configs
+and host-owned state directories. Docker arguments enforce no pulls, no
+network, no published ports, read-only root filesystem, all capabilities
+dropped, no-new-privileges, 4 CPU-equivalents, 4 GiB RAM with zero additional
+swap, 256 tasks, core dumps off and bounded daemon logs. Resource/isolation
+settings are checked again through container inspection. Only its private
+fixture config is mounted read-only and its state directory read-write;
+the harness overrides the numeric user to the calling non-root UID/GID for
+bind-mounted socket access.
+
+Readiness requires the exact completed-boot reply over the private control
+socket, a PID-1 greeting, exactly 41 Running module rows, zero PJSIP objects
+and absent test CLI. The five getter/disk-edit/reload/restoration responses
+must exactly equal the previously verified native bundle observations.
+Shutdown requires exit zero without OOM. Failures still trigger log capture
+and cleanup using a unique ownership label, exact owned name and container
+ID; another container is never removed merely because its name matches.
+Expected stale socket/PID files are removed only after the owned container
+is removed. Failures remain errors and cannot set `passed=true`.
+This harness does not yet repeat native `/proc/maps` inspection or establish
+image layer provenance, complete filesystem hermeticity or production behavior.
+
+**Fourteen offline Python tests pass**. They use synthetic bytes and mocked
+Docker/CLI responses, not the real binary payload or daemon. Coverage includes
+the pinned recipe, all 41 aliases, exact inventory/hash/size/mode checks,
+manifest tampering/traversal/duplicates, a synthetic context round trip with
+modeled Linux aliases, context tampering, fixture paths and listener absence,
+Running/missing/duplicate/declined module states, explicit approvals, immutable
+image IDs, no-pull/resource flags, 8192-byte output boundary, truncated/wrong-PID
+greetings, success, failure, launch-timeout cleanup, isolation-setting rejection
+and ownership-mismatch refusal. Run from the repository:
+
+```powershell
+python -B tests\asterisk-runtime-image.test.py -v
+node --test tests\asterisk-native-build-evidence.test.mjs tests\asterisk-queue-policy-package.test.mjs
+```
+
+The existing 24 source/evidence regressions remain the separate executed
+evidence checks. No dependency additions, image-build approval, container
+runtime approval, redistribution/license closure, calls/media, production
+deployment, Gate C or remaining Gate A acceptance is implied.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

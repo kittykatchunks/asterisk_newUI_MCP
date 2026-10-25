@@ -7,3 +7,4 @@ local/asterisk-patches/*.json text eol=lf
 local/asterisk-build/*.json text eol=lf
 local/asterisk-build/*.py text eol=lf
 local/asterisk-build/*.xml text eol=lf
+local/asterisk-build/*.Dockerfile text eol=lf

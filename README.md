@@ -531,6 +531,14 @@ binds its manifest and smoke report. Only JSON evidence was exported; binaries
 remain in the stopped private builder. This is not a container/standalone OS
 image, hermetic filesystem proof, call/media test or redistribution approval.
 
+**[Container packaging tooling is prepared, not executed](./PROJECT-PLAN.md#container-recipe-and-validation-harness-prepared-only).**
+The [scratch recipe](./local/asterisk-build/runtime.Dockerfile) and
+[opt-in harness](./local/asterisk-build/runtime_image.py) bind the exact verified
+bundle. Offline tests cover content/mode/inventory checks, isolated launch
+arguments, strict CLI/module checks and ownership-safe cleanup. No actual
+build context, image, container or binary export was produced in this step.
+Image build/runtime compatibility remains untested and requires separate approval.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
