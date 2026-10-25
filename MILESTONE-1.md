@@ -2403,6 +2403,15 @@ unchanged live/destructor totals. Only the controller postimage changes.
 **Twelve package tests pass** and exact application/nine postimages match.
 Native instrumentation/acceptance remain pending; Gates B/C stay closed.
 
+The [mixed-node failure-path extension](./PROJECT-PLAN.md#gate-a-mixed-node-failure-paths-inventory-unchanged-still-unexecuted)
+adds five walks without changing the **29-definition uncompiled/unexecuted**
+inventory: object-budget 63 rejects a 64-live chain before traversal; invalid
+visitor returns at live 1/32/64 report internal failure at physical 2/64/128;
+a normal visitor then restores the expected physical-limit result. Counts,
+borrowed references and destructors must remain unchanged. Only the controller
+postimage changes. **Twelve package tests pass** and exact application/nine
+postimages match. All native acceptance and Gates B/C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

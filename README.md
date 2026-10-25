@@ -440,6 +440,9 @@ explicit 63/64-live visits and exact fixture destructor/ref assertions.
 The [abort and recovery extension](./PROJECT-PLAN.md#gate-a-mixed-node-abort-and-recovery-inventory-unchanged-still-unexecuted)
 keeps that inventory unchanged while adding exact first/middle/final abort
 positions and successful walks after retained-empty nodes are released.
+The [failure-path extension](./PROJECT-PLAN.md#gate-a-mixed-node-failure-paths-inventory-unchanged-still-unexecuted)
+adds object-budget rejection before traversal and invalid visitor returns at
+first/middle/final live objects, followed by unchanged-chain recovery.
 **Twelve package tests pass**; exact application and all nine source postimages
 match. Those checks do not prove C compilation,
 native behavior, measured latency or lifecycle acceptance. Shutdown, recursive

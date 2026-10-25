@@ -3529,6 +3529,40 @@ Both named scratch directories are removed after verification. No dependency
 install, native build/test, image build, module load or PBX operation occurred.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A mixed-node failure paths: inventory unchanged, still unexecuted
+
+Five additional walk assertions extend `bounded_mixed_nodes`; the inventory
+remains **29 uncompiled/unexecuted native definitions** on the same nine paths.
+Only the controller postimage changes. The shared owned-object visitor gains
+an optional invalid-return position; zero-initialized existing callers retain
+their previous behavior.
+
+On the real 129-physical-node/64-live mixed chain:
+
+- An object budget of 63 must return/result `LIMIT` before traversal: zero
+  buckets, nodes, objects and visitor calls. This does not mean no container
+  lock was acquired; preflight reads the live count under that lock.
+- Restoring the object budget to 64, invalid visitor returns at live positions
+  **1/32/64** must return/result `INTERNAL`, with one bucket and exactly
+  **2/64/128 physical nodes**, respectively. All preceding empty nodes count.
+  The visitor checks borrowed reference count one before returning invalid.
+- A subsequent normal visitor must again reach the physical-node limit at
+  **128 nodes/64 visits**, not inherit an error, report complete or mutate
+  the chain. Existing abort and retained-node-release recovery walks follow.
+
+Each new walk requires unchanged 64-live container count and 65 completed
+object destructors; final cleanup still requires all 129 allocated objects
+destroyed. These are source assertions for AT-01/AT-05/AT-06/AT-07, not native
+failure-path, lock/ref/allocator accounting or concurrency evidence.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match; the other eight postimages
+are unchanged. Both named scratch directories are removed after verification.
+No dependency install, native compile/test, image build, module load or PBX
+operation occurred. A's verified exit, all AT/QO gates, Gates B/C, exact
+publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
