@@ -407,10 +407,12 @@ Protocol fixtures define exact sorted/empty/full/error JSON and output failure.
 The [CLI exit coverage update](./PROJECT-PLAN.md#gate-a-cli-exit-coverage-sixteen-definitions-still-unexecuted)
 added handler success/failure/usage schedules, real completion callbacks and
 null-owner registration/admission denial. The [rejected-state update](./PROJECT-PLAN.md#gate-a-rejected-states-seventeen-definitions-still-unexecuted)
-brings the inventory to **seventeen uncompiled/unexecuted native definitions**,
-adding eighteen private-fixture rejection/prefix schedules with cross-thread
-lock cleanup and recovery assertions. Exact lease-count release, integration,
-instrumentation and wider loader/shutdown schedules remain unproven.
+added eighteen private-fixture rejection/prefix schedules with cross-thread
+lock cleanup and recovery assertions. The [private traversal integration](./PROJECT-PLAN.md#gate-a-private-traversal-integration-eighteen-definitions-still-unexecuted)
+brings the inventory to **eighteen uncompiled/unexecuted native definitions**,
+connecting actual traversal, queue copying and exact observed/error output
+without global queue substitution. Exact lease-count release, global-handler
+integration, instrumentation and wider loader/shutdown schedules remain unproven.
 **Eleven package tests pass**; the validator checks definitions/registration
 pairs and exact application/postimages were rechecked. Queue fixtures stay
 private and unlinked; request/traversal/locking logic is unchanged.

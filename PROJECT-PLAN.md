@@ -2797,6 +2797,49 @@ checks. No dependency install, native build/test, image build or PBX execution
 occurred. A's verified exit, Gates B/C, AT/QO, exact publication, full CP and
 M1-09 remain open.
 
+##### Gate A private traversal integration: eighteen definitions, still unexecuted
+
+The A-only source candidate adds `policy_snapshot_traversal`, bringing its
+inventory to **eighteen uncompiled/unexecuted native definitions**. It calls the
+actual bounded AO2 API with the actual queue visitor, then captures the actual
+private responder's bytes. No mock visitor, global `queues` substitution,
+runtime CLI registration or PBX is used.
+
+The private one-bucket mutex list covers:
+
+- Empty traversal: complete, one bucket, zero nodes/objects/rows and exact empty
+  observed JSON.
+- Two selected queues plus one foreign queue: complete with three physical
+  nodes/objects but two copied rows; exact JSON sorts the reversed selected
+  input order and excludes the foreign name.
+- A selected dead queue reached after two valid rows: traversal returns
+  aborted with three node/object visits and `unsupported-state`; the responder
+  emits only the exact error line despite the two retained rows.
+- Nine valid selected queues: traversal aborts on object nine with eight copied
+  rows and `limit`; only the exact limit envelope is emitted and the private
+  container retains all nine objects.
+
+The fixture relies on the pinned list owner's default insertion-at-tail
+behavior with no comparator and no insert-begin option; this was checked in
+`main/astobj2_hash.c`. It retains its own queue references, cleans the container
+before releasing fixture-owned member/string storage and never invokes normal
+queue/device initialization or destruction.
+
+This connects traversal/copy/response for complete and visitor-aborted paths,
+not the global handler's status mapping, real CLI dispatch, top-level busy/
+node/object budgets, subordinate-lock instrumentation or concurrent runtime
+reload/unload. Those and remaining member-ceiling, release-count, lifecycle/
+profile cases still need native coverage/execution. No AT/QO pass is inferred.
+
+**Eleven package tests pass**, with JavaScript syntax, whitespace and added
+documentation link checks. Seven exact source preimages/application dry run
+pass; independent source-only application matches all eight postimages.
+Production queue code compares unchanged outside the `TEST_FRAMEWORK` region
+and registration calls; the seven other postimages are unchanged. Both named
+scratch directories are removed after checks. No dependencies, native build/
+test, image build or PBX execution occurred. A's verified exit, Gates B/C,
+AT/QO, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

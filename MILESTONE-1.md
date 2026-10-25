@@ -2248,6 +2248,16 @@ match. Production implementation is unchanged outside native-test fixtures/
 registration. Remaining instrumentation, integration, member ceilings and
 loader/shutdown coverage, A's verified exit, AT/QO and Gates B/C remain open.
 
+The next [private traversal integration](./PROJECT-PLAN.md#gate-a-private-traversal-integration-eighteen-definitions-still-unexecuted)
+brings the inventory to **eighteen uncompiled/unexecuted native definitions**.
+It connects the actual bounded AO2 traversal, queue visitor and responder using
+a private list: empty success, selected/foreign sorted success, late dead-queue
+rejection and ninth-row limit. Exact error envelopes exclude retained rows.
+**Eleven package tests pass** and exact application/eight postimages match;
+production code is unchanged outside fixtures/registration. Global-handler
+mapping/dispatch, concurrent runtime and remaining lifecycle/profile acceptance
+remain unproven. A's verified exit, AT/QO and Gates B/C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

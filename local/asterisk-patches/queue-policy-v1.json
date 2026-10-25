@@ -4,7 +4,7 @@
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "upstreamTag": "22.11.0",
   "patch": "queue-policy-v1.patch",
-  "patchSha256": "7d5b5b5ed24d23f4901d7417298e8d5f653e9f309ad18ef0f23a6526e153332a",
+  "patchSha256": "7d1e52fcbd4892b2f82ee97470e42cb8f9a4da91ed92bd389a7288c832427d39",
   "stage": "gate-a-source-candidate",
   "nativeCompiled": false,
   "nativeTestsExecuted": false,
@@ -27,13 +27,14 @@
     "policy_snapshot_output_failure",
     "protected_completion",
     "protected_registration",
-    "policy_snapshot_rejected_state"
+    "policy_snapshot_rejected_state",
+    "policy_snapshot_traversal"
   ],
   "files": [
     {
       "path": "apps/app_queue.c",
       "beforeSha256": "46057d05da7e078ffb5228a0eca8414c9d3ea05f1eb0a4f1b664e8a4d2f2e9a8",
-      "afterSha256": "c4d49d30c792f35ef3c88dc2bbf2f7518575a1d8005b906ec4e5f12b6371ab70"
+      "afterSha256": "4dab0d1dd31ed81085040c7385e7480747254c9409aef326d86aa085e36bb775"
     },
     {
       "path": "include/asterisk/astobj2.h",
