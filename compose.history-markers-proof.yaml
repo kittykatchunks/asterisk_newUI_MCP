@@ -1,0 +1,11 @@
+services:
+  customer-a:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned marker directory required}/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned marker directory required}/modules.conf:/etc/asterisk/modules.conf:ro
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned marker directory required}/cel.conf:/etc/asterisk/cel.conf:ro
+  customer-b:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned marker directory required}/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned marker directory required}/modules.conf:/etc/asterisk/modules.conf:ro
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned marker directory required}/cel.conf:/etc/asterisk/cel.conf:ro

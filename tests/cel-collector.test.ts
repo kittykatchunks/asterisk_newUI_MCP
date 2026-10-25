@@ -28,7 +28,7 @@ test("CR-01: schema-1 evidence migrates atomically; old read-only history still 
     const before = initial.read(scope);
     initial.close();
     const legacy = new DatabaseSync(database);
-    legacy.exec("DROP TABLE queue_events; DROP TABLE queue_sources; DROP TABLE cel_collection_gaps; DROP TABLE cel_collectors; PRAGMA user_version=1");
+    legacy.exec("DROP TABLE history_ranges; DROP TABLE history_manifests; DROP TABLE queue_events; DROP TABLE queue_sources; DROP TABLE cel_collection_gaps; DROP TABLE cel_collectors; PRAGMA user_version=1");
     legacy.close();
     const oldReader = openCelHistory(database, { readOnly: true });
     try {
@@ -39,7 +39,7 @@ test("CR-01: schema-1 evidence migrates atomically; old read-only history still 
     try { assert.deepEqual(migrated.read(scope), before); }
     finally { migrated.close(); }
     const check = new DatabaseSync(database, { readOnly: true });
-    try { assert.equal(check.prepare("PRAGMA user_version").get()?.user_version, 3); }
+    try { assert.equal(check.prepare("PRAGMA user_version").get()?.user_version, 4); }
     finally { check.close(); }
   });
 });
@@ -83,7 +83,7 @@ test("CR-01: migration failure is atomic and leaves schema-1 evidence readable",
     const before = store.read(scope);
     store.close();
     const db = new DatabaseSync(database);
-    db.exec("DROP TABLE queue_events; DROP TABLE queue_sources; DROP TABLE cel_collection_gaps; DROP TABLE cel_collectors; PRAGMA user_version=1; CREATE TABLE cel_collection_gaps(blocker TEXT)");
+    db.exec("DROP TABLE history_ranges; DROP TABLE history_manifests; DROP TABLE queue_events; DROP TABLE queue_sources; DROP TABLE cel_collection_gaps; DROP TABLE cel_collectors; PRAGMA user_version=1; CREATE TABLE cel_collection_gaps(blocker TEXT)");
     db.close();
     assert.throws(() => openCelHistory(database), /already exists/);
     const inspect = new DatabaseSync(database, { readOnly: true });

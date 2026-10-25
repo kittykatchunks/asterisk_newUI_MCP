@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { HISTORY_SNAPSHOT_LIMIT, HISTORY_RECORD_LIMIT, historySha256 as sha256,
   historyIdentifier as identifier, historyInteger as integer, historyDigest as digest } from "./history-evidence.ts";
 import { createQueueHistory, createQueueSchema, validateQueueSchema } from "./queue-history.ts";
+import { createHistoryManifests, createManifestSchema, validateManifestSchema } from "./history-manifest.ts";
 
 export const CEL_SNAPSHOT_LIMIT = HISTORY_SNAPSHOT_LIMIT;
 const recordLimit = HISTORY_RECORD_LIMIT;
@@ -214,10 +215,10 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
         ) STRICT;
         CREATE INDEX cel_channel ON cel_events(source, generation, uniqueid, offset);
         PRAGMA application_id = ${applicationId}; PRAGMA user_version = 1;`);
-      } else if ((version !== 1 && version !== 2 && version !== 3) || identity !== applicationId) {
+      } else if (![1, 2, 3, 4].includes(Number(version)) || identity !== applicationId) {
         throw new Error("Not a supported CEL history database");
       }
-      if (!options.readOnly && version !== 2 && version !== 3) {
+      if (!options.readOnly && version !== 2 && version !== 3 && version !== 4) {
         db.exec(`CREATE TABLE cel_collectors (
           source TEXT PRIMARY KEY, customer TEXT NOT NULL, generation TEXT NOT NULL,
           time_basis TEXT NOT NULL, path TEXT NOT NULL, stale_after_ms INTEGER NOT NULL,
@@ -235,14 +236,16 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
       }
       db.prepare("SELECT source, generation, customer, time_basis, consumed_bytes, prefix_sha256 FROM cel_sources LIMIT 0");
       db.prepare("SELECT source, generation, offset, end_offset, uniqueid, raw, sha256, ingested_at FROM cel_events LIMIT 0");
-      if (!options.readOnly || version === 2 || version === 3) {
+      if (!options.readOnly || version === 2 || version === 3 || version === 4) {
         db.prepare(`SELECT source,customer,generation,time_basis,path,stale_after_ms,revision,updated_at,
           outcome,attempted_at,succeeded_at,failure,pending_bytes FROM cel_collectors LIMIT 0`);
         db.prepare(`SELECT id,customer,source,from_generation,to_generation,last_success_at,observed_at,
           operator,reason FROM cel_collection_gaps LIMIT 0`);
       }
-      if (!options.readOnly && version !== 3) createQueueSchema(db);
-      if (!options.readOnly || version === 3) validateQueueSchema(db);
+      if (!options.readOnly && version !== 3 && version !== 4) createQueueSchema(db);
+      if (!options.readOnly || version === 3 || version === 4) validateQueueSchema(db);
+      if (!options.readOnly && version !== 4) createManifestSchema(db);
+      if (!options.readOnly || version === 4) validateManifestSchema(db);
       db.exec("COMMIT");
     } catch (error) { db.exec("ROLLBACK"); throw error; }
   } catch (error) { db.close(); throw error; }
@@ -250,7 +253,7 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
     WHERE e.source=s.source AND e.generation=s.generation) AS records
     FROM cel_sources s WHERE source=? AND generation=?`);
   const schemaVersion = db.prepare("PRAGMA user_version").get()?.user_version;
-  const hasCollectors = schemaVersion === 2 || schemaVersion === 3;
+  const hasCollectors = schemaVersion === 2 || schemaVersion === 3 || schemaVersion === 4;
   function getCollector(customer: string, source: string) {
     identifier(customer); identifier(source);
     if (!hasCollectors) throw new Error("CEL collector requires schema 2; migrate with a trusted writer");
@@ -317,7 +320,8 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
     return current;
   }
   return {
-    queue: createQueueHistory(db, schemaVersion === 3),
+    queue: createQueueHistory(db, schemaVersion === 3 || schemaVersion === 4),
+    manifests: createHistoryManifests(db, schemaVersion === 4, options.readOnly === true),
     ingest(source: CelSource, snapshot: Uint8Array) {
       return transaction(() => ingest(source, snapshot));
     },

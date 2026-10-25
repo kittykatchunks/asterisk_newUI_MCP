@@ -36,7 +36,7 @@ test("QF-01: schema 2 migrates atomically without changing CEL, collector or gap
       gaps: initial.collectionGaps(source.customer, source.source) };
     initial.close();
     const legacy = new DatabaseSync(database);
-    legacy.exec("DROP TABLE queue_events; DROP TABLE queue_sources; PRAGMA user_version=2");
+    legacy.exec("DROP TABLE history_ranges; DROP TABLE history_manifests; DROP TABLE queue_events; DROP TABLE queue_sources; PRAGMA user_version=2");
     legacy.close();
     const old = openCelHistory(database, { readOnly: true });
     try {
@@ -53,7 +53,7 @@ test("QF-01: schema 2 migrates atomically without changing CEL, collector or gap
       assert.deepEqual(migrated.read(source), before.events);
     } finally { migrated.close(); }
     const check = new DatabaseSync(database, { readOnly: true });
-    try { assert.equal(check.prepare("PRAGMA user_version").get()?.user_version, 3); }
+    try { assert.equal(check.prepare("PRAGMA user_version").get()?.user_version, 4); }
     finally { check.close(); }
   });
 });
@@ -65,7 +65,7 @@ test("QF-01: failed queue migration rolls back schema, retaining old CEL reads",
     const before = store.read(source);
     store.close();
     const db = new DatabaseSync(database);
-    db.exec("DROP TABLE queue_events; DROP TABLE queue_sources; PRAGMA user_version=2; CREATE TABLE queue_events(blocker TEXT)");
+    db.exec("DROP TABLE history_ranges; DROP TABLE history_manifests; DROP TABLE queue_events; DROP TABLE queue_sources; PRAGMA user_version=2; CREATE TABLE queue_events(blocker TEXT)");
     db.close();
     assert.throws(() => openCelHistory(database), /already exists/);
     const check = new DatabaseSync(database, { readOnly: true });

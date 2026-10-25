@@ -1085,9 +1085,67 @@ Reproduce with `.\scripts\Test-QueueHistoryProof.ps1`; the
 format/limit rules, migration compatibility and sensitive-data boundaries.
 No route, dependency, phone, web/permission surface or REFER matrix changed.
 This proves raw queue timeout evidence, not human service, caller abandonment or
-business journeys. JD runtime/epoch pairing, instrumentation, reconstruction and
-queue collector coverage remain unimplemented. M1-06/07 and the 17 remaining broad
+business journeys. At QF completion, JD runtime/epoch pairing, instrumentation, reconstruction and
+queue collector coverage remained unimplemented; MM below adds only immutable
+assignments and isolated markers. M1-06/07 and the 17 remaining broad
 M1 gates are still incomplete.
+
+### Selected next increment: runtime/epoch manifests and isolated markers
+
+The user selected immutable record-boundary range assignments plus a new isolated
+synthetic entry/visit fixture. No projection, totals or ordinary route changes.
+
+| Check | Finite required evidence |
+|---|---|
+| MM-01 | History schema 4 atomically adds immutable manifest/range tables, preserving existing CEL, queue and collector/gap state. Current raw readers support legacy schemas; manifest operations require 4. No automatic legacy epoch assignment. |
+| MM-02 | Operator supplies customer/runtime/epoch, bounded operator/reason, trusted route declarations and 1-100 CEL/queue ranges. Ranges must cover committed complete records, with exact boundary offsets and source hashes. Bind one runtime/customer per source-kind/generation; multiple epochs or generations are explicit ranges, never inferred. |
+| MM-03 | Atomic registration rejects overlapping/reassigned ranges or customer/runtime contradictions; no correction/supersession workflow. Exact identical registration is idempotent. Appended/unmapped evidence stays explicitly unassigned. Customer-scoped manifest pages and per-record resolution fail on foreign/invalid requests. |
+| MM-04 | Bounded marker inspection validates versioned JSON, UUIDs, configured context/extension/revision/kind and exact manifest assignment. Return unassigned, untrusted-route, invalid-marker, not-marker or validated-marker observations with provenance; marker validation is not a confirmed journey/projection count. |
+| MM-05 | A new isolated synthetic route generates fresh entry and visit UUIDs in dialplan, emits HISTORY_ENTRY before Answer and HISTORY_QUEUE_VISIT before Queue, with fixed synthetic kind/revision. No external headers or arbitrary user JSON supply trusted lineage. Existing routes/REFER fixtures remain unchanged. |
+| MM-06 | Focused typecheck/tests prove migration/rollback, raw/collector regressions, byte boundaries, explicit epoch splits, kind/customer collisions, overlaps, concurrency/idempotency, unassigned tails and malformed/spoofed marker provenance. |
+| MM-07 | Isolated two-customer real calls produce one valid entry/visit marker each, ordered before Answer/ENTERQUEUE, matching queue caller ID and full CEL lifecycle. Persist/import/replay, explicitly register manifest and reopen/resolve both kinds; retain raw bytes and non-secret report, clean owned resources without REFER reruns. |
+
+Manifests are trusted operator assertions, not automatic runtime discovery or
+cryptographic attestation. Wrong operator-supplied epoch/route trust is outside
+this tool's authority. Marker observations do not merge roots, assign all legs,
+reconstruct visits/outcomes or establish human service/completeness. Source gaps
+remain independent; mapping never clears them. Stop after MM-01 through MM-07.
+
+**Result: MM-01 through MM-07 complete for this operator/isolated scope.**
+Typecheck and 46 focused tests pass (eight new MM tests plus the 38 raw/
+collector regressions). Tests cover schema-3 migration/rollback and earlier
+schema-1/2 compatibility, exact record boundaries, atomic failed batches,
+overlap/reassignment denial, explicit epoch splits and multi-generation
+assignment, kind/customer collisions, unassigned appended bytes, bounded
+pages/JSON, concurrent idempotent registrations, read-only persistence,
+corrupt inventory/evidence and invalid/untrusted marker payloads.
+
+Real run `run-WYmmSC`, project `asterisk-history-wymmsc`, uses the unchanged
+pinned Asterisk image and only owned temporary config/volumes/networks.
+It imports **19 CEL records / 3,020 bytes** and **three queue records / 157 bytes
+per customer**. Fresh dialplan UUIDs produce one entry/visit pair each.
+The caller sequence is CHAN_START, HISTORY_ENTRY, ANSWER, HISTORY_QUEUE_VISIT,
+APP_START, APP_END, HANGUP, CHAN_END. The isolated CEL config tracks Queue only,
+proving marker-before-Queue invocation without cross-source timestamp sorting.
+Actual queue ENTERQUEUE/EXITWITHTIMEOUT match that caller's uniqueid and queue.
+Both customers reuse `1792896030.2`; scoped assignments still isolate them.
+
+CEL/queue original bytes round-trip, replay inserts zero and separate CLI
+registration replay preserves manifest IDs. Fresh read-only processes resolve
+entry/visit and queue assignments to the same explicitly declared customer
+runtime/epoch; foreign access fails. Independent checks confirm no owned
+containers, networks, volumes, credentials or temporary config remain.
+Synthetic database/report are retained locally only.
+
+Reproduce with `.\scripts\Test-HistoryMarkersProof.ps1`; operator JSON/limits
+are documented in [README](./README.md#operator-only-runtimeepoch-manifests-and-marker-observations).
+The visit payload includes `routeRevision` to validate its route independently
+of future journey reconstruction. The fixture loads `func_uuid.so` in a
+temporary modules copy and adds Queue tracking in a temporary CEL copy.
+No ordinary dialplan, frozen REFER matrix, live phone, web/permission surface or
+dependency changes. No root/leg merging, counts, queue coverage, human-service
+or four-outcome acceptance is claimed. All 17 remaining broad M1 gates are
+still incomplete; stop after this finite increment.
 
 ## 6. Proposed implementation backlog
 

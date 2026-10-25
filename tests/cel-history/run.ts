@@ -7,15 +7,17 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { openCelHistory, type CelEvent } from "../../src/cel-history.ts";
 import type { QueueEvent } from "../../src/queue-history.ts";
+import { proveHistoryMarkers } from "./markers.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && args[0] !== "--recovery" && args[0] !== "--queue")) {
-  throw new Error("Only --recovery or --queue is supported");
+if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers"].includes(args[0]))) {
+  throw new Error("Only --recovery, --queue or --markers is supported");
 }
 const recovery = args[0] === "--recovery";
 const queueProof = args[0] === "--queue";
-const mode = recovery ? "cel-collector" : queueProof ? "queue-history" : "cel-history";
+const markerProof = args[0] === "--markers";
+const mode = recovery ? "cel-collector" : queueProof ? "queue-history" : markerProof ? "history-markers" : "cel-history";
 const parent = join(root, ".local-proof", mode);
 await mkdir(parent, { recursive: true });
 const directory = await mkdtemp(join(parent, "run-"));
@@ -24,6 +26,7 @@ const database = join(directory, "history.sqlite");
 const compose = ["compose", "--project-name", project,
   "-f", join(root, "compose.yaml"), "-f", join(root, "compose.sip-proof.yaml"),
   "-f", join(root, "compose.cel-history-proof.yaml")];
+if (markerProof) compose.push("-f", join(root, "compose.history-markers-proof.yaml"));
 const execute = promisify(execFile);
 const customers = ["customer-a", "customer-b"] as const;
 async function docker(args: string[], timeout = 30000) {
@@ -61,9 +64,21 @@ const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
   scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
     queueProof ? "operator queue evidence with isolated empty Local-channel timeout and PBX restart; not human service or journey reconstruction" :
+    markerProof ? "operator runtime/epoch manifest assertions and isolated synthetic entry/queue-visit observations; not journey reconstruction or production trust attestation" :
       "operator-only CEL evidence; no business journey/outcome reconstruction",
   asteriskImage: "andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d" };
 try {
+  if (markerProof) {
+    const [extensions, markers, modules, cel] = await Promise.all([
+      readFile(join(root, "local", "asterisk", "extensions.conf"), "utf8"),
+      readFile(join(root, "tests", "history-markers", "extensions.conf"), "utf8"),
+      readFile(join(root, "local", "asterisk", "modules.conf"), "utf8"),
+      readFile(join(root, "local", "asterisk", "cel.conf"), "utf8"),
+    ]);
+    await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}`.replaceAll("\r\n", "\n"));
+    await writeFile(join(directory, "modules.conf"), `${modules}\nload = func_uuid.so\n`.replaceAll("\r\n", "\n"));
+    await writeFile(join(directory, "cel.conf"), cel.replace("apps = all", "apps = Queue").replaceAll("\r\n", "\n"));
+  }
   const template = await readFile(join(root, "local", "sip", "endpoint.conf.template"), "utf8");
   for (const customer of customers) {
     await mkdir(join(directory, customer));
@@ -131,6 +146,11 @@ try {
       assert.equal(sources.sources[0].source, `pbx-${customer}`);
     }
   } finally { reopened.close(); }
+  if (markerProof) {
+    const markers: Record<string, unknown>[] = [];
+    report.markers = markers;
+    await proveHistoryMarkers(database, directory, project, docker, freshSnapshot, cli, markers);
+  }
   if (queueProof) {
     const queueEvidence: Record<string, unknown>[] = [];
     report.queue = queueEvidence;
@@ -313,6 +333,11 @@ try {
   }
   for (const customer of customers) {
     await cleanup(() => rm(join(directory, customer), { recursive: true, force: true }));
+  }
+  if (markerProof) {
+    for (const file of ["extensions.conf", "modules.conf", "cel.conf"]) {
+      await cleanup(() => rm(join(directory, file), { force: true }));
+    }
   }
   if (errors.length > 0) {
     report.passed = false;

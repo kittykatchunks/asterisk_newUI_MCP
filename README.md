@@ -15,6 +15,130 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Operator-only runtime/epoch manifests and marker observations
+
+MM-01 through MM-07 add explicit immutable source-range assignments to the
+dedicated history database, plus an **isolated synthetic** marker fixture.
+[Manifest storage](./src/history-manifest.ts) is exposed as `store.manifests`;
+[marker inspection](./src/history-markers.ts) always loads actual scoped stored
+CEL evidence. No caller-supplied event object is accepted for inspection.
+
+These are trusted **operator assertions**, not runtime discovery, authenticated
+tenant access, cryptographic attestation or completed journey reconstruction.
+No totals, root/leg merging, transfers, human-service classification, new HTTP/UI
+or live agent phones are enabled. The ordinary dialplan and frozen REFER fixtures
+are unchanged. CEL/queue collector coverage gaps remain independent.
+
+### Manifest operator commands
+
+With Node.js 24 and absolute local paths (example placeholders):
+
+```powershell
+node .\scripts\Manage-HistoryManifest.ts register 'C:\proof\history.sqlite' customer-a 'C:\proof\manifest.json'
+node .\scripts\Manage-HistoryManifest.ts list 'C:\proof\history.sqlite' customer-a 0 100
+node .\scripts\Manage-HistoryManifest.ts resolve 'C:\proof\history.sqlite' customer-a cel pbx-a generation-1 0
+node .\scripts\Manage-HistoryManifest.ts marker 'C:\proof\history.sqlite' customer-a pbx-a generation-1 0
+```
+
+Only `register` opens a writer; other commands open an existing database read-only.
+The customer argument must match registration JSON. Import CEL/queue raw evidence
+first, then supply this exact manifest shape:
+
+```json
+{
+  "customer": "customer-a",
+  "runtime": "pbx-runtime-a",
+  "epoch": "boot-1",
+  "operator": "named-operator",
+  "reason": "Describe the observed runtime, boot and source boundaries",
+  "routes": [
+    {"context": "history-marker", "extension": "entry", "routeRevision": "marker-v1", "entryKind": "synthetic"}
+  ],
+  "ranges": [
+    {"kind": "cel", "source": "pbx-a", "generation": "generation-1", "start": 0, "end": 3020},
+    {"kind": "queue", "source": "pbx-a", "generation": "generation-1", "start": 0, "end": 157}
+  ]
+}
+```
+
+**Do not copy the example offsets as runtime facts.** `[start,end)` must cover
+intact, committed contiguous complete records with exact byte boundaries.
+Registration hashes those original bytes, atomically saves the manifest and
+ranges, and permanently binds each kind/source/generation to one customer/runtime.
+Use explicit disjoint ranges for restart epochs within a generation; multiple
+generations may explicitly share one epoch. Nothing is inferred from log names,
+QUEUESTART, timestamps, linkedid or UUID randomness. Appended/unmapped records
+remain `unassigned`, not implicitly part of the latest epoch.
+
+No overlaps, reassignment or correction/supersession are supported. Identical
+canonical registration is idempotent; object-key order is normalized, but
+route/range array order and text are significant. The returned manifest includes
+its ID, document SHA-256 and UTC creation time. `list` returns
+`{manifests,nextAfterId}`; pass the next cursor until null. `resolve` requires an
+actual record offset and returns `status:assigned|unassigned`, scoped evidence
+identity and, when assigned, manifest ID/hash, runtime/epoch, trusted routes,
+range and original-byte hash. Foreign sources, invalid boundaries/schema,
+conflicts, corrupt evidence and storage failures fail nonzero without fallback.
+
+Limits: **64 KiB registration JSON**, **1-100 ranges**, **0-20 trusted routes**,
+**1-200 manifests/page**. Each range is bounded by the existing **8 MiB** full
+snapshot ceiling. Scope/revision IDs use 1-96 lowercase letters/digits/dot/
+underscore/hyphen, starting with a letter/digit. Operator/reason text is nonblank,
+control-free and bounded to 200/2,000 characters; context/extension to 100 each.
+
+### Marker meanings and isolated proof
+
+`marker` returns `markerStatus` of `unassigned`, `untrusted-route`,
+`invalid-marker`, `not-marker` or `validated-marker`. Known markers require the
+outer CEL extra JSON's `extra` string to contain an exact version-1 object:
+
+- `HISTORY_ENTRY`: `{v:1,journeyId,entryKind,routeRevision}`.
+- `HISTORY_QUEUE_VISIT`: `{v:1,journeyId,visitId,queue,routeRevision}`.
+
+IDs must be canonical lowercase UUID text; journey/visit IDs must differ.
+Queue names use 1-96 lowercase letters/digits/underscore/hyphen, starting with a
+letter/digit. Both markers require an assigned declared context/extension and
+exact route revision; entry kind must match. The visit revision is explicit so
+its trust check does not depend on a future journey join. Unknown fields,
+malformed JSON, bad IDs or mismatches never become validated observations.
+`validated-marker` means schema/provenance observation **only**: it does not
+prove unique roots, a complete visit, real inbound traffic, or human service.
+Marker UUIDs/queue names are fixed-format dialplan values, not caller headers.
+An operator who declares the wrong source epoch or a caller-controlled route
+trusted can still make false assertions; this tool cannot attest those claims.
+
+```powershell
+.\scripts\Test-HistoryMarkersProof.ps1
+```
+
+This runs typecheck, **46 focused manifest/marker/CEL/queue/collector tests**, then
+the two-customer harness in `--markers` mode with the locally available pinned
+image, `--pull never --no-build`, and a unique owned Compose project.
+The [isolated overlay](./compose.history-markers-proof.yaml) mounts temporary
+copies of extensions/modules/CEL configuration only for that project. It adds
+`func_uuid.so`, tracks Queue application start/end and appends the
+[synthetic route](./tests/history-markers/extensions.conf). No production trust
+or external route is claimed.
+
+Recorded run `run-WYmmSC`, project `asterisk-history-wymmsc`, preserved **19 CEL
+records / 3,020 bytes** and **3 queue records / 157 bytes per customer**. Each
+caller channel showed CHAN_START, HISTORY_ENTRY, ANSWER, HISTORY_QUEUE_VISIT,
+APP_START, APP_END, HANGUP, CHAN_END, in that order. Queue-only application
+tracking and the fixed dialplan establish visit-marker-before-Queue invocation;
+cross-source timestamp sorting is not used as causality. Actual ENTERQUEUE and
+EXITWITHTIMEOUT records match the caller uniqueid/queue and explicit runtime/epoch.
+One journey UUID and a distinct visit UUID were generated per customer.
+Both PBXs reused caller ID `1792896030.2` without crossing customer scope.
+
+Original CEL/queue bytes round-trip exactly, replay inserts **zero**, separate
+operator registrations replay idempotently and fresh read-only processes resolve
+the assignments/markers. Owned containers/networks/volumes, generated credentials
+and temporary configuration are removed; only ignored synthetic databases/reports
+remain locally. Existing authenticated echo/isolation probes pass as part of the
+harness; no REFER checks run. The empty queue timeout is not caller abandonment
+or human service. Projection/reconstruction, queue collector health/gaps,
+corrections, remote delivery, retention and authenticated presentation remain open.
+
 ## Operator-only queue evidence foundation
 
 QF-01 through QF-07 add raw queue-log ingestion and scoped reads in the **same
@@ -27,8 +151,9 @@ validation and hashes to both kinds; CEL's existing snapshot reader is retained
 as a compatible export.
 
 This is an **operator evidence tool**, not queue journey reconstruction or an
-authenticated history service. No agent phone, entry marker, runtime/epoch
-manifest, queue collector status/gap adapter or new HTTP/UI is enabled.
+authenticated history service. QF itself enables no agent phone, entry marker,
+queue collector status/gap adapter or new HTTP/UI. The separate MM increment
+above adds operator manifests and isolated marker observations only.
 
 ### Queue operator commands
 
@@ -60,8 +185,8 @@ uniqueid. It is **not** a SIP Call-ID or business journey. `NONE`, `REALTIME`,
 administrative events and identical IDs across customers/kinds remain evidence.
 Queue and CEL may use the same source/generation strings without sharing records,
 binding customers across kinds or implying a runtime/epoch relationship. Every
-read still requires its own customer/source/generation. A future manifest must
-establish cross-source runtime/epoch mapping explicitly; QF does not perform joins.
+read still requires its own customer/source/generation. The MM manifest above can
+explicitly assign cross-source runtime/epoch ranges; QF does not perform joins.
 
 ### Queue format, limits and continuity
 
@@ -103,14 +228,15 @@ detects inconsistent stored evidence, not deliberate database rewriting.
 Production retention/backup, remote delivery and large-file segmentation remain
 open.
 
-### History schema 3 and verification
+### History schema compatibility and queue verification
 
-Any current trusted writer atomically migrates dedicated history schema 1/2 to
-**3**, preserving CEL source/event and collector/gap state while adding separate
-queue tables. Current CEL read commands support schemas 1/2/3; collector reads
-support 2/3; queue reads require 3 and otherwise instruct writer migration. Old
-binaries reject schema 3; there is no downgrade path. Diagnostic, agent,
-simulation and backup formats are unchanged.
+Any current trusted writer atomically migrates dedicated history schema 1/2/3 to
+**4**, preserving CEL source/event, queue and collector/gap state, adding any
+missing earlier tables plus immutable manifest/range tables. Current CEL readers
+support 1/2/3/4; collector reads support 2/3/4; queue reads support 3/4;
+manifest/marker operations require 4. Read-only commands never migrate. Old
+binaries reject schema 4; there is no downgrade path or automatic epoch
+assignment. Diagnostic, agent, simulation and backup formats are unchanged.
 
 ```powershell
 .\scripts\Test-QueueHistoryProof.ps1

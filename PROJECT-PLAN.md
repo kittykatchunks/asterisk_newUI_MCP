@@ -606,10 +606,10 @@ do not cause joins. Original Unix timestamp text, LF/CRLF record bytes, empty/
 variable parameters, offsets, hashes and ingestion timestamps persist.
 Unknown/admin events remain raw evidence, not outcomes or inbound counts.
 
-History schema 3 atomically adds `queue_sources`/`queue_events` while preserving
-CEL APIs, evidence and collector/gaps. Current CEL readers accept 1/2/3 and
-collector readers 2/3; queue reads require 3. Writers migrate to 3; old binaries
-reject upgraded databases. Shared bounded-file/scope/hash helpers avoid separate
+The QF increment introduced history schema 3, atomically adding
+`queue_sources`/`queue_events` while preserving CEL APIs, evidence and
+collector/gaps. MM below extends this to schema 4 with legacy read compatibility.
+Shared bounded-file/scope/hash helpers avoid separate
 CEL/queue policies without conflating their incompatible record formats.
 
 Typecheck and 38 focused queue/CEL/collector tests pass. Real run `run-hyu0OP`
@@ -626,10 +626,54 @@ Reproduce with `.\scripts\Test-QueueHistoryProof.ps1`; see
 and [operator usage/limits](./README.md#operator-only-queue-evidence-foundation).
 No dependencies, loaded routes, phones, web/permission surfaces or REFER checks
 changed. This is not completed JD reconstruction or M1-06/07 acceptance.
-Runtime/epoch manifest, queue collector health/gap workflow, entry/visit
-instrumentation, journey/leg/visit projection, human-service/outcome evidence and
-authenticated presentation remain separate. CEL health never implies queue
-freshness. Stop after this verified foundation.
+MM below implements runtime/epoch assertions and isolated entry/visit
+instrumentation separately. Queue collector health/gaps, journey/leg/visit
+projection, human-service/outcome evidence and authenticated presentation remain
+open. CEL health never implies queue freshness.
+
+### Runtime/epoch manifest and isolated marker completion
+
+The user selected immutable record-boundary assignments and a new isolated
+synthetic fixture, not projection/totals. MM-01 through MM-07 now add operator
+registration/list/resolve, schema-4 manifest/range tables and stored-CEL marker
+inspection. Current writers migrate 1/2/3 to 4 atomically; CEL read compatibility
+is 1/2/3/4, collector 2/3/4, queue 3/4, manifests 4 only. Existing raw evidence,
+collector/gaps and timestamps are preserved; legacy/appended bytes are unassigned
+until explicitly mapped.
+
+Explicit customer/runtime/epoch and trusted route declarations apply only to
+committed, exact `[start,end)` byte ranges. Overlaps/reassignment or contradictory
+customer/runtime bindings fail. Exact registration replay is idempotent; a
+generation can span explicit restart epochs and an epoch can span generations.
+Original-byte hashes and manifest provenance accompany per-record resolution.
+No correction/supersession or inferred pairing is provided. These are trusted
+operator assertions, not runtime attestation or remote epoch discovery.
+
+Entry and visit JSON are versioned and bounded, route/revision checked and loaded
+from the real stored source/offset. Visit markers now include `routeRevision`
+explicitly so inspection does not need an unimplemented journey join.
+Validated observations do not establish unique roots, all legs, actual queue
+service, outcomes, completeness or counts. Source gaps remain independent.
+
+Typecheck and 46 focused tests pass, including legacy migrations/rollback,
+explicit epoch splits, kind/customer collisions, unassigned append, atomic
+overlap rejection, concurrent registration, persisted read-only CLI access and
+malformed/spoofed markers. Real `run-WYmmSC` (`asterisk-history-wymmsc`) preserves
+19 CEL records/3,020 bytes and three queue records/157 bytes per customer.
+One fresh entry/visit pair per customer is observed before Answer/Queue start,
+with matching actual ENTERQUEUE/timeout and caller-channel lifecycle.
+Both PBXs reused caller ID `1792896030.2` without crossing scopes.
+Replay inserts zero, registration replay is idempotent, bytes round-trip exactly
+and fresh processes resolve both source kinds. Owned resources/generated files
+are removed; only synthetic databases/reports remain local.
+
+Reproduce with `.\scripts\Test-HistoryMarkersProof.ps1`; see
+[MM acceptance evidence](./MILESTONE-1.md#selected-next-increment-runtimeepoch-manifests-and-isolated-markers)
+and [operator usage](./README.md#operator-only-runtimeepoch-manifests-and-marker-observations).
+Temporary isolated config enables UUID and Queue application tracking; ordinary
+routes/REFER fixtures, live phones, HTTP/permissions and dependencies are
+unchanged. Stop here. Next, separately agree a finite projection contract before
+implementing any journey/leg/visit graph or totals. M1-06/07 remain incomplete.
 
 ## 6. Interface and roaming agents
 
@@ -780,9 +824,9 @@ and queue sources to the same customer/runtime and explicit epoch boundaries.
 Queue `QUEUESTART` and CEL IDs are supporting observations, not an automatic
 epoch authority. If an event cannot be assigned to an epoch without ambiguity,
 keep it unresolved; do not join its identifiers across possible incarnations.
-Existing HF source/generation IDs do not yet implement this manifest. Migration
-must retain their original identities and leave legacy epoch associations
-unassigned until an explicit, evidenced mapping is supplied.
+HF source/generation IDs alone do not implement this manifest. MM now supplies
+explicit immutable record-boundary assertions, retaining original identities and
+leaving legacy epoch associations unassigned until an operator maps them.
 
 Use a source-qualified record key for replay deduplication. Equal payloads at
 different offsets are separate evidence; equal uniqueid/linkedid/queue names
@@ -812,7 +856,8 @@ assignment/session effective at the event, not today's endpoint owner.
 
 #### Proposed trusted instrumentation contract
 
-Introduce instrumentation only in a separately approved dialplan increment.
+MM implements entry/visit instrumentation only in a separately approved isolated
+synthetic fixture; the broader propagation/graph contract below remains design.
 Ordinary echo probes and existing frozen REFER fixtures remain unchanged.
 
 - On each approved inbound entry, before `Answer()`/queue/fallback, generate a
@@ -830,7 +875,7 @@ Ordinary echo probes and existing frozen REFER fixtures remain unchanged.
   Context propagation is evidence to validate, not an assumption about inherited
   variables surviving every channel optimization/transfer.
 - Immediately before each Queue invocation, generate a fresh visit UUID and
-  emit `HISTORY_QUEUE_VISIT` with `{v:1, journeyId, visitId, queue}` on the caller
+  emit `HISTORY_QUEUE_VISIT` with `{v:1, journeyId, visitId, queue, routeRevision}` on the caller
   channel. Retain actual ENTERQUEUE as separate evidence; a marker alone does not
   prove entry, and queue application exit does not imply caller abandonment.
 - Route-controlled continuation can emit a versioned `HISTORY_CONTINUATION`
@@ -996,11 +1041,12 @@ time-zone bucketing must not collapse repeated local hours.
 
 1. **QF: queue evidence foundation**: operator-only bounded raw ingestion,
    durable checkpoints/replay and scoped reads. This foundation is now implemented
-   above with explicit source kind and no journey totals; runtime/epoch pairing
-   remains a future manifest contract.
+   above with explicit source kind and no journey totals.
 2. **JI: isolated instrumentation and reconstruction**: versioned trusted entry/
    visit markers in a new fixture, epoch manifest and deterministic graph with
-   explicit ambiguity. Prove local/transfer/re-entry cases with synthetic peers,
+   explicit ambiguity. MM now completes only immutable manifests and isolated
+   marker observations; graph/propagation remain unimplemented.
+   Prove local/transfer/re-entry cases with synthetic peers,
    without enabling the real agent phone or changing frozen REFER fixtures.
 3. **JR: four-outcome acceptance and recovery**: queue/member fixtures, projection
    replay/rebuild/late-input and outage/gap cases, then honest M1-06/07 mapping.
