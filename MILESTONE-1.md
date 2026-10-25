@@ -2584,6 +2584,19 @@ tests pass**. No image rebuild, SIP, human answering, media, existing-container
 change or Gate C is implied. See the
 [answered-member handoff](./PROJECT-PLAN.md#custom-image-synthetic-answered-member-and-caller-continuation-passed).
 
+### Synthetic unanswered-member timeout and cleanup passed
+
+The custom image's third synthetic queue path passes: a Local member signals
+ringing but never answers. The proof observes four Local legs, one queued
+caller and the member attempt, then `TIMEOUT` with **3,000 ms queue wait /
+zero answered time**, zero completed calls and one abandonment. Member
+removal restores the empty queue and zero channels before clean container
+exit/removal. The [evidence](./local/asterisk-build/synthetic-unanswered-call-validation.json)
+binds the successful raw report and preserves the failed initial attempt
+separately. **50 offline Python tests and 30 source/evidence tests pass.**
+No SIP/media, human behavior, rebuild, existing-container change or Gate C
+is implied. See the [handoff](./PROJECT-PLAN.md#custom-image-synthetic-unanswered-member-timeout-and-cleanup-passed).
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

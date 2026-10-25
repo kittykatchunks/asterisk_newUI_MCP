@@ -579,6 +579,16 @@ remained before clean container exit/removal. See the
 [answered-call validation](./local/asterisk-build/synthetic-answered-call-validation.json).
 This is synthetic answer-path execution—not SIP, human service or audio/media.
 
+**[Synthetic unanswered-member cleanup now passes](./PROJECT-PLAN.md#custom-image-synthetic-unanswered-member-timeout-and-cleanup-passed).**
+A Local queue member signalled ringing but never answered. The caller timed
+out after **3,000 ms queue wait**, with zero answered time, **zero completed
+calls and one abandonment**. All four Local legs and the member attempt were
+observed; member removal restored the empty queue and zero channels remained.
+The container exited zero and was removed. See the
+[unanswered-call validation](./local/asterisk-build/synthetic-unanswered-call-validation.json).
+No SIP, media, human-agent behavior, image rebuild or existing-container change
+is claimed.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

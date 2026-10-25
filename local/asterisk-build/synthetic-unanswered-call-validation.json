@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "stage": "synthetic-local-unanswered-member-timeout-passed",
+  "authorization": "User selected unanswered-proof then accepted up to two bounded additional attempts after a channel-detail result capture failure; first recovery succeeded.",
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "passed": true,
+  "queueStatus": "TIMEOUT",
+  "queueWaitMilliseconds": 3000,
+  "answeredMilliseconds": 0,
+  "abandoned": true,
+  "completedCallCount": 0,
+  "abandonedCallCount": 1,
+  "observedLocalChannelLegs": 4,
+  "queuedCallerObserved": true,
+  "unansweredMemberAttemptObserved": true,
+  "memberRemoved": true,
+  "finalActiveChannels": 0,
+  "finalQueuePolicyRestored": true,
+  "elapsedSeconds": 9.984,
+  "processExitCode": 0,
+  "allOwnedContainersRemoved": true,
+  "existingContainersChanged": false,
+  "imageRebuilt": false,
+  "syntheticCallsTested": true,
+  "sipTested": false,
+  "mediaTested": false,
+  "humanAnsweringTested": false,
+  "existingPbxOperated": false,
+  "runtimeApplyAuthorized": false,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "failedAttempt": {
+    "reportPrivatePath": "C:\\Users\\james\\AppData\\Local\\AsteriskNativeBuild\\unanswered-call-smoke-1\\desktop-smoke-report.json",
+    "reportSha256": "da67edd2e552c518f66d82d8085286739a6ed9682790c4eaf03b64c8a3e82560",
+    "failure": "ValueError('Expected one result variable: QUEUESTATUS')",
+    "containerRemoved": true,
+    "rootCauseNotProven": "Failed report lacked channel detail; repeated result polling near channel disappearance is a suspected race, not established fact."
+  },
+  "evidence": {
+    "synthetic-unanswered-call-smoke-report.json": {
+      "sha256": "de5de02d294868b8a19281498ce50ef2c26f421fec759e73a5c7728213d25a97"
+    },
+    "image-startup-validation.json": {
+      "sha256": "4639b0b9c9750f4bd97a1014ad9565812e23264e88d2dd0fbc0dd06c882e9c94"
+    },
+    "image-payload-validation-nss.json": {
+      "sha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+    }
+  }
+}

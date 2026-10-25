@@ -24,12 +24,12 @@ def prepare(root):
     )
 
 
-def channels(output):
+def channels(output, context=CONTEXT):
     rows = []
     for line in output.splitlines():
         fields = line.split("!")
         if len(fields) < 12 or not any(fields[0].startswith(
-                f"Local/{extension}@{CONTEXT}-") for extension in ("start", "member")):
+                f"Local/{extension}@{context}-") for extension in ("start", "member")):
             raise ValueError(f"Unexpected answered-fixture channel: {line!r}")
         rows.append(dict(name=fields[0], application=fields[5], data=fields[6]))
     return rows

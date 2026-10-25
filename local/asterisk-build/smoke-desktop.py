@@ -10,6 +10,7 @@ import uuid
 import runtime_image as runtime
 import runtime_local_call
 import runtime_answer_call
+import runtime_unanswered_call
 
 
 def command(arguments, timeout=20):
@@ -56,8 +57,8 @@ def arguments(image, name, owner, root):
     ]
 
 
-def smoke(root, trace_loader=False, local_call=False, answer_call=False):
-    if local_call and answer_call:
+def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswered_call=False):
+    if sum([local_call, answer_call, unanswered_call]) > 1:
         raise ValueError("Select exactly one functional call fixture")
     build = runtime.read_json(runtime.HERE / "image-build-validation-nss.json")
     payload_path = runtime.HERE / "image-payload-validation-nss.json"
@@ -86,6 +87,8 @@ def smoke(root, trace_loader=False, local_call=False, answer_call=False):
         runtime_local_call.prepare(root)
     if answer_call:
         runtime_answer_call.prepare(root)
+    if unanswered_call:
+        runtime_unanswered_call.prepare(root)
     owner = uuid.uuid4().hex
     name = "asterisk-desktop-smoke-" + owner[:12]
     report = dict(
@@ -96,7 +99,9 @@ def smoke(root, trace_loader=False, local_call=False, answer_call=False):
         loaderDiagnosticsEnabled=trace_loader,
         syntheticLocalCallRequested=local_call,
         syntheticAnsweredCallRequested=answer_call,
-        existingPbxOperated=False, registryPushed=False, callsOrMediaTested=local_call or answer_call,
+        syntheticUnansweredCallRequested=unanswered_call,
+        existingPbxOperated=False, registryPushed=False,
+        callsOrMediaTested=local_call or answer_call or unanswered_call,
         sipTested=False, mediaTested=False,
         redistributionApproved=False, licenseClosureComplete=False,
     )
@@ -195,6 +200,11 @@ def smoke(root, trace_loader=False, local_call=False, answer_call=False):
         if answer_call:
             report["syntheticAnsweredCall"] = runtime_answer_call.execute(
                 lambda text: cli(container, text, report["diagnostics"]))
+        if unanswered_call:
+            report["syntheticUnansweredProgress"] = []
+            report["syntheticUnansweredCall"] = runtime_unanswered_call.execute(
+                lambda text: cli(container, text, report["diagnostics"]), root,
+                report["syntheticUnansweredProgress"])
         command(["stop", "--time=10", container], timeout=15)
         exit_code = command(["wait", container], timeout=15)[0].strip()
         state = json.loads(command(["inspect", "--format", "{{json .State}}", container])[0])
@@ -226,7 +236,9 @@ if __name__ == "__main__":
     parser.add_argument("--trace-loader", action="store_true")
     parser.add_argument("--approve-synthetic-local-call", action="store_true")
     parser.add_argument("--approve-synthetic-answered-call", action="store_true")
+    parser.add_argument("--approve-synthetic-unanswered-call", action="store_true")
     args = parser.parse_args()
     print(json.dumps(smoke(args.work_dir.resolve(), args.trace_loader,
                            args.approve_synthetic_local_call,
-                           args.approve_synthetic_answered_call), indent=2))
+                           args.approve_synthetic_answered_call,
+                           args.approve_synthetic_unanswered_call), indent=2))

@@ -19,6 +19,61 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("unanswered-member proof binds attempted ringing, no answer, timeout and complete restoration", () => {
+  const validation = read(`${directory}/synthetic-unanswered-call-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const smoke = read(`${directory}/synthetic-unanswered-call-smoke-report.json`);
+  const startup = read(`${directory}/desktop-image-smoke-report.json`);
+  const call = smoke.syntheticUnansweredCall;
+  assert.equal(validation.imageId, startup.imageId);
+  assert.equal(smoke.imageId, validation.imageId);
+  assert.equal(smoke.bundleManifestSha256, startup.bundleManifestSha256);
+  assert.equal(validation.passed, true);
+  assert.equal(smoke.passed, true);
+  assert.equal(smoke.syntheticUnansweredCallRequested, true);
+  assert.equal(smoke.syntheticAnsweredCallRequested, false);
+  assert.equal(smoke.syntheticLocalCallRequested, false);
+  assert.deepEqual(smoke.loadedModules, startup.loadedModules);
+  assert.deepEqual(smoke.observations, startup.observations);
+  assert.deepEqual(smoke.isolationSettings, startup.isolationSettings);
+  assert.equal(call.passed, true);
+  assert.deepEqual(call.resultVariables, {
+    QUEUESTATUS: "TIMEOUT", QUEUEWAIT_MS: "3000", ANSWEREDTIME_MS: "0", ABANDONED: "TRUE",
+  });
+  assert.equal(validation.queueWaitMilliseconds, 3000);
+  assert.equal(validation.answeredMilliseconds, 0);
+  assert.equal(call.memberAddedPolicy.memberCount, 1);
+  assert.equal(call.queuedObservation.callerCount, 1);
+  assert.equal(call.queuedObservation.callerListEmpty, false);
+  assert.equal(call.channelNames.length, 4);
+  assert.equal(call.channelNames.filter((name) => name.startsWith("Local/member@")).length, 2);
+  assert.equal(call.channelNames.filter((name) => name.startsWith("Local/start@")).length, 2);
+  assert.equal(call.unansweredMemberObservation.application, "Wait");
+  assert.equal(call.unansweredMemberObservation.data, "20");
+  assert.match(call.completedQueueOutput, /\bC:0\b/);
+  assert.match(call.completedQueueOutput, /\bA:1\b/);
+  assert.match(call.completedQueueOutput, /has taken no calls/);
+  assert.match(call.completedQueueOutput, /No Callers/);
+  assert.equal(call.memberRemoved, true);
+  assert.deepEqual(call.finalPolicy, call.initialPolicy);
+  assert.equal(call.finalPolicy.memberCount, 0);
+  assert.equal(call.finalPolicy.callerCount, 0);
+  assert.equal(call.finalActiveChannels, 0);
+  assert.equal(call.timeoutPriority, "app");
+  assert.equal(smoke.ownedContainerRemoved, true);
+  assert.equal(smoke.processExitCode, 0);
+  assert.equal(smoke.watchdogExpired, false);
+  assert(smoke.syntheticUnansweredProgress.some((item) => item.resultChannelDetails));
+  assert.equal(validation.failedAttempt.containerRemoved, true);
+  for (const flag of ["sipTested", "mediaTested", "humanAnsweringTested", "existingPbxOperated",
+    "existingContainersChanged", "imageRebuilt", "registryPushed", "runtimeApplyAuthorized",
+    "redistributionApproved", "licenseClosureComplete", "gateAAcceptanceComplete", "gateCAuthorized"]) {
+    assert.equal(validation[flag], false, flag);
+  }
+});
+
 test("answered-member proof binds successful continuation, measured answer and complete restoration", () => {
   const validation = read(`${directory}/synthetic-answered-call-validation.json`);
   for (const [name, evidence] of Object.entries(validation.evidence)) {

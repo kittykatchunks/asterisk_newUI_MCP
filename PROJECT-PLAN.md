@@ -4744,6 +4744,93 @@ audio/media, transfer or production configuration. Gate C, remaining Gate A
 lifecycle/output/AO2 acceptance, deployment and redistribution/source-license
 closure remain separate scopes.
 
+##### Custom image synthetic unanswered-member timeout and cleanup passed
+
+The user selected **unanswered-proof**, then approved up to two bounded
+additional attempts after an initial result-capture failure. The first
+recovery succeeded, so no further runtime attempt was made. This used the
+same verified image, one owned container at a time, no network/ports, image
+rebuild, SIP endpoints or changes to existing containers. The builder stayed
+stopped throughout.
+
+The [unanswered helper](./local/asterisk-build/runtime_unanswered_call.py)
+reuses the existing member-policy parser and exact timeout-variable checker.
+The shared channel parser now takes an optional fixture context, preserving
+its original answered-fixture default. The
+[Desktop runner](./local/asterisk-build/smoke-desktop.py) requires
+`--approve-synthetic-unanswered-call` plus image-smoke approval and rejects
+any combination of multiple functional call modes before Docker operations.
+Startup-only, empty-queue and answered-member behavior is preserved.
+
+The private `isolated-local-unanswered-proof` caller answers, enters
+`Queue(proof-queue,r,,,3)`, holds five seconds for result inspection and
+hangs up. The synthetic member calls `Ringing`, `Wait(20)` and `Hangup`,
+**never Answer**. After the five existing startup policy observations, the
+helper sets private `timeoutpriority=app` and explicitly reloads proof-queue
+parameters so Queue's three-second overall timeout takes priority over the
+existing seven-second member ring setting. That fixture-only setting is not
+part of the bounded getter fields; it is not represented as a getter-verified
+configuration attribute. The original getter-visible static policy is
+checked unchanged. No production configuration is modified.
+
+The helper starts with zero channels/callers, adds one dynamic Local member,
+requires one loaded member, and originates the bounded private Local caller.
+It must observe all four caller/member Local legs, the member's pre-answer
+`Wait(20)` application and exactly one queued caller. The result uses the
+existing **[3000, 4000) ms** queue-wait check, requiring `TIMEOUT`,
+`ANSWEREDTIME_MS=0` and `ABANDONED=TRUE`. After all channels end, queue status
+must show **C:0, A:1**, no calls taken by the member and no callers.
+Exact member removal must restore zero loaded members/callers and the
+original getter-visible policy; another zero-channel check closes the path.
+The fixture has a 25-second absolute call deadline.
+
+The first attempt failed because a result-channel detail query lacked
+`QUEUESTATUS`. Its report did not retain that channel detail, so **the exact
+cause is unproven**; a repeated poll near channel disappearance is suspected,
+not asserted. The owned container was removed. The helper now stores bounded
+per-poll progress/details in the existing bounded-report workflow and captures
+the result only once after validation, rather than rereading it until the
+channel disappears. No missing variable or unknown state is ignored.
+The user approved recovery before another container was launched.
+
+The recovery passed: four Local legs, member attempt and queued caller,
+**QUEUEWAIT_MS=3000**, zero answered time, `TIMEOUT`, zero completed calls,
+one abandonment and no calls taken by the member. Member removal restored
+the empty queue policy and no channels remained. Overall fixture observation
+was **9.984 seconds**, including the five-second result hold, member
+removal/status checks and CLI polling; it is not queue wait or latency.
+
+The [central validation](./local/asterisk-build/synthetic-unanswered-call-validation.json)
+hash-binds the byte-exact successful
+[raw report](./local/asterisk-build/synthetic-unanswered-call-smoke-report.json),
+image-startup validation and payload inspection. Independent checks reparsed
+the actual channel variables and queue completion/abandonment output, verified
+the four-leg/member/caller observations and final restored state, and checked
+there are no remaining owned smoke containers. The initial failed report is
+retained privately with its hash/error and explicit uncertainty recorded.
+Earlier successful answer/timeout/startup reports are unchanged.
+
+All 41 modules, no-PJSIP-object checks, absent test CLI and all five startup
+policy observations also passed in the successful process. Docker SIGTERM
+shutdown exited zero without OOM/watchdog expiry. Both owned attempt
+containers were removed; the original four stopped containers remain
+unchanged. The same read-only root, no capabilities, no-new-privileges,
+UID/GID 10001, 64 MiB state tmpfs, 4 CPU-equivalents, 4 GiB/no-extra-swap,
+256 tasks, disabled core dumps, 2 MiB logs and five-minute watchdog applied.
+
+Seven new offline tests cover member dialplan with no Answer, explicit
+application timeout priority, four-leg/queued-caller/member-attempt success,
+no answered/completed call, restoration, missing attempt/queue entry,
+wrong answered/completed state, zero-initial-channel preflight, deadline,
+mutually exclusive modes and avoiding repeated validated-result reads.
+Desktop mocked tests cover unanswered-mode wiring. Together **50 offline
+Python tests and 30 source/evidence tests pass**.
+
+This establishes synthetic member no-answer timeout and cleanup only. It
+does not prove real endpoint ringing, SIP registration, agent behavior,
+audio/media, production retries/transfer, remaining Gate A acceptance or
+Gate C. Deployment and redistribution/source-license closure remain separate.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

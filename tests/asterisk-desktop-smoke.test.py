@@ -78,7 +78,8 @@ class DesktopSmokeTests(unittest.TestCase):
                 desktop.command(["run"])
 
     def test_mocked_full_smoke_failure_and_ownership_safe_cleanup(self):
-        for failure in [None, "local-call", "answer-call", "limits", "startup", "modules", "stop", "ownership"]:
+        for failure in [None, "local-call", "answer-call", "unanswered-call",
+                        "limits", "startup", "modules", "stop", "ownership"]:
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory) / "run"
                 calls = []
@@ -150,18 +151,21 @@ class DesktopSmokeTests(unittest.TestCase):
                         patch.object(desktop, "cli", side_effect=fake_cli), \
                         patch.object(desktop.runtime_local_call, "execute", return_value={"passed": True}) as local_call, \
                         patch.object(desktop.runtime_answer_call, "execute", return_value={"passed": True}) as answer_call, \
+                        patch.object(desktop.runtime_unanswered_call, "execute", return_value={"passed": True}) as unanswered_call, \
                         patch.object(desktop.threading, "Timer") as timer:
-                    if failure not in (None, "local-call", "answer-call"):
+                    if failure not in (None, "local-call", "answer-call", "unanswered-call"):
                         with self.assertRaises((ValueError, RuntimeError)):
                             desktop.smoke(root)
                     else:
                         report = desktop.smoke(root, local_call=failure == "local-call",
-                                               answer_call=failure == "answer-call")
+                                               answer_call=failure == "answer-call",
+                                               unanswered_call=failure == "unanswered-call")
                         self.assertTrue(report["passed"])
                         self.assertEqual(len(report["observations"]), 5)
                         self.assertTrue(report["ownedContainerRemoved"])
                         self.assertEqual(report["processExitCode"], 0)
-                        self.assertEqual(report["callsOrMediaTested"], failure in ("local-call", "answer-call"))
+                        self.assertEqual(report["callsOrMediaTested"],
+                                         failure in ("local-call", "answer-call", "unanswered-call"))
                         if failure == "local-call":
                             self.assertEqual(report["syntheticLocalCall"], {"passed": True})
                             local_call.assert_called_once()
@@ -176,12 +180,19 @@ class DesktopSmokeTests(unittest.TestCase):
                                           (root / "etc/extensions.conf").read_text())
                         else:
                             answer_call.assert_not_called()
+                        if failure == "unanswered-call":
+                            self.assertEqual(report["syntheticUnansweredCall"], {"passed": True})
+                            unanswered_call.assert_called_once()
+                            self.assertIn("Ringing()", (root / "etc/extensions.conf").read_text())
+                            self.assertEqual(report["syntheticUnansweredProgress"], [])
+                        else:
+                            unanswered_call.assert_not_called()
                     self.assertEqual(timer.call_args.args[0], 300)
                     timer.return_value.start.assert_called_once()
                     timer.return_value.cancel.assert_called_once()
                     timer.return_value.join.assert_called_once()
                 report = desktop.runtime.read_json(root / "desktop-smoke-report.json")
-                self.assertEqual(report["passed"], failure in (None, "local-call", "answer-call"))
+                self.assertEqual(report["passed"], failure in (None, "local-call", "answer-call", "unanswered-call"))
                 removals = [args for args in calls if args[0] == "rm"]
                 self.assertEqual(len(removals), 0 if failure == "ownership" else 1)
                 config = (root / "etc/asterisk.conf").read_text()
