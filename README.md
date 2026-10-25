@@ -519,6 +519,18 @@ current binary candidate. All 41 modules report Running with zero PJSIP
 endpoints/transports and the same five loaded-policy checks passing.
 No calls, media, runtime image or deployment are claimed; the builder is stopped.
 
+**[The matching local runtime bundle now passes isolated startup](./PROJECT-PLAN.md#matching-local-runtime-bundle-staged-and-smoke-tested).**
+The bundle contains the corrected release core, 41 modules, two support
+libraries, 27 system libraries/loader, required locale/conversion data,
+notices, sources and build records: **378 files, 132,821,098 payload bytes**.
+All hashes, sizes and modes were independently verified. All 41 modules ran,
+the five loaded-policy observations passed, and every file-backed process
+mapping at the startup checkpoint came from the bundle rather than the builder.
+The [bundle validation](./local/asterisk-build/runtime-bundle-validation.json)
+binds its manifest and smoke report. Only JSON evidence was exported; binaries
+remain in the stopped private builder. This is not a container/standalone OS
+image, hermetic filesystem proof, call/media test or redistribution approval.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "stage": "local-runtime-bundle-smoke-verified",
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "compileReportSha256": "29537418a32f531dd26ece0f76b7afc14099ebfbd06d59763ec92cba9311ce48",
+  "bundleAttempt": 3,
+  "smokeAttempt": 4,
+  "filesVerified": 378,
+  "payloadBytes": 132821098,
+  "allPayloadHashesSizesModesAndExactInventoryVerified": true,
+  "allReleaseOutputsMatchCorrectedBuild": true,
+  "startupFileBackedMappingsAllInsideBundle": true,
+  "fullModuleStartupPassed": true,
+  "nativeTestModulesIncluded": false,
+  "loadedStateObservations": 5,
+  "noOwnedBundleProcessesOrRuntimeEntriesRemain": true,
+  "runtimeApplyAuthorized": false,
+  "existingPbxOperated": false,
+  "containerImageProduced": false,
+  "hostExported": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "evidence": {
+    "runtime-bundle-manifest.json": {
+      "guestPath": "/home/asterisk-build/runtime-bundle-attempt-3/bundle-manifest.json",
+      "sha256": "1d83ef928916419a836e4297addc7e56c91b75a69314f2ded15035c9b859dffd"
+    },
+    "runtime-bundle-smoke-report.json": {
+      "guestPath": "/home/asterisk-build/bundle-smoke-attempt-4/release-smoke-report.json",
+      "sha256": "df1036e43b9efaa298b65580778f2b40f4f612e4f56b1130134532c3f4f1646f"
+    }
+  }
+}

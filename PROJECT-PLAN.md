@@ -4247,6 +4247,65 @@ redistribution/license closure, remaining lifecycle/output/AO2 acceptance or
 Gate C. The historical first build remains valid compilation/queue-only
 evidence but is superseded as the current binary candidate.
 
+##### Matching local runtime bundle staged and smoke-tested
+
+The user explicitly approved **local staging and isolated bundle smoke**,
+not host binary export, container image construction, redistribution or
+deployment. The [stager](./local/asterisk-build/stage-runtime.py) creates a
+new collision-refusing private directory from corrected build attempt 4,
+without `make install`, package installation or source-patch changes.
+Bundle attempt 3 contains **378 files, 132,821,098 payload bytes**:
+44 release outputs (core, 41 modules and two support libraries), support
+SONAME aliases, 27 resolved system libraries/loader, C.UTF-8 locale data,
+glibc conversion data, dependency notices, upstream notices/source archives,
+the patch and build/package records. No native test modules are included.
+The SHA256/size/mode [manifest](./local/asterisk-build/runtime-bundle-manifest.json)
+excludes itself and remains an honest stage-time record: its
+`packagedRuntimeExecuted=false` is superseded only by separate smoke evidence.
+
+Initial strict smoke attempts exposed host mappings of C.UTF-8 locale data
+and glibc's conversion cache. Asterisk explicitly selects C.UTF-8 in its own
+startup, so setting `LC_ALL=C` did not solve it. Rather than relaxing checks,
+the bundle now includes locale/conversion data, selected using `LOCPATH` and
+`GCONV_PATH`. Earlier attempt directories and failure logs remain preserved.
+Staging requires a positive `--attempt`; the shared smoke runner accepts
+`--approve-release-smoke --approve-full-module-startup --approve-staged-bundle
+--bundle-attempt 3 --build-attempt 4 --attempt 4`.
+
+The successful smoke launches the copied dynamic loader explicitly, using
+only bundle library directories. All 41 modules report Running; there are
+zero PJSIP endpoints/transports, no test CLI and all five exact loaded-state
+observations pass. At a post-boot startup checkpoint, `/proc/<pid>/maps`
+contains **no absolute file-backed mapping outside the bundle**, and includes
+the core, all modules, both support libraries, all 27 system libraries/loader
+and locale data. This is a sampled mapping check, **not** evidence that all
+file opens or kernel/OS dependencies are contained. `ldd` still reports the
+core's original system interpreter path as metadata; actual process maps
+prove the byte-identical copied loader is the one running.
+
+The [independent verifier](./local/asterisk-build/verify-runtime.py)
+checked every payload hash, size and mode, exact inventory, every release
+output against build 4, mapped-file membership, library hashes, module state,
+loaded-policy transitions, exit zero and absence of remaining owned bundle
+processes/socket/PID files. The
+[validation record](./local/asterisk-build/runtime-bundle-validation.json)
+hash-binds the manifest and [smoke report](./local/asterisk-build/runtime-bundle-smoke-report.json).
+Execution used the approved private network, 4 CPU-equivalents, 4 GiB memory,
+zero swap, 256 tasks, unprivileged user, no-new-privileges, bounded logs and
+five-minute watchdog. The dedicated distribution is stopped.
+The combined source-package/evidence regression suite passes **24 tests**;
+all three packaging Python files parse and the whitespace check passes.
+
+Only JSON evidence was copied to the repository; all binary/source payloads
+remain in the private guest. Notices and upstream sources are included, but
+**complete corresponding-source/license closure for system dependencies is
+not established and redistribution remains unapproved**. The bundle is not
+a container or standalone OS image; the smoke still uses builder tools and
+private fixture configuration. No SIP registration, calls, media, existing
+PBX operation, Gate C, runtime publication or remaining Gate A acceptance
+is implied. The next packaging scope needs an explicit bounded decision
+before producing/exporting an image or exercising calls.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

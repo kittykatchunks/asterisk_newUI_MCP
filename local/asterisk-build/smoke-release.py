@@ -17,21 +17,41 @@ parser.add_argument("--approve-release-smoke", action="store_true")
 parser.add_argument("--approve-full-module-startup", action="store_true")
 parser.add_argument("--attempt", type=int, required=True)
 parser.add_argument("--build-attempt", type=int, default=3)
+parser.add_argument("--approve-staged-bundle", action="store_true")
+parser.add_argument("--bundle-attempt", type=int, default=1)
 args = parser.parse_args()
 if not args.approve_release_smoke or min(args.attempt, args.build_attempt) < 1 or os.geteuid() == 0:
     raise SystemExit("Explicit release-smoke approval, positive attempt and unprivileged user required")
 home = pathlib.Path("/home/asterisk-build")
 build = home / f"native-build-attempt-{args.build_attempt}"
 tree = build / "release"
+bundle = None
+if args.approve_staged_bundle:
+    if args.bundle_attempt < 1:
+        raise ValueError("Positive bundle attempt required")
+    tree = home / f"runtime-bundle-attempt-{args.bundle_attempt}"
+    bundle = json.loads((tree / "bundle-manifest.json").read_text())
+    for entry in bundle["entries"]:
+        path = tree / entry["path"]
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
+            raise ValueError(f"Staged bundle hash mismatch: {path}")
 compile_bytes = (build / "compile-report.json").read_bytes()
 compile_report = json.loads(compile_bytes)
 profile = next(item for item in compile_report["profiles"] if item["name"] == "release")
-mode = "full-module-smoke" if args.approve_full_module_startup else "release-smoke"
+mode = "bundle-smoke" if bundle else ("full-module-smoke" if args.approve_full_module_startup else "release-smoke")
 root = home / f"{mode}-attempt-{args.attempt}"
 root.mkdir(mode=0o700)
 for name in ["etc", "modules", "data", "db", "keys", "spool", "log", "run", "cache"]:
     (root / name).mkdir()
 environment = dict(os.environ, LD_LIBRARY_PATH=str(tree / "main"))
+if bundle:
+    if not args.approve_full_module_startup:
+        raise ValueError("Staged bundle validation requires full-module startup")
+    if bundle["compileReportSha256"] != hashlib.sha256(compile_bytes).hexdigest():
+        raise ValueError("Staged bundle is bound to a different compile report")
+    environment["LD_LIBRARY_PATH"] += ":" + str(tree / "runtime-libs")
+    environment["LOCPATH"] = str(tree / "runtime-locale")
+    environment["GCONV_PATH"] = str(tree / "runtime-gconv")
 libraries = {}
 for output in profile["outputs"]:
     path = tree / output["path"]
@@ -144,6 +164,9 @@ report = dict(
     runtimeApplyAuthorized=False, existingPbxOperated=False,
 )
 base = [str(tree / "main/asterisk"), "-C", str(config)]
+if bundle:
+    base = [str(tree / "runtime-libs/ld-linux-x86-64.so.2"),
+            "--library-path", environment["LD_LIBRARY_PATH"], *base]
 process = subprocess.Popen(
     [*base, "-f"], cwd=root, env=environment,
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True,
@@ -258,6 +281,27 @@ try:
                 raise ValueError(f"Unexpected PJSIP {key}: {output}")
             checks[key] = output.strip()
         report["pjsipEmptyObjectChecks"] = checks
+    if bundle:
+        mapped = set()
+        for line in pathlib.Path(f"/proc/{process.pid}/maps").read_text().splitlines():
+            fields = line.split(maxsplit=5)
+            if len(fields) != 6 or not fields[5].startswith("/"):
+                continue
+            path = pathlib.Path(fields[5]).resolve(strict=True)
+            if not path.is_relative_to(tree):
+                raise ValueError(f"Runtime mapped file outside staged bundle: {path}")
+            mapped.add(str(path.relative_to(tree)))
+        required = {"main/asterisk"}
+        required.update("runtime-libs/" + name for name in bundle["systemLibraries"])
+        required.update(str(pathlib.Path(item["path"]).relative_to(tree))
+                        for name, item in libraries.items() if name.startswith("libasterisk"))
+        required.update(output["path"] for output in profile["outputs"]
+                        if output["path"].endswith(".so") and not output["path"].startswith("main/"))
+        if not required.issubset(mapped):
+            raise ValueError(f"Staged runtime did not map all required files: {sorted(required - mapped)}")
+        report["bundleManifestSha256"] = hashlib.sha256((tree / "bundle-manifest.json").read_bytes()).hexdigest()
+        report["mappedBundleFiles"] = sorted(mapped)
+        report["allFileBackedMappingsInsideBundle"] = True
     help_text = cli("core show help test execute")
     if "No such command" not in help_text:
         raise ValueError(f"Test command not absent from release CLI: {help_text}")

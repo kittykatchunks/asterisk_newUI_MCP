@@ -1,6 +1,26 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-corrected-build-native-batch-and-full-module-startup-passed",
+  "stage": "gate-b-local-runtime-bundle-smoke-verified",
+  "localRuntimeBundle": {
+    "authorization": "User approved local staging and isolated bundle smoke; no host binary export, container image build or redistribution.",
+    "validation": "../asterisk-build/runtime-bundle-validation.json",
+    "manifest": "../asterisk-build/runtime-bundle-manifest.json",
+    "report": "../asterisk-build/runtime-bundle-smoke-report.json",
+    "buildAttempt": 4,
+    "bundleAttempt": 3,
+    "smokeAttempt": 4,
+    "files": 378,
+    "payloadBytes": 132821098,
+    "releaseOutputs": 44,
+    "runtimeModulesRunning": 41,
+    "startupFileBackedMappingsAllInsideBundle": true,
+    "ownedDistributionStopped": true,
+    "runtimeApplyAuthorized": false,
+    "containerImageProduced": false,
+    "hostExported": false,
+    "redistributionApproved": false,
+    "licenseClosureComplete": false
+  },
   "currentValidation": {
     "record": "../asterisk-build/full-startup-validation.json",
     "buildAttempt": 4,

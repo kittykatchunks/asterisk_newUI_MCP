@@ -2500,6 +2500,23 @@ historical. PJSIP has no endpoints/transports; no calls/media or deployment
 were authorized or exercised. See the
 [full startup handoff](./PROJECT-PLAN.md#full-runtime-startup-restoring-the-upstream-optional-api-default).
 
+### Matching local runtime bundle smoke passed
+
+The approved local staging/smoke produced a private **378-file,
+132,821,098-byte** payload from corrected build 4, including 44 release
+outputs, resolved libraries/loader, locale/conversion data, notices and
+source/build records. All 41 modules ran and all five loaded-policy checks
+passed. Every file-backed process mapping at the startup checkpoint was
+inside the bundle; all payload hashes, modes, sizes and cleanup were
+independently checked. The
+[bundle validation](./local/asterisk-build/runtime-bundle-validation.json)
+binds its manifest and smoke report; the
+[packaging handoff](./PROJECT-PLAN.md#matching-local-runtime-bundle-staged-and-smoke-tested)
+records the locale/conversion dependency failures and their fixes.
+Only JSON evidence was exported and the dedicated builder is stopped.
+This is not a hermetic filesystem/container image, license closure,
+redistribution approval, SIP/media proof, deployment or Gate C.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

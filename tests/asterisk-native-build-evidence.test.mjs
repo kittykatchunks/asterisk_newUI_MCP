@@ -15,6 +15,103 @@ const candidate = read("local/asterisk-patches/queue-policy-v1.json");
 const compile = read(`${directory}/compile-report.json`);
 const native = read(`${directory}/native-test-report.json`);
 const release = read(`${directory}/release-smoke-report.json`);
+const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
+const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
+const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
+
+test("local bundle evidence binds the corrected build and every staged release output", () => {
+  assert.equal(bundleValidation.patchSha256, candidate.patchSha256);
+  const compiledHash = hash(`${directory}/compile-report-optional-api.json`);
+  for (const report of [bundleValidation, bundleManifest, bundleSmoke]) {
+    assert.equal(report.compileReportSha256, compiledHash);
+  }
+  for (const [name, evidence] of Object.entries(bundleValidation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  assert.equal(bundleSmoke.bundleManifestSha256, hash(`${directory}/runtime-bundle-manifest.json`));
+  assert.equal(bundleManifest.entries.length, 378);
+  assert.equal(new Set(bundleManifest.entries.map((entry) => entry.path)).size, 378);
+  assert.equal(bundleManifest.entries.reduce((sum, entry) => sum + entry.bytes, 0), 132821098);
+  const entries = new Map(bundleManifest.entries.map((entry) => [entry.path, entry]));
+  for (const entry of bundleManifest.entries) {
+    assert.match(entry.sha256, /^[a-f0-9]{64}$/);
+    assert.match(entry.mode, /^0o[0-7]{3}$/);
+    assert(entry.bytes >= 0 && Number.isSafeInteger(entry.bytes));
+    assert(!entry.path.startsWith("/") && !entry.path.split("/").includes(".."));
+  }
+  const corrected = read(`${directory}/compile-report-optional-api.json`);
+  for (const output of corrected.profiles.find((profile) => profile.name === "release").outputs) {
+    assert.equal(entries.get(output.path)?.sha256, output.sha256, output.path);
+  }
+  assert.equal(entries.get("build-records/compile-report.json")?.sha256, compiledHash);
+  assert.equal(entries.get("build-records/full-startup-validation.json")?.sha256,
+    hash(`${directory}/full-startup-validation.json`));
+  assert.equal(entries.get("build-records/queue-policy-v1.patch")?.sha256, candidate.patchSha256);
+  assert.equal(entries.get("build-records/dependency-lock.json")?.sha256,
+    hash(`${directory}/dependency-lock.json`));
+  for (const source of read(`${directory}/source-lock.json`).sources) {
+    assert.equal(entries.get(`sources/${source.filename}`)?.sha256, source.sha256);
+  }
+  for (const file of ["notices/asterisk-LICENSE", "notices/asterisk-COPYING",
+    "notices/pjproject-COPYING", "notices/GPL-2", "notices/LGPL-2.1",
+    ...Object.values(bundleManifest.dependencyCopyrightFiles)]) {
+    assert(entries.has(file), file);
+  }
+  assert(bundleManifest.entries.every((entry) => !entry.path.startsWith("tests/")));
+});
+
+test("bundle startup maps core, exact module set, support and system libraries locally", () => {
+  assert.equal(bundleSmoke.passed, true);
+  assert.equal(bundleSmoke.allExpectedModulesRunning, true);
+  const plan = read(`${directory}/module-plan.json`);
+  assert.deepEqual(bundleSmoke.loadedModules, plan.requestedModules.map((name) => `${name}.so`).sort());
+  assert.equal(bundleSmoke.allFileBackedMappingsInsideBundle, true);
+  const mapped = new Set(bundleSmoke.mappedBundleFiles);
+  const entries = new Set(bundleManifest.entries.map((entry) => entry.path));
+  for (const file of mapped) assert(entries.has(file), file);
+  for (const file of ["main/asterisk", "main/libasteriskpj.so.2", "main/libasteriskssl.so.1",
+    ...Object.keys(bundleManifest.systemLibraries).map((name) => `runtime-libs/${name}`)]) {
+    assert(mapped.has(file), file);
+  }
+  for (const file of bundleManifest.entries.filter((entry) =>
+    entry.path.endsWith(".so") && !entry.path.startsWith("main/") &&
+    !entry.path.startsWith("runtime-gconv/"))) {
+    assert(mapped.has(file.path), file.path);
+  }
+  assert.equal(Object.keys(bundleManifest.systemLibraries).length, 27);
+  assert.equal(bundleManifest.localeDataIncluded, true);
+  assert.equal(bundleManifest.glibcConversionDataIncluded, true);
+  assert(mapped.has("runtime-locale/C.utf8/LC_CTYPE"));
+  assert(bundleManifest.entries.some((entry) => entry.path.startsWith("runtime-gconv/")));
+  assert.equal(bundleValidation.allPayloadHashesSizesModesAndExactInventoryVerified, true);
+  assert.equal(bundleValidation.allReleaseOutputsMatchCorrectedBuild, true);
+});
+
+test("bundle smoke preserves exact loaded-policy behavior and disposable cleanup", () => {
+  const full = read(`${directory}/full-module-smoke-report.json`);
+  assert.deepEqual(bundleSmoke.observations, full.observations);
+  assert.deepEqual(bundleSmoke.pjsipEmptyObjectChecks,
+    { endpoints: "No objects found.", transports: "No objects found." });
+  assert.equal(bundleSmoke.testCommandAbsent, true);
+  assert.equal(bundleSmoke.ownedPidGreetingVerified, true);
+  assert.equal(bundleSmoke.ownedProcessStopped, true);
+  assert.equal(bundleSmoke.processExitCode, 0);
+  assert.equal(bundleValidation.noOwnedBundleProcessesOrRuntimeEntriesRemain, true);
+});
+
+test("staged payload and successful smoke do not grant redistribution or deployment", () => {
+  for (const report of [bundleValidation, bundleManifest, preparation.localRuntimeBundle]) {
+    for (const flag of ["runtimeApplyAuthorized", "hostExported",
+      "redistributionApproved", "licenseClosureComplete"]) {
+      assert.equal(report[flag], false, flag);
+    }
+  }
+  assert.equal(bundleManifest.packagedRuntimeExecuted, false); // Stage-time record; later smoke is separate.
+  assert.equal(bundleValidation.containerImageProduced, false);
+  assert.equal(bundleValidation.existingPbxOperated, false);
+  assert.equal(bundleSmoke.runtimeApplyAuthorized, false);
+  assert.equal(preparation.localRuntimeBundle.ownedDistributionStopped, true);
+});
 
 test("persisted execution evidence binds exact source and report hashes", () => {
   assert.equal(hash("local/asterisk-patches/queue-policy-v1.patch"), candidate.patchSha256);
