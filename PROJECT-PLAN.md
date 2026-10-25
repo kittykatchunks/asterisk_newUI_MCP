@@ -3309,6 +3309,57 @@ source scratch directories are removed after verification. No dependency
 installation, native compile/test, image build or PBX operation occurred.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A nonrecursive refresh: twenty-eight definitions, still unexecuted
+
+The inventory is now **28 uncompiled/unexecuted native definitions** within
+the same nine source paths. Only the existing controller fixture changes:
+all eight other source postimages, including core instrumentation and the
+separate target, are byte-for-byte unchanged.
+
+Every existing separate-target lifecycle schedule paused before final release
+now attempts `ast_refresh_resource(target, mode, 0)` for soft, firm and hard
+modes, as well as direct unload. Each refresh must fail before target teardown
+or a new startup. The existing final event assertions still require no extra
+handler, acquisition, release or unload callback. This applies to admitted/
+handler-return/entry-cleanup dispatch and completion, and admitted/entry-cleanup
+permission-denied dispatch. No refresh is attempted while a completion worker
+is paused after release with the registry read lock still held.
+
+New `protected_target_refresh` exercises actual **nonrecursive soft refresh**
+without active readers. Before observation it arms the existing one-shot target
+unload refusal. The first refresh must fail with the target still present.
+Dispatch plus text/null-word completion must then deny due to retained closing
+state. A second soft refresh must succeed by unloading/reloading the target,
+after which all three requests must work normally: successful dispatch, exact
+`"xyz"` completion and null completion. Cleanup soft-unloads the fresh target.
+The test never resets closing directly or treats the failed instance as open.
+
+The final exact event matrix requires six lookups, three closing denials,
+three acquisitions/admissions/handlers/handler-returns/entry-cleanups/releases,
+three unload callbacks (initial refusal, successful refresh and final cleanup),
+one controller completion and zero readers/permission-denials/loader-holder
+events. The core observer is resumed before these synchronous controller calls
+so release recording cannot pause the controller. Its completion event is not
+a concurrent worker claim. Module presence is checked after each refresh so
+cleanup does not assume that reload succeeded. Unexpected cleanup/drain failure
+explicitly fails and requires discarding the native process.
+
+This is source coverage for nonrecursive refresh only. It does not establish
+recursive dependent traversal, dependency startup ordering, reload failure,
+shutdown, slow/disconnected output, successful-removal races or native
+acceptance. The target must remain excluded from autoload, tests serialized
+in a separately approved disposable process with an external watchdog/resource
+cap. No shared/runtime PBX may host these tests. All AT/QO gates remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match. No profile-off comparison
+is needed for this increment because no core/header source postimage changes;
+this is not compilation or instrumentation-transparency evidence. Both named
+source scratch directories are removed after verification. No dependency
+installation, native build/test, image build or PBX operation occurred.
+A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

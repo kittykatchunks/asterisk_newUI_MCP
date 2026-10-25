@@ -2206,10 +2206,10 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..994bc4476bc97d44f7f9ea8327a86731
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..1cbb4aaf508c4511a0c87f04ff61180e55d5aab3
+index 0000000000000000000000000000000000000000..cf9773bf337f4f528de08dfd06203a7b25d1a030
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,1388 @@
+@@ -0,0 +1,1494 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -3058,6 +3058,9 @@ index 0000000000000000000000000000000000000000..1cbb4aaf508c4511a0c87f04ff61180e
 +			if (!ast_unload_resource(target, mode)) {
 +				goto done;
 +			}
++			if (!ast_refresh_resource(target, mode, 0)) {
++				goto done;
++			}
 +		}
 +	}
 +	failed = 0;
@@ -3557,6 +3560,107 @@ index 0000000000000000000000000000000000000000..1cbb4aaf508c4511a0c87f04ff61180e
 +		? AST_TEST_FAIL : AST_TEST_PASS;
 +}
 +
++AST_TEST_DEFINE(protected_target_refresh)
++{
++	const char target[] = "test_protected_cli_target.so";
++	struct ast_cli_lease_test_result snapshot;
++	char *completion = NULL;
++	unsigned int event;
++	int fd = -1, loaded = 0, armed = 0, failed = 1, result;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "protected_target_refresh";
++		info->category = "/main/loader/protected_cli/";
++		info->summary = "Nonrecursive refresh retains closing on failure and admits after fresh startup";
++		info->description = "Failed soft refresh denies three requests; successful retry reloads and serves all three.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	if (ast_module_check(target)) {
++		ast_test_status_update(test, "Disposable target already loaded; refusing to adopt it\n");
++		return AST_TEST_FAIL;
++	}
++	fd = open("/dev/null", O_WRONLY);
++	if (fd < 0 || ast_load_resource(target) != AST_MODULE_LOAD_SUCCESS) {
++		goto done;
++	}
++	loaded = 1;
++	if (ast_cli_command(fd, "test bounded-policy lifecycle-target refuse-unload")
++		|| ast_cli_lease_test_begin(AST_CLI_LEASE_TEST_RELEASED)) {
++		goto done;
++	}
++	armed = 1;
++	ast_cli_lease_test_resume();
++	result = ast_refresh_resource(target, AST_FORCE_SOFT, 0);
++	loaded = ast_module_check(target);
++	if (!result || !loaded || !ast_cli_command(fd, "test bounded-policy lifecycle-target success")) {
++		goto done;
++	}
++	completion = ast_cli_generator("test bounded-policy lifecycle-target x", "x", 0);
++	if (completion) {
++		goto done;
++	}
++	completion = ast_cli_generator("test bounded-policy lifecycle-target empty", "empty", 0);
++	if (completion) {
++		goto done;
++	}
++	result = ast_refresh_resource(target, AST_FORCE_SOFT, 0);
++	loaded = ast_module_check(target);
++	if (result || !loaded || ast_cli_command(fd, "test bounded-policy lifecycle-target success")) {
++		goto done;
++	}
++	completion = ast_cli_generator("test bounded-policy lifecycle-target x", "x", 0);
++	if (!completion || strcmp(completion, "xyz")) {
++		goto done;
++	}
++	ast_free(completion);
++	completion = ast_cli_generator("test bounded-policy lifecycle-target empty", "empty", 0);
++	if (completion) {
++		goto done;
++	}
++	failed = 0;
++done:
++	ast_free(completion);
++	if (loaded && ast_unload_resource(target, AST_FORCE_SOFT)) {
++		ast_test_status_update(test, "Disposable target did not unload; discard native test process\n");
++		failed = 1;
++	}
++	if (armed) {
++		ast_cli_lease_test_worker_done();
++		if (ast_cli_lease_test_end(&snapshot)) {
++			ast_test_status_update(test, "Core test session did not drain; discard native test process\n");
++			failed = 1;
++		} else {
++			for (event = 0; event < AST_CLI_LEASE_TEST_EVENTS; ++event) {
++				unsigned int expected = event == AST_CLI_LEASE_TEST_LOOKUP ? 6
++					: event == AST_CLI_LEASE_TEST_WORKER_DONE ? 1
++					: event == AST_CLI_LEASE_TEST_ACQUIRED || event == AST_CLI_LEASE_TEST_CLOSING_DENIED
++						|| event == AST_CLI_LEASE_TEST_ADMITTED || event == AST_CLI_LEASE_TEST_HANDLER
++						|| event == AST_CLI_LEASE_TEST_HANDLER_RETURNED || event == AST_CLI_LEASE_TEST_ENTRY_DONE
++						|| event == AST_CLI_LEASE_TEST_RELEASED || event == AST_CLI_LEASE_TEST_UNLOAD ? 3 : 0;
++
++				if (snapshot.events[event] != expected) {
++					ast_test_status_update(test, "Refresh event %u: expected %u, observed %u\n",
++						event, expected, snapshot.events[event]);
++					failed = 1;
++				}
++			}
++			if (snapshot.readers || !snapshot.paused) {
++				failed = 1;
++			}
++		}
++	}
++	if (fd >= 0) {
++		close(fd);
++	}
++	if (failed) {
++		ast_test_status_update(test, "Nonrecursive refresh denial/recovery failed\n");
++	}
++	return failed ? AST_TEST_FAIL : AST_TEST_PASS;
++}
++
 +static int unload_module(void)
 +{
 +	AST_TEST_UNREGISTER(bounded_walk);
@@ -3571,6 +3675,7 @@ index 0000000000000000000000000000000000000000..1cbb4aaf508c4511a0c87f04ff61180e
 +	AST_TEST_UNREGISTER(protected_target_lookup);
 +	AST_TEST_UNREGISTER(protected_target_loader_busy);
 +	AST_TEST_UNREGISTER(protected_target_permission);
++	AST_TEST_UNREGISTER(protected_target_refresh);
 +	AST_TEST_UNREGISTER(bounded_matrix);
 +	AST_TEST_UNREGISTER(bounded_contention);
 +	AST_TEST_UNREGISTER(bounded_ownership);
@@ -3591,6 +3696,7 @@ index 0000000000000000000000000000000000000000..1cbb4aaf508c4511a0c87f04ff61180e
 +	AST_TEST_REGISTER(protected_target_lookup);
 +	AST_TEST_REGISTER(protected_target_loader_busy);
 +	AST_TEST_REGISTER(protected_target_permission);
++	AST_TEST_REGISTER(protected_target_refresh);
 +	AST_TEST_REGISTER(bounded_matrix);
 +	AST_TEST_REGISTER(bounded_contention);
 +	AST_TEST_REGISTER(bounded_ownership);

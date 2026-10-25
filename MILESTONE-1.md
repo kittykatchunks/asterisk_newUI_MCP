@@ -2361,6 +2361,17 @@ teardown. The controller removes its rule after worker joins. Output remains
 header/CLI/loader test-profile-off lexical parity passes, not native evidence.
 A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
 
+The [nonrecursive refresh source](./PROJECT-PLAN.md#gate-a-nonrecursive-refresh-twenty-eight-definitions-still-unexecuted)
+brings the inventory to **28 uncompiled/unexecuted native definitions**.
+Existing active-lease lifecycle schedules now require soft/firm/hard refresh
+veto. A new test requires failed soft refresh to retain closing admission,
+then successful retry to reload the target and serve dispatch plus both
+completion branches with exact denial/acquisition/release/teardown counts.
+Only the controller postimage changes. Recursive refresh and reload-failure
+coverage remain pending. **Twelve package tests pass** and exact application/
+nine postimages match; this is not native evidence. A's verified exit, AT/QO
+and Gates B/C remain open; no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
