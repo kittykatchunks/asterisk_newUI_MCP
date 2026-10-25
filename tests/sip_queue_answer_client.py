@@ -11,10 +11,12 @@ from sip_rtp_proof import parse_message, require
 
 PHASES = ("registered-both", "agent-ringing", "agent-answered",
           "agent-ended", "call-complete", "unregistered-both")
+UNANSWERED_PHASES = ("registered-both", "agent-ringing", "agent-cancelled",
+                     "call-complete", "unregistered-both")
 
 
 class Agent:
-    def __init__(self, probe):
+    def __init__(self, probe, noanswer=False):
         self.probe = probe
         self.dialog = None
         self.invite = None
@@ -23,6 +25,9 @@ class Agent:
         self.acked = False
         self.bye_ok = False
         self.bye = None
+        self.noanswer = noanswer
+        self.cancel = None
+        self.invite_start = None
 
     def response(self, status, headers, body=""):
         to = headers["to"][0]
@@ -49,7 +54,8 @@ class Agent:
             self.bye_ok = True
             return
         method = start.split()[0]
-        require(method in ("INVITE", "ACK"), "Unexpected agent request")
+        require(method in ("INVITE", "ACK") or (self.noanswer and method == "CANCEL"),
+                "Unexpected agent request")
         if method == "INVITE":
             require(self.dialog is None or (headers == self.dialog and packet == self.invite),
                     "Unexpected agent re-INVITE/dialog")
@@ -57,16 +63,35 @@ class Agent:
                     "Invalid agent INVITE sequence")
             validate_media(body, self.probe.server[0])
             self.dialog, self.invite = headers, packet
+            self.invite_start = start
             self.probe.sip.send(self.final or self.response("180 Ringing", headers))
+        elif method == "CANCEL":
+            require(self.dialog is not None and headers["call-id"] == self.dialog["call-id"]
+                    and headers["via"] == self.dialog["via"]
+                    and headers["from"] == self.dialog["from"]
+                    and headers["to"] == self.dialog["to"]
+                    and headers["cseq"] == [self.dialog["cseq"][0].replace("INVITE", "CANCEL")]
+                    and start == self.invite_start.replace("INVITE ", "CANCEL ", 1),
+                    "Agent CANCEL does not match INVITE transaction")
+            require(self.cancel is None or self.cancel == packet, "Retried agent CANCEL changed bytes")
+            self.cancel = packet
+            self.probe.sip.send(self.response("200 OK", headers))
+            self.final = self.response("487 Request Terminated", self.dialog)
+            self.probe.sip.send(self.final)
         else:
             require(self.final is not None and headers["call-id"] == self.dialog["call-id"]
                     and headers["cseq"] == [self.dialog["cseq"][0].replace("INVITE", "ACK")]
                     and headers["from"] == self.dialog["from"]
                     and headers["to"] == [self.dialog["to"][0] + ";tag=" + self.tag],
                     "Unexpected agent ACK")
+            if self.noanswer:
+                require(self.cancel is not None and headers["via"] == self.dialog["via"]
+                        and start == self.invite_start.replace("INVITE ", "ACK ", 1),
+                        "Non-2xx ACK requires cancelled INVITE transaction")
             self.acked = True
 
     def answer(self):
+        require(not self.noanswer, "No-answer agent must not answer")
         require(self.dialog is not None and self.final is None, "Agent answer requires one ringing dialog")
         ip, port = self.probe.ip, self.probe.rtp.getsockname()[1]
         sdp = (f"v=0\r\no=agent 1 1 IN IP4 {ip}\r\ns=synthetic-agent\r\n"
@@ -76,6 +101,7 @@ class Agent:
         self.probe.sip.send(self.final)
 
     def hangup(self):
+        require(not self.noanswer, "No-answer agent has no established dialog to hang up")
         require(self.acked and self.bye is None, "Agent hangup requires acknowledged dialog")
         contacts = self.dialog.get("contact", [])
         target = re.fullmatch(r"<([^>]+)>", contacts[0]) if len(contacts) == 1 else None
@@ -91,18 +117,20 @@ class Agent:
         self.probe.sip.send(self.bye)
 
 
-def execute_answer(host, control):
+def execute_answer(host, control, noanswer=False):
     secrets = [(control / name).read_text() for name in ("secret", "agent-secret")]
     require(all(re.fullmatch(r"[a-f0-9]{64}", value) for value in secrets)
             and secrets[0] != secrets[1], "Expected distinct private fixture credentials")
     caller = RegistrationProbe(host)
     agent_probe = RegistrationProbe(host, "proof-agent")
-    agent = Agent(agent_probe)
+    agent = Agent(agent_probe, noanswer=True) if noanswer else Agent(agent_probe)
     report = dict(passed=False, registrationPassed=False, mediaPassed=False,
-                  answeredQueueRequested=True, phases=[], clientAddress=caller.ip,
+                  answeredQueueRequested=not noanswer, unansweredQueueRequested=noanswer,
+                  phases=[], clientAddress=caller.ip,
                   clientPort=caller.port, agentPort=agent_probe.port, pbxAddress=caller.server[0])
     deadline = time.monotonic() + 60
     caller_receive = None
+    phases = UNANSWERED_PHASES if noanswer else PHASES
 
     def pump():
         sockets = [agent_probe.sip] + ([caller.sip] if caller_receive else [])
@@ -124,7 +152,7 @@ def execute_answer(host, control):
             pump()
 
     def checkpoint(phase, **details):
-        require(phase == PHASES[len(report["phases"])], "Unexpected answered fixture phase")
+        require(phase == phases[len(report["phases"])], "Unexpected caller/agent fixture phase")
         report["phases"].append(dict(phase=phase, **details))
         write_json(control / f"{phase}.json", report)
         until(lambda: (control / f"{phase}.ack").exists(), 10)
@@ -136,7 +164,7 @@ def execute_answer(host, control):
             require(code == 200, "Answered fixture registration failed")
             expiries.append(contact_expiry(headers))
         checkpoint("registered-both", contactExpirySeconds=expiries)
-        caller.uri = f"sip:queue-answer@{host}"
+        caller.uri = f"sip:{'queue-unanswered' if noanswer else 'queue-answer'}@{host}"
         caller.to_value = f"<{caller.uri}>"
         code, headers, sdp = caller.invite(secrets[0])
         require(code == 200, "Queue caller INVITE failed")
@@ -147,14 +175,20 @@ def execute_answer(host, control):
             caller_receive = receive
             until(lambda: agent.dialog is not None, 5)
             checkpoint("agent-ringing", inviteSeen=True)
-            agent.answer()
-            until(lambda: agent.acked, 5, agent.final)
-            checkpoint("agent-answered", ackSeen=True)
-            end = time.monotonic() + 4
-            until(lambda: time.monotonic() >= end, 5)
-            agent.hangup()
-            until(lambda: agent.bye_ok, 5, agent.bye)
-            checkpoint("agent-ended", byeCode=200, syntheticHoldSeconds=4)
+            if noanswer:
+                until(lambda: agent.cancel is not None, 5)
+                until(lambda: agent.acked, 5, agent.final)
+                checkpoint("agent-cancelled", cancelCode=200, inviteFinalCode=487,
+                           transactionAckSeen=True, agentAnswered=False)
+            else:
+                agent.answer()
+                until(lambda: agent.acked, 5, agent.final)
+                checkpoint("agent-answered", ackSeen=True)
+                end = time.monotonic() + 4
+                until(lambda: time.monotonic() >= end, 5)
+                agent.hangup()
+                until(lambda: agent.bye_ok, 5, agent.bye)
+                checkpoint("agent-ended", byeCode=200, syntheticHoldSeconds=4)
             caller_receive = None
 
         caller.echo(headers, sdp, hold)

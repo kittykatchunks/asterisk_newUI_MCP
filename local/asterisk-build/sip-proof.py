@@ -16,6 +16,7 @@ import uuid
 import runtime_image as runtime
 import runtime_sip_queue
 import runtime_sip_answer
+import runtime_sip_unanswered
 
 
 SPEC = importlib.util.spec_from_file_location("desktop", runtime.HERE / "smoke-desktop.py")
@@ -84,7 +85,8 @@ def object_rows(output, kind, name):
         raise ValueError(f"Unexpected configured {kind} inventory")
 
 
-def check_limits(state, image, network, client=False, queue_timeout=False, queue_answer=False):
+def check_limits(state, image, network, client=False, queue_timeout=False, queue_answer=False,
+                 queue_unanswered=False):
     host = state["HostConfig"]
     expected = dict(NetworkMode=network, ReadonlyRootfs=True, Privileged=False,
                     Memory=134217728 if client else 4294967296,
@@ -111,6 +113,8 @@ def check_limits(state, image, network, client=False, queue_timeout=False, queue
             expected_command.append("--queue-timeout")
         if queue_answer:
             expected_command.append("--queue-answer")
+        if queue_unanswered:
+            expected_command.append("--queue-unanswered")
         if (state["Config"]["Entrypoint"] != ["python3"]
                 or state["Config"]["Cmd"] != expected_command):
             raise ValueError("Carrier must run Python only")
@@ -126,9 +130,12 @@ def sanitize(text, secret):
         else line for line in text.splitlines()) + "\n"
 
 
-def proof(root, queue_timeout=False, queue_answer=False):
-    if queue_timeout and queue_answer:
+def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False):
+    if sum((queue_timeout, queue_answer, queue_unanswered)) > 1:
         raise ValueError("Select one SIP queue fixture")
+    two_identities = queue_answer or queue_unanswered
+    member_fixture = runtime_sip_unanswered if queue_unanswered else runtime_sip_answer
+    member_result_key = "sipQueueUnanswered" if queue_unanswered else "sipQueueAnswer"
     image, payload_path = desktop.verify_image()
     carrier = json.loads(desktop.command(["image", "inspect", CARRIER])[0])[0]
     if carrier["Id"] != CARRIER or carrier["Os"] != "linux" or carrier["Architecture"] != "amd64":
@@ -139,21 +146,21 @@ def proof(root, queue_timeout=False, queue_answer=False):
     code = root / "client"
     code.mkdir()
     client_files = ["sip_candidate_client.py", "sip_rtp_proof.py"]
-    if queue_answer:
+    if two_identities:
         client_files.append("sip_queue_answer_client.py")
     for filename in client_files:
         shutil.copyfile(TESTS / filename, code / filename)
     secret = secrets.token_hex(32)
     (control / "secret").write_text(secret)
     credential = root / "etc/pjsip.conf"
-    config_template = runtime_sip_answer.configuration(CONFIG) if queue_answer else CONFIG
-    agent_secret = secrets.token_hex(32) if queue_answer else None
-    if queue_answer:
+    config_template = runtime_sip_answer.configuration(CONFIG) if two_identities else CONFIG
+    agent_secret = secrets.token_hex(32) if two_identities else None
+    if two_identities:
         if agent_secret == secret:
             raise ValueError("Fixture identities require distinct secrets")
         (control / "agent-secret").write_text(agent_secret)
     private_config = config_template.replace("@SECRET@", secret)
-    if queue_answer:
+    if two_identities:
         private_config = private_config.replace("@AGENT_SECRET@", agent_secret)
     credential.write_text(private_config)
     (root / "etc/extensions.conf").write_text(
@@ -161,17 +168,19 @@ def proof(root, queue_timeout=False, queue_answer=False):
         "exten => echo,1,Answer()\n same => n,Echo()\n same => n,Hangup()\n")
     if queue_timeout:
         runtime_sip_queue.prepare(root)
-    if queue_answer:
-        runtime_sip_answer.prepare(root)
+    if two_identities:
+        member_fixture.prepare(root)
     owner = uuid.uuid4().hex
     network = "asterisk-sip-" + owner[:12]
     names = {"pbx": network + "-pbx", "client": network + "-client"}
     report = dict(
-        schemaVersion=1, stage=("custom-image-isolated-sip-queue-answer-proof" if queue_answer else
+        schemaVersion=1, stage=("custom-image-isolated-sip-queue-unanswered-proof" if queue_unanswered else
+                               "custom-image-isolated-sip-queue-answer-proof" if queue_answer else
                                "custom-image-isolated-sip-queue-timeout-proof" if queue_timeout
                                else "custom-image-isolated-sip-rtp-proof"), passed=False,
         sipQueueTimeoutRequested=queue_timeout,
         sipQueueAnswerRequested=queue_answer,
+        sipQueueUnansweredRequested=queue_unanswered,
         imageId=image, carrierImageId=CARRIER, bundleManifestSha256=runtime.MANIFEST_SHA256,
         payloadValidationSha256=runtime.digest(payload_path), owner=owner, networkName=network,
         diagnostics=[], cliObservations=[], phases=[], registrationPassed=False, mediaPassed=False,
@@ -193,9 +202,13 @@ def proof(root, queue_timeout=False, queue_answer=False):
             report["toolHashes"][key] = runtime.digest(runtime.HERE / filename)
             report["toolCanonicalLfHashes"][key] = hashlib.sha256(
                 (runtime.HERE / filename).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
-    if queue_answer:
-        for path in (runtime.HERE / "runtime_sip_answer.py", runtime.HERE / "runtime_answer_call.py",
-                     TESTS / "sip_queue_answer_client.py"):
+    if two_identities:
+        member_sources = [runtime.HERE / "runtime_sip_answer.py", runtime.HERE / "runtime_answer_call.py",
+                          TESTS / "sip_queue_answer_client.py"]
+        if queue_unanswered:
+            member_sources.extend(runtime.HERE / name for name in (
+                "runtime_sip_unanswered.py", "runtime_local_call.py", "runtime_unanswered_call.py"))
+        for path in member_sources:
             key = str(path.relative_to(runtime.HERE.parents[1]))
             report["toolHashes"][key] = runtime.digest(path)
             report["toolCanonicalLfHashes"][key] = hashlib.sha256(
@@ -305,11 +318,14 @@ def proof(root, queue_timeout=False, queue_answer=False):
             client.append("--queue-timeout")
         if queue_answer:
             client.append("--queue-answer")
+        if queue_unanswered:
+            client.append("--queue-unanswered")
         with lock:
             ids["client"] = call(client)[0].strip()
         if not re.fullmatch(r"[a-f0-9]{64}", ids["client"]):
             raise ValueError("Invalid preflight client container ID")
-        check_limits(inspect(ids["client"]), CARRIER, "none", True, queue_timeout, queue_answer)
+        check_limits(inspect(ids["client"]), CARRIER, "none", True, queue_timeout, queue_answer,
+                     queue_unanswered)
         call(["start", ids["client"]])
         ready_deadline = time.monotonic() + 15
         while not (control / "python-ready.json").exists():
@@ -349,7 +365,8 @@ def proof(root, queue_timeout=False, queue_answer=False):
                 raise ValueError("Invalid owned container ID")
             state = inspect(ids[role])
             report.setdefault("limits", {})[role] = check_limits(
-                state, CARRIER if role == "client" else image, network, role == "client", queue_timeout, queue_answer)
+                state, CARRIER if role == "client" else image, network, role == "client",
+                queue_timeout, queue_answer, queue_unanswered)
         report["containerIds"] = dict(ids)
         call(["start", ids["pbx"]])
         if query("core waitfullybooted") != "Asterisk has fully booted.\n":
@@ -363,7 +380,7 @@ def proof(root, queue_timeout=False, queue_answer=False):
             raise ValueError("Loaded queue policy mismatch")
         def fixture_objects(text, kind):
             output = query(text)
-            if queue_answer:
+            if two_identities:
                 rows = re.findall(r"^\s*" + kind + r":\s+(\S+)", output, re.MULTILINE)
                 if (sorted(row for row in rows if not row.startswith("<")) != ["proof-agent", "proof-client"]
                         or not re.search(r"Objects found:\s*2\s*$", output)):
@@ -391,7 +408,7 @@ def proof(root, queue_timeout=False, queue_answer=False):
         report["networkSettings"] = dict(internal=True, driver="bridge", publishedPorts=0, peers=peers)
         (control / "go").touch()
         report["sipAttempted"] = True
-        phases = runtime_sip_answer.PHASES if queue_answer else QUEUE_PHASES if queue_timeout else PHASES
+        phases = member_fixture.PHASES if two_identities else QUEUE_PHASES if queue_timeout else PHASES
         for phase in phases:
             path = control / f"{phase}.json"
             deadline = min(client_started + 60, time.monotonic() + 15)
@@ -410,16 +427,16 @@ def proof(root, queue_timeout=False, queue_answer=False):
             if (progress["clientAddress"] != peers["client"] or progress["pbxAddress"] != peers["pbx"]
                     or progress["phases"][-1]["phase"] != phase):
                 raise ValueError("Protocol peer/progress mismatch")
-            if queue_answer and phase != "unregistered-both":
+            if two_identities and phase != "unregistered-both":
                 observed = runtime_sip_answer.contacts(query("pjsip show contacts"), peers["client"],
                                                       progress["clientPort"], progress["agentPort"])
             elif phase in ("registered", "wrong-invite", "echo-complete", "queue-started", "queue-complete"):
                 observed = contacts(query("pjsip show contacts"), peers["client"], progress["clientPort"])
             else:
                 observed = contacts(query("pjsip show contacts"))
-            if queue_answer:
-                report.setdefault("sipQueueAnswer", {})
-                runtime_sip_answer.phase(query, phase, progress, report["sipQueueAnswer"])
+            if two_identities:
+                report.setdefault(member_result_key, {})
+                member_fixture.phase(query, phase, progress, report[member_result_key])
             elif phase == "queue-started":
                 report["sipQueueProgress"] = []
                 report["sipQueueTimeout"] = runtime_sip_queue.observe(query, report["sipQueueProgress"])
@@ -441,8 +458,8 @@ def proof(root, queue_timeout=False, queue_answer=False):
             raise ValueError("Client final acceptance incomplete")
         report["registrationPassed"] = True
         report["clientReport"] = client_report
-        if queue_answer and not report["sipQueueAnswer"].get("passed"):
-            raise ValueError("Answered SIP queue host acceptance incomplete")
+        if two_identities and not report[member_result_key].get("passed"):
+            raise ValueError("SIP member queue host acceptance incomplete")
         fixture_objects("pjsip show endpoints", "Endpoint")
         if json.loads(query(f"queue policy snapshot {runtime.NAMESPACE}")) != baseline:
             raise ValueError("Queue policy changed during SIP proof")
@@ -498,6 +515,7 @@ if __name__ == "__main__":
     parser.add_argument("--work-dir", type=pathlib.Path, required=True)
     parser.add_argument("--approve-sip-queue-timeout", action="store_true")
     parser.add_argument("--approve-sip-queue-answer", action="store_true")
+    parser.add_argument("--approve-sip-queue-unanswered", action="store_true")
     args = parser.parse_args()
     print(json.dumps(proof(args.work_dir.resolve(), args.approve_sip_queue_timeout,
-                           args.approve_sip_queue_answer), indent=2))
+                           args.approve_sip_queue_answer, args.approve_sip_queue_unanswered), indent=2))

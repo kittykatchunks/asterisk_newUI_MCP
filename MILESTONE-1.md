@@ -2718,6 +2718,20 @@ is not media or answer latency. No RTP payload verification, human service,
 real phone/trunk interoperability, Gate A/Gate C or deployment is claimed.
 Further runtime needs separate approval.
 
+### Registered SIP no-answer/CANCEL fixture implemented offline only
+
+The separately selected offline step adds a never-answering registered agent,
+matched CANCEL/200 and INVITE/487/ACK, private three-second application-priority
+queue timeout, original-caller/zero-answer checks, C:0/A:1, member removal and
+dual unregistration. Echo and answered behavior retain regression coverage.
+**91 offline Python and 39 source/evidence tests** pass; no real sockets,
+Docker resources, runtime credentials or protocol traffic were used.
+
+The [preparation handoff](./PROJECT-PLAN.md#synthetic-sip-unanswered-queue-fixture-offline-only)
+defines future acceptance and explicit opt-in flags. No unanswered SIP runtime
+pass is claimed. A later execution needs separate approval; Gate A/Gate C,
+media quality, real phone interoperability and deployment remain unproven.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

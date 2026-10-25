@@ -5489,6 +5489,56 @@ trunks, SIP unanswered-member behavior, load, encrypted transport, WebRTC,
 multi-PBX tenant isolation, Gate A/Gate C, license closure or deployment.
 No further runtime execution is authorized by this pass.
 
+##### Synthetic SIP unanswered-queue fixture: offline only
+
+The user selected implementation and offline testing only for a registered
+synthetic agent that rings but never answers. **No unanswered SIP runtime
+attempt is authorized or executed.** Existing answered/echo/empty-queue runtime
+reports remain historical evidence, not validation of this new path.
+
+The explicit `--approve-sip-queue-unanswered` mode additionally requires the
+existing base approval flag and is mutually exclusive with answered and
+empty-queue modes. It reuses two distinct per-run credentials, registration/
+contact checks, the minimal agent, carrier preflight, isolation/resource
+limits, deadlines, inventory comparison and owned-resource/credential cleanup.
+No dependency, image, real socket or runtime credential was needed offline.
+
+The private fixture sets `timeoutpriority=app` only in `proof-queue` before
+startup, reusing the Local no-answer helper. Its only route is
+`Answer -> Queue(proof-queue,r,,,3) -> Wait(10) -> Hangup`.
+Future runtime acceptance requires:
+
+- Two exact registered contacts and only dynamic member `PJSIP/proof-agent`.
+- One queued Up caller and one Ringing agent. The agent sends 180 but never
+  answers; attempts to invoke its answer or hangup methods fail explicitly.
+- CANCEL matching the original request URI, Call-ID, Via/branch, From, To and
+  CSeq number; agent responds 200 to CANCEL and 487 to the INVITE. A matching
+  tagged ACK must use the original transaction branch. Identical INVITE/
+  CANCEL retransmissions replay the corresponding responses.
+- Original caller alone Up in its result hold, zero queued callers and one
+  capture of `QUEUESTATUS=TIMEOUT`, **3000 <= QUEUEWAIT_MS < 4000**,
+  `ANSWEREDTIME_MS=0`, `ABANDONED=TRUE`. Result polling retains bounded progress
+  and fails on unexpected answer, replacement caller or deadline expiry.
+- Caller BYE/200, zero channels, **C:0/A:1**, member has taken no calls,
+  member removal and exact queue-policy restoration.
+- Both unregistrations/200, zero contacts with both endpoint configurations
+  retained, zero process exits, unchanged warmed bridge/inventory and removal
+  of all owned resources and all three generated credential files.
+
+The three-second queue window includes host CLI/checkpoint overhead; failure
+to observe ringing must fail rather than relax the proof. There is no RTP
+payload/quality, real phone, human service or multi-PBX claim. Gate A remains
+open; Gate C, deployment and redistribution remain unauthorized.
+
+[Machine-readable preparation](./local/asterisk-build/sip-unanswered-preparation.json)
+records **91 offline Python and 39 source/evidence tests**. Tests cover matched
+and foreign cancellation, non-2xx ACK, retransmissions, never-answer guards,
+private timeout priority, unchanged caller identity, retained progress on
+timeout, no-completion cleanup, dual unregistration, incompatible flags and
+mocked orchestration success/failure. Prior answered/default regressions remain
+included. Historical raw report hashes remain checked without incorrectly
+requiring old executed-tool hashes to match newer offline source revisions.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

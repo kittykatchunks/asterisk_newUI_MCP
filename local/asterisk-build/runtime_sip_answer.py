@@ -36,20 +36,30 @@ def contacts(output, address, caller_port, agent_port):
     return values
 
 
-def channels(output):
+def channels(output, extension="queue-answer", queue_data="proof-queue,rc,,,20"):
     rows = []
     for line in output.splitlines():
         fields = line.split("!")
         if len(fields) < 12 or not re.fullmatch(r"PJSIP/proof-(client|agent)-[a-fA-F0-9]+", fields[0]):
             raise ValueError("Foreign or malformed answered SIP channel")
         if fields[0].startswith("PJSIP/proof-client-") and (
-                fields[1:3] != ["isolated-sip-proof", "queue-answer"]
-                or fields[5:7] not in (["Queue", "proof-queue,rc,,,20"], ["Wait", "10"])):
+                fields[1:3] != ["isolated-sip-proof", extension]
+                or fields[5:7] not in (["Queue", queue_data], ["Wait", "10"])):
             raise ValueError("Unexpected caller context or queue application")
         rows.append(dict(name=fields[0], state=fields[4], application=fields[5], data=fields[6]))
     if len(rows) != len({row["name"] for row in rows}):
         raise ValueError("Duplicate SIP channel")
     return rows
+
+
+def remove_member(cli, report):
+    response = cli(f"queue remove member {MEMBER} from proof-queue")
+    if response != f"Removed interface {MEMBER} from queue 'proof-queue'\n":
+        raise ValueError("Failed to remove private SIP member")
+    final = answered.policy(cli(f"queue policy snapshot {runtime.NAMESPACE}"), 0)
+    if final != report["initialPolicy"]:
+        raise ValueError("SIP queue baseline not restored")
+    report.update(finalPolicy=final, memberRemoved=True)
 
 
 def phase(cli, stage, progress, report):
@@ -111,13 +121,8 @@ def phase(cli, stage, progress, report):
                 or "No Callers" not in output
                 or not re.search(r"^\s*PJSIP/proof-agent\b.*has taken 1 calls\b", output, re.MULTILINE)):
             raise ValueError("Expected one completed queue call")
-        response = cli(f"queue remove member {MEMBER} from proof-queue")
-        if response != f"Removed interface {MEMBER} from queue 'proof-queue'\n":
-            raise ValueError("Failed to remove private SIP member")
-        final = snapshot(0)
-        if final != report["initialPolicy"]:
-            raise ValueError("Answered SIP queue baseline not restored")
-        report.update(completedQueueOutput=output, finalPolicy=final, memberRemoved=True)
+        remove_member(cli, report)
+        report["completedQueueOutput"] = output
     elif stage == "unregistered-both":
         if (not report.get("memberRemoved") or "bridgeId" not in report
                 or "agent-ringing" not in report or "resultVariables" not in report

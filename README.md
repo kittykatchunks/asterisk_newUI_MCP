@@ -657,6 +657,15 @@ matched; existing containers stayed stopped. This is synthetic signalling/
 queue-lifecycle evidence, **not RTP quality or human service**.
 See [exact passing evidence](./local/asterisk-build/sip-answered-queue-validation.json).
 
+**[Registered SIP no-answer/CANCEL queue mode is implemented offline only](./PROJECT-PLAN.md#synthetic-sip-unanswered-queue-fixture-offline-only).**
+The synthetic agent rings without answering, correlates CANCEL/200 and
+INVITE/487/ACK, and the host requires the original caller's three-second
+TIMEOUT, zero answered time, no completed member calls, member removal and
+dual unregistration. Echo and answered behavior remain covered by regressions.
+No runtime attempt, container/network creation or SIP traffic was authorized
+or executed for this preparation. See the
+[offline preparation record](./local/asterisk-build/sip-unanswered-preparation.json).
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

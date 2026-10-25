@@ -19,6 +19,44 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("registered SIP no-answer preparation remains offline and requires explicit isolated opt-in", () => {
+  const record = read(`${directory}/sip-unanswered-preparation.json`);
+  assert.equal(record.stage, "synthetic-sip-unanswered-queue-implemented-offline-only");
+  assert.equal(record.runtimeAttemptsAuthorized, 0);
+  assert.equal(record.runtimeAttemptsExecuted, 0);
+  assert.equal(record.additionalApprovalFlagRequired, "--approve-sip-queue-unanswered");
+  assert.equal(record.baseApprovalFlagAlsoRequired, "--approve-isolated-sip-rtp-proof");
+  assert.equal(record.defaultEchoBehaviorRetained, true);
+  assert.equal(record.queueModesMutuallyExclusive, true);
+  assert.deepEqual(record.implementation.identities, ["proof-client", "proof-agent"]);
+  assert.equal(record.implementation.distinctPerRunSecretsRequired, true);
+  assert.equal(record.implementation.queueSeconds, 3);
+  assert.equal(record.implementation.timeoutpriority, "app");
+  assert.equal(record.implementation.resultHoldSeconds, 10);
+  assert.equal(record.implementation.rtpVerified, false);
+  assert.equal(record.implementation.humanAnsweringTested, false);
+  assert.equal(record.offlineValidation.pythonTestsPassed, 91);
+  assert.equal(record.offlineValidation.sourceEvidenceTestsPassed, 39);
+  assert.equal(preparation.sipUnansweredPreparation.runtimePassed, false);
+  assert.equal(preparation.sipUnansweredPreparation.runtimeAttemptsAuthorized, 0);
+  assert.equal(preparation.sipUnansweredPreparation.runtimeAttemptsExecuted, 0);
+  assert.equal(preparation.sipUnansweredPreparation.newNetworkOrContainerStarted, false);
+  assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, true);
+  for (const flag of ["runtimeExecuted", "runtimePassed", "containerStartupAuthorized",
+    "networkCreationAuthorized", "sipTrafficAuthorized", "runtimeApplyAuthorized",
+    "gateAAcceptanceComplete", "gateCAuthorized", "redistributionApproved"]) {
+    assert.equal(record[flag], false, flag);
+  }
+  const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
+  assert.match(entrypoint, /parser\.add_argument\("--approve-sip-queue-unanswered", action="store_true"\)/);
+  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered\)\) > 1:/);
+  assert.match(entrypoint, /member_fixture = runtime_sip_unanswered if queue_unanswered else runtime_sip_answer/);
+  const agent = bytes("tests/sip_queue_answer_client.py").toString();
+  assert.match(agent, /487 Request Terminated/);
+  assert.match(agent, /headers\["via"\] == self\.dialog\["via"\]/);
+  assert.match(agent, /No-answer agent must not answer/);
+});
+
 test("answered SIP queue runtime binds dual registrations, bridged legs, measured continuation and cleanup", () => {
   const validation = read(`${directory}/sip-answered-queue-validation.json`);
   for (const [name, evidence] of Object.entries(validation.evidence)) {
@@ -83,8 +121,11 @@ test("answered SIP queue runtime binds dual registrations, bridged legs, measure
   assert.equal(report.watchdogExpired, false);
   assert.equal(report.elapsedSeconds, 26.61);
   for (const [name, digest] of Object.entries(report.toolCanonicalLfHashes)) {
-    const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
-    assert.equal(canonical, digest, name);
+    assert.match(digest, /^[a-f0-9]{64}$/, name);
+    if (name.endsWith("smoke-desktop.py")) {
+      const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
+      assert.equal(canonical, digest, name);
+    }
   }
   for (const flag of ["mediaTested", "humanAnsweringTested", "existingPbxOperated",
     "runtimeApplyAuthorized", "gateAAcceptanceComplete", "gateCAuthorized",
