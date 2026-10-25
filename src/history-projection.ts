@@ -5,7 +5,7 @@ import { inspectHistoryMarker } from "./history-markers.ts";
 import { historyIdentifier as identifier, historySha256 as sha256 } from "./history-evidence.ts";
 import { emptyQueueService, observeQueueService, type QueueServiceObservation } from "./history-queue-service.ts";
 
-export const PROJECTION_ALGORITHM = "marked-caller-v4";
+export const PROJECTION_ALGORITHM = "marked-caller-v5";
 export const PROJECTION_DOCUMENT_LIMIT = 8 * 1024 * 1024;
 export interface ProjectionScope { customer: string; runtime: string; epoch: string }
 export interface EvidenceRef {
@@ -20,9 +20,10 @@ interface Marker {
 export interface ProjectionIssue { reason: string; evidence: EvidenceRef[] }
 export interface ProjectedVisit {
   id: string; visitId: string; queue: string; markerEvidence: EvidenceRef[];
-  state: "unresolved" | "conflicting" | "entry-observed" | "timeout-observed" | "connection-observed" | "completion-observed";
+  state: "unresolved" | "conflicting" | "entry-observed" | "timeout-observed" | "connection-observed" | "completion-observed" | "abandonment-observed";
   queueEvidence: EvidenceRef[];
   service: QueueServiceObservation;
+  abandonment: "not-observed" | "observed" | "unresolved" | "conflicting";
 }
 export interface ProjectedJourney {
   id: string; journeyId: string; entryKind: string;
@@ -214,7 +215,7 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
       }
       const visit: ProjectedVisit = { id: stableId(scope, "visit", visitId), visitId, queue: first.queue!,
         markerEvidence: references(candidates.map((m) => m.ref)), state: signature.size === 1 ? "unresolved" : "conflicting",
-        queueEvidence: [], service: emptyQueueService() };
+        queueEvidence: [], service: emptyQueueService(), abandonment: "not-observed" };
       journey.visits.push(visit);
       if (signature.size !== 1) { issue("conflicting-visit-marker", visit.markerEvidence); continue; }
       const rivals = new Set(allVisits.filter((m) => m.channel === first.channel && m.queue === first.queue).map((m) => m.visitId));
@@ -230,6 +231,24 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
       visit.state = "entry-observed";
       usedQueue.add(refKey(enter.ref));
       const rest = matches.filter((q) => q !== enter);
+      const abandons = rest.filter((q) => q.event.event === "ABANDON");
+      if (abandons.length > 0) {
+        const abandon = abandons[0];
+        if (rest.length !== 1) {
+          visit.abandonment = "conflicting"; visit.state = "conflicting";
+          issue("conflicting-abandonment-evidence", rest.map((q) => q.ref));
+        } else if (stream(abandon.ref) === stream(enter.ref) && abandon.ref.offset > enter.ref.offset &&
+            abandon.event.member === "NONE" && abandon.event.parameters.length === 3 &&
+            abandon.event.parameters.every((p) => /^(?:0|[1-9][0-9]*)$/.test(p) && Number.isSafeInteger(Number(p))) &&
+            Number(abandon.event.parameters[0]) > 0 && Number(abandon.event.parameters[1]) > 0) {
+          visit.abandonment = "observed"; visit.state = "abandonment-observed";
+          usedQueue.add(refKey(abandon.ref));
+        } else {
+          visit.abandonment = "unresolved"; visit.state = "unresolved";
+          issue("unsupported-or-unordered-abandonment", [abandon.ref]);
+        }
+        if (!rest.some((q) => q.event.event === "CONNECT" || q.event.event.startsWith("COMPLETE"))) continue;
+      }
       if (rest.some((q) => q.event.event === "CONNECT" || q.event.event.startsWith("COMPLETE"))) {
         const observed = observeQueueService(enter, rest, cel, queue, new Set(entries.map((m) => m.channel)), root.ref);
         visit.service = observed.service;
@@ -243,7 +262,7 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
         if (visit.service.completion === "member-ended-queue-service-observed" ||
             visit.service.completion === "caller-ended-queue-service-observed") visit.state = "completion-observed";
         if (visit.service.connection === "conflicting" || visit.service.memberCorrelation === "conflicting" ||
-            visit.service.completion === "conflicting") visit.state = "conflicting";
+            visit.service.completion === "conflicting" || visit.abandonment === "conflicting") visit.state = "conflicting";
         continue;
       }
       if (rest.length > 1 && rest.every((q) => q.event.event === "EXITWITHTIMEOUT")) {

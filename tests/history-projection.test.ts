@@ -67,6 +67,248 @@ const callerComplete = () => servedQueue("COMPLETECALLER", "0|3|1");
 const memberRows = () => ["CHAN_START", "ANSWER", "HANGUP", "CHAN_END"].map((event) => cel(event, undefined, memberUid));
 const projectedVisit = (history: ReturnType<typeof openCelHistory>) =>
   buildHistoryProjection(history, scope).document.journeys.find((j) => j.journeyId === journeyId)!.visits[0];
+const abandon = () => queue("ABANDON", "1|1|3");
+
+test("QA-01: pinned ABANDON shape yields only an explicit queue abandonment observation", async () => {
+  await fixture((history) => {
+    seed(history, call(), [entered, abandon()]);
+    const built = buildHistoryProjection(history, scope), visit = projectedVisit(history);
+    assert.equal(built.document.algorithm, "marked-caller-v5");
+    assert.equal(visit.abandonment, "observed");
+    assert.equal(visit.state, "abandonment-observed");
+    assert.equal(visit.queueEvidence.length, 2);
+    assert.equal(history.queue.read(source).events[1].rawRecord, abandon().toString());
+    assert.equal(visit.service.connection, "not-observed");
+    assert.equal(visit.service.completion, "not-observed");
+  });
+  await fixture((history) => {
+    seed(history, call(), [entered, queue("ABANDON", "2|3|0")]);
+    assert.equal(projectedVisit(history).abandonment, "observed");
+  });
+});
+
+test("QA-02: trusted marker order, unique visit and unique ENTERQUEUE are mandatory", async () => {
+  for (const rows of [
+    [cel("CHAN_START"), visit(), cel("CHAN_END")],
+    [cel("CHAN_START"), visit(), entry(), cel("CHAN_END")],
+    [cel("CHAN_START"), entry(), cel("CHAN_END"), visit()],
+    [cel("CHAN_START"), cel("HISTORY_ENTRY", { ...entryPayload(), v: 2 }), visit()],
+  ]) await fixture((history) => {
+    seed(history, rows, [entered, abandon()]);
+    assert.equal(buildHistoryProjection(history, scope).document.journeys.flatMap((j) => j.visits).length, 0);
+  });
+  for (const [rows, queued] of [
+    [[...call(), visit(otherVisit)], [entered, abandon()]],
+    [call(), [entered, entered, abandon()]],
+    [call(), [abandon()]],
+  ]) await fixture((history) => {
+    seed(history, rows, queued);
+    assert.ok(buildHistoryProjection(history, scope).document.journeys[0].visits.every((v) =>
+      v.state === "unresolved" && v.abandonment !== "observed"));
+  });
+});
+
+test("QA-03: ABANDON needs ordered same-stream entry; absence of CONNECT is not proof of complete coverage", async () => {
+  await fixture((history) => {
+    seed(history, call(), [abandon(), entered]);
+    assert.equal(projectedVisit(history).abandonment, "unresolved");
+  });
+  for (const location of ["source", "generation"] as const) await fixture((history) => {
+    seed(history, call(), [entered]);
+    seed(history, [], [abandon()], scope, { ...source,
+      ...(location === "source" ? { source: "other" } : { generation: "other" }) });
+    assert.equal(projectedVisit(history).abandonment, "unresolved");
+  });
+  await fixture((history) => {
+    seed(history, call(), [entered]);
+    const built = buildHistoryProjection(history, scope);
+    assert.equal(projectedVisit(history).abandonment, "not-observed");
+    assert.equal(projectedVisit(history).state, "entry-observed");
+    assert.equal(built.document.quality.completeness, "unverified");
+    assert.equal(built.document.quality.queueCoverage, "not-collected");
+  });
+});
+
+test("QA-04: caller PBX answer/end and partial lifecycle remain independent of queue ABANDON", async () => {
+  for (const [rows, answer, end] of [
+    [[cel("CHAN_START"), entry(), visit()], "not-observed", "not-observed"],
+    [[cel("CHAN_START"), entry(), cel("ANSWER"), visit()], "observed", "not-observed"],
+    [[cel("CHAN_START"), entry(), visit(), cel("CHAN_END")], "not-observed", "observed"],
+    [call(), "observed", "observed"],
+  ] as const) await fixture((history) => {
+    seed(history, [...rows], [entered, abandon()]);
+    const root = buildHistoryProjection(history, scope).document.journeys[0];
+    assert.equal(root.channel?.answer, answer); assert.equal(root.channel?.end, end);
+    assert.equal(root.visits[0].abandonment, "observed");
+    assert.equal(root.visits[0].service.memberCorrelation, "not-observed");
+    assert.equal(root.visits[0].service.memberUniqueid, null);
+    assert.deepEqual(root.visits[0].service.memberEvidence, []);
+  });
+});
+
+test("QA-05: exact ABANDON replay inserts zero and invalid appended raw batches roll back evidence/checkpoint", async () => {
+  await fixture((history) => {
+    const { raw, queueRaw } = seed(history, call(), [entered, abandon()]);
+    const before = history.queue.sources(scope.customer);
+    const stored = history.queue.read(source);
+    assert.equal(history.ingest(source, raw).inserted, 0);
+    assert.equal(history.queue.ingest(source, queueRaw).inserted, 0);
+    assert.deepEqual(Buffer.from(stored.events.map((e) => e.rawRecord).join("")), queueRaw);
+    assert.throws(() => history.queue.ingest(source, Buffer.concat([
+      queueRaw, queue("ABANDON", "1|1|4"), Buffer.from("invalid|complete|record\n"),
+    ])), /Invalid queue/);
+    assert.deepEqual(history.queue.sources(scope.customer), before);
+    assert.deepEqual(history.queue.read(source), stored);
+    assert.equal(projectedVisit(history).abandonment, "observed");
+  });
+});
+
+test("QA-06: queue abandonment creates no extra root, business outcome, service identity or metrics and retains gaps", async () => {
+  await fixture((history, _database, _projection, directory) => {
+    seed(history, [...call(), cel("ANSWER", undefined, "unmarked-same-linkedid")], [entered, abandon()]);
+    history.queue.collectors.configure({ customer: scope.customer, source: source.source, generation: source.generation,
+      path: join(directory, "queue_log"), staleAfterMs: 1000 }, 1000);
+    history.queue.collectors.transition(scope.customer, source.source, "replacement", "operator", "Unknown queue gap", 2000);
+    const built = buildHistoryProjection(history, scope);
+    assert.equal(built.document.journeys.length, 1);
+    assert.equal(built.document.journeys[0].entryKind, "synthetic");
+    assert.equal(built.document.journeys[0].visits.length, 1);
+    const visit = projectedVisit(history);
+    assert.equal(visit.abandonment, "observed");
+    for (const field of ["outcome", "humanIntent", "duration", "totals"]) assert.equal(field in visit, false);
+    assert.equal("totals" in built.document, false);
+    assert.equal(built.document.quality.service, "not-classified");
+    assert.equal(built.document.quality.completeness, "unverified");
+    assert.equal(built.document.quality.queueCoverage, "unverified");
+    assert.equal(built.document.input.coverage[0].gaps.length, 1);
+    assert.equal(built.document.input.coverage[0].association, "possibly-applicable");
+    assert.ok(built.document.issues.some((i) => i.reason === "unattributed-cel-evidence"));
+    assert.deepEqual(buildHistoryProjection(history, scope), built);
+  });
+});
+
+test("QA-07: malformed ABANDON counts, unsafe/noncanonical numbers and wrong member stay unresolved with evidence", async () => {
+  for (const terminal of [
+    ...["1|1", "1|1|3|extra", "0|1|3", "1|0|3", "-1|1|3", "1|-1|3", "1|1|-3", "1.5|1|3",
+      "1|1|3.5", "01|1|3", "1|01|3", "1|1|03", "9007199254740992|1|3", "1|9007199254740992|3",
+      "1|1|9007199254740992", "||3", "1|1|", "1|1|bad"].map((params) => queue("ABANDON", params)),
+    servedQueue("ABANDON", "1|1|3"), servedQueue("ABANDON", "1|1|3", "REALTIME"),
+  ]) await fixture((history) => {
+    seed(history, call(), [entered, terminal]);
+    const built = buildHistoryProjection(history, scope), visit = projectedVisit(history);
+    assert.equal(visit.abandonment, "unresolved", terminal.toString());
+    assert.equal(visit.state, "unresolved");
+    assert.equal(visit.queueEvidence.length, 2);
+    assert.ok(built.document.issues.some((i) => i.reason === "unsupported-or-unordered-abandonment" && i.evidence.length === 1));
+    assert.ok(built.document.issues.some((i) => i.reason === "unattributed-queue-evidence"));
+  });
+});
+
+test("QA-08: duplicate/mixed abandonment, timeout, CONNECT and completion conflict without suppressing service facts", async () => {
+  for (const rest of [
+    [abandon(), abandon()], [abandon(), timeout], [timeout, abandon()],
+    [connect(), abandon()], [abandon(), connect()], [connect(), callerComplete(), abandon()],
+    [connect(), complete(), abandon()], [abandon(), callerComplete()],
+    [abandon(), servedQueue("UNSUPPORTED", "1|1|3")],
+  ]) await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, ...rest]);
+    const built = buildHistoryProjection(history, scope), visit = projectedVisit(history);
+    assert.equal(visit.abandonment, "conflicting");
+    assert.equal(visit.state, "conflicting");
+    assert.ok(built.document.issues.some((i) => i.reason === "conflicting-abandonment-evidence"));
+    if (rest.some((r) => r.toString().includes("|CONNECT|"))) {
+      assert.equal(visit.service.connection, "observed");
+      assert.equal(visit.service.memberCorrelation, "answered-channel-observed");
+    }
+    assert.notEqual(visit.service.completion, "caller-ended-queue-service-observed");
+    assert.notEqual(visit.service.completion, "member-ended-queue-service-observed");
+  });
+});
+
+test("QA-09: foreign/unassigned ABANDON never completes another scope; identical IDs in explicit epochs remain separate", async () => {
+  for (const location of ["customer", "runtime", "epoch", "unassigned"] as const) await fixture((history) => {
+    const { queueRaw } = seed(history, call(), [entered]);
+    if (location === "unassigned") history.queue.ingest(source, Buffer.concat([queueRaw, abandon()]));
+    else {
+      const selected = { ...scope, ...(location === "customer" ? { customer: "customer-b" } :
+        location === "runtime" ? { runtime: "runtime-b" } : { epoch: "boot-2" }) };
+      seed(history, [], [abandon()], selected, { ...source, customer: selected.customer, source: "foreign" });
+    }
+    assert.equal(projectedVisit(history).abandonment, "not-observed");
+  });
+  await fixture((history) => {
+    const { raw, queueRaw } = seed(history, call(), [entered, abandon()]);
+    history.ingest(source, Buffer.concat([raw, raw])); history.queue.ingest(source, Buffer.concat([queueRaw, queueRaw]));
+    const selected = { ...scope, epoch: "boot-2" };
+    history.manifests.register({ ...selected, operator: "test", reason: "Separate explicit boot with identical IDs",
+      routes: [route], ranges: [
+        { kind: "cel", source: source.source, generation: source.generation, start: raw.length, end: raw.length * 2 },
+        { kind: "queue", source: source.source, generation: source.generation, start: queueRaw.length, end: queueRaw.length * 2 },
+      ] });
+    const first = buildHistoryProjection(history, scope).document.journeys[0];
+    const next = buildHistoryProjection(history, selected).document.journeys[0];
+    assert.notEqual(first.id, next.id);
+    assert.equal(first.visits[0].abandonment, "observed"); assert.equal(next.visits[0].abandonment, "observed");
+    assert.ok(first.visits[0].queueEvidence.every((e) => e.offset < queueRaw.length));
+    assert.ok(next.visits[0].queueEvidence.every((e) => e.offset >= queueRaw.length));
+  });
+});
+
+test("QA-10: late ABANDON appends stable immutable v5, preserves v1-v4 bytes and persisted offline/scope reads", async () => {
+  await fixture(async (history, database, path) => {
+    const { queueRaw } = seed(history, call(), [entered]);
+    const projections = openHistoryProjections(path);
+    const db = new DatabaseSync(path);
+    try {
+      const before = buildHistoryProjection(history, scope).document;
+      const oldIds: number[] = [];
+      for (const algorithm of ["marked-caller-v1", "marked-caller-v2", "marked-caller-v3", "marked-caller-v4"]) {
+        const legacy = JSON.parse(JSON.stringify(before));
+        legacy.algorithm = algorithm; legacy.input.algorithm = algorithm;
+        for (const root of legacy.journeys) for (const visit of root.visits) {
+          delete visit.abandonment;
+          if (algorithm.endsWith("v1") || algorithm.endsWith("v2")) delete visit.service;
+        }
+        if (algorithm.endsWith("v1")) delete legacy.input.queueCollectionCapability;
+        const text = JSON.stringify(legacy);
+        const row = db.prepare(`INSERT INTO projection_revisions
+          (customer,runtime,epoch,algorithm,input_sha256,document,sha256,created_at) VALUES(?,?,?,?,?,?,?,?)`)
+          .run(scope.customer, scope.runtime, scope.epoch, algorithm, historySha256(Buffer.from(JSON.stringify(legacy.input))),
+            text, historySha256(Buffer.from(text)), "2026-10-25T09:00:00.000Z");
+        const id = Number(row.lastInsertRowid); oldIds.push(id);
+        assert.deepEqual(projections.read(scope, id).document, legacy);
+      }
+      const originalRows = oldIds.map((id) => db.prepare("SELECT document FROM projection_revisions WHERE id=?").get(id)?.document);
+      const first = projections.rebuild(history, scope);
+      const appended = Buffer.concat([queueRaw, abandon()]);
+      assert.equal(history.queue.ingest(source, appended).inserted, 1);
+      assert.equal(history.queue.ingest(source, appended).inserted, 0);
+      history.manifests.register({ ...scope, operator: "test", reason: "Late explicit abandonment evidence", routes: [],
+        ranges: [{ kind: "queue", source: source.source, generation: source.generation, start: queueRaw.length, end: appended.length }] });
+      const next = projections.rebuild(history, scope);
+      const after = buildHistoryProjection(history, scope).document;
+      assert.ok(next.id > first.id);
+      assert.equal(after.journeys[0].id, before.journeys[0].id);
+      assert.equal(after.journeys[0].visits[0].id, before.journeys[0].visits[0].id);
+      assert.equal(after.journeys[0].visits[0].abandonment, "observed");
+      assert.equal(projections.rebuild(history, scope).id, next.id);
+      assert.deepEqual(projections.read(scope, first.id).document, before);
+      for (const [index, id] of oldIds.entries()) {
+        assert.equal(JSON.stringify(projections.read(scope, id).document), originalRows[index]);
+      }
+      const output = await execute(process.execPath, ["scripts\\Manage-HistoryProjection.ts", "stored", database, path,
+        scope.customer, scope.runtime, scope.epoch, String(next.id)]);
+      const read = JSON.parse(output.stdout);
+      assert.equal(read.freshness.state, "not-checked");
+      assert.deepEqual(read.document, after);
+      await assert.rejects(execute(process.execPath, ["scripts\\Manage-HistoryProjection.ts", "stored", database, path,
+        scope.customer, "foreign-runtime", scope.epoch, String(next.id)]));
+    } finally { db.close(); projections.close(); }
+    const reopened = openHistoryProjections(path, { readOnly: true });
+    try { assert.equal(reopened.read(scope).algorithm, "marked-caller-v5"); }
+    finally { reopened.close(); }
+  });
+});
 
 test("QC-03: COMPLETECALLER and COMPLETEAGENT remain distinct queue observations with the same conservative shape rules", async () => {
   for (const [terminal, completion] of [
@@ -76,7 +318,7 @@ test("QC-03: COMPLETECALLER and COMPLETEAGENT remain distinct queue observations
     seed(history, [...call(), ...memberRows()], [entered, connect(), terminal]);
     const built = buildHistoryProjection(history, scope);
     const visit = projectedVisit(history);
-    assert.equal(built.document.algorithm, "marked-caller-v4");
+    assert.equal(built.document.algorithm, PROJECTION_ALGORITHM);
     assert.equal(visit.state, "completion-observed");
     assert.equal(visit.service.completion, completion);
     assert.equal(visit.service.connection, "observed");
@@ -196,19 +438,20 @@ test("QC-04/05: late COMPLETECALLER appends an immutable revision with stable ID
     } finally { projections.close(); }
     const reopened = openHistoryProjections(path, { readOnly: true });
     try {
-      assert.equal(reopened.read(scope).algorithm, "marked-caller-v4");
+      assert.equal(reopened.read(scope).algorithm, PROJECTION_ALGORITHM);
       assert.throws(() => reopened.read({ ...scope, epoch: "foreign" }), /not found/);
     } finally { reopened.close(); }
   });
 });
 
-test("QC-04/05: v3 unresolved caller completion remains byte-preserved and readable after a v4 rebuild", async () => {
+test("QC-04/05: v3 unresolved caller completion remains byte-preserved and readable after a current rebuild", async () => {
   await fixture((history, _historyPath, path) => {
     seed(history, [...call(), ...memberRows()], [entered, connect(), callerComplete()]);
     const projections = openHistoryProjections(path);
     const built = buildHistoryProjection(history, scope);
     const legacy = JSON.parse(JSON.stringify(built.document));
     legacy.algorithm = "marked-caller-v3"; legacy.input.algorithm = "marked-caller-v3";
+    delete legacy.journeys[0].visits[0].abandonment;
     legacy.journeys[0].visits[0].state = "connection-observed";
     legacy.journeys[0].visits[0].service.completion = "unresolved";
     const text = JSON.stringify(legacy);
@@ -221,7 +464,7 @@ test("QC-04/05: v3 unresolved caller completion remains byte-preserved and reada
       const oldId = Number(row.lastInsertRowid);
       assert.deepEqual(projections.read(scope, oldId).document, legacy);
       const next = projections.rebuild(history, scope);
-      assert.equal(next.algorithm, "marked-caller-v4");
+      assert.equal(next.algorithm, PROJECTION_ALGORITHM);
       assert.ok(next.id > oldId);
       assert.equal(built.document.journeys[0].id, legacy.journeys[0].id);
       assert.equal(built.document.journeys[0].visits[0].id, legacy.journeys[0].visits[0].id);
@@ -390,7 +633,7 @@ test("QS-03/05: completion is independent and requires ordered same-stream same-
     servedQueue("COMPLETEAGENT", "0|2|1", "wrong-member"), servedQueue("COMPLETEAGENT", "0|2"),
     servedQueue("COMPLETEAGENT", "0|2|0"), servedQueue("COMPLETEAGENT", "0|2|-1"),
     servedQueue("COMPLETEAGENT", "0|2|1|extra"), servedQueue("COMPLETEAGENT", "0|9007199254740992|1"),
-    servedQueue("TRANSFER", "0|2|1"), servedQueue("ABANDON", "1|1|2"), timeout,
+    servedQueue("TRANSFER", "0|2|1"), servedQueue("UNSUPPORTED", "1|1|2"), timeout,
   ]) await fixture((history) => {
     seed(history, [...call(), ...memberRows()], [entered, connect(), end]);
     const service = projectedVisit(history).service;
@@ -472,6 +715,7 @@ test("QS-04/05: v1/v2 documents without service fields remain readable byte-for-
     legacy.algorithm = algorithm; legacy.input.algorithm = algorithm;
     for (const root of legacy.journeys) for (const visit of root.visits) {
       delete visit.service;
+      delete visit.abandonment;
       visit.state = "unresolved";
     }
     if (algorithm === "marked-caller-v1") {

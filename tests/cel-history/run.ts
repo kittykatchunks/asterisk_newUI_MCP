@@ -11,20 +11,22 @@ import { proveHistoryMarkers } from "./markers.ts";
 import { proveHistoryProjection } from "./projection.ts";
 import { proveQueueRecovery } from "./queue-recovery.ts";
 import { proveQueueService } from "./queue-service.ts";
+import { proveQueueAbandonment } from "./queue-abandonment.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery", "--service", "--caller-service"].includes(args[0]))) {
-  throw new Error("Only --recovery, --queue, --markers, --projection, --queue-recovery, --service or --caller-service is supported");
+if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery", "--service", "--caller-service", "--abandonment"].includes(args[0]))) {
+  throw new Error("Only --recovery, --queue, --markers, --projection, --queue-recovery, --service, --caller-service or --abandonment is supported");
 }
 const recovery = args[0] === "--recovery";
 const queueProof = args[0] === "--queue";
 const queueRecovery = args[0] === "--queue-recovery";
-const callerServiceProof = args[0] === "--caller-service";
+const abandonmentProof = args[0] === "--abandonment";
+const callerServiceProof = args[0] === "--caller-service" || abandonmentProof;
 const serviceProof = args[0] === "--service" || callerServiceProof;
 const projectionProof = args[0] === "--projection" || queueRecovery || serviceProof;
 const markerProof = args[0] === "--markers" || projectionProof;
-const mode = recovery ? "cel-collector" : callerServiceProof ? "caller-queue-service" : serviceProof ? "queue-service" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
+const mode = recovery ? "cel-collector" : abandonmentProof ? "queue-abandonment" : callerServiceProof ? "caller-queue-service" : serviceProof ? "queue-service" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
   projectionProof ? "history-projection" : markerProof ? "history-markers" : "cel-history";
 const parent = join(root, ".local-proof", mode);
 await mkdir(parent, { recursive: true });
@@ -72,6 +74,7 @@ let composeAttempted = false;
 const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
   scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
+    abandonmentProof ? "isolated pre-connection caller hangup ABANDON record and conservative projection; no human intent, business outcome or media claim" :
     callerServiceProof ? "isolated caller-ended and member-ended automated queue service evidence; no human, abandonment, whole-journey or media claim" :
     serviceProof ? "isolated automated queue member CONNECT/completion and exact CEL member answer observations; no human or media claim" :
     queueRecovery ? "operator local-file queue interruption/replay, independent collector status and permanent unknown replacement gap in projection provenance" :
@@ -103,6 +106,12 @@ try {
         await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}\n${service}\n${callerService}`.replaceAll("\r\n", "\n"));
         const generatedQueues = await readFile(join(directory, "queues.conf"), "utf8");
         await writeFile(join(directory, "queues.conf"), `${generatedQueues}\n[caller-service-queue]\nstrategy = ringall\ntimeout = 3\nretry = 1\njoinempty = yes\nleavewhenempty = no\nmember => Local/answer@history-caller-service-member/n,0,synthetic-caller-member\n`);
+        if (abandonmentProof) {
+          const abandon = await readFile(join(root, "tests", "history-markers", "abandon.conf"), "utf8");
+          await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}\n${service}\n${callerService}\n${abandon}`.replaceAll("\r\n", "\n"));
+          const callerQueues = await readFile(join(directory, "queues.conf"), "utf8");
+          await writeFile(join(directory, "queues.conf"), `${callerQueues}\n[abandon-queue]\nstrategy = ringall\ntimeout = 2\njoinempty = yes\nleavewhenempty = no\n`);
+        }
       }
     }
   }
@@ -189,6 +198,11 @@ try {
           const callerServices: Record<string, unknown>[] = [];
           report.callerService = callerServices;
           await proveQueueService(database, directory, project, docker, freshSnapshot, cli, callerServices, "caller");
+          if (abandonmentProof) {
+            const abandonment: Record<string, unknown>[] = [];
+            report.abandonment = abandonment;
+            await proveQueueAbandonment(database, directory, project, docker, freshSnapshot, cli, abandonment);
+          }
         }
       }
       if (queueRecovery) {

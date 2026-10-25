@@ -15,6 +15,72 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Ten-test batch: pre-connection queue abandonment observations
+
+QA-01 through QA-10 add an isolated **pre-connection caller hangup** fixture
+and a conservative queue-record observation. This batch is distinct from the
+post-CONNECT COMPLETECALLER and COMPLETEAGENT service cases below. It does not
+classify caller intent, human service, a whole business journey or a business total.
+
+Current builds use **`marked-caller-v5`** and add
+`visit.abandonment:not-observed|observed|unresolved|conflicting`.
+`observed` requires a validated marked caller/visit, one candidate ENTERQUEUE,
+then a **sole** later ABANDON in the same queue source/generation with member
+`NONE` and exactly `position|original-position|wait`. All fields must be
+canonical nonnegative safe integers; both positions must be positive.
+No CONNECT, completion, timeout or other competing record may be present for
+that selected caller/queue. Bad shape/order/member stays unresolved;
+duplicate/mixed evidence conflicts. A conflicting CONNECT remains visible
+separately rather than being suppressed to make abandonment appear clean.
+
+The visit summary is `abandonment-observed` only for that bounded raw observation.
+`not-observed` is **not** proof that a caller did not abandon; raw evidence may
+be missing/unassigned/incomplete, and ambiguity can leave the visit unresolved.
+PBX caller answer/end and member/service observations remain separate. The
+synthetic PBX has already answered the caller before entering the empty queue,
+so caller ANSWER is not queue-member service. No linkedid, timestamp, Local-half
+or bridge relationship is invented. Wait/position values stay raw, not metrics.
+Coverage stays unverified; independent CEL/queue gaps are retained.
+
+Stored v1-v4 documents remain readable without added fields or reinterpretation.
+Rebuilds append v5 with unchanged stable entity keys, raw history schema 5,
+projection schema 1 and existing bounds. Late ABANDON creates a new immutable
+revision; prior partial evidence remains inspectable.
+
+```powershell
+.\scripts\Test-QueueServiceEvidence.ps1 -Abandonment
+```
+
+This runs typecheck and **101 focused tests**: exactly ten new QA tests and all
+91 prior regressions, followed by a fresh owned two-customer proof covering
+timeout, member-ended service, caller-ended service and pre-connection hangup.
+The no-member abandon-queue uses a caller-side three-second Wait and ten-second
+Queue bound. Ordinary configurations/routes, live phones and frozen REFER
+fixtures remain unchanged. No packages, pulling or rebuilding are needed.
+
+Recorded `run-PIl5h8` (`asterisk-history-pil5h8`) retains **82 CEL records /
+14,583 bytes and 11 queue records / 736 bytes per customer**. The new visit emits
+only ENTERQUEUE -> ABANDON, member NONE, with parameters `1|1|2` / `1|1|3`.
+Caller uniqueids `1792921291.12` / `1792921292.12` stay in their customer scope.
+Each marked caller has nine CEL records:
+CHAN_START, HISTORY_ENTRY, ANSWER, HISTORY_QUEUE_VISIT, APP_START, APP_END,
+HANGUP, CHAN_END, LINKEDID_END. The latter is retained only as evidence,
+not a graph join; the harness also permits its absence on this caller if it
+belongs to a different Local leg.
+
+V5 revisions **7/8** preserve all three earlier journeys/keys and prior revisions,
+add one abandonment-observed visit with two queue references, and survive exact
+raw replay, persisted/offline CLI reads and scope denial. Genuine saved v1/v2/
+v3/v4 stores remain readable. Independent resource listings verify no owned
+containers/networks/volumes; generated configs/credentials are removed. Only
+ignored synthetic databases/reports remain. An initial discovery assertion
+expected eight caller records and failed on the real LINKEDID_END; the lifecycle
+check was corrected, the failed run cleaned up and fresh acceptance passed.
+
+See the [ten-test contract and results](./MILESTONE-1.md#selected-autonomous-batch-ten-pre-connection-hangup-acceptance-tests).
+No human intent, abandonment rate, end-to-end journey outcome, service audio,
+transfer or M1-06/07 completion is claimed.
+
 ## Caller-ended synthetic queue service
 
 QC-01 through QC-06 extend the isolated service proof with **post-CONNECT
@@ -25,7 +91,8 @@ Wait is bounded to twenty seconds. The Queue invocation is bounded to ten second
 The proof requires CONNECT before COMPLETECALLER and all owned channels to finish.
 No live phone, ordinary route or frozen REFER fixture changes.
 
-Current builds use **`marked-caller-v4`**. `visit.service.completion` additionally
+The QC increment introduced **`marked-caller-v4`**. Current v5 retains its
+semantics. `visit.service.completion` additionally
 supports `caller-ended-queue-service-observed`, only for the **sole** remaining
 record after a valid CONNECT, in the same queue source/generation, later in byte
 order, with the same member and exactly `hold|call|original-position`.
@@ -43,7 +110,7 @@ separate completion value to distinguish the recorded ending party. Transfers
 remain unsupported, durations remain raw and service quality remains
 `not-classified`, with completeness unverified and all independent gap warnings.
 
-Stored v1/v2/v3 revisions remain readable **as written**; rebuilding appends v4
+Stored v1-v4 revisions remain readable **as written**; rebuilding now appends v5
 without changing raw schema 5, projection schema 1 or `history-entity-v1` keys.
 An earlier v3 caller-completion observation stays unresolved when read; only a
 new rebuild can publish the newer interpretation. No silent document upgrade.
@@ -52,8 +119,9 @@ new rebuild can publish the newer interpretation. No silent document upgrade.
 .\scripts\Test-QueueServiceEvidence.ps1 -CallerEnded
 ```
 
-This runs typecheck and **91 focused tests** (six QC additions plus all 85 prior
-regressions), then a fresh owned two-customer proof covering timeout,
+The recorded QC run passed **91 focused tests** (six QC additions plus all 85
+prior regressions). The command now runs the current **101-test** suite, then
+a fresh owned two-customer proof covering timeout,
 member-ended service **and** caller-ended service. It uses the locally available
 pinned runtime, without pulling/building or touching the shared deployment.
 
@@ -80,8 +148,8 @@ operator projection observations. No real agent phone is enabled. Temporary
 service dialplan/queue configuration is mounted only in the owned proof; ordinary
 routes, the existing empty-queue timeout fixture and frozen REFER tests do not change.
 
-The QS increment introduced **`marked-caller-v3`**. Current builds use v4 as
-described above. Existing v1/v2/v3 revisions remain readable
+The QS increment introduced **`marked-caller-v3`**. Current builds use v5 as
+described above. Existing v1-v4 revisions remain readable
 without adding fields or rewriting their documents; rebuilding appends a new
 revision using unchanged `history-entity-v1` journey/visit keys. Raw history
 schema 5 and projection database schema 1 are unchanged.
@@ -109,8 +177,8 @@ The [service observer](./src/history-queue-service.ts) adds `visit.service`:
   COMPLETECALLER with
   the same member and exactly `hold|call|original-position` canonical unsigned
   safe integers, with positive original position. V4 adds the distinct
-  caller-ended value above; transfers, abandonment and other
-  unsupported/mismatched records remain explicit;
+  caller-ended value above; transfers and other unsupported/mismatched records
+  remain explicit. V5 handles ABANDON separately, never as service completion;
   competing terminals conflict. `queueEvidence` preserves their references.
 
 These observations are independent: a valid queue CONNECT/completion can remain
@@ -132,7 +200,7 @@ all new references; no truncation or partial publication is allowed.
 
 The recorded QS run passed **85 focused tests** (nine QS additions plus the 76
 existing history/collector regressions). The command now runs the current
-**91-test** suite, then the owned two-customer `--service` proof
+**101-test** suite, then the owned two-customer `--service` proof
 using the locally available pinned image without a pull or build.
 Recorded `run-n7q0gL` (`asterisk-history-n7q0gl`) retained **44 CEL records /
 7,497 bytes and six queue records / 370 bytes per customer**, with exact raw
@@ -231,9 +299,10 @@ Separate projection/diagnostic/agent/simulation formats are unchanged.
 
 The queue recovery increment introduced **`marked-caller-v2`**, with independent
 `kind:cel|queue` collector/gap observations in the input vector and current health
-output. Current `marked-caller-v4` retains that provenance and the separate
-service observations introduced by v3. Earlier v1/v2/v3 revisions remain
-readable; rebuilding appends v4 without rewriting history or prior revisions. The independent
+output. Current `marked-caller-v5` retains that provenance, separate service
+observations introduced by v3/v4 and the independent ABANDON observation.
+Earlier v1-v4 revisions remain readable; rebuilding appends v5 without rewriting
+history or prior revisions. The independent
 `history-entity-v1` journey/visit identity namespace is unchanged.
 Reading old schema-4 history remains possible: queue collection capability and
 quality explicitly say `unavailable-legacy-schema`, not healthy or gap-free.
@@ -316,8 +385,8 @@ interchangeable. Filesystem/CLI access is a trusted operator boundary, not tenan
 authentication or an approved sensitive-data export.
 
 Each revision returns ID, scope, publication time, algorithm
-`marked-caller-v4`, input SHA-256, projection SHA-256 and the document
-(earlier `marked-caller-v1`/`marked-caller-v2`/`marked-caller-v3` revisions remain readable).
+`marked-caller-v5`, input SHA-256, projection SHA-256 and the document
+(earlier `marked-caller-v1` through `marked-caller-v4` revisions remain readable).
 `revisions` returns metadata with `nextAfterId`; pass that cursor until null.
 Revision IDs are database-wide, not per-customer counters.
 An identical latest input/output reuses its revision (`reused:true`); late input
@@ -377,7 +446,8 @@ freshness fallback.
   EXITWITHTIMEOUT (`position|original-position|wait`) retain their existing
   member-`NONE` rules. V3 additionally recognizes the bounded CONNECT/
   COMPLETEAGENT observations above; v4 also supports COMPLETECALLER under the
-  same conservative terminal checks. No caller fields/durations are interpreted.
+  same conservative terminal checks. V5 supports ABANDON independently as
+  described above. No caller fields/durations are interpreted.
   A sole correctly ordered timeout in the same queue stream becomes
   `timeout-observed`. Unsupported/invalid evidence or competing terminals
   remain unresolved/conflicting. QUEUESTART stays administrative evidence.
@@ -386,7 +456,7 @@ freshness fallback.
   completed journey. Root state `marked-caller-observed` is an observation,
   **not a confirmed business journey count**. Visit states are `unresolved`,
   `conflicting`, `entry-observed`, `timeout-observed`, `connection-observed`
-  or `completion-observed`; the latter two are queue observations, not human
+  `completion-observed` or `abandonment-observed`; these are queue observations, not human
   service or whole-journey outcomes.
 
 Quality always says **completeness unverified** and **service not classified**.
@@ -396,7 +466,7 @@ or `unavailable-legacy-schema` for older history. CEL/queue gaps are preserved a
 otherwise `association-unknown`. No timestamp filter can erase them. A healthy
 collection after recovery does not clear gaps or establish complete coverage;
 absence of a configured collector is not healthy evidence.
-No human-service, caller-abandonment, transferred/answered business outcome,
+No human-service, whole-journey caller-abandonment, transferred/answered business outcome,
 journey-completion, durations, rates or totals are implemented.
 
 Bounds per rebuild: **20 source generations per kind**, **200 customer

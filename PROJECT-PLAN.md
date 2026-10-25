@@ -889,6 +889,59 @@ and [operator semantics](./README.md#caller-ended-synthetic-queue-service).
 Stop after this bounded increment. M1-06/07, human service, service media,
 pre-connection abandonment and broader journey/outcome acceptance remain open.
 
+### Autonomous ten-test pre-connection hangup batch completion
+
+The user authorized QA-01 through QA-10 as one batch without pauses between
+tests. It adds a temporary trusted no-member abandon-queue route: synthetic
+caller Wait ends after three seconds, before the ten-second Queue limit. The
+proof requires the actual ENTERQUEUE/ABANDON sequence with no CONNECT for that
+queue; it does not infer it from elapsed time. Ordinary routes, live phones
+and the frozen REFER matrix are unchanged.
+
+`marked-caller-v5` adds visit abandonment
+not-observed/observed/unresolved/conflicting, and abandonment-observed summary.
+A trusted marked caller/visit and unique ENTERQUEUE must have a sole later
+same-stream ABANDON, member NONE, with exact position/original-position/wait
+canonical unsigned safe integers and positive positions. Invalid/order/scope
+ambiguities remain unresolved; duplicate/mixed records conflict. A conflicting
+CONNECT retains its independent service/member facts. Nothing infers human
+intent, complete absence of service, whole-journey abandonment or business
+outcomes/metrics. Caller PBX answer/end remains independent; the fixture's
+caller is PBX-answered before Queue, not served by a queue member.
+
+Raw/projection schemas and stable keys do not change. Earlier v1-v4 documents
+remain readable as stored, without the new field or reinterpretation. Late
+ABANDON appends an immutable revision. Existing bounds, independent coverage/
+gaps, unclassified service and unverified completeness remain in force.
+
+Typecheck and **101 focused tests** pass: exactly ten new QA tests plus all 91
+existing regressions. These cover the pinned shape, trusted attribution,
+no competing service/terminal record, independent caller lifecycle, exact raw
+replay/atomic malformed-batch rollback, conservative semantics/gaps, malformed
+numbers/member/order, duplicate/mixed conflicts, scope isolation and stable
+late revisions with byte-preserved v1-v4/offline reads.
+
+Real `run-PIl5h8` (`asterisk-history-pil5h8`) retains **82 CEL records / 14,583
+bytes and 11 queue records / 736 bytes per customer**, including all prior
+timeout/member-ended/caller-ended regressions. New caller IDs
+`1792921291.12` / `1792921292.12` each have nine scoped CEL refs and a two-record
+ENTERQUEUE/ABANDON sequence with parameters `1|1|2` / `1|1|3`.
+The observed LINKEDID_END is retained, not used to join channels. Initial
+discovery exposed that extra caller record; its overstrict assertion was
+corrected, failed owned resources cleaned and fresh acceptance passed.
+
+Revisions **7/8** preserve all earlier journeys/keys/revisions; exact raw replay,
+persisted/offline CLI reads, foreign denial and independent resource absence
+checks pass. Actual historical v1/v2/v3/v4 stores still read under v5.
+Generated credentials/configs are removed; ignored synthetic evidence remains.
+
+Reproduce with `.\scripts\Test-QueueServiceEvidence.ps1 -Abandonment`; see
+[QA contract/results](./MILESTONE-1.md#selected-autonomous-batch-ten-pre-connection-hangup-acceptance-tests)
+and [observation semantics](./README.md#ten-test-batch-pre-connection-queue-abandonment-observations).
+The agreed ten-test batch is complete; stop before expanding scope. Human
+service, service audio, whole-journey outcomes, totals, remote delivery/retention
+and M1-06/07 remain incomplete.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:

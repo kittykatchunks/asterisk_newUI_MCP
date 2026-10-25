@@ -1431,6 +1431,93 @@ and reports remain. Reproduce with
 Stop here: M1-06/07, live/human service, pre-connection abandonment, production
 delivery and broad journey/outcome acceptance remain incomplete. No REFER rerun.
 
+### Selected autonomous batch: ten pre-connection hangup acceptance tests
+
+The user authorized the following ten focused tests as one coherent increment,
+without pausing between tests. Scope is isolated queue ABANDON observations,
+not caller intent, whole-journey abandonment, business outcomes or service media.
+
+| Test | Finite acceptance scope |
+|---|---|
+| QA-01 | Pin exact real ABANDON shape; recognize only member NONE, positive current/original positions and unsigned safe-integer wait. |
+| QA-02 | Require a trusted marked caller/visit, unique visit and unique ENTERQUEUE; orphan/re-entry candidates stay unresolved. |
+| QA-03 | Only a sole ordered same-stream ABANDON without CONNECT/COMPLETE/other terminals supplies abandonment observation; retained absence is not complete coverage. |
+| QA-04 | Caller PBX answer/end and queue abandonment remain independent; partial caller lifecycle never fabricates negative service/human facts. |
+| QA-05 | Exact raw byte replay inserts zero; malformed raw batches cannot advance checkpoints. |
+| QA-06 | V5 adds explicit queue abandonment observation with no new root, human intent, totals, metrics or overall outcome; gaps/bounds remain conservative. |
+| QA-07 | Malformed parameter counts, placeholders, unsafe/noncanonical integers, bad order and wrong member stay unresolved with references. |
+| QA-08 | Duplicate/mixed ABANDON, timeout, CONNECT and completion candidates remain explicit conflicts, preserving independent service facts. |
+| QA-09 | Customer/runtime/epoch/source/generation and unassigned evidence cannot cross-attribute; equal IDs in separately manifested epochs remain separate. |
+| QA-10 | Late evidence appends immutable revisions with stable keys; earlier v1-v4 reads stay unchanged; persisted/offline scope checks and real owned cleanup pass. |
+
+Real proof must include both customers and prior timeout/member-ended/caller-ended
+regressions, marker order, exact caller CEL, raw replay and independently absent
+owned resources. No ordinary route changes, live phones or frozen REFER reruns.
+Stop after QA-01 through QA-10, document measured limits, commit and push.
+
+Implemented and verified: **all ten QA tests pass**, alongside all 91 previous
+focused history/projection/collector regressions (**101 total**) and typecheck.
+This does not complete any broader journey, human-service or M1 outcome gate.
+
+The pinned fixture uses a temporary no-member queue and a trusted abandon-v1
+route, caller-side Wait 3 and Queue limit 10. Actual records, not elapsed time,
+prove ENTERQUEUE then ABANDON with member NONE and no CONNECT in that selected
+queue sequence. Caller entry precedes PBX Answer; visit precedes Queue.
+Caller ANSWER is not a member answer. The actual nine caller records include
+LINKEDID_END; initial discovery incorrectly expected eight and failed. The
+assertion now retains an optional final LINKEDID_END without deriving a join,
+and fresh acceptance passes after both failed and successful owned cleanups.
+
+V5 supports `visit.abandonment:not-observed|observed|unresolved|conflicting`.
+A sole ordered same-stream ABANDON with exact position/original-position/wait
+unsigned canonical safe integers and positive positions yields observed and
+summary abandonment-observed. Missing/foreign evidence cannot supply it.
+Bad member/shape/order stays unresolved; any mixed/duplicate candidates conflict.
+Separate service/member facts remain visible if contradictory CONNECT exists.
+No inference of human intent, full negative service evidence, whole-journey
+outcome, durations, rate or total. Caller answer/end remains independent.
+
+| Test | Verified result |
+|---|---|
+| QA-01 | Actual pinned three-field ABANDON shape and independent explicit observation; zero wait supported. |
+| QA-02 | Orphan/pre-root/post-end/invalid markers, repeated visits and missing/duplicate entries cannot acquire abandonment. |
+| QA-03 | Reversed order and foreign source/generation remain unresolved; no CONNECT observation does not establish completeness. |
+| QA-04 | Caller answer/end independently observed or absent; no fabricated member identity or outcome. |
+| QA-05 | Exact CEL/queue replay inserts zero; malformed appended raw batch atomically preserves evidence/checkpoint. |
+| QA-06 | No extra root, human intent, totals or metrics; independent permanent gaps and conservative quality retained. |
+| QA-07 | Wrong member, bad field counts, negative/decimal/unsafe/noncanonical/missing numbers retain explicit unresolved evidence. |
+| QA-08 | Duplicate ABANDON and mixed timeout/CONNECT/completions/unsupported records conflict; independent valid CONNECT/member facts retained. |
+| QA-09 | Unassigned/foreign customer/runtime/epoch evidence excluded; same IDs in separate same-generation epoch ranges remain separate. |
+| QA-10 | Late ABANDON creates stable immutable v5 revision, v1-v4 stored bytes retained; replay, reopen/offline and scope denial pass. |
+
+Raw schema 5, projection schema 1, history-entity-v1 keys and bounded input/
+reference/document limits remain unchanged. Genuine retained v1-v4 stores were
+also read under v5 without migration or rewritten interpretation.
+
+Recorded real `run-PIl5h8` (`asterisk-history-pil5h8`):
+
+| Observation | Customer A | Customer B |
+|---|---|---|
+| Exact durable CEL | 82 records / 14,583 bytes | 82 records / 14,583 bytes |
+| Exact durable queue | 11 records / 736 bytes | 11 records / 736 bytes |
+| New caller uniqueid | `1792921291.12` | `1792921292.12` |
+| Queue sequence | ENTERQUEUE, ABANDON | Same |
+| ABANDON raw params | `1|1|2` | `1|1|3` |
+| Caller CEL refs | 9 including LINKEDID_END | Same |
+| V5 revision | 7 | 8 |
+| Visit abandonment / summary | observed / abandonment-observed | Same |
+| Member / service completion | not observed | not observed |
+
+Earlier timeout/member-ended/caller-ended journeys/keys/revisions are unchanged.
+Exact raw round trips, zero-insert replay, immutable rebuild reuse, persisted/
+offline CLI reads and scope denial pass. Independently list owned resources
+after down: no containers/networks/volumes remain for either discovery or final
+acceptance. Temporary configurations/credentials are removed; only ignored
+synthetic databases/reports remain. Reproduce with
+`.\scripts\Test-QueueServiceEvidence.ps1 -Abandonment`.
+The autonomous ten-test batch stops here. No live phones, ordinary routing or
+frozen REFER changes; no human, whole-journey/business outcome or M1-06/07 claim.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
