@@ -57,9 +57,7 @@ def arguments(image, name, owner, root):
     ]
 
 
-def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswered_call=False):
-    if sum([local_call, answer_call, unanswered_call]) > 1:
-        raise ValueError("Select exactly one functional call fixture")
+def verify_image():
     build = runtime.read_json(runtime.HERE / "image-build-validation-nss.json")
     payload_path = runtime.HERE / "image-payload-validation-nss.json"
     if runtime.digest(payload_path) != build["evidence"][payload_path.name]["sha256"]:
@@ -74,6 +72,10 @@ def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswe
     if (inspected["Id"] != image or inspected["Config"]["Entrypoint"] != runtime.ENTRYPOINT
             or inspected["Config"]["Cmd"] != runtime.COMMAND):
         raise ValueError("Local image identity/config mismatch")
+    return image, payload_path
+
+
+def prepare_fixture(root):
     root.mkdir()
     runtime.fixture(root)
     config = root / "etc/asterisk.conf"
@@ -83,6 +85,13 @@ def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswe
     content = content.replace("/state/keys", "/fixture/keys")
     config.write_text(content)
     (root / "etc/keys/keys").mkdir(parents=True)
+
+
+def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswered_call=False):
+    if sum([local_call, answer_call, unanswered_call]) > 1:
+        raise ValueError("Select exactly one functional call fixture")
+    image, payload_path = verify_image()
+    prepare_fixture(root)
     if local_call:
         runtime_local_call.prepare(root)
     if answer_call:

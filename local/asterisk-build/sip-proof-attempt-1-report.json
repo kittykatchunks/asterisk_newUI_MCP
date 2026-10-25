@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "stage": "custom-image-isolated-sip-rtp-proof",
+  "passed": false,
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "carrierImageId": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "payloadValidationSha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3",
+  "owner": "b8f70e0694b14722a1cc2019d265883a",
+  "networkName": "asterisk-sip-b8f70e0694b1",
+  "diagnostics": [],
+  "phases": [
+    {
+      "client": {
+        "phase": "wrong-register",
+        "code": 401
+      },
+      "contacts": []
+    }
+  ],
+  "registrationPassed": false,
+  "mediaPassed": false,
+  "sipTested": true,
+  "mediaTested": false,
+  "existingPbxOperated": false,
+  "runtimeApplyAuthorized": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false,
+  "toolHashes": {
+    "local\\asterisk-build\\sip-proof.py": "71a6f328c5ba4823738af9e55b6743e0d27abd0ab7f09b9cd902b8b07a67ddd9",
+    "local\\asterisk-build\\smoke-desktop.py": "928bcaa91d7aa0de85b2a6bb0062ec6adbf688535da310ddefc5158d5cf4edc6",
+    "tests\\sip_candidate_client.py": "8fcd2d9ef44f1a7be64729d70ef0b445bbc825e0a9f075e291945a56b3e186a7",
+    "tests\\sip_rtp_proof.py": "736a651a97212fbad5f9bf16539afc81ec6f656ee8f07a77699243452c1a64da"
+  },
+  "toolCanonicalLfHashes": {
+    "local\\asterisk-build\\sip-proof.py": "3aa7a780eb8927f79fc1a371a493f72247bce258c3eff579c164b7da81b60778",
+    "local\\asterisk-build\\smoke-desktop.py": "69a53b84d5c3088d90916240aef81e48f12d103fa745e54092af471ce08c486e",
+    "tests\\sip_candidate_client.py": "769c4031eaa7672c81e4c62fda24f0bb5280e3f79fb9fe7148e0237d71ff824b",
+    "tests\\sip_rtp_proof.py": "52ba4a9eba0da99b23ce84152e9dd1a0600bff2d6ad3bc313302ddc81c166892"
+  },
+  "sanitizedConfiguration": "[global]\ntype=global\nuser_agent=Asterisk-Isolated-Candidate\n[transport-udp]\ntype=transport\nprotocol=udp\nbind=0.0.0.0:5060\n[proof-client]\ntype=endpoint\ntransport=transport-udp\ncontext=isolated-sip-proof\ndisallow=all\nallow=ulaw\nauth=proof-client-auth\naors=proof-client\ndirect_media=no\ndtmf_mode=none\nrtp_symmetric=yes\nforce_rport=yes\nrewrite_contact=yes\n[proof-client]\ntype=aor\nmax_contacts=1\nminimum_expiration=1\nmaximum_expiration=60\ndefault_expiration=60\nqualify_frequency=0\n[proof-client-auth]\ntype=auth\nauth_type=userpass\nusername=proof-client\npassword=[ephemeral-secret-not-exported]\n",
+  "initialInventory": {
+    "containers": [
+      "1f30325d2a83fb095fc213dc6a55298c0cca361702959818ddb5d41774a7a2d7 asterisk-local-proof-customer-a-1 exited",
+      "a56a2884873e8685253d0f66994d8f872187a1c5287b65a5583755a58b610569 asterisk-local-proof-customer-b-1 exited",
+      "50d93dc9b15a0826a7faa653ca03c9c9ecda2a6c3db9245b4bb55b8d28c9676c asterisk-local-proof-sip-test-a-1 exited",
+      "09df44de4703800295dfd49d3ec3c7d48b36bca19103ce79f85d32e9a8a0616d phantom exited"
+    ],
+    "networks": [
+      "86a3f73698b2c9549cadaf230d6ff7a94f580f57365e529271155d6490f9dd6f asterisk-local-proof_customer-a",
+      "07d41b3d60c066e67e5d27d5e51b0a6a7eadfe28e4a3433c4e6c9bc866893ad3 asterisk-local-proof_customer-b",
+      "f2afe53aba5693f84ad37979c480ec98679b5816c6dedc96cf0ec74b8efff8c1 asterisk-local-proof_webrtc-a",
+      "069f6385d5ec1c430712a427edab54d671849e812b3b2935661dde8ef15390f2 asterisk-local-proof_webrtc-b",
+      "3858a104bf18b3f8c9387564f58d55cb08533feae9c26a09bd99f63aee9e965c asteriskcalllogging_default",
+      "34b57e2693a1b8c16c4aaa95be70486a4e9059a7bc02e89a7fcffc3b3286ac35 bridge",
+      "2ef46a16a6ac3960ba6c0cc6976a768e7d820cca475a1a9f30f28d989742ff4b host",
+      "eee3999fe19301e068da374a55fd7352f0ae16ed1b88cc105f80067aac3bc5b0 none"
+    ]
+  },
+  "networkId": "27bb96377f07e0230092b5cc94c54700d3f417655c705b6eb3ba64879d4ab89e",
+  "limits": {
+    "pbx": {
+      "NetworkMode": "asterisk-sip-b8f70e0694b1",
+      "ReadonlyRootfs": true,
+      "Privileged": false,
+      "Memory": 4294967296,
+      "MemorySwap": 4294967296,
+      "NanoCpus": 4000000000,
+      "PidsLimit": 256
+    },
+    "client": {
+      "NetworkMode": "asterisk-sip-b8f70e0694b1",
+      "ReadonlyRootfs": true,
+      "Privileged": false,
+      "Memory": 134217728,
+      "MemorySwap": 134217728,
+      "NanoCpus": 500000000,
+      "PidsLimit": 32
+    }
+  },
+  "containerIds": {
+    "pbx": "0ebf9220eb1aed8e9aa1e80e07b47b712ac6be7a33d39749c0ac608d1d816985",
+    "client": "2fb8ca74154bf8aabc9a9cef2cd94da951226a50a46ce3fb189c2d577daab305"
+  },
+  "loadedModules": [
+    "app_celgenuserevent.so",
+    "app_dial.so",
+    "app_echo.so",
+    "app_mixmonitor.so",
+    "app_playtones.so",
+    "app_queue.so",
+    "app_stack.so",
+    "app_waitforsilence.so",
+    "bridge_native_rtp.so",
+    "bridge_simple.so",
+    "bridge_softmix.so",
+    "cel_custom.so",
+    "chan_pjsip.so",
+    "codec_alaw.so",
+    "codec_resample.so",
+    "codec_ulaw.so",
+    "format_wav.so",
+    "func_callerid.so",
+    "func_channel.so",
+    "func_strings.so",
+    "pbx_config.so",
+    "res_cdrel_custom.so",
+    "res_clioriginate.so",
+    "res_crypto.so",
+    "res_http_websocket.so",
+    "res_pjproject.so",
+    "res_pjsip.so",
+    "res_pjsip_authenticator_digest.so",
+    "res_pjsip_endpoint_identifier_user.so",
+    "res_pjsip_header_funcs.so",
+    "res_pjsip_pubsub.so",
+    "res_pjsip_registrar.so",
+    "res_pjsip_sdp_rtp.so",
+    "res_pjsip_session.so",
+    "res_pjsip_transport_websocket.so",
+    "res_rtp_asterisk.so",
+    "res_sorcery_astdb.so",
+    "res_sorcery_config.so",
+    "res_sorcery_memory.so",
+    "res_srtp.so",
+    "res_timing_timerfd.so"
+  ],
+  "testCommandAbsent": true,
+  "networkSettings": {
+    "internal": true,
+    "driver": "bridge",
+    "publishedPorts": 0,
+    "peers": {
+      "pbx": "172.23.0.2",
+      "client": "172.23.0.3"
+    }
+  },
+  "sipAttempted": true,
+  "failure": "ValueError('Dynamic contact does not match sole client address/port')",
+  "ownedContainersRemoved": true,
+  "ownedResourcesRemoved": true,
+  "finalInventory": {
+    "containers": [
+      "1f30325d2a83fb095fc213dc6a55298c0cca361702959818ddb5d41774a7a2d7 asterisk-local-proof-customer-a-1 exited",
+      "a56a2884873e8685253d0f66994d8f872187a1c5287b65a5583755a58b610569 asterisk-local-proof-customer-b-1 exited",
+      "50d93dc9b15a0826a7faa653ca03c9c9ecda2a6c3db9245b4bb55b8d28c9676c asterisk-local-proof-sip-test-a-1 exited",
+      "09df44de4703800295dfd49d3ec3c7d48b36bca19103ce79f85d32e9a8a0616d phantom exited"
+    ],
+    "networks": [
+      "86a3f73698b2c9549cadaf230d6ff7a94f580f57365e529271155d6490f9dd6f asterisk-local-proof_customer-a",
+      "07d41b3d60c066e67e5d27d5e51b0a6a7eadfe28e4a3433c4e6c9bc866893ad3 asterisk-local-proof_customer-b",
+      "f2afe53aba5693f84ad37979c480ec98679b5816c6dedc96cf0ec74b8efff8c1 asterisk-local-proof_webrtc-a",
+      "069f6385d5ec1c430712a427edab54d671849e812b3b2935661dde8ef15390f2 asterisk-local-proof_webrtc-b",
+      "3858a104bf18b3f8c9387564f58d55cb08533feae9c26a09bd99f63aee9e965c asteriskcalllogging_default",
+      "ff9770c2e4cc0abac065bbcac3b0d7e720cc5e7012e49a82bdc301536d536097 bridge",
+      "2ef46a16a6ac3960ba6c0cc6976a768e7d820cca475a1a9f30f28d989742ff4b host",
+      "eee3999fe19301e068da374a55fd7352f0ae16ed1b88cc105f80067aac3bc5b0 none"
+    ]
+  },
+  "cleanupFailure": "ValueError('Existing-resource inventory changed or watchdog expired')",
+  "credentialFilesRemoved": true,
+  "watchdogExpired": false,
+  "elapsedSeconds": 13.672,
+  "incrementalStorageBytes": 20614
+}

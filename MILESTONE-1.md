@@ -2597,17 +2597,27 @@ separately. **50 offline Python tests and 30 source/evidence tests pass.**
 No SIP/media, human behavior, rebuild, existing-container change or Gate C
 is implied. See the [handoff](./PROJECT-PLAN.md#custom-image-synthetic-unanswered-member-timeout-and-cleanup-passed).
 
-### Custom-image SIP registration/RTP proof proposed only
+### Custom-image SIP attempt 1 stopped at contact verification
 
-Read-only inspection identified reusable Python SIP/RTP and TypeScript
-registration probes. The [bounded proposal](./PROJECT-PLAN.md#proposed-custom-image-sip-registration-and-rtp-echo-proof-not-authorized)
-selects one custom-image PBX, one pinned Python client carrier and a fresh
-internal Docker network with no published ports. It defines authentication,
-contact lifecycle, INVITE/BYE, PCMU echo and complete owned-resource cleanup
-checks. No existing customer wrapper will run: it recreates named PBXs and
-leaves them running. No network/container startup, generated credentials,
-dependency changes or SIP/media execution occurred. Separate approval is
-required; this is not Gate C or multi-customer isolation proof.
+After the separate proposal, the user approved implementation/offline tests
+and one bounded network/runtime attempt. The new harness ran one custom PBX
+and one pinned Python-only client carrier, with no published ports, external
+trunks, image rebuild/pull or dependency installation. Startup verified all
+41 required modules. Wrong-secret REGISTER returned 401 with no contact;
+correct-secret REGISTER returned client-observed 200 with 59-second expiry.
+The host dynamic-contact assertion then failed; the actual row was not
+captured, so a parser-versus-contact mismatch is **not proven**. No
+unregistration, INVITE or RTP followed and the proof is not passed.
+
+Owned containers/network/credentials were removed after 13.672 seconds.
+Four existing container IDs/names/states and named customer-network IDs were
+unchanged. Docker's built-in bridge ID changed unexpectedly; cause and
+attribution remain unproven. No foreign-resource repair or retry occurred.
+The [handoff and immutable evidence](./PROJECT-PLAN.md#custom-image-sip-attempt-1-stopped-at-contact-verification)
+record the primary failure plus inventory failure. Diagnostic capture and
+primary-exception preservation were then improved **offline only**; another
+runtime attempt requires approval. Gate A/Gate C and production authority
+remain unchanged.
 
 ## 6. Proposed implementation backlog
 

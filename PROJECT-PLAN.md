@@ -4833,7 +4833,7 @@ Gate C. Deployment and redistribution/source-license closure remain separate.
 
 ##### Proposed custom-image SIP registration and RTP echo proof: not authorized
 
-**Status: proposal only.** The user requested investigation and a concrete
+**Historical status at proposal publication: proposal only.** The user requested investigation and a concrete
 isolated protocol-test proposal, not network/container execution. This step
 read repository fixtures and local image metadata only. It did not start
 containers/builders, create a network, generate credentials, install packages,
@@ -4993,6 +4993,79 @@ failure; do not automatically expand into retries, more PBXs, real trunks,
 WebRTC/TLS/SRTP, production deployment or Gate C. This proposal creates no
 new runtime evidence and leaves all previous acceptance/redistribution limits
 unchanged.
+
+##### Custom-image SIP attempt 1: stopped at contact verification
+
+The user subsequently approved harness implementation/offline tests and
+**one** bounded internal-network SIP/RTP attempt. Approval did not cover
+automatic retries. [The new orchestrator](./local/asterisk-build/sip-proof.py)
+reuses the Desktop image/fixture checks; the old no-network runner retains its
+default behavior. [The isolated client](./tests/sip_candidate_client.py) adds
+method-aware REGISTER digest support using the existing INVITE/RTP probe,
+with phase acknowledgements for independent PBX observations. The carrier
+entrypoint is explicitly Python, not a second PBX. No existing Compose
+wrapper, frozen REFER/browser proof or customer fixture was operated.
+
+**Executed attempt:** one custom-image PBX and one pinned Python carrier,
+one unique internal bridge, zero published ports. Inspected limits matched
+4.5 aggregate CPU-equivalents, 4 GiB + 128 MiB RAM, no extra swap and
+288 tasks. Both roots were read-only/non-root with capabilities dropped,
+no-new-privileges and bounded logging. The builder remained stopped; no
+image rebuild, pull or dependency install occurred.
+
+- All **41** required release modules were Running, the test command absent,
+  and initial loaded queue policy matched.
+- Wrong-secret REGISTER returned **401**, with host-observed no contacts
+  and zero channels.
+- The client recorded correct-secret REGISTER **200**, accepted contact
+  expiry **59 seconds**, from the expected private client/PBX addresses.
+- The next host contact assertion failed before acknowledging registration.
+  **The actual contact CLI output was not retained.** A formatting/parser
+  mismatch is possible but not established; a genuine contact mismatch cannot
+  be excluded. A SIP 200 alone does not complete contact-lifecycle acceptance.
+- No INVITE, authenticated unregistration or RTP was executed. Neither the
+  registration proof nor end-to-end/media proof passed; no clean graceful
+  process exit is claimed for failure-path forced cleanup.
+
+The attempt ended after **13.672 seconds**, without watchdog expiry. Both
+owned containers and the owned network were removed, then both generated
+credential files deleted. Four pre-existing container IDs/names/states were
+identical before/after and remain stopped. Existing named customer networks
+retained their IDs. **The built-in Docker `bridge` ID changed** from
+`34b57e2693a1b8c16c4aaa95be70486a4e9059a7bc02e89a7fcffc3b3286ac35`
+to `ff9770c2e4cc0abac065bbcac3b0d7e720cc5e7012e49a82bdc301536d536097`.
+Its cause and attribution are unproven; do not claim that all pre-existing
+networks or bridge configuration/attachments were preserved. The orchestrator
+issued no bridge recreation/repair command, and no foreign-resource repair was
+attempted. The strict final inventory comparison failed rather than silently
+ignoring this change.
+
+[Validation summary](./local/asterisk-build/sip-proof-validation.json) binds
+the **byte-exact original failed host report** and Linux client registration
+phase by SHA-256. The host report's Windows CRLF bytes are intentionally
+preserved by a file-specific Git no-normalization attribute; it is not reserialized.
+It records both primary contact failure and secondary inventory failure;
+the latter superseded the original console traceback. Original tool hashes
+describe the executed version; a matching entrypoint snapshot and sanitized
+logs remain private, without generated secrets.
+
+**Offline-only follow-up:** preserve bounded PJSIP CLI observations and
+last client progress before contact validation, and preserve the primary
+exception when inventory/cleanup also fails. Regression tests cover this
+dual-failure case, secret-safe output, method/URI/qop digest inputs,
+challenge rejection, contact expiry, peer/codec/port validation, malformed
+RTP, correlation/deadlines, ownership-safe cleanup and actual synthetic
+echo-loop **69 fails / 70 passes / 100 passes** threshold edges.
+These improvements were not run against another container.
+Final validation passed **60 offline Python tests and 31 source/evidence
+tests**, including byte-exact failed-report hashes. This does not replace
+the failed runtime acceptance.
+
+**Next boundary:** stop and report, as approved. A further attempt needs
+explicit approval, should capture the contact row, and must retain strict
+inventory checks until the default-bridge discrepancy is understood. No
+Gate A completion, Gate C, production SIP/media quality, redistribution or
+deployment authority follows from this partial attempt.
 
 ## 8. AI assistance, MCP, reports, and wallboards
 

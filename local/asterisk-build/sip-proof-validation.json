@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "stage": "custom-image-isolated-sip-attempt-failed-at-contact-verification",
+  "passed": false,
+  "authorizedAttempts": 1,
+  "executedAttempts": 1,
+  "retryAuthorized": false,
+  "offlineValidation": {
+    "pythonTestsPassed": 60,
+    "sourceEvidenceTestsPassed": 31,
+    "postAttemptDiagnosticRevisionRuntimeExecuted": false
+  },
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "carrierImageId": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "evidence": {
+    "sip-proof-attempt-1-report.json": {
+      "sha256": "5b37f43ba1c6e1b4f805ae656bc1236a823dba100f4571c1958bf2a55edd120a",
+      "description": "Byte-exact original failed host report. Git text conversion is disabled for this CRLF transport evidence."
+    },
+    "sip-proof-attempt-1-registered.json": {
+      "sha256": "5cc053a7bdaae232d387a458da8c69a4731f13cd094c7c95bc7193b92ea3a7e5",
+      "description": "Byte-exact Linux client phase: wrong-secret REGISTER 401 followed by correct-secret REGISTER 200, expiry 59 seconds; host contact assertion not accepted."
+    }
+  },
+  "runtime": {
+    "loadedModulesRunning": 41,
+    "testCommandAbsent": true,
+    "initialQueuePolicyMatched": true,
+    "internalNetworkVerified": true,
+    "ownedPbxContainers": 1,
+    "ownedPythonClientContainers": 1,
+    "publishedPorts": 0,
+    "cpuEquivalents": 4.5,
+    "memoryBytes": 4429185024,
+    "additionalSwapBytes": 0,
+    "pidsLimitTotal": 288,
+    "watchdogExpired": false,
+    "elapsedSeconds": 13.672
+  },
+  "outcomes": {
+    "wrongSecretRegisterCode": 401,
+    "wrongSecretCreatedContact": false,
+    "correctSecretRegisterCode": 200,
+    "clientReportedContactExpirySeconds": 59,
+    "hostContactVerificationPassed": false,
+    "registrationProofPassed": false,
+    "unregistrationExecuted": false,
+    "inviteExecuted": false,
+    "rtpExecuted": false,
+    "mediaProofPassed": false,
+    "cleanProcessExitVerified": false
+  },
+  "failure": {
+    "primary": "Host dynamic-contact assertion failed after client reported correct-secret REGISTER 200. Exact contact CLI output was not captured by attempt 1; parser mismatch versus actual contact mismatch cannot be distinguished.",
+    "primaryRootCauseProven": false,
+    "secondary": "Final inventory comparison failed: Docker built-in bridge retained its name but changed ID. Cause and attribution are unproven. No operation to change/recreate that built-in bridge was issued by the harness; do not infer its configuration or attachments were preserved.",
+    "secondaryRootCauseProven": false,
+    "originalExceptionMasking": "Original CLI traceback was superseded by the final inventory exception; both failures remain in the immutable host report."
+  },
+  "cleanup": {
+    "ownedPbxRemoved": true,
+    "ownedClientRemoved": true,
+    "ownedNetworkRemoved": true,
+    "generatedCredentialFilesRemoved": true,
+    "preExistingFourContainerIdsNamesAndStatesUnchanged": true,
+    "preExistingNamedCustomerNetworkIdsUnchanged": true,
+    "allPreExistingNetworkIdsUnchanged": false,
+    "foreignResourceRepairAttempted": false,
+    "privateSanitizedLogsRetained": true
+  },
+  "postAttemptOfflineChanges": [
+    "Capture bounded nonsecret PJSIP CLI observations and last client progress before contact validation.",
+    "Preserve the primary exception when a secondary cleanup/inventory check fails.",
+    "Extend mocked regressions for simultaneous contact and inventory failures.",
+    "These changes were offline-tested only; historical attempt tool hashes describe the attempt version, not the later diagnostic revision. The executed Python entrypoint snapshot is retained privately with the failed attempt."
+  ],
+  "existingPbxOperated": false,
+  "runtimeApplyAuthorized": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false
+}

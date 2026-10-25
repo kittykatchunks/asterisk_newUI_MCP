@@ -19,7 +19,9 @@ def require(condition, message):
 
 
 def parse_message(data):
-    head, _, body = data.decode("utf-8").partition("\r\n\r\n")
+    require(len(data) <= 8192, "SIP packet exceeds 8192 bytes")
+    head, separator, body = data.decode("utf-8").partition("\r\n\r\n")
+    require(separator, "Missing SIP header/body delimiter")
     lines = head.split("\r\n")
     headers = {}
     for line in lines[1:]:
@@ -43,7 +45,8 @@ def read_password(path):
     return password
 
 
-def authorization(challenge, password, uri):
+def authorization(challenge, password, uri, method="INVITE"):
+    require(method in ("INVITE", "REGISTER"), "Unsupported digest method")
     require(challenge.startswith("Digest "), "Expected Digest challenge")
     fields = dict(
         (match[0].lower(), match[1] or match[2])
@@ -52,7 +55,7 @@ def authorization(challenge, password, uri):
     require(fields.get("algorithm", "MD5").upper() == "MD5", "Probe supports MD5 digest only")
     md5 = lambda value: hashlib.md5(value.encode()).hexdigest()
     ha1 = md5(f"proof-client:{fields['realm']}:{password}")
-    ha2 = md5(f"INVITE:{uri}")
+    ha2 = md5(f"{method}:{uri}")
     parts = [
         'username="proof-client"', f'realm="{fields["realm"]}"',
         f'nonce="{fields["nonce"]}"', f'uri="{uri}"', "algorithm=MD5",
@@ -68,6 +71,26 @@ def authorization(challenge, password, uri):
     if "opaque" in fields:
         parts.append(f'opaque="{fields["opaque"]}"')
     return "Digest " + ", ".join(parts)
+
+
+def rtp_payload(data):
+    require(len(data) < 4096, "RTP packet reaches receive buffer limit")
+    require(len(data) >= 12 and data[0] >> 6 == 2, "Malformed RTP packet")
+    require(data[1] & 0x7F == 0, "Unexpected RTP payload type")
+    offset = 12 + 4 * (data[0] & 0x0F)
+    require(len(data) >= offset, "Truncated RTP CSRC list")
+    if data[0] & 0x10:
+        require(len(data) >= offset + 4, "Truncated RTP extension")
+        offset += 4 + 4 * struct.unpack("!H", data[offset + 2:offset + 4])[0]
+    require(len(data) >= offset, "Truncated RTP extension data")
+    padding = data[-1] if data[0] & 0x20 else 0
+    require(not data[0] & 0x20 or 0 < padding <= len(data) - offset, "Invalid RTP padding")
+    return data[offset:len(data) - padding]
+
+
+def validate_echo_count(sent, matched):
+    require(sent == 100 and 70 <= matched <= sent,
+            f"Only {matched}/{sent} distinct outbound PCMU frames echoed; require 70/100")
 
 
 def verify_rtp_echo(sip, rtp, call_id, receive_sip):
@@ -94,18 +117,10 @@ def verify_rtp_echo(sip, rtp, call_id, receive_sip):
                 receive_sip()
                 continue
             data = sock.recv(4096)
-            require(len(data) >= 12 and data[0] >> 6 == 2, "Malformed RTP packet")
-            require(data[1] & 0x7F == 0, "Unexpected RTP payload type")
-            offset = 12 + 4 * (data[0] & 0x0F)
-            if data[0] & 0x10:
-                require(len(data) >= offset + 4, "Truncated RTP extension")
-                offset += 4 + 4 * struct.unpack("!H", data[offset + 2:offset + 4])[0]
-            end = len(data) - (data[-1] if data[0] & 0x20 else 0)
-            payload = data[offset:end]
+            payload = rtp_payload(data)
             if payload in outbound:
                 received.add(payload)
-    require(len(received) >= 70,
-            f"Only {len(received)}/100 distinct outbound PCMU frames echoed; require 70")
+    validate_echo_count(len(outbound), len(received))
     return len(received)
 
 

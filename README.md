@@ -589,13 +589,18 @@ The container exited zero and was removed. See the
 No SIP, media, human-agent behavior, image rebuild or existing-container change
 is claimed.
 
-**[The next custom-image SIP/RTP test is proposed, not executed](./PROJECT-PLAN.md#proposed-custom-image-sip-registration-and-rtp-echo-proof-not-authorized).**
-Repository probes can be reused in a fresh one-PBX/one-client internal network,
-without published ports or touching existing customer containers. The proposal
-defines digest rejection/registration/unregistration, authenticated INVITE/BYE,
-and the existing **70-of-100 distinct synthetic PCMU frame** echo threshold.
-It requires separate execution approval; no network, container, credential,
-SIP packet or media was created for this proposal.
+**[One approved custom-image SIP attempt stopped at contact verification](./PROJECT-PLAN.md#custom-image-sip-attempt-1-stopped-at-contact-verification).**
+The harness and offline tests are implemented. A fresh one-PBX/one-Python-client
+internal network verified the 41-module startup, rejected a wrong-secret
+REGISTER with 401, and the client received correct-secret REGISTER 200 with
+59-second expiry. Host contact verification failed: the actual CLI contact row
+was not retained, so its root cause remains unproven. **No INVITE or RTP was
+reached, and the registration proof did not pass.** Both owned containers,
+network and credentials were removed; the four existing containers remain
+stopped. Docker's default bridge ID unexpectedly changed; its cause and
+attribution are unproven and it was not repaired. No retry occurred or is
+authorized. [Exact failed evidence](./local/asterisk-build/sip-proof-validation.json)
+preserves both failures; follow-up diagnostic changes were offline-tested only.
 
 ## Isolated PBX boot-epoch recovery proof
 

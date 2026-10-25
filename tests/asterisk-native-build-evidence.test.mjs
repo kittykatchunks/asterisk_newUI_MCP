@@ -19,6 +19,64 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("failed SIP attempt preserves partial registration, unproven discrepancies and cleanup without success authority", () => {
+  const validation = read(`${directory}/sip-proof-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const report = read(`${directory}/sip-proof-attempt-1-report.json`);
+  const progress = read(`${directory}/sip-proof-attempt-1-registered.json`);
+  const startup = read(`${directory}/desktop-image-smoke-report.json`);
+  assert.equal(validation.executedAttempts, 1);
+  assert.equal(validation.retryAuthorized, false);
+  assert.equal(validation.passed, false);
+  assert.equal(report.passed, false);
+  assert.equal(report.imageId, startup.imageId);
+  assert.equal(validation.imageId, report.imageId);
+  assert.equal(validation.bundleManifestSha256, report.bundleManifestSha256);
+  assert.deepEqual(report.loadedModules, startup.loadedModules);
+  assert.equal(report.networkSettings.internal, true);
+  assert.equal(report.networkSettings.publishedPorts, 0);
+  assert.equal(report.phases[0].client.code, 401);
+  assert.deepEqual(report.phases[0].contacts, []);
+  assert.equal(report.phases.length, 1);
+  assert.deepEqual(progress.phases[1], { phase: "registered", code: 200, contactExpirySeconds: 59 });
+  assert.equal(report.registrationPassed, false);
+  assert.equal(progress.registrationPassed, false);
+  assert.equal(report.mediaTested, false);
+  assert.equal(report.mediaPassed, false);
+  assert.equal(validation.outcomes.inviteExecuted, false);
+  assert.equal(validation.outcomes.unregistrationExecuted, false);
+  assert.match(report.failure, /Dynamic contact/);
+  assert.match(report.cleanupFailure, /inventory changed/);
+  assert.equal(validation.failure.primaryRootCauseProven, false);
+  assert.equal(validation.failure.secondaryRootCauseProven, false);
+  assert.deepEqual(report.initialInventory.containers, report.finalInventory.containers);
+  const networks = (inventory) => Object.fromEntries(inventory.networks.map((row) => {
+    const [id, name] = row.split(" ");
+    return [name, id];
+  }));
+  const initial = networks(report.initialInventory);
+  const final = networks(report.finalInventory);
+  assert.notEqual(initial.bridge, final.bridge);
+  delete initial.bridge;
+  delete final.bridge;
+  assert.deepEqual(initial, final);
+  for (const flag of ["ownedContainersRemoved", "ownedResourcesRemoved", "credentialFilesRemoved"]) {
+    assert.equal(report[flag], true, flag);
+  }
+  for (const flag of ["runtimeApplyAuthorized", "gateCAuthorized", "redistributionApproved"]) {
+    assert.equal(report[flag], false, flag);
+  }
+  for (const file of ["local/asterisk-build/smoke-desktop.py", "tests/sip_candidate_client.py",
+    "tests/sip_rtp_proof.py"]) {
+    const canonical = createHash("sha256").update(bytes(file).toString().replaceAll("\r\n", "\n")).digest("hex");
+    assert.equal(report.toolCanonicalLfHashes[file.replaceAll("/", "\\")], canonical, file);
+  }
+  assert.equal(preparation.sipProofExecution.executedAttempts, 1);
+  assert.equal(preparation.sipProofExecution.retryAuthorized, false);
+});
+
 test("unanswered-member proof binds attempted ringing, no answer, timeout and complete restoration", () => {
   const validation = read(`${directory}/synthetic-unanswered-call-validation.json`);
   for (const [name, evidence] of Object.entries(validation.evidence)) {

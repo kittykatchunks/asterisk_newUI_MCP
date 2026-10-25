@@ -1,0 +1,19 @@
+{
+  "passed": false,
+  "phases": [
+    {
+      "phase": "wrong-register",
+      "code": 401
+    },
+    {
+      "phase": "registered",
+      "code": 200,
+      "contactExpirySeconds": 59
+    }
+  ],
+  "registrationPassed": false,
+  "mediaPassed": false,
+  "clientAddress": "172.23.0.3",
+  "clientPort": 33266,
+  "pbxAddress": "172.23.0.2"
+}
