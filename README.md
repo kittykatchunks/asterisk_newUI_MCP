@@ -291,6 +291,32 @@ deferring this publication slice. That change needs its own design and approval;
 a standalone module, debugger/memory read, source-file hash or canary must not
 be assumed to expose private loaded policy safely.
 
+### Selected queue-observability design (not implemented)
+
+The user selected a **design-only** getter inside app_queue, where queue objects
+and locks are owned. The [full contract](./PROJECT-PLAN.md#selected-design-app_queue-owned-read-only-policy-observation)
+and [planned QO-01 through QO-10](./MILESTONE-1.md#selected-qo-design-app_queue-owned-read-only-policy-getter)
+now specify:
+
+- One proposed operator-local command, `queue policy snapshot <bound-namespace>`,
+  reading only existing static in-memory queues. It is not available yet.
+  No realtime refresh, generic function evaluation, debugger, standalone private
+  struct access, queue editor or new AMI/ARI/web authority.
+- Exact baseline/reserved inventory, strategy, member ring timeout, effective
+  join/leave masks and empty member/caller counts. Ring timeout is distinct from
+  the route's total queue-wait bound; original yes/no spelling is not inferred.
+- Bounded reference/locking/output rules, explicit busy/unstable/error states,
+  no partial green output, and no claim of an atomic whole-runtime snapshot.
+- A separately gated full custom Asterisk build/runtime image with pinned
+  source/patch/toolchain/dependency provenance and loaded-binary startup checks.
+  No unproven module drop-in or stock-image/binding replacement.
+
+**Nothing has been patched, built, installed or run for this design.** All QO
+checks are planned/unverified, old unsupported policy reports remain unchanged,
+and runtime publication is still blocked. Next requires separate implementation/
+build approval, starting with lock feasibility and build provenance—not an
+executor, reload or canary.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

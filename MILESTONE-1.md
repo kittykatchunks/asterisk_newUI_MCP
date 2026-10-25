@@ -1954,6 +1954,63 @@ is authorized here; a standalone module is not assumed capable of safe access
 to private queue fields. Do not repeat summary probes indefinitely or move to
 apply/canary as a substitute.
 
+#### Selected QO design: app_queue-owned read-only policy getter
+
+User selected **`design-queue-observability`**, explicitly **design only**.
+The [detailed getter design](./PROJECT-PLAN.md#selected-design-app_queue-owned-read-only-policy-observation)
+proposes a finite operator-local `queue policy snapshot <bound-namespace>`
+command inside app_queue. It reads only existing in-memory static queue objects;
+no standalone private-struct reader, realtime lookup/refresh, debugger/memory
+access, arbitrary expression, AMI/ARI endpoint or queue mutation.
+
+The trusted adapter checks the exact owned container/image/build/start/mount
+binding before/after the read. CLI prefix selection is not customer authentication;
+separate owned PBXs remain the isolation boundary. Only `proof-queue` and all
+names in the bound reserved prefix may be returned, with no member/caller
+identifiers, source text or credentials.
+
+Planned output is one bounded 8 KiB versioned JSON document with canonical
+strategy, **member ring timeout**, effective join/leave masks and empty-state
+counts. Do not confuse ring timeout with the compiled total queue-wait argument.
+Reviewed source maps current yes/no policy to masks **0/0**, and the adverse
+no/yes fixture to **35/35**; expected ring timeouts are **2/7**. These are
+source-derived design expectations, **not getter measurements**. It reports
+effective semantics, not original configuration spelling.
+
+Design requires safe references, bounded container traversal (64 objects),
+8 selected rows, nonblocking/bounded queue/member-count locks, no I/O under
+locks and identity/membership/fact rechecks. No lifetime reference is mistaken
+for current membership, no partial green result, and no all-runtime atomic
+snapshot or ABA protection claim. Lock/API feasibility must be verified before
+implementation. Error/busy/unsupported/unstable output cannot verify state.
+
+A separately approved pinned **full custom Asterisk build/runtime image** is
+required, not a single module dropped into the stock image. Record source/
+patch/toolchain/dependency/configuration provenance, license obligations and
+image/module digests; a self-reported version or file checksum alone is not
+loaded-binary attestation or a reproducible-build result. Default stock runtime,
+old bindings and unsupported reports remain unchanged.
+
+| Check | Planned QO acceptance; **not executed** |
+|---|---|
+| QO-01 | Owner-local API, exact argument/schema bounds, trusted scope gating and no authentication/disclosure overclaim. |
+| QO-02 | Instrumented no-load/no-refresh/no-mutation behavior, absent/realtime/dead rejection and reference cleanup. |
+| QO-03 | Lock-order/timeout/replacement/contention proof, no deadlock/orphan handler, bounded sampling and no locked I/O. |
+| QO-04 | Independent timeout/mask/alias fixtures and timer distinction; changed loaded 2/0/0 versus 7/35/35 despite matching restored disk. |
+| QO-05 | Exact reserved/baseline inventory, extra/missing objects, bounds, nonempty/inconsistent counts and no private identifiers. |
+| QO-06 | Strict bounded host protocol/value comparison; malformed/truncated/unknown/error/success-exit-without-facts denial; old unsupported evidence preserved. |
+| QO-07 | Separate pinned full build/manifest/ABI/startup-provenance gate; mismatched build/binary/binding rejected, stock default untouched. |
+| QO-08 | Two uniquely owned custom-image read-only proofs and scoped loaded/disk negatives, no apply/reload/calls or shared PBX access. |
+| QO-09 | Outage/restart/concurrency/change/receipt failures preserve history, no retry-to-green/rebind/resume or publication side effects. |
+| QO-10 | Stock/custom functional/locking/disclosure regressions and verified owned cleanup; exact retained provenance/evidence and excluded surfaces unchanged. |
+
+**All QO checks are planned/unverified.** This increment edits documentation only:
+no patch, custom image build, dependency install, runtime execution, API/permission
+change, reload, call, ordinary route/phone/REFER change or publication.
+Documentation consistency and diff hygiene are the only validation required.
+Next is a separate implementation/build decision; the selected exact-verification
+blocker, full CP gates and M1-09 remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

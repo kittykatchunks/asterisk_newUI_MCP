@@ -1550,6 +1550,260 @@ patch/build/load anything. Debugger attachment, process memory reads and generic
 function evaluation remain excluded. Alternatively defer publication while
 leaving this contract intact. Only an explicit later decision may narrow it.
 
+#### Selected design: app_queue-owned read-only policy observation
+
+The user selected **`design-queue-observability`** after the stock-surface stop.
+This increment is **design/documentation only**. It authorizes no source patch,
+download/build of a custom runtime, image replacement, module installation,
+runtime command, reload, call, publication or altered acceptance claim. Exact
+verification remains the requirement. The following QO checks are planned, not
+executed; the existing stock inspector continues to report unsupported policy.
+
+##### Owner, interface and trust boundary
+
+Design a small versioned getter **inside app_queue**, not a separate module
+reading its private struct, a memory/debugger attachment, AMI Getvar expression
+or file reader. The getter must observe the queue objects already used by Queue(),
+under their existing object-lifetime and locking rules. Public source review
+establishes candidate fields, not proof that a proposed patch is correct.
+
+Proposed operator-local CLI syntax:
+
+`queue policy snapshot cp-<24-lowercase-hex-digits>`
+
+This is a **new command proposal**, not an existing runnable feature. Exactly
+one namespace argument is accepted; no optional filename, arbitrary queue,
+expression, command, wildcard, customer label or output-path argument.
+No tab completion enumerating other queues. The existing trusted host adapter
+must validate the complete owned binding/container/image/start/mount tuple
+before issuing this fixed command and verify it again afterward. The namespace
+is derived from the bound scope, never accepted from model-supplied command text.
+No browser route, new web permission, Docker socket, AMI/ARI endpoint or exposed
+port is introduced.
+
+CLI access itself is powerful existing local operator authority, **not customer
+authentication**: anyone already able to run arbitrary Asterisk CLI commands
+could choose a different namespace. The getter cannot invent a security boundary
+from a caller-supplied prefix. Customer isolation in this slice is separate owned
+PBXs plus the trusted binding adapter, not a promise of per-tenant authorization
+within a shared PBX. A production/shared-PBX service would need a separately
+designed authenticated boundary.
+
+The finite requested inventory is: the exact unmanaged `proof-queue`, plus
+**all currently loaded names beginning with `<namespace>-`**. Do not just request
+the compiler's expected queue, because unexpected extra reserved objects must
+be visible. Queue names are accepted for serialization only when they match
+`[a-z0-9][a-z0-9_-]{0,95}`; reserved suffixes must also be valid compiler slugs.
+An invalid matching name is a blocking error, not skipped. Do not emit foreign
+names, member interfaces, caller identifiers, configuration text or credentials.
+Account for the pinned queue container's case-insensitive identity: select
+case-folded baseline/prefix matches, then reject noncanonical spelling or
+case-colliding duplicates rather than hiding them as outside the namespace.
+The existing full known queue/dialplan inventory check is still required to
+detect unmanaged drift outside this selected namespace.
+
+##### No-load lookup, lifetime and bounded locking
+
+The implementation must use **only the existing in-memory queue container**,
+with the matching AO2 lookup/iteration and reference-release conventions.
+The pinned source's direct `ao2_t_find` usage is prior art; its
+`find_load_queue_rt_friendly` helper is specifically excluded because even a
+static-queue path can invoke realtime-member refresh. Also exclude configuration
+loads, realtime queue/member queries, device-state refresh, member creation,
+normalization by setters, persistent state updates and mutating statistics.
+
+Required algorithm, to be checked against the actual pinned lock graph before
+implementation:
+
+1. Validate argument and capability version before touching queue state.
+   Initialize a fixed-size local observation buffer; no caller-controlled
+   allocation or output while holding application locks.
+2. Enumerate the in-memory container with safe references and a **64 total
+   loaded-object** traversal ceiling, retaining at most **8 selected objects**
+   (including `proof-queue`). Enforce the ceiling without scanning unbounded
+   state. Never load an absent queue in order to enumerate or answer.
+3. For each selected referenced object, acquire its queue lock using a supported
+   nonblocking/strictly bounded mechanism; copy only the fixed fields and
+   safe bounded name. Validate `dead` and `realtime` under that lock.
+   A retiring/dead object or any selected realtime object produces a blocking
+   result. Take the member-container lock only in the existing supported
+   queue-to-member order to obtain its count; never lock an individual member
+   or inspect external member/device state. Copy `q->count` and whether `q->head`
+   is null; inconsistent empty-state facts block.
+4. Release each lock and every retained reference on every path. Do not hold
+   the global container lock while waiting for a queue lock, doing JSON/CLI I/O,
+   traversing member data, or performing Docker/filesystem operations.
+   A live reference keeps memory valid; it does not by itself establish that
+   the object is still linked/current.
+5. Re-enumerate selected **in-memory object identity and membership**, not just
+   equal names; replacement/removal/addition observed during the sample is
+   `unstable`. Copy/check selected policy facts again using the same bounded
+   lock order; observed changes block. Do not spin/retry until something looks
+   green. Serialize only a complete successful DTO after all locks are released.
+
+Container traversal/reference acquisition and member-count locking also need
+bounded/nonblocking behavior; a timeout in the host alone must not leave a CLI
+worker blocked on PBX locks. If the pinned APIs cannot implement this safely,
+**stop the patch design and resolve the lock mechanism** rather than assume
+that killing the remote CLI client cancels a server-side handler.
+Transient allocation/reference/lock activity is permitted; business configuration,
+queue state, counters and database contents must not be modified by the getter.
+
+The result is a bounded **per-object locked sample**, not a transaction across
+all queues, disk and dialplan. Rechecking does not detect all ABA/transient edits.
+No new reload-generation counter is assumed in v1: adding one correctly would
+require instrumenting every mutation path and broadening the patch. The initial
+future proof remains quiescent, with the same owned fixture/no unmanaged writer
+limits; no active-call-safe or concurrent privileged-editor guarantee.
+
+##### Effective-policy DTO and error protocol
+
+Return exactly one newline-terminated UTF-8 JSON document, at most **8 KiB**,
+with no terminal colors, banners, log text, partial rows or trailing documents.
+Proposed successful schema (field names normative; values described below):
+
+```text
+{
+  schemaVersion: 1,
+  reader: "app-queue-policy-v1",
+  maskMapping: "asterisk-22-empty-v1",
+  status: "observed",
+  namespace: <exact validated argument>,
+  consistency: "bounded-per-object-sample",
+  objects: [
+    {
+      name: <safe selected queue name>,
+      origin: "static",
+      strategy: <canonical known strategy name>,
+      memberTimeoutSeconds: <nonnegative integer q->timeout>,
+      joinEmptyMask: <effective q->joinempty unsigned integer>,
+      leaveWhenEmptyMask: <effective q->leavewhenempty unsigned integer>,
+      memberCount: <bounded nonnegative integer>,
+      callerCount: <bounded nonnegative integer>,
+      callerListEmpty: <boolean>
+    }
+  ]
+}
+```
+
+Sort rows by bytewise queue name; reject duplicates and unknown fields/versions.
+Counts outside 0..65535, timeout outside 0..86400, strategy outside the pinned
+enum mapping, unknown mask bits or unsafe object names produce a blocking error,
+not truncated/clamped values. These are observation protocol bounds, not new
+permitted model values. Nonzero counts are observed facts; the host rejects
+them for this **empty-queue** slice. It does not hide a nonempty queue or list
+members/callers to explain it.
+
+Crucial semantics from the reviewed 22.11.0 source:
+
+- `q->timeout` is the **member answer/ring timeout**, not the model's total
+  queue-wait bound. The latter stays independently verified in the loaded
+  `Queue(...,<waitSeconds>)` dialplan arguments. Never conflate these timers.
+- `joinempty` and `leavewhenempty` become **effective condition bitmasks**, not
+  retained original yes/no strings. The reviewed mapping is penalty=1, paused=2,
+  inuse=4, ringing=8, unavailable=16, invalid=32, unknown=64, wrapup=128.
+  Known mask is 255. Aliases/options can map to the same effective mask; the
+  getter must not reconstruct or claim the original source spelling.
+- For this compiler's fixed `joinempty=yes` / `leavewhenempty=no`, the expected
+  masks are **0 / 0**; fixed member timeout is **2**, strategy `ringall`.
+  The negative fixture `joinempty=no` / `leavewhenempty=yes` maps to **35 / 35**;
+  with member timeout **7**, it must differ despite restored matching disk.
+  These are design expectations from source, **not measured getter results**.
+  Tests must independently exercise the parser/effective behavior rather than
+  merely duplicate the getter's own conversion helper.
+
+`proof-queue` must be present exactly once. A valid empty reserved namespace is
+an observed inventory with just that baseline row; absence of an expected
+reserved queue at future nonempty revision is a host comparison failure, not
+automatic creation. The getter is state observation, not desired-state input:
+it cannot label a result "verified", "approved", "ready" or "published".
+
+Errors use the same schema/reader/maskMapping/namespace envelope with `status:"error"` and
+one bounded code, **without `objects`**: `invalid-request`, `busy`, `limit`,
+`unsupported-state`, `unstable` or `internal`. Invalid syntax has namespace null;
+do not echo unvalidated text. No exception trace, queue/member/caller names or
+partial successful inventory in error output. A transport/CLI error can exist
+without a JSON document and must still fail explicitly.
+Asterisk remote CLI process exit status alone is not a success signal:
+the adapter requires the exact complete success envelope and expected fields.
+
+##### Host comparison, availability and old-evidence preservation
+
+Add a future inspector capability distinct from the existing stock reader:
+`app-queue-policy-v1` with an explicit effective-mask mapping version.
+Old reports/receipts keep `unsupported`; no schema rewrite, automatic upgrade,
+stock-image fallback or reinterpretation of prior summaries. Missing command,
+unknown version/mask/schema, extra stdout, timeout, lock busy, stale build/image/
+boot binding or error envelope is unavailable/blocked, never a policy match.
+
+The host must compare the exact selected object inventory, strategy, member
+timeout, both masks and empty member/caller facts against the intended baseline
+or compiled revision, separately from disk and loaded dialplan. A cold empty
+baseline proves reserved object absence, not the policy of an object that does
+not exist. Keep unmanaged baseline and other-customer checks. Getter success
+does not bypass UUID/marker/route verification, deliberate canary, immutable
+bound approval, current verified base, publication fencing or recovery gates.
+No executor, verified pointer or new runtime authorization is part of this design.
+
+Each observation must bind the getter protocol, effective-mask mapping, runtime
+image/build manifest/module digests and exact existing project/boot scope.
+The getter's self-reported reader string identifies a protocol, **not proof
+of which binary is loaded**. A module-file hash alone does not establish that
+those bytes are loaded. Future proof must use immutable image-owned binaries,
+no shadow mounts/replacement, observed cold process start, expected module
+inventory and an audited startup path. If that chain cannot be established,
+report build/loaded-module provenance unavailable; do not invent attestation.
+
+##### Separate custom-runtime build gate
+
+Implementing this design needs explicit later approval to create a **new proof
+image**; the current upstream image and its binding format remain untouched.
+Do not drop a newly built `app_queue.so` into the existing image and assume ABI
+compatibility. Plan a pinned full Asterisk build/runtime pair with the patch
+in the source owner, retaining required existing proof capabilities. Keep the
+custom proof image opt-in; no replacement of default Compose/shared PBXs.
+
+Before any build, record exact upstream commit/tag resolution and source/archive
+hash, minimal patch bytes/hash, license/notices/source-availability obligations,
+compiler/linker/architecture/flags, configure/menuselect inputs, immutable build
+and runtime bases, bounded declared dependency versions and build commands.
+No `latest`, unrecorded package resolution, copied credentials or arbitrary
+download execution. Dependency availability and build-resource cost must be
+checked and approved before installation; no dependencies are installed here.
+
+Retain a manifest binding source+patch+toolchain+configuration to full image ID/
+digest and installed Asterisk/module hashes, including getter protocol/mapping.
+Record test result hashes separately to avoid a circular image/manifest/test
+digest. Preserve the prior stock-image evidence. A repeat build should compare
+outputs and explain nondeterminism; **recorded provenance is not a reproducible
+build claim** until independently measured. No registry push/public distribution
+is implied by approval to build a local proof image.
+
+##### Planned QO acceptance and implementation stop
+
+The following is a proposed bounded batch, **all planned/unexecuted**:
+
+| Check | Required measurable result |
+|---|---|
+| QO-01 | Getter exists only inside the pinned patched app_queue owner; exact CLI argument/protocol bounds reject unsafe/foreign/wildcard/extra inputs with no namespace or private-data disclosure. Trusted adapter scope checks run before any runtime command; CLI authority is not claimed as customer authentication. |
+| QO-02 | Source/patch and instrumented tests demonstrate only in-memory lookup; absent/realtime/dead cases never load/refresh queues/members, invoke database/file readers or modify counters/state. Reference cleanup includes every allocation/failure branch. |
+| QO-03 | Lock-order review and contention/replacement fault tests establish bounded container/queue/member-count access, no deadlock, no orphaned blocked handler and no I/O/serialization under locks. Busy/retired/replaced/changed samples fail without green partial output. |
+| QO-04 | Independent fixtures cover timeout 2/7, masks 0/35, explicit condition lists/aliases/unknown bits and timer distinction. Exact loaded values differ after disk restoration without reload; original config spelling is not inferred. |
+| QO-05 | Inventory tests cover empty reserved namespace, expected queue, extra matching queue, missing baseline/target, duplicate/unsafe names, total/selected traversal bounds, nonzero members/callers and count/list inconsistency. No foreign identifiers or credentials in output/error. |
+| QO-06 | Host parser enforces 8 KiB single-document shape, known protocol/mapping, complete success/error distinction and exact values. Truncation, unknown masks, malformed fields, extra stdout and successful CLI exit with error/absent JSON never verify. Stock unsupported reports remain unchanged. |
+| QO-07 | Separate source/build/image gate produces an auditable pinned manifest, ABI-compatible full runtime and immutable module startup chain. A mismatched build/module/image/start binding fails; no stock binding auto-upgrade, default Compose change or reproducibility claim without evidence. |
+| QO-08 | Two uniquely owned custom-image PBXs show selected static baseline/queue facts and other-customer isolation with no reload, call, apply or production/shared runtime access. Disk-only and loaded-only negative fixtures stay distinguishable; metadata/version alone cannot pass policy comparison. |
+| QO-09 | Outage, restart, concurrent getter requests, busy locks, observed object changes and receipt/write failures preserve immutable prior evidence and explicit uncertainty. No automatic retry-to-green/rebind/resume. Getter command does not allocate a publication claim or move a verified pointer. |
+| QO-10 | Focused stock regressions plus custom-image build/functional/locking/data-exposure checks pass with exact output facts. Owned resources, generated credentials/config and build helpers are cleaned; named source/patch/image/manifests retained intentionally. No excluded endpoint/member/ordinary-route edits, REFER rerun or new web/AMI/ARI authority. |
+
+Documentation-only validation for this increment is consistency/diff hygiene;
+no QO runtime or build result is claimed. **M1-09 and all full CP gates remain
+open**, as does exact loaded-policy verification. Next requires a separate
+implementation/build authorization after lock feasibility, dependency/image
+provenance and these acceptance bounds are agreed. If any of those cannot be
+met, stop or explicitly revise the design; do not weaken exact verification
+implicitly or expand the getter into a general-purpose queue editor.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
