@@ -980,9 +980,19 @@ Recommended sequence:
    offline versus checked freshness, legacy absence, independent health/gaps,
    separate observations and hostile/error handling are covered. No raw route,
    background collection, database creation/migration, rebuild or phone activation.
-2. **Integrate restart/interruption/replay acceptance** against the fixed
-   scenarios and visible evidence, preserving explicit unknown gaps; distinguish
-   local proof from continuous remote collection/rotation/retention.
+2. **Local process restart/interruption/replay slice: implemented and verified.**
+   User selected owned copies of retained synthetic evidence, explicitly not
+   PBX restart, with autonomous LR-01 through LR-10 execution.
+   `run-aDwuAb` passes all ten integration checks plus typecheck and 111 focused
+   history/workspace regressions. Actual collector attempts, importer
+   transactions, projection publication and the application process are
+   interrupted and restarted; replay/partial tails/malformed batches/late
+   assignments preserve earlier facts and customer boundaries. Four permanent
+   unknown gaps survive successful recovery. Application restart preserves
+   durable audit/evidence, invalidates old sessions and supports isolated
+   authenticated HTTP/browser reads. Canonical bytes remain unchanged; owned
+   processes/transient snapshots are cleaned. **PBX restart/boot-epoch coverage
+   and full M1-06/07 remain open**, as do remote delivery/rotation/retention.
 3. **Plan limited route/queue publication** with validation, stale revisions,
    managed-file drift and owned apply/verify; this is a critical intended-call
    dependency, not replaced by report approval.
@@ -999,10 +1009,12 @@ change. The subsequently authorized HR batch adds only the explicitly selected
 read permission and opt-in workspace; ordinary routing, live phone, production
 collection, voice AI and real Autocab integration remain out of scope.
 
-See the [executed ten-check HR batch](./MILESTONE-1.md#selected-hr-batch-read-only-history-evidence-ten-acceptance-checks)
-and [opt-in setup](./README.md#opt-in-read-only-history-workspace).
-HR completion does not close any full M1 gate. Integrated restart/interruption/
-replay is the next recommendation, requiring its own bounded contract.
+See the [executed ten-check HR batch](./MILESTONE-1.md#selected-hr-batch-read-only-history-evidence-ten-acceptance-checks),
+[opt-in setup](./README.md#opt-in-read-only-history-workspace) and
+[executed LR contract](./MILESTONE-1.md#selected-lr-batch-local-process-interruption-and-replay).
+Neither HR nor LR closes any full M1 gate. The remaining isolated PBX
+restart/boot-epoch recovery proof requires its own selected bounded contract;
+limited route/queue publication planning remains a separate priority.
 M1 startup/capture thresholds, production capacity, retention and deployment
 questions remain unresolved.
 

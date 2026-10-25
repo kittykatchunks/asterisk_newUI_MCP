@@ -32,9 +32,68 @@ history access. Only allowlisted observations and scoped evidence references are
 exposed, not raw records. This closes the bounded HR batch, not any full M1 gate.
 
 The [prioritized plan](./PROJECT-PLAN.md#milestone-checkpoint-and-current-recommendation)
-then sequences integrated restart/replay, route/queue publication, explicitly gated
-browser-agent calling, recording/engineering/export and combined restore.
+now includes the completed bounded [local process-recovery batch](#local-process-recovery-proof).
+PBX restart/boot-epoch coverage remains unproved by this batch. Limited route/
+queue publication, explicitly gated browser-agent calling, recording/engineering/
+export and combined restore remain separate work.
 Live phones remain disabled, ordinary routing unchanged and REFER frozen.
+
+## Local process-recovery proof
+
+The selected **LR-01 through LR-10** batch verifies the combined operator
+collector/projection-to-authenticated-history path using owned copies of the
+recorded two-customer synthetic evidence. It changes no production runtime,
+projection algorithm, permissions, ordinary dialplan/queue or phone behavior.
+It does **not** restart a PBX or establish production remote delivery.
+
+Run:
+
+```powershell
+.\scripts\Test-LocalHistoryRecovery.ps1
+```
+
+The default input is the existing ignored
+`.local-proof\queue-abandonment\run-PIl5h8` directory. An alternative
+`-EvidenceDirectory` must be an absolute directory containing compatible
+two-customer v5 evidence with the four recorded synthetic scenarios: timeout,
+member-ended service, caller-ended service and pre-connection abandonment.
+Missing input fails explicitly; the proof never generates new PBX traffic.
+
+The wrapper runs typecheck and **111 focused history/workspace regression
+tests**, then ten integrated checks. Owned subprocesses are terminated at
+specific readiness barriers, including after real raw/projection INSERTs but
+before their enclosing transactions commit. Restarted CLI writers must recover
+without duplicates; no handwritten substitute importer is used.
+
+Recorded pass: **`run-aDwuAb`**, under
+`.local-proof\local-history-recovery`. All ten checks pass:
+
+- Four original roots per customer and their exact observations survive.
+- Separate-process replay, interrupted attempts, incomplete tails and malformed
+  batch/prefix rejection preserve atomic checkpoints.
+- Four actual importer transactions and two actual projection-publication
+  transactions are killed before commit; restarted writers recover correctly.
+- Late CEL/queue arrival in opposite orders stays unresolved/unassigned until
+  complete exact evidence ranges are explicitly assigned. Two additional
+  synthetic roots remain customer-isolated; earlier service is not erased.
+- Four permanent unknown gaps survive explicit generation transitions and
+  successful collection. A source generation change creates no PBX epoch.
+- The actual application process is killed and restarted. Durable evidence and
+  four pre-restart audits survive; old sessions are rejected. New authenticated
+  HTTP/Chromium reads for both customers preserve isolation, gaps, freshness
+  distinctions and logout clearing. The final audit contains 22 records.
+
+Original raw/projection files are checked byte-identical before/after.
+Application reads also leave the owned raw/projection files byte-identical.
+Owned workers, loopback identity/API listeners and browser contexts are stopped;
+transient source snapshots are removed. Only the owned history/projection/audit
+SQLite files and `result.json` remain as ignored synthetic evidence.
+
+See the [exact LR contract/results](./MILESTONE-1.md#selected-lr-batch-local-process-interruption-and-replay).
+This completes only the selected local process slice. It does not close a full
+M1 gate, validate a live unanswered/transfer scenario, reconstruct transfers,
+prove PBX restart/boot attribution, or cover continuous remote collection,
+rotation/retention, power-loss durability, recording or combined restore.
 
 ## Opt-in read-only history workspace
 

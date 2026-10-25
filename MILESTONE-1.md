@@ -1569,7 +1569,7 @@ permissions but no history-specific grant. Do not repurpose those grants silentl
 | Priority | Bounded work package | Why now / dependencies | Exit and non-claims |
 |---|---|---|---|
 | 1 | Read-only authenticated history-evidence workspace | Subsequently authorized: explicit customer `history:read` members only, no support grants, references-only exposure. Reuses session/audit/customer boundaries, not CLI authority. | HR-01 through HR-10 below pass in the bounded local scope. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
-| 2 | Integrated restart/interruption/replay proof | Requires fixed scenario/evidence contracts, not completion of the UI; can proceed independently once scoped. Combine existing durable stores/collectors with owned failure injection rather than another isolated event-name case. | Prior observations survive process/PBX restart, late data/replay/unknown gaps remain explicit. Map exact remaining M1-06/07 gaps; remote delivery remains separately designed. |
+| 2 | Integrated restart/interruption/replay proof | Subsequently selected: LR local process slice on owned retained evidence copies. Exact ten-check contract below; PBX restart explicitly excluded. | LR-01 through LR-10 pass for local collector/writer/application processes. PBX restart/boot attribution and full M1-06/07 outcomes remain open; remote delivery separately designed. |
 | 3 | Limited route/queue publication foundation | Critical dependency for intended agent call path (M1-09, then M1-02/04/05/18). Needs agreed managed-file ownership, draft/revision/drift and rollback semantics. | Invalid/stale/drifted publication fails; owned apply/verify proof, no broad admin editor or Docker socket in the web process. |
 | 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
 | 5 | Recording, engineering/export and combined restore | Requires explicit storage/retention/access/capture-limit contracts and links to durable identities. Can be separately planned where independent. | Close exact M1-08/11-17 requirements through executed scoped workflows, not report/hash proxies. |
@@ -1631,9 +1631,68 @@ Reproduction and opt-in configuration are in the
 [workspace instructions](./README.md#opt-in-read-only-history-workspace).
 This completes HR only. The 17 full M1 gates remain open; M1-06/07/12/16 are not
 closed wholesale. Integrated restart/interruption/replay is the next recommended
-scope, not automatically authorized here. Remote continuous delivery, rotation/
+scope at the end of HR; the subsequently authorized local slice is recorded below.
+Remote continuous delivery, rotation/
 retention, repeated-visit/transfer attribution, recording authorization/export/
 restore, production identity and live queue-agent calling remain unproved.
+
+#### Selected LR batch: local process interruption and replay
+
+After HR, the user selected **local-process-recovery**, not the alternative
+isolated PBX restart proof, and authorized autonomous execution of all ten checks.
+The fixed baseline is an owned byte-for-byte copy of `run-PIl5h8`:
+each customer has four synthetic roots (timeout, COMPLETEAGENT, COMPLETECALLER,
+ABANDON), 82 CEL records / 14,583 bytes and 11 queue records / 736 bytes.
+This is not a new unanswered-target/transfer acceptance fixture and makes no
+human-service, service-audio or whole-journey classification.
+
+| Check | Executed acceptance (all pass) |
+|---|---|
+| LR-01 | Copy existing raw/projection stores to a unique owned run; verify the four original roots/observations for each customer and exact initial bytes. Never write to canonical stores. |
+| LR-02 | Configure owned local snapshots, run eight fresh-process CEL/queue replays with zero inserted rows, preserve all original identities/facts and reuse identical published revisions. |
+| LR-03 | Terminate four owned collector workers after committed attempt-start barriers. Check unchanged checkpoints, durable collecting state and stale status at the exact configured threshold; restart real collectors with zero duplicate rows. |
+| LR-04 | Persist four incomplete CEL/queue tails across separate collector invocations; consume none of the tail until completed, then insert each exactly once with zero pending bytes. No inferred epoch change. |
+| LR-05 | A valid new record followed by a malformed row rolls back the whole batch; changed/truncated prefixes explicitly fail. Original checkpoints survive all eight denials; restored exact source replays recover without automatic rotation. |
+| LR-06 | Terminate four owned workers immediately after an actual importer raw INSERT, inside its uncommitted transaction. Reopen and verify exact prior raw bytes/checkpoints plus durable collecting state; real restarted collectors insert one new row exactly once per stream. |
+| LR-07 | Inject two SQL publication failures and kill two actual rebuild workers after uncommitted projection INSERT. Prior immutable revisions remain unchanged/readable, current checks show changed inputs; retry publishes a complete revision, then exact replay reuses it. |
+| LR-08 | Deliver one additional marked synthetic caller per customer, CEL-first for A and queue-first for B, with deliberately reused caller/linked/marker IDs. Missing manifest assignment and partial/unassigned terminal evidence cannot fabricate abandonment. Exact delayed range assignments expose the bounded ABANDON fact; original eight roots/visits/service observations remain unchanged. |
+| LR-09 | Missing source files and prefix replacement fail explicitly. Trusted transitions to fresh generations create four permanent unknown gaps; subsequent success never clears them. Generation recovery remains in the original PBX epoch; no new boot is invented. |
+| LR-10 | Kill and restart the actual application process on the same owned loopback endpoint with the same audit/evidence stores. Earlier audits survive exactly, two old sessions are rejected, fresh customer-bound HTTP/Chromium reads preserve facts/gaps and deny customer substitution; stored versus checked freshness and logout clearing pass. No microphone/WebSocket/unexpected route requests. |
+
+**Measured run:** `run-aDwuAb`, retained at
+`.local-proof\local-history-recovery\run-aDwuAb`.
+Typecheck and all **111 focused existing history/workspace regression tests**
+pass before the ten integration checks. No production source or algorithm
+change was required. The failure injector wraps SQLite statements only inside
+dedicated test workers; it pauses after the real INSERT and before the real
+writer can commit. It does not simulate the importer/publication by manually
+writing substitute rows.
+
+There are four killed attempt-start workers, four killed mid-import workers,
+two killed mid-publication workers and two application incarnations (one
+restart). Two synthetic late roots are added only in the owned proof. Four
+unknown gaps remain. LR-10 audit rows increase from 4 before restart to 22
+after new login/read/denial/browser/logout operations; earlier rows match
+exactly. Authenticated application reads leave owned evidence bytes unchanged.
+
+Canonical raw SHA-256:
+`68d08927e20eb262fa1ed97bfc5855d684b3f38d1c5879424a6888bc062c9989`.
+Canonical projection SHA-256:
+`edaec9674e22bda966880abb8cfb51c0de11bfcd437ed657d2e598b912ea4669`.
+Both canonical files are byte-identical before/after. Owned process exits,
+listener/browser closure and transient snapshot cleanup are verified; only
+owned history/projection/audit SQLite and result JSON remain. Reproduce with
+`.\scripts\Test-LocalHistoryRecovery.ps1`; optional absolute input directory
+and retained-output details are in the
+[recovery instructions](./README.md#local-process-recovery-proof).
+
+**Stop boundary:** LR local-process recovery is complete, not integrated PBX
+restart acceptance as a whole. M1-06/07 are not closed: no PBX restart, new boot
+epoch, live unanswered/transfer fixture, transfer/repeated-visit attribution,
+remote delivery/rotation/retention, power-loss durability or combined restore
+was tested. The remaining PBX restart/epoch proof needs a separately selected
+isolated fixture. Phones remain disabled, ordinary routing unchanged and REFER
+frozen. The 17 full M1 gates remain open.
 
 ## 6. Proposed implementation backlog
 
