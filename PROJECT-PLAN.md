@@ -315,8 +315,120 @@ contract, not production booking readiness. The simulator and workflow share one
 dedicated local database; separate-system failure semantics and vendor capabilities
 remain unproven. Customer/conversation IDs are trusted harness inputs, not user
 authentication or a global semantic duplicate detector.
-The next decision remains a separately authorised simulation UI or voice
-integration; do not automatically extend the frozen REFER matrix.
+The selected follow-on is the authenticated simulation workspace specified below;
+do not automatically extend the frozen REFER matrix.
+
+### Selected next increment: authenticated simulation workspace
+
+The user selected a simulation workspace, starting with this permission/isolation
+contract and finite checklist. This is a specification, not executed UI evidence.
+Keep the completed BS harness as the domain foundation; do not activate voice,
+SIP, microphone access, real dispatch, MCP, background reconciliation or scheduling.
+
+#### Access and ownership contract
+
+- Add an explicit provisioned `booking:simulate` permission. Require both it and
+  `agent:access` for the workspace and every booking request. Existing agent or
+  diagnostic grants alone confer no simulation access. Neither permission is
+  real booking authority; bounded diagnostic support grants must not confer either.
+- Reuse the existing application-session login, fixed customer-bound return paths,
+  server-side permission verification and same-origin CSRF protections. Require
+  an application session for reads and writes; bearer-only access is out of scope.
+  Revalidate identity and grants on requests, not merely when rendering navigation.
+- Use a separate simulation page linked from the agent workspace only for eligible
+  users. Do not make a device reservation, endpoint readiness or microphone
+  permission a prerequisite for this non-calling workflow.
+- Keep the initial two fixture customers and their fixed synthetic locations.
+  Derive customer, issuer and subject from verified server context. Never trust
+  body-provided ownership, query-string scope or browser-supplied conversation IDs.
+- Persist conversation ownership by issuer + subject + customer in the dedicated
+  simulation store. Allocate conversation IDs server-side. Every operation lookup
+  must check this ownership before returning details or mutating the domain.
+  A guessed ID from another agent in the same customer must fail as well as a
+  foreign-customer ID. Customer-level grants do not permit agent-to-agent reads.
+- Ownership survives browser/server restart and logout; a newly verified session
+  for the same identity may explicitly resume its own conversation. Provide an
+  owner-scoped recovery list of conversation/operation IDs and actual states,
+  without exposing another user's records or automatically reconciling results.
+  Never claim ownership of legacy unowned harness records; retain their existing
+  trusted local use and test schema migration/reopen explicitly.
+
+#### Interaction and request contract
+
+1. Display a persistent **SIMULATION ONLY — no taxi will be booked** notice and
+   selected customer. Offer only fixed synthetic location/name/contact choices
+   and passenger counts 1–8; do not collect real caller details.
+2. Explicitly start or resume an owned synthetic conversation. Creating a draft
+   must not happen on landing, refresh, login or a recovery-list read.
+3. Collect/edit details, then display the server's canonical summary and revision.
+   An explicit confirmation action must submit the displayed revision. Editing
+   clears confirmation; do not automatically confirm or dispatch after review.
+4. Require a separate submit action after confirmation. Clearly label the four
+   synthetic scenarios; scenario selection is test control, not predicted vendor
+   behaviour. Never allow the browser to set outcome, reference, history or owner.
+5. Show accepted, rejected, submitting and outcome-unknown distinctly with the
+   simulation label and actual reference/reason. Disable duplicate actions while
+   requests are pending, but rely on durable server checks, not button state.
+6. A lost HTTP response is not rejection or proof that nothing happened. For a
+   known operation, preserve its ID and offer an explicit read/reconcile action.
+   If conversation/draft creation lost its reply, use the owner-scoped recovery
+   list before retrying; do not automatically create a replacement.
+7. Reconciliation is an explicit action only, never polling or resubmission.
+   Unknown/submitting operations keep the existing same-conversation replacement
+   fence. A deliberately new conversation is a separate synthetic exercise, not
+   an advertised way to retry an uncertain booking.
+8. Display structured handover context for human request, unsupported request or
+   caller disconnect without transferring/cancelling anything. Retain actual
+   unknown state. Unsupported draft fields fail explicitly rather than disappear.
+9. Refresh/resume reads durable state. Logout, expiry or permission denial clears
+   rendered details and disables actions. Do not persist credentials or booking
+   details in local/session storage; stale in-flight responses cannot repopulate
+   a logged-out or differently scoped page.
+
+All mutations use POST with bounded strict JSON bodies, current session and CSRF
+checks. Reads must have no side effects. Return request IDs and explicit invalid,
+denied, conflict and unavailable errors; never fabricate a successful domain
+receipt after audit/storage failure. Responses containing session or simulation
+data must be non-cacheable. Recheck the live session after asynchronous body/audit
+work and before mutation, following the device-handler pattern.
+
+Reuse the existing audit infrastructure for access/intent records without calling
+an intent a completed result. Record request ID, verified actor/customer, action,
+operation correlation when known and safe outcome codes; do not log cookies,
+tokens, raw bodies or passenger/contact details. Domain history remains the durable
+source of booking state. Explicitly test failure before domain mutation and loss
+after a committed result; do not imply the two stores commit atomically.
+
+Implementation includes the permission/configuration/launcher/session surfaces,
+ownership persistence, narrow HTTP adapter, page and focused tests. Keep default
+startup disabled unless a dedicated simulation database and explicit grants are
+configured. Startup misconfiguration must fail clearly rather than silently enable
+simulation or create authority. Follow existing HTML/JS and SQLite conventions;
+do not add a framework, service or vendor dependency.
+
+#### Finite workspace acceptance checklist
+
+All SW checks are **pending implementation and execution**. The completed BS
+checks remain required regression coverage, not evidence for this new surface.
+
+| ID | Required evidence |
+|---|---|
+| SW-01 | Default-off configuration, explicit permission validation, eligible navigation and fixed customer-bound login/return; agent-only, diagnostics-only and support-only grants cannot access simulation. |
+| SW-02 | Session-required reads/writes, current grants, customer substitution denial, CSRF/origin denial, bearer-only denial and stale-session rejection after asynchronous request work. |
+| SW-03 | Server-created ownership survives reopen; foreign customer and different same-customer subject cannot list/read/mutate/reconcile/handover guessed operations. Legacy harness records are not adopted. |
+| SW-04 | Simulation notice, fixed synthetic inputs and strict bounded HTTP validation; no real personal-data entry, network dispatch, microphone or SIP/WebSocket activation. |
+| SW-05 | Canonical revision displayed; separate review, confirmation and submit actions; edits and stale confirmations prevent dispatch, including competing browser requests. |
+| SW-06 | All four scenarios display truthful state/reference/reason; double-click/replay cannot duplicate effects, and pending/unknown cannot be represented as rejection or retried through replacement creation. |
+| SW-07 | Lost submit response and server restart recover through owner-scoped read/reconciliation only; lost creation response is recoverable through the list without automatic creation. Missing receipts stay unknown. |
+| SW-08 | Handover retains collected context, correlation, confirmed revision and actual outcome; caller disconnect does not cancel. Unsupported input and handover are explicit. |
+| SW-09 | Logout/expiry/denial clears details, blocks actions and fences stale responses; reload explicitly resumes own durable work without mutation, polling or local-storage credentials/details. |
+| SW-10 | Audit failure prevents unaudited mutation, domain/storage errors remain explicit, access/intent is not called completion, request references are displayed, and responses/logs do not disclose secrets or other owners' details. |
+| SW-11 | Keyboard-operable controls, semantic status/error messages and deterministic browser tests cover pending/conflict/unavailable states and an allowlist of expected requests. No comprehensive accessibility audit is claimed. |
+| SW-12 | Typecheck, focused access/session/API/store/browser tests, BS regressions and the existing real-identity launcher/session proof pass with reproducible setup and cleanup instructions; record actual results and limitations. |
+
+Stop after SW-01 through SW-12 evidence or an explicit blocker. This closes only a
+synthetic browser exercise, not live calling, real dispatch, Milestone 1 or production
+readiness. Voice integration remains a separately authorised next decision.
 
 ## 6. Interface and roaming agents
 

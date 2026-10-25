@@ -798,5 +798,11 @@ details, revision-bound confirmation, durable outcomes, duplicate prevention and
 explicit uncertain-outcome reconciliation.
 [Executed backend evidence](./PROJECT-PLAN.md#executed-booking-simulation-evidence)
 now closes this bounded in-process checklist; it does not include voice or UI.
+The selected follow-on is the
+[authenticated simulation workspace](./PROJECT-PLAN.md#selected-next-increment-authenticated-simulation-workspace).
+Its SW-01 through SW-12 checklist is specified but unimplemented/unverified:
+separate simulation permission, verified session/CSRF, persistent per-agent
+ownership, explicit confirmation/recovery and synthetic-only browser controls.
+Existing `agent:access` alone will not authorise it; phone capabilities stay disabled.
 This parallel business-workflow increment does not waive unfinished M1 calling,
 isolation, publication or production-readiness gates.
