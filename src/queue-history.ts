@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { createQueueCollectors } from "./queue-collector.ts";
 import { HISTORY_SNAPSHOT_LIMIT, HISTORY_RECORD_LIMIT, historySha256 as sha256,
   historyIdentifier as identifier, historyInteger as integer, historyDigest as digest } from "./history-evidence.ts";
 
@@ -83,7 +84,7 @@ export function validateQueueSchema(db: DatabaseSync) {
   db.prepare("SELECT source,generation,offset,end_offset,call_id,raw,sha256,ingested_at FROM queue_events LIMIT 0");
 }
 // Shares the owning history connection so schema migration and close stay centralized.
-export function createQueueHistory(db: DatabaseSync, enabled: boolean) {
+export function createQueueHistory(db: DatabaseSync, enabled: boolean, collectorsEnabled = false, readOnly = false) {
   function available() {
     if (!enabled) throw new Error("Queue evidence requires schema 3; migrate with a trusted history writer");
   }
@@ -98,42 +99,60 @@ export function createQueueHistory(db: DatabaseSync, enabled: boolean) {
     try { const result = action(); db.exec("COMMIT"); return result; }
     catch (error) { db.exec("ROLLBACK"); throw error; }
   }
+  function ingest(source: QueueSource, snapshot: Uint8Array) {
+    available(); scope(source);
+    if (!(snapshot instanceof Uint8Array) || snapshot.byteLength > HISTORY_SNAPSHOT_LIMIT) {
+      throw new Error("Queue snapshot exceeds 8 MiB or is not bytes");
+    }
+    const row = find(source.source, source.generation);
+    const previous = row ? checkpoint(row) : undefined;
+    if (previous && previous.customer !== source.customer) throw new Error("Queue source generation is bound to another customer");
+    const start = previous?.consumedBytes ?? 0;
+    if (snapshot.length < start || (previous && sha256(snapshot.subarray(0, start)) !== previous.prefixSha256)) {
+      throw new QueuePrefixError("Queue source prefix changed or truncated; explicitly provision a new generation");
+    }
+    if (!previous) db.prepare("INSERT INTO queue_sources VALUES (?,?,?,0,?)")
+      .run(source.source, source.generation, source.customer, sha256(new Uint8Array()));
+    const insert = db.prepare("INSERT INTO queue_events VALUES (?,?,?,?,?,?,?,?)");
+    const ingestedAt = new Date().toISOString();
+    let offset = start;
+    let inserted = 0;
+    for (let index = start; index < snapshot.length; index++) {
+      if (index - offset >= HISTORY_RECORD_LIMIT) throw new Error("Queue record exceeds 64 KiB");
+      if (snapshot[index] !== 10) continue;
+      const raw = snapshot.slice(offset, index + 1);
+      const fields = parse(raw);
+      if (++inserted > 50000) throw new Error("Queue snapshot exceeds 50,000 new records");
+      insert.run(source.source, source.generation, offset, index + 1, fields.callId, raw, sha256(raw), ingestedAt);
+      offset = index + 1;
+    }
+    const prefixSha256 = sha256(snapshot.subarray(0, offset));
+    db.prepare("UPDATE queue_sources SET consumed_bytes=?,prefix_sha256=? WHERE source=? AND generation=?")
+      .run(offset, prefixSha256, source.source, source.generation);
+    return { kind: "queue", timeBasis: "unix", customer: source.customer, source: source.source,
+      generation: source.generation, inserted, records: (previous?.records ?? 0) + inserted,
+      consumedBytes: offset, pendingBytes: snapshot.length - offset, prefixSha256 };
+  }
+  const collectors = createQueueCollectors(db, collectorsEnabled, readOnly, {
+    ingest,
+    ensureSource(source) {
+      scope(source);
+      const row = find(source.source, source.generation);
+      if (row) {
+        if (checkpoint(row).customer !== source.customer) throw new Error("Queue source generation is bound to another customer");
+      } else db.prepare("INSERT INTO queue_sources VALUES(?,?,?,0,?)")
+        .run(source.source, source.generation, source.customer, sha256(new Uint8Array()));
+    },
+    checkpoint(customer, source, generation) {
+      const row = find(source, generation);
+      if (!row || row.customer !== customer) throw new Error("Queue source not found for customer");
+      return checkpoint(row);
+    },
+  });
   return {
+    collectors,
     ingest(source: QueueSource, snapshot: Uint8Array) {
-      available(); scope(source);
-      if (!(snapshot instanceof Uint8Array) || snapshot.byteLength > HISTORY_SNAPSHOT_LIMIT) {
-        throw new Error("Queue snapshot exceeds 8 MiB or is not bytes");
-      }
-      return transaction(true, () => {
-        const row = find(source.source, source.generation);
-        const previous = row ? checkpoint(row) : undefined;
-        if (previous && previous.customer !== source.customer) throw new Error("Queue source generation is bound to another customer");
-        const start = previous?.consumedBytes ?? 0;
-        if (snapshot.length < start || (previous && sha256(snapshot.subarray(0, start)) !== previous.prefixSha256)) {
-          throw new QueuePrefixError("Queue source prefix changed or truncated; explicitly provision a new generation");
-        }
-        if (!previous) db.prepare("INSERT INTO queue_sources VALUES (?,?,?,0,?)")
-          .run(source.source, source.generation, source.customer, sha256(new Uint8Array()));
-        const insert = db.prepare("INSERT INTO queue_events VALUES (?,?,?,?,?,?,?,?)");
-        const ingestedAt = new Date().toISOString();
-        let offset = start;
-        let inserted = 0;
-        for (let index = start; index < snapshot.length; index++) {
-          if (index - offset >= HISTORY_RECORD_LIMIT) throw new Error("Queue record exceeds 64 KiB");
-          if (snapshot[index] !== 10) continue;
-          const raw = snapshot.slice(offset, index + 1);
-          const fields = parse(raw);
-          if (++inserted > 50000) throw new Error("Queue snapshot exceeds 50,000 new records");
-          insert.run(source.source, source.generation, offset, index + 1, fields.callId, raw, sha256(raw), ingestedAt);
-          offset = index + 1;
-        }
-        const prefixSha256 = sha256(snapshot.subarray(0, offset));
-        db.prepare("UPDATE queue_sources SET consumed_bytes=?,prefix_sha256=? WHERE source=? AND generation=?")
-          .run(offset, prefixSha256, source.source, source.generation);
-        return { kind: "queue", timeBasis: "unix", customer: source.customer, source: source.source,
-          generation: source.generation, inserted, records: (previous?.records ?? 0) + inserted,
-          consumedBytes: offset, pendingBytes: snapshot.length - offset, prefixSha256 };
-      });
+      return transaction(true, () => ingest(source, snapshot));
     },
     sources(customer: string, after: { source: string; generation: string } | undefined = undefined, limit = 100) {
       available(); identifier(customer);

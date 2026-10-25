@@ -4,6 +4,9 @@ import { HISTORY_SNAPSHOT_LIMIT, HISTORY_RECORD_LIMIT, historySha256 as sha256,
   historyIdentifier as identifier, historyInteger as integer, historyDigest as digest } from "./history-evidence.ts";
 import { createQueueHistory, createQueueSchema, validateQueueSchema } from "./queue-history.ts";
 import { createHistoryManifests, createManifestSchema, validateManifestSchema } from "./history-manifest.ts";
+import { collectionFileConfig, collectionTimestamp as timestamp, collectionTransitionContext as transitionContext,
+  collectionHealth } from "./history-collection.ts";
+import { createQueueCollectorSchema, validateQueueCollectorSchema } from "./queue-collector.ts";
 
 export const CEL_SNAPSHOT_LIMIT = HISTORY_SNAPSHOT_LIMIT;
 const recordLimit = HISTORY_RECORD_LIMIT;
@@ -55,11 +58,7 @@ interface CollectorRow extends CelCollectorConfig {
 }
 function collectorConfig(value: CelCollectorConfig) {
   sourceInput(value);
-  if (typeof value.path !== "string" || !isAbsolute(value.path) || value.path.length > 4096 ||
-      /[\x00-\x1f\x7f]/.test(value.path) || !Number.isSafeInteger(value.staleAfterMs) ||
-      value.staleAfterMs < 1000 || value.staleAfterMs > 86400000) {
-    throw new Error("CEL collector requires an absolute local path and freshness threshold of 1s to 24h");
-  }
+  collectionFileConfig(value.path, value.staleAfterMs);
 }
 function collectorRow(row: Record<string, unknown>): CollectorRow {
   const config = { customer: row.customer, source: row.source, generation: row.generation,
@@ -91,16 +90,6 @@ function collectorRow(row: Record<string, unknown>): CollectorRow {
   collectorConfig(value);
   return { ...value, revision: row.revision, updatedAt: row.updated_at, outcome, attemptedAt, succeededAt,
     failure: row.failure as CelCollectionFailure | null, pendingBytes: row.pending_bytes };
-}
-function timestamp(value: number) {
-  if (!integer(value) || value > 8640000000000000) throw new Error("Invalid CEL collection timestamp");
-}
-function transitionContext(operator: string, reason: string) {
-  for (const [text, maximum] of [[operator, 200], [reason, 2000]] as const) {
-    if (typeof text !== "string" || !text.trim() || text.length > maximum || /[\x00-\x1f\x7f]/.test(text)) {
-      throw new Error("CEL transition requires a bounded operator reference and reason");
-    }
-  }
 }
 function sourceInput(value: CelSource) {
   identifier(value.customer); identifier(value.source); identifier(value.generation);
@@ -215,10 +204,10 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
         ) STRICT;
         CREATE INDEX cel_channel ON cel_events(source, generation, uniqueid, offset);
         PRAGMA application_id = ${applicationId}; PRAGMA user_version = 1;`);
-      } else if (![1, 2, 3, 4].includes(Number(version)) || identity !== applicationId) {
+      } else if (![1, 2, 3, 4, 5].includes(Number(version)) || identity !== applicationId) {
         throw new Error("Not a supported CEL history database");
       }
-      if (!options.readOnly && version !== 2 && version !== 3 && version !== 4) {
+      if (!options.readOnly && ![2, 3, 4, 5].includes(Number(version))) {
         db.exec(`CREATE TABLE cel_collectors (
           source TEXT PRIMARY KEY, customer TEXT NOT NULL, generation TEXT NOT NULL,
           time_basis TEXT NOT NULL, path TEXT NOT NULL, stale_after_ms INTEGER NOT NULL,
@@ -236,16 +225,18 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
       }
       db.prepare("SELECT source, generation, customer, time_basis, consumed_bytes, prefix_sha256 FROM cel_sources LIMIT 0");
       db.prepare("SELECT source, generation, offset, end_offset, uniqueid, raw, sha256, ingested_at FROM cel_events LIMIT 0");
-      if (!options.readOnly || version === 2 || version === 3 || version === 4) {
+      if (!options.readOnly || [2, 3, 4, 5].includes(Number(version))) {
         db.prepare(`SELECT source,customer,generation,time_basis,path,stale_after_ms,revision,updated_at,
           outcome,attempted_at,succeeded_at,failure,pending_bytes FROM cel_collectors LIMIT 0`);
         db.prepare(`SELECT id,customer,source,from_generation,to_generation,last_success_at,observed_at,
           operator,reason FROM cel_collection_gaps LIMIT 0`);
       }
-      if (!options.readOnly && version !== 3 && version !== 4) createQueueSchema(db);
-      if (!options.readOnly || version === 3 || version === 4) validateQueueSchema(db);
-      if (!options.readOnly && version !== 4) createManifestSchema(db);
-      if (!options.readOnly || version === 4) validateManifestSchema(db);
+      if (!options.readOnly && ![3, 4, 5].includes(Number(version))) createQueueSchema(db);
+      if (!options.readOnly || [3, 4, 5].includes(Number(version))) validateQueueSchema(db);
+      if (!options.readOnly && version !== 4 && version !== 5) createManifestSchema(db);
+      if (!options.readOnly || version === 4 || version === 5) validateManifestSchema(db);
+      if (!options.readOnly && version !== 5) createQueueCollectorSchema(db);
+      if (!options.readOnly || version === 5) validateQueueCollectorSchema(db);
       db.exec("COMMIT");
     } catch (error) { db.exec("ROLLBACK"); throw error; }
   } catch (error) { db.close(); throw error; }
@@ -253,7 +244,7 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
     WHERE e.source=s.source AND e.generation=s.generation) AS records
     FROM cel_sources s WHERE source=? AND generation=?`);
   const schemaVersion = db.prepare("PRAGMA user_version").get()?.user_version;
-  const hasCollectors = schemaVersion === 2 || schemaVersion === 3 || schemaVersion === 4;
+  const hasCollectors = [2, 3, 4, 5].includes(Number(schemaVersion));
   function getCollector(customer: string, source: string) {
     identifier(customer); identifier(source);
     if (!hasCollectors) throw new Error("CEL collector requires schema 2; migrate with a trusted writer");
@@ -337,8 +328,8 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
       if (rows.length > 20) throw new Error("Projection collector source limit exceeded (20)");
       return rows.map((row) => { identifier(row.source); getCollector(customer, row.source); return row.source; });
     },
-    queue: createQueueHistory(db, schemaVersion === 3 || schemaVersion === 4),
-    manifests: createHistoryManifests(db, schemaVersion === 4, options.readOnly === true),
+    queue: createQueueHistory(db, [3, 4, 5].includes(Number(schemaVersion)), schemaVersion === 5, options.readOnly === true),
+    manifests: createHistoryManifests(db, schemaVersion === 4 || schemaVersion === 5, options.readOnly === true),
     ingest(source: CelSource, snapshot: Uint8Array) {
       return transaction(() => ingest(source, snapshot));
     },
@@ -397,12 +388,7 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
       if (ownsTransaction) db.exec("BEGIN");
       try {
         const current = getCollector(customer, source);
-        const ageMs = current.succeededAt === null ? null : now - current.succeededAt;
-        const clockSkew = now < current.updatedAt;
-        const status = clockSkew ? "clock-skew" : current.outcome === "never" ? "never-collected" :
-          current.outcome === "failure" ? "unhealthy" : current.outcome === "collecting" ?
-            now - current.attemptedAt! >= current.staleAfterMs ? "stale" : "collecting" :
-            ageMs! >= current.staleAfterMs ? "stale" : current.pendingBytes > 0 ? "pending" : "healthy";
+        const { ageMs, status } = collectionHealth(current, now);
         const gapCount = db.prepare("SELECT count(*) AS count FROM cel_collection_gaps WHERE customer=? AND source=?")
           .get(customer, source)?.count;
         if (!integer(gapCount)) throw new Error("Invalid CEL gap count");

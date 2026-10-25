@@ -1163,7 +1163,8 @@ revisions use a separate dedicated operator database, never the diagnostic store
 | JP-06 | Bound sources/manifests/records/output and page revisions. Tests prove deterministic rebuild, ambiguity/conflicts, raw append, unassigned evidence, source gaps, atomic rollback, corruption, concurrency, snapshot consistency, customer/runtime isolation and CLI persistence. |
 | JP-07 | Extend only the isolated two-customer marker proof to publish/reopen projections, verify separate answer/channel-end/queue-timeout facts and exact replay/stable IDs, then clean owned resources. Existing routes, phones and frozen REFER matrix remain untouched. |
 
-Collector health is local-file evidence only; no queue collector exists.
+At JP completion no queue collector existed; QR below adds it independently.
+Collector health remains local-file evidence only.
 Gaps retain possibly-applicable/association-unknown status without timestamp
 exclusion. These projections are observations, not confirmed journey counts or
 completed JD/M1-06/07 acceptance. Stop after JP-01 through JP-07.
@@ -1219,6 +1220,74 @@ Raw history stays schema 4; only derived storage has a separate schema-1 identit
 Ordinary routes, phones, frozen REFER fixtures, dependencies and HTTP/permission
 surfaces are unchanged. This does not complete broad JD reconstruction, queue
 coverage, human-service/four-outcome acceptance or any additional M1 gate.
+
+### Selected next increment: queue collector recovery and independent coverage
+
+The user selected operator-only local-file queue recovery and projection warnings.
+Use the existing explicit generation-replacement policy; no automatic rotation,
+remote collection, service daemon, new routes, totals or REFER work.
+
+| Check | Finite required evidence |
+|---|---|
+| QR-01 | Atomically migrate history 1-4 to 5, adding distinct queue collector/gap tables while preserving raw CEL/queue, manifests and CEL collection/gaps. Read-only legacy readers never migrate; queue collector commands require 5. |
+| QR-02 | Immutable customer/source/path/threshold configuration and explicit generation transition. Bounded regular-file snapshots, durable fenced attempt, atomic queue evidence/checkpoint/success status; partial tails remain pending. File/parser/prefix/storage errors fail explicitly and record failure or surface failed failure-recording. |
+| QR-03 | Durable local-file freshness/status supports never-collected/collecting/healthy/pending/stale/unhealthy/clock-skew; exact expiry stale. Process death leaves collecting/stale, not false liveness. Superseded attempts/failures cannot overwrite later runs or transitions. |
+| QR-04 | Fresh unused replacement generation atomically records permanent unknown gap with operator/reason/observation bounds; preserves all previous evidence and never clears gap after healthy recovery. Failed transitions roll back gap/source/config together. No inferred loss interval or automatic manifest assignment. |
+| QR-05 | Projection input version includes independent kind-qualified CEL/queue collector/gap provenance, separate current health and legacy capability warnings. Bump algorithm while retaining read access to earlier revisions and stable entity keys. Queue health never means CEL health, completeness or remote-PBX freshness; unknown gap association cannot be timestamp-excluded. |
+| QR-06 | Bounded operator CLI configure/collect/foreground-run/status/transition/gaps; focused migration/rollback, fencing, process-death, corruption, scope, partial input, projection revision/freshness and regression tests. |
+| QR-07 | Real isolated two-customer retained queue replay after collection stops, stale/missing/discontinuous-source evidence, explicit replacement recovery retaining gaps, projection/reopen provenance and cleanup. No ordinary routes, live phones, frozen REFER fixtures, HTTP/UI or dependency changes. |
+
+Stop after QR-01 through QR-07. This is partial local-file recovery evidence,
+not M1-06/07 completion, production delivery, queue service/outcome acceptance
+or expanded journey reconstruction.
+
+**Result: QR-01 through QR-07 complete for the operator/local-file scope.**
+Typecheck and **76 focused tests** pass (14 QR plus 62 prior regressions).
+Coverage includes schema-4 migration/rollback preserving raw/manifests/CEL
+collector state, earlier schema migration tests, exact stale boundaries,
+pending/clock-skew states, malformed/missing/oversized/prefix-changed input,
+atomic success/failure status errors, superseded workers and transitions,
+unknown gap persistence, failed gap rollback, scope/read-only/corruption,
+bounded CLI passes, abandoned processes and uncommitted process-exit rollback.
+Projection tests retain independent kind-qualified gaps and source association,
+old algorithm readability/stable entity keys, and explicit collector/gap caps.
+
+Final real run **`run-XYvtHl`**, project **`asterisk-history-xyvthl`**, first
+passes isolated authenticated echo/customer-boundary, trusted marker/raw replay
+and baseline projection tests. Queue collectors then stop while the PBXs
+produce a second controlled entry/timeout. Stored queue status becomes stale
+at **4,803 / 5,185 ms** last-success age against **1,000 ms** proof thresholds.
+Resumption imports **two records per customer**, giving **five records /
+276 bytes** each, with exact raw round-trip and zero duplicate replay.
+
+Missing files fail with `source-unavailable`; discontinuous replacement fails
+with `prefix-discontinuity` without changing the original five-record checkpoint.
+Operator transitions explicitly provision fresh replacement generations and
+permanent unknown gaps. Recovery imports **four records / 238 bytes** each and
+returns healthy while retaining `unknown-gap-recorded`. Old evidence stays
+byte-identical; replacement records remain epoch-unassigned. The copied-file CEL
+collector state/checkpoint/gaps remain unchanged, independent of queue recovery.
+Its 60-second proof threshold is not a production freshness choice.
+
+Published projection revisions **4/6** use `marked-caller-v2`, retain each queue
+gap as `possibly-applicable`, preserve stable root keys and retain the original
+observed queue timeout. CEL gaps remain empty; completeness and queue coverage
+remain `unverified`, never successful/gap-free because a copied file is healthy.
+Replay reuses revisions, fresh read-only CLIs report matching committed inputs
+and expose independent kind-qualified health; foreign gap reads fail.
+An additional read of a real retained `marked-caller-v1` projection against its
+schema-4 history succeeds, reports changed current inputs and explicitly warns
+`unavailable-legacy-schema` for queue collection capability/current quality.
+
+Independent checks found no owned containers, networks, volumes, credentials or
+temporary configs; only synthetic raw/projection databases and the report remain
+local. Reproduce with `.\scripts\Test-QueueCollectorRecovery.ps1`; see
+[queue operator commands and limits](./README.md#operator-only-queue-collector-recovery).
+No automatic rotation, remote delivery, service daemon, epoch discovery or
+gap-clearing is added. Raw history is schema 5; derived projection storage remains
+schema 1 and v1 revisions remain readable. No new dependency, ordinary route,
+live phone, frozen REFER fixture or HTTP/UI/permission change. M1-06/07 and all
+17 remaining broad gates are still incomplete; stop after this finite increment.
 
 ## 6. Proposed implementation backlog
 

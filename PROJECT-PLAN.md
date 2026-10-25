@@ -627,17 +627,19 @@ and [operator usage/limits](./README.md#operator-only-queue-evidence-foundation)
 No dependencies, loaded routes, phones, web/permission surfaces or REFER checks
 changed. This is not completed JD reconstruction or M1-06/07 acceptance.
 MM below implements runtime/epoch assertions and isolated entry/visit
-instrumentation separately. Queue collector health/gaps, journey/leg/visit
-projection, human-service/outcome evidence and authenticated presentation remain
-open. CEL health never implies queue freshness.
+instrumentation separately. JP/QR below add bounded marked-caller projections
+and independent queue collector health/gaps. Broader leg/visit reconstruction,
+human-service/outcome evidence and authenticated presentation remain open.
+CEL health never implies queue freshness.
 
 ### Runtime/epoch manifest and isolated marker completion
 
 The user selected immutable record-boundary assignments and a new isolated
 synthetic fixture, not projection/totals. MM-01 through MM-07 now add operator
 registration/list/resolve, schema-4 manifest/range tables and stored-CEL marker
-inspection. Current writers migrate 1/2/3 to 4 atomically; CEL read compatibility
-is 1/2/3/4, collector 2/3/4, queue 3/4, manifests 4 only. Existing raw evidence,
+inspection. At MM completion, writers migrated 1/2/3 to 4 atomically with
+legacy read compatibility; QR below extends the owning history to schema 5.
+Existing raw evidence,
 collector/gaps and timestamps are preserved; legacy/appended bytes are unassigned
 until explicitly mapped.
 
@@ -682,7 +684,7 @@ The user selected the first bounded projection and accepted durable conservative
 revisions. JP-01 through JP-07 build one customer/runtime/epoch from a consistent
 schema-4 history snapshot and publish immutable documents atomically in a
 separate dedicated schema-1 projection database. Raw history remains unchanged.
-Algorithm `marked-caller-v1` records raw checkpoint/time-basis vectors, manifest
+The initial algorithm `marked-caller-v1` records raw checkpoint/time-basis vectors, manifest
 hashes and collector/gap observations. Stable root/visit keys use a separate
 identity namespace and explicit scoped UUIDs, not revision IDs or linkedid.
 
@@ -696,7 +698,7 @@ retain issue references. No Local, bridge, consultation or transfer leg is joine
 
 Caller answer, caller-channel end and queue timeout remain separate observed
 facts. None proves human service, caller abandonment, journey completion or a
-business count. Quality is always incomplete/unverified, queue coverage absent
+business count. At JP completion, quality is incomplete/unverified, queue coverage absent
 and service unclassified. Existing CEL gaps remain possibly applicable or
 association-unknown regardless of timestamps or subsequent healthy recovery.
 The operator reader compares current committed input hashes and exposes separate
@@ -732,6 +734,57 @@ No dependencies, ordinary routes, live phones, web/permission surfaces or frozen
 REFER fixtures change. This is only a bounded reconstruction subset, not the
 full JD graph, four-outcome acceptance, totals or M1-06/07 completion. Stop here
 before selecting the next finite increment.
+
+### Independent queue collector recovery completion
+
+The user selected QR-01 through QR-07: operator local-file queue collection,
+durable freshness/failure state and explicit permanent replacement gaps.
+History schema 5 adds independent queue collector/gap tables atomically, retaining
+all CEL/queue raw evidence, manifests and CEL collector state. CEL read support
+is 1-5, CEL collectors 2-5, raw queue 3-5, manifests 4-5 and queue collectors 5.
+Read-only legacy access never migrates or invents queue health.
+
+The queue collector uses the existing parser and checkpoints, shared file/
+threshold/time/health/error helpers, revision-fenced asynchronous attempts and
+atomic evidence/checkpoint/success updates. Configuration is immutable except
+for explicit fresh-generation transitions. Missing/malformed/oversized,
+prefix-discontinuous and storage failures surface; superseded workers cannot
+overwrite later state. Collection is one-shot or bounded foreground only.
+Stale/pending/failed/dead attempts are not successful remote delivery.
+
+Replacement records a permanent unknown gap with operator/reason and observation
+bounds, never a precise event-loss interval. Healthy collection never clears it,
+old evidence is retained and new bytes remain epoch-unassigned until explicitly
+manifested. Queue config/revisions/gaps are separate even when CEL uses the same
+source/generation strings.
+
+Algorithm `marked-caller-v2` adds kind-qualified queue/CEL provenance and separate
+health. V1 revisions remain readable, v2 rebuilds append immutable revisions and
+the independent entity-key namespace is unchanged. Legacy schema-4 input warns
+queue capability unavailable. Configured local queue collection stays coverage
+unverified; gaps remain possibly applicable or association unknown, without
+timestamp-based exclusion. No completeness, human-service or business-outcome
+claim is introduced.
+
+Typecheck and 76 focused tests pass (14 QR plus 62 existing regressions):
+migration/rollback and legacy support, exact freshness/pending/clock states,
+file failure recovery, atomic status and transition failure, fenced workers,
+process death before/inside commit, corruption/scope/bounds, independent
+projection provenance and earlier algorithm compatibility.
+Real `run-XYvtHl` (`asterisk-history-xyvthl`) observes stale collectors at
+4,803/5,185 ms against 1,000 ms; two fresh retained records per customer replay
+exactly once, preserving five records/276 bytes. Missing/discontinuous files
+fail. Explicit replacements import four records/238 bytes per customer and
+return healthy with permanent unknown gaps. CEL collection remains unchanged;
+projections retain gap warnings, stable keys and unverified completeness.
+Independent owned cleanup and persisted CLI reads pass.
+
+Reproduce with `.\scripts\Test-QueueCollectorRecovery.ps1`; see
+[QR evidence](./MILESTONE-1.md#selected-next-increment-queue-collector-recovery-and-independent-coverage)
+and [operator commands](./README.md#operator-only-queue-collector-recovery).
+No new dependency, ordinary route, live phone, HTTP/UI/permission or frozen
+REFER work. Stop after this finite local-file increment; M1-06/07, remote
+delivery/retention and broad journey/outcome acceptance remain incomplete.
 
 ## 6. Interface and roaming agents
 

@@ -4,7 +4,7 @@ import type { QueueEvent } from "./queue-history.ts";
 import { inspectHistoryMarker } from "./history-markers.ts";
 import { historyIdentifier as identifier, historySha256 as sha256 } from "./history-evidence.ts";
 
-export const PROJECTION_ALGORITHM = "marked-caller-v1";
+export const PROJECTION_ALGORITHM = "marked-caller-v2";
 export const PROJECTION_DOCUMENT_LIMIT = 8 * 1024 * 1024;
 export interface ProjectionScope { customer: string; runtime: string; epoch: string }
 export interface EvidenceRef {
@@ -134,19 +134,26 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
         }
       }
     }
-    const coverage = store.collectorSources(scope.customer).map((source) => {
-      const status = store.collectorStatus(scope.customer, source);
-      const gaps = store.collectionGaps(scope.customer, source, 0, 200);
+    const collectorSources = [
+      ...store.collectorSources(scope.customer).map((source) => ({ kind: "cel" as const, source })),
+      ...(store.queue.collectors.supported ? store.queue.collectors.sources(scope.customer)
+        .map((source) => ({ kind: "queue" as const, source })) : []),
+    ];
+    const coverage = collectorSources.map(({ kind, source }) => {
+      const status = kind === "cel" ? store.collectorStatus(scope.customer, source) : store.queue.collectors.status(scope.customer, source);
+      const gaps = kind === "cel" ? store.collectionGaps(scope.customer, source, 0, 200) :
+        store.queue.collectors.gaps(scope.customer, source, 0, 200);
       if (gaps.nextAfterId !== null) throw new Error("Projection gap limit exceeded (200 per source)");
-      const associated = selected.some((m) => m.ranges.some((r) => r.kind === "cel" && r.source === source));
-      return { source, generation: status.generation, revision: status.revision, outcome: status.outcome,
+      const associated = selected.some((m) => m.ranges.some((r) => r.kind === kind && r.source === source));
+      return { kind, source, generation: status.generation, revision: status.revision, outcome: status.outcome,
         staleAfterMs: status.staleAfterMs, updatedAt: status.updatedAt, attemptedAt: status.attemptedAt,
         succeededAt: status.succeededAt, failure: status.failure, pendingBytes: status.pendingBytes,
         association: associated ? "possibly-applicable" : "association-unknown",
         gaps: gaps.gaps };
     });
     const input = { algorithm: PROJECTION_ALGORITHM, scope, checkpoints,
-      manifests: manifests.manifests.map((m) => ({ id: m.id, sha256: m.sha256 })), coverage };
+      manifests: manifests.manifests.map((m) => ({ id: m.id, sha256: m.sha256 })), coverage,
+      queueCollectionCapability: store.queue.collectors.supported ? "available" : "unavailable-legacy-schema" };
     const usedCel = new Set<string>();
     const usedQueue = new Set<string>();
     const entries = markers.filter((m) => m.kind === "entry");
@@ -243,7 +250,8 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
     for (const journey of journeys) journey.visits.sort((a, b) => compare(a.id, b.id));
     issues.sort((a, b) => compare(key(a), key(b)));
     const document = { algorithm: PROJECTION_ALGORITHM, scope, input,
-      quality: { completeness: "unverified", queueCoverage: "not-collected", service: "not-classified",
+      quality: { completeness: "unverified", queueCoverage: !store.queue.collectors.supported ? "unavailable-legacy-schema" :
+        coverage.some((c) => c.kind === "queue") ? "unverified" : "not-collected", service: "not-classified",
         attribution: "explicit-marked-caller-only", noMarkedRoots: journeys.length === 0 },
       journeys, issues };
     const serialized = JSON.stringify(document);

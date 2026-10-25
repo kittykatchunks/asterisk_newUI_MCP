@@ -15,15 +15,139 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Operator-only queue collector recovery
+
+QR-01 through QR-07 add durable local-file collection for queue evidence,
+independent of CEL collection, plus queue coverage provenance in projections.
+The [queue collector](./src/queue-collector.ts) uses the existing owning
+[history database](./src/cel-history.ts) and the same raw queue parser/checkpoints.
+[Shared collection helpers](./src/history-collection.ts) supply bounded snapshot
+reads, file/threshold/time/transition validation, health evaluation and fenced
+asynchronous error recording for CEL and queue without conflating their formats
+or source namespaces. No packages, daemons, web/permissions or live phones are added.
+
+### Queue collector commands
+
+With Node.js 24 and absolute paths to the dedicated history database and a
+stable regular local full-file snapshot (example placeholders):
+
+```powershell
+node .\scripts\Manage-QueueCollector.ts configure 'C:\proof\history.sqlite' customer-a pbx-a generation-1 'C:\proof\queue_log' 5000
+node .\scripts\Manage-QueueCollector.ts collect 'C:\proof\history.sqlite' customer-a pbx-a
+node .\scripts\Manage-QueueCollector.ts run 'C:\proof\history.sqlite' customer-a pbx-a 1000 3
+node .\scripts\Manage-QueueCollector.ts status 'C:\proof\history.sqlite' customer-a pbx-a
+node .\scripts\Manage-QueueCollector.ts transition 'C:\proof\history.sqlite' customer-a pbx-a generation-2 named-operator 'Source replaced; retained continuity cannot be established'
+node .\scripts\Manage-QueueCollector.ts gaps 'C:\proof\history.sqlite' customer-a pbx-a 0 100
+```
+
+`configure` binds customer/source/generation to an immutable absolute local path
+and stale threshold of **1,000-86,400,000 ms**. Queue time basis is always `unix`;
+there is no IANA argument. Configuration replay is idempotent, but changing
+customer/path/threshold or generation through configuration fails. Explicit
+`transition` is the only supported generation change. CEL and queue can use
+equal source/generation strings while retaining independent customers, config,
+checkpoints, revisions and gaps.
+
+`collect` first commits a revision-fenced attempt, reads at most **8 MiB** from a
+regular file, then atomically commits complete raw queue records, prefix
+checkpoint, pending-byte count and success state. Queue format/record/import
+bounds below remain unchanged. Missing/malformed/oversized files, truncation,
+changed committed prefixes and storage errors fail nonzero without advancing
+evidence; failure recording is itself explicit and cannot overwrite a superseding
+attempt. If both collection and failure recording fail, both errors are surfaced.
+Exact replay inserts zero. Partial trailing bytes remain pending until a later
+full snapshot completes them; they are not silently discarded as a reset.
+
+`run` is a **bounded foreground command**, not a service: interval
+**100-60,000 ms**, **1-1,000 passes**, stopping nonzero on the first failure.
+`status` and `gaps` open an existing supported history database read-only.
+All mutations require a writer, including idempotent configure.
+Status carries `kind:"queue"`, local configuration/revision/timestamps,
+checkpoint, gap count, coverage, last-success age and one of:
+`never-collected`, `collecting`, `healthy`, `pending`, `stale`, `unhealthy`,
+`clock-skew`. Exact threshold expiry is stale; `collecting` is not process
+liveness. Process exit after the durable attempt leaves collecting/stale state,
+not successful collection. Backwards mutation clocks fail.
+
+`transition` requires a **fresh unused queue source generation**, bounded
+operator (200 characters) and reason (2,000), nonblank and control-free.
+It atomically preserves the old evidence, provisions the new generation and
+records an immutable unknown-coverage gap with last-success/observation bounds.
+It never infers a precise event-loss interval. A later healthy read cannot erase
+the gap or change `coverage:"unknown-gap-recorded"`.
+`gaps` returns `{kind,gaps,nextAfterId}` with **1-200 entries/page**.
+No automatic rotation, correction, cross-generation deduplication, source
+continuity, epoch assignment or remote collection is implemented.
+
+### Schema and projection compatibility
+
+Current trusted history writers atomically migrate schemas **1-4 to 5**.
+Existing raw CEL/queue, manifests and CEL collection/gaps are preserved.
+CEL readers support **1/2/3/4/5**, CEL collector readers **2/3/4/5**, raw queue
+readers **3/4/5**, manifests **4/5**, queue collectors **5 only**.
+Read-only commands never migrate; old binaries reject schema 5, with no downgrade.
+Separate projection/diagnostic/agent/simulation formats are unchanged.
+
+New projections use **`marked-caller-v2`**, with independent `kind:cel|queue`
+collector/gap observations in the input vector and current health output.
+Earlier `marked-caller-v1` revisions remain readable; rebuilding appends v2
+without rewriting history or prior revisions. The independent
+`history-entity-v1` journey/visit identity namespace is unchanged.
+Reading old schema-4 history remains possible: queue collection capability and
+quality explicitly say `unavailable-legacy-schema`, not healthy or gap-free.
+
+Projection queue quality is `not-collected` when no queue collector is
+configured, otherwise conservatively `unverified`; even healthy local reads do
+not establish complete queue evidence. Gaps remain `possibly-applicable` for
+participating sources or `association-unknown`, never timestamp-excluded.
+CEL and queue health do not stand in for each other. Projection bounds apply
+independently to **20 configured collectors and 200 gaps/source per kind**.
+Local copied-file health does **not** prove delivery/freshness on a remote PBX.
+
+### Queue recovery verification
+
+```powershell
+.\scripts\Test-QueueCollectorRecovery.ps1
+```
+
+This runs typecheck, **76 focused tests** (14 queue collector plus 62 existing
+history/projection regressions) and a new `--queue-recovery` mode of the isolated
+two-customer marker/projection harness. It uses the locally available pinned
+image with `--pull never --no-build`, owns unique Compose resources and never
+controls the shared deployment or reruns REFER.
+
+Recorded real run `run-XYvtHl` (`asterisk-history-xyvthl`) observed stale queue
+collection at **4,803 / 5,185 ms** against a **1,000-ms** threshold. With collector
+processes stopped, each PBX retained two additional entry/timeout records.
+Resumption imported **two records exactly once**, preserving **five records /
+276 bytes per customer**; replay inserted zero.
+Missing files and discontinuous replacements failed. Explicit replacement
+generations imported **four records / 238 bytes** each, returned healthy and
+retained their permanent unknown gap. Old/new raw bytes round-trip exactly;
+replacement records remain unassigned to epochs until explicitly manifested.
+
+Projection provenance retains the queue gap as possibly applicable while CEL
+collector/checkpoint/gap state remains unchanged. Stable root keys and the
+previous observed timeout survive; completeness/queue coverage stay unverified.
+Fresh CLI read/rebuild/reopen and foreign-scope denial pass. Independent checks
+confirm no owned containers/networks/volumes, credentials or temporary configs;
+only synthetic raw/projection databases and report remain locally.
+The CEL proof threshold is 60 seconds solely to show independent local-file
+health; it is not a production freshness policy or proof of live PBX delivery.
+
+This does not complete M1-06/07, remote delivery/retention/backup, human service,
+four-outcome acceptance, broad reconstruction or any business totals. See the
+[finite QR contract/evidence](./MILESTONE-1.md#selected-next-increment-queue-collector-recovery-and-independent-coverage).
+
 ## Conservative operator journey projections
 
 JP-01 through JP-07 implement only the first bounded reconstruction subset:
 **explicitly marked caller channels and unambiguous queue-entry/timeout
-observations**. The [builder](./src/history-projection.ts) reads schema-4 history
+observations**. The [builder](./src/history-projection.ts) reads schema-4/5 history
 in a consistent SQLite snapshot. The separate
 [projection store](./src/history-projection-store.ts) appends immutable derived
 revisions in its own dedicated schema-1 database (FULL synchronous, DELETE
-journal). Raw history remains schema 4 and is never migrated or modified by
+journal). Raw history is never migrated or modified by
 projection commands. No dependencies, live phones, ordinary routes, REFER tests,
 HTTP/UI or permissions are added.
 
@@ -50,7 +174,8 @@ interchangeable. Filesystem/CLI access is a trusted operator boundary, not tenan
 authentication or an approved sensitive-data export.
 
 Each revision returns ID, scope, publication time, algorithm
-`marked-caller-v1`, input SHA-256, projection SHA-256 and the document.
+`marked-caller-v2`, input SHA-256, projection SHA-256 and the document
+(earlier `marked-caller-v1` revisions remain readable).
 `revisions` returns metadata with `nextAfterId`; pass that cursor until null.
 Revision IDs are database-wide, not per-customer counters.
 An identical latest input/output reuses its revision (`reused:true`); late input
@@ -61,7 +186,8 @@ rebuilds are atomic; failures preserve the last good revision.
 
 The versioned input vector includes all bounded customer CEL/queue checkpoints
 (kind/source/generation/time basis/bytes/hash/record count), customer manifest
-IDs/hashes and durable CEL collector/gap observations. Unrelated changes within
+IDs/hashes and independently kind-qualified CEL/queue collector/gap observations.
+Unrelated changes within
 that customer's input vector can conservatively invalidate a revision. There
 is no remote-PBX freshness claim. Exact original raw bytes remain in history;
 the projection stores source-qualified record offsets/hashes, not copied caller
@@ -114,11 +240,12 @@ freshness fallback.
   **not a confirmed business journey count**. Visit states are `unresolved`,
   `conflicting`, `entry-observed` or `timeout-observed`.
 
-Quality always says **completeness unverified**, **service not classified** and
-**queue coverage not collected**. CEL collector gaps are preserved as
+Quality always says **completeness unverified** and **service not classified**.
+Queue coverage is `not-collected`, `unverified` with configured queue collection,
+or `unavailable-legacy-schema` for older history. CEL/queue gaps are preserved as
 `possibly-applicable` when that source participates in selected manifests,
 otherwise `association-unknown`. No timestamp filter can erase them. A healthy
-CEL collection after recovery does not clear gaps or establish queue coverage;
+collection after recovery does not clear gaps or establish complete coverage;
 absence of a configured collector is not healthy evidence.
 No human-service, caller-abandonment, transferred/answered business outcome,
 journey-completion, durations, rates or totals are implemented.
@@ -126,7 +253,7 @@ journey-completion, durations, rates or totals are implemented.
 Bounds per rebuild: **20 source generations per kind**, **200 customer
 manifests**, **100 selected ranges**, **2,000 total customer raw records**,
 **8 MiB raw input**, **20,000 output evidence references**, and **8 MiB serialized
-document**. At most 20 configured CEL sources and 200 gaps/source are included.
+document**. At most 20 configured sources per kind and 200 gaps/source are included.
 Revision pages contain 1-200 metadata entries. Ambiguity fanout exceeding limits
 fails before publication; no truncation or partial success is used.
 This is a bounded engineering tool, not production history scale, retention,
@@ -278,7 +405,7 @@ and temporary configuration are removed; only ignored synthetic databases/report
 remain locally. Existing authenticated echo/isolation probes pass as part of the
 harness; no REFER checks run. The empty queue timeout is not caller abandonment
 or human service. JP above adds only conservative marked-caller/visit projections.
-Broader reconstruction, queue collector health/gaps, corrections, remote delivery,
+Broader reconstruction, corrections, remote delivery,
 retention and authenticated presentation remain open.
 
 ## Operator-only queue evidence foundation
@@ -294,8 +421,8 @@ as a compatible export.
 
 This is an **operator evidence tool**, not queue journey reconstruction or an
 authenticated history service. QF itself enables no agent phone, entry marker,
-queue collector status/gap adapter or new HTTP/UI. The separate MM increment
-above adds operator manifests and isolated marker observations only.
+queue collector status/gap adapter or new HTTP/UI. The separate MM and QR
+increments above add operator manifests/isolated markers and queue collection.
 
 ### Queue operator commands
 
@@ -359,8 +486,9 @@ after process exit/restart inserts zero; identical rows at different offsets sta
 separate. Changed/truncated prefixes or customer rebinding for a queue
 source/generation fail. Operator-recognised replacement requires a distinct
 generation; no automatic rotation, overlap deduplication across generations or
-gap-free recovery is claimed. Unlike CEL CR, QF has no durable queue health/gap
-workflow: **CEL collector health/gaps do not describe queue coverage**. Generation
+gap-free recovery is claimed. The subsequent QR increment above provides the
+separate durable queue health/gap workflow:
+**CEL collector health/gaps do not describe queue coverage**. Generation
 changes alone do not establish continuity, an epoch or missing-call intervals.
 
 Raw queue records may contain caller number/name and other sensitive parameters.
@@ -372,12 +500,13 @@ open.
 
 ### History schema compatibility and queue verification
 
-Any current trusted writer atomically migrates dedicated history schema 1/2/3 to
-**4**, preserving CEL source/event, queue and collector/gap state, adding any
-missing earlier tables plus immutable manifest/range tables. Current CEL readers
-support 1/2/3/4; collector reads support 2/3/4; queue reads support 3/4;
-manifest/marker operations require 4. Read-only commands never migrate. Old
-binaries reject schema 4; there is no downgrade path or automatic epoch
+Any current trusted writer atomically migrates dedicated history schema 1/2/3/4 to
+**5**, preserving CEL source/event, queue, manifests and CEL collector/gap state,
+adding any missing earlier tables plus distinct queue collector/gap tables.
+Current CEL readers support 1/2/3/4/5; CEL collector reads support 2/3/4/5;
+queue reads support 3/4/5; manifests/markers support 4/5; queue collectors require 5.
+Read-only commands never migrate. Old binaries reject schema 5;
+there is no downgrade path or automatic epoch
 assignment. Diagnostic, agent, simulation and backup formats are unchanged.
 
 ```powershell

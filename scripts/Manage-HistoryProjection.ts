@@ -28,15 +28,18 @@ try {
         const current = buildHistoryProjection(history, scope);
         const checkedAt = Date.now();
         const collectorHealth = history.readSnapshot(() => current.document.input.coverage.map((source) => {
-          const status = history.collectorStatus(customer, source.source, checkedAt);
-          return { source: source.source, status: status.status, revision: status.revision,
+          const status = source.kind === "cel" ? history.collectorStatus(customer, source.source, checkedAt) :
+            history.queue.collectors.status(customer, source.source, checkedAt);
+          return { kind: source.kind, source: source.source, status: status.status, revision: status.revision,
             ageMs: status.ageMs, coverage: status.coverage };
         }));
         console.log(JSON.stringify({ ...revision, freshness: {
           state: revision.inputSha256 === current.inputSha256 ? "inputs-match" : "inputs-changed",
           checkedAt: new Date(checkedAt).toISOString(), currentInputSha256: current.inputSha256,
           meaning: "Local committed evidence only; not remote PBX freshness or completeness",
-        }, currentCoverage: current.document.input.coverage, collectorHealth }));
+        }, currentCoverage: current.document.input.coverage,
+        currentQueueCollectionCapability: current.document.input.queueCollectionCapability,
+        currentQuality: current.document.quality, collectorHealth }));
       }
     } finally { history.close(); }
   }

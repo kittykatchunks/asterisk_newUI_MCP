@@ -47,7 +47,7 @@ test("MM-01: schema 3 migrates preserving raw evidence and leaving it unassigned
       gaps: store.collectionGaps(scope.customer, scope.source) };
     store.close();
     const legacy = new DatabaseSync(path);
-    legacy.exec("DROP TABLE history_ranges; DROP TABLE history_manifests; PRAGMA user_version=3");
+    legacy.exec("DROP TABLE queue_collection_gaps; DROP TABLE queue_collectors; DROP TABLE history_ranges; DROP TABLE history_manifests; PRAGMA user_version=3");
     legacy.close();
     const reader = openCelHistory(path, { readOnly: true });
     try {
@@ -77,7 +77,7 @@ test("MM-01: migration failure rolls back schema and preserves original raw read
     const before = store.read(scope);
     store.close();
     const db = new DatabaseSync(path);
-    db.exec("DROP TABLE history_ranges; DROP TABLE history_manifests; PRAGMA user_version=3; CREATE TABLE history_ranges(blocker TEXT)");
+    db.exec("DROP TABLE queue_collection_gaps; DROP TABLE queue_collectors; DROP TABLE history_ranges; DROP TABLE history_manifests; PRAGMA user_version=3; CREATE TABLE history_ranges(blocker TEXT)");
     db.close();
     assert.throws(() => openCelHistory(path), /already exists/);
     const check = new DatabaseSync(path, { readOnly: true });
