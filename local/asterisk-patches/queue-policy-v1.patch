@@ -1,0 +1,1111 @@
+diff --git a/apps/app_queue.c b/apps/app_queue.c
+index 73719a9..661b505 100644
+--- a/apps/app_queue.c
++++ b/apps/app_queue.c
+@@ -107,6 +107,7 @@
+ #include "asterisk/mixmonitor.h"
+ #include "asterisk/bridge_basic.h"
+ #include "asterisk/max_forwards.h"
++#include "asterisk/test.h"
+ 
+ /*!
+  * \par Please read before modifying this file.
+@@ -12073,7 +12074,323 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
+ 	return 0;
+ }
+ 
++struct policy_snapshot_row {
++	char name[97];
++	int strategy;
++	int timeout;
++	unsigned int join_mask;
++	unsigned int leave_mask;
++	int members;
++	int callers;
++	int caller_list_empty;
++};
++
++struct policy_snapshot {
++	char namespace[28];
++	struct policy_snapshot_row rows[8];
++	unsigned int count;
++	const char *error;
++};
++
++static int policy_snapshot_visit(void *object, void *context)
++{
++	struct call_queue *q = object;
++	struct policy_snapshot *sample = context;
++	struct policy_snapshot_row row = { 0 };
++	size_t length = strnlen(q->name, sizeof(row.name));
++	int selected, reserved, lock_result;
++	unsigned int i;
++
++	if (length == sizeof(row.name)) {
++		sample->error = "unsupported-state";
++		return 1;
++	}
++	reserved = length > 27 && !strncasecmp(q->name, sample->namespace, 27)
++		&& q->name[27] == '-';
++	selected = reserved || !strcasecmp(q->name, "proof-queue");
++	if (!selected) {
++		return 0;
++	}
++	for (i = 0; i < length; ++i) {
++		char c = q->name[i];
++		if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
++			|| (i && (c == '-' || c == '_')))) {
++			sample->error = "unsupported-state";
++			return 1;
++		}
++	}
++	if (reserved && (length < 29 || length > 60
++		|| q->name[28] < 'a' || q->name[28] > 'z')) {
++		sample->error = "unsupported-state";
++		return 1;
++	}
++	if (reserved) {
++		for (i = 28; i < length; ++i) {
++			if (q->name[i] == '_') {
++				sample->error = "unsupported-state";
++				return 1;
++			}
++		}
++	}
++	for (i = 0; i < sample->count; ++i) {
++		if (!strcmp(sample->rows[i].name, q->name)) {
++			sample->error = "unsupported-state";
++			return 1;
++		}
++	}
++	if (sample->count == ARRAY_LEN(sample->rows)) {
++		sample->error = "limit";
++		return 1;
++	}
++	if ((ao2_options_get(q) & AO2_ALLOC_OPT_LOCK_MASK) != AO2_ALLOC_OPT_LOCK_MUTEX) {
++		sample->error = "unsupported-state";
++		return 1;
++	}
++	lock_result = ao2_trylock(q);
++	if (lock_result) {
++		sample->error = lock_result == EBUSY ? "busy" : "internal";
++		return 1;
++	}
++	if (q->realtime) {
++		sample->error = "unsupported-state";
++		goto queue_done;
++	}
++	if (q->dead || !q->members
++		|| (ao2_options_get(q->members) & AO2_ALLOC_OPT_LOCK_MASK) != AO2_ALLOC_OPT_LOCK_MUTEX) {
++		sample->error = "unsupported-state";
++		goto queue_done;
++	}
++	lock_result = ao2_trylock(q->members);
++	if (lock_result) {
++		sample->error = lock_result == EBUSY ? "busy" : "internal";
++		goto queue_done;
++	}
++	row.members = ao2_container_count(q->members);
++	if (ao2_unlock(q->members)) {
++		sample->error = "internal";
++		goto queue_done;
++	}
++	row.strategy = q->strategy;
++	row.timeout = q->timeout;
++	row.join_mask = q->joinempty;
++	row.leave_mask = q->leavewhenempty;
++	row.callers = q->count;
++	row.caller_list_empty = !q->head;
++	if (row.strategy < QUEUE_STRATEGY_RINGALL || row.strategy > QUEUE_STRATEGY_RRORDERED
++		|| row.timeout < 0 || row.timeout > 86400
++		|| row.join_mask > 255 || row.leave_mask > 255
++		|| row.members < 0 || row.members > 65535
++		|| row.callers < 0 || row.callers > 65535
++		|| (!row.callers != row.caller_list_empty)) {
++		sample->error = "unsupported-state";
++		goto queue_done;
++	}
++	memcpy(row.name, q->name, length + 1);
++queue_done:
++	if (ao2_unlock(q)) {
++		sample->error = "internal";
++	}
++	if (sample->error) {
++		return 1;
++	}
++	sample->rows[sample->count++] = row;
++	return 0;
++}
++
++static int policy_snapshot_compare(const void *left, const void *right)
++{
++	const struct policy_snapshot_row *a = left, *b = right;
++	return strcmp(a->name, b->name);
++}
++
++static char *handle_queue_policy_snapshot(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
++{
++	const struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
++	struct ao2_bounded_result result;
++	struct policy_snapshot sample = { 0 };
++	char output[8192];
++	const char *namespace_json = "null";
++	char quoted_namespace[30];
++	size_t used;
++	unsigned int i;
++	int written;
++
++	switch (cmd) {
++	case CLI_INIT:
++		e->command = "queue policy snapshot";
++		e->usage = "Usage: queue policy snapshot cp-<24 lowercase hex digits>\n";
++		return NULL;
++	case CLI_GENERATE:
++		return NULL;
++	}
++	if (a->argc != 4 || strnlen(a->argv[3], 28) != 27
++		|| memcmp(a->argv[3], "cp-", 3)) {
++		sample.error = "invalid-request";
++		goto respond;
++	}
++	for (i = 3; i < 27; ++i) {
++		char c = a->argv[3][i];
++		if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
++			sample.error = "invalid-request";
++			goto respond;
++		}
++	}
++	memcpy(sample.namespace, a->argv[3], 28);
++	snprintf(quoted_namespace, sizeof(quoted_namespace), "\"%s\"", sample.namespace);
++	namespace_json = quoted_namespace;
++	if (!queues) {
++		sample.error = "unsupported-state";
++		goto respond;
++	}
++	ao2_container_visit_bounded_v1(queues, &limits, policy_snapshot_visit, &sample, &result);
++	switch (result.status) {
++	case AO2_BOUNDED_COMPLETE:
++		break;
++	case AO2_BOUNDED_BUSY:
++		sample.error = "busy";
++		break;
++	case AO2_BOUNDED_LIMIT:
++		sample.error = "limit";
++		break;
++	case AO2_BOUNDED_UNSUPPORTED:
++		sample.error = "unsupported-state";
++		break;
++	case AO2_BOUNDED_ABORTED:
++		if (!sample.error) {
++			sample.error = "internal";
++		}
++		break;
++	default:
++		sample.error = "internal";
++	}
++respond:
++	if (sample.error) {
++		return ast_cli(a->fd, "{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++			"\"maskMapping\":\"asterisk-22-empty-v1\",\"namespace\":%s,"
++			"\"status\":\"error\",\"code\":\"%s\"}\n", namespace_json, sample.error) < 0
++			? CLI_FAILURE : CLI_SUCCESS;
++	}
++	qsort(sample.rows, sample.count, sizeof(sample.rows[0]), policy_snapshot_compare);
++	written = snprintf(output, sizeof(output),
++		"{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++		"\"maskMapping\":\"asterisk-22-empty-v1\",\"status\":\"observed\","
++		"\"namespace\":%s,\"consistency\":\"bounded-per-object-sample\",\"objects\":[",
++		namespace_json);
++	if (written < 0 || (size_t) written >= sizeof(output)) {
++		goto output_error;
++	}
++	used = written;
++	for (i = 0; i < sample.count; ++i) {
++		const struct policy_snapshot_row *row = &sample.rows[i];
++		const char *strategy = NULL;
++		unsigned int index;
++
++		for (index = 0; index < ARRAY_LEN(strategies); ++index) {
++			if (strategies[index].strategy == row->strategy) {
++				strategy = strategies[index].name;
++				break;
++			}
++		}
++		if (!strategy) {
++			goto output_error;
++		}
++		written = snprintf(output + used, sizeof(output) - used,
++			"%s{\"name\":\"%s\",\"origin\":\"static\",\"strategy\":\"%s\","
++			"\"memberTimeoutSeconds\":%d,\"joinEmptyMask\":%u,\"leaveWhenEmptyMask\":%u,"
++			"\"memberCount\":%d,\"callerCount\":%d,\"callerListEmpty\":%s}",
++			i ? "," : "", row->name, strategy, row->timeout, row->join_mask,
++			row->leave_mask, row->members, row->callers, row->caller_list_empty ? "true" : "false");
++		if (written < 0 || (size_t) written >= sizeof(output) - used) {
++			goto output_error;
++		}
++		used += written;
++	}
++	if (sizeof(output) - used < 4) {
++		goto output_error;
++	}
++	memcpy(output + used, "]}\n", 4);
++	return ast_cli(a->fd, "%s", output) < 0 ? CLI_FAILURE : CLI_SUCCESS;
++output_error:
++	return ast_cli(a->fd, "{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++		"\"maskMapping\":\"asterisk-22-empty-v1\",\"namespace\":%s,"
++		"\"status\":\"error\",\"code\":\"internal\"}\n", namespace_json) < 0
++		? CLI_FAILURE : CLI_SUCCESS;
++}
++
++#ifdef TEST_FRAMEWORK
++AST_TEST_DEFINE(policy_snapshot_copy)
++{
++	struct call_queue *q = NULL;
++	struct policy_snapshot sample = { .namespace = "cp-aaaaaaaaaaaaaaaaaaaaaaaa" };
++	enum ast_test_result_state state = AST_TEST_FAIL;
++	int fields_initialized = 0;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "policy_snapshot_copy";
++		info->category = "/apps/app_queue/policy_snapshot/";
++		info->summary = "Copy loaded policy from an isolated in-memory queue fixture";
++		info->description = "No global queue link, member device or config/realtime lookup.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	q = ao2_alloc(sizeof(*q), NULL);
++	if (!q || ast_string_field_init(q, 128)) {
++		goto done;
++	}
++	fields_initialized = 1;
++	ast_string_field_set(q, name, "cp-aaaaaaaaaaaaaaaaaaaaaaaa-test");
++	q->members = ao2_container_alloc_list(AO2_ALLOC_OPT_LOCK_MUTEX, 0, NULL, NULL);
++	if (!q->members) {
++		goto done;
++	}
++	q->timeout = 2;
++	if (policy_snapshot_visit(q, &sample) || sample.count != 1
++		|| sample.rows[0].timeout != 2 || sample.rows[0].join_mask
++		|| sample.rows[0].leave_mask || !sample.rows[0].caller_list_empty) {
++		goto done;
++	}
++	sample.count = 0;
++	q->timeout = 7;
++	parse_empty_options("no", &q->joinempty, 1);
++	parse_empty_options("yes", &q->leavewhenempty, 0);
++	if (policy_snapshot_visit(q, &sample) || sample.count != 1
++		|| sample.rows[0].timeout != 7 || sample.rows[0].join_mask != 35
++		|| sample.rows[0].leave_mask != 35) {
++		goto done;
++	}
++	sample.count = 0;
++	q->realtime = 1;
++	if (!policy_snapshot_visit(q, &sample) || sample.count
++		|| !sample.error || strcmp(sample.error, "unsupported-state")) {
++		goto done;
++	}
++	sample.error = NULL;
++	q->realtime = 0;
++	q->dead = 1;
++	if (!policy_snapshot_visit(q, &sample) || sample.count
++		|| !sample.error || strcmp(sample.error, "unsupported-state")) {
++		goto done;
++	}
++	state = AST_TEST_PASS;
++done:
++	if (q) {
++		ao2_cleanup(q->members);
++		if (fields_initialized) {
++			ast_string_field_free_memory(q);
++		}
++		ao2_ref(q, -1);
++	}
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Policy snapshot copy invariant failed\n");
++	}
++	return state;
++}
++#endif
++
+ static struct ast_cli_entry cli_queue[] = {
++	AST_CLI_DEFINE(handle_queue_policy_snapshot, "Read bounded loaded queue policies", .protected_execution = 1),
+ 	AST_CLI_DEFINE(queue_show, "Show status of a specified queue"),
+ 	AST_CLI_DEFINE(handle_queue_rule_show, "Show the rules defined in queuerules.conf"),
+ 	AST_CLI_DEFINE(handle_queue_add_member, "Add a channel to a specified queue"),
+@@ -12091,6 +12408,7 @@ static struct stasis_forward *topic_forwarder;
+ 
+ static int unload_module(void)
+ {
++	AST_TEST_UNREGISTER(policy_snapshot_copy);
+ 	stasis_message_router_unsubscribe_and_join(agent_router);
+ 	agent_router = NULL;
+ 
+@@ -12317,6 +12635,7 @@ static int load_module(void)
+ 		unload_module();
+ 		return AST_MODULE_LOAD_DECLINE;
+ 	}
++	AST_TEST_REGISTER(policy_snapshot_copy);
+ 	return AST_MODULE_LOAD_SUCCESS;
+ }
+ 
+diff --git a/include/asterisk/astobj2.h b/include/asterisk/astobj2.h
+index ee2c38c..3b32288 100644
+--- a/include/asterisk/astobj2.h
++++ b/include/asterisk/astobj2.h
+@@ -466,6 +466,48 @@ void *__ao2_alloc_with_lockobj(size_t data_size, ao2_destructor_fn destructor_fn
+  */
+ unsigned int ao2_options_get(void *obj);
+ 
++struct ao2_container;
++
++enum ao2_bounded_status {
++	AO2_BOUNDED_COMPLETE,
++	AO2_BOUNDED_INVALID,
++	AO2_BOUNDED_UNSUPPORTED,
++	AO2_BOUNDED_BUSY,
++	AO2_BOUNDED_LIMIT,
++	AO2_BOUNDED_ABORTED,
++	AO2_BOUNDED_INTERNAL,
++};
++
++struct ao2_bounded_limits {
++	unsigned int version;
++	unsigned int max_buckets;
++	unsigned int max_nodes;
++	unsigned int max_objects;
++};
++
++struct ao2_bounded_result {
++	enum ao2_bounded_status status;
++	unsigned int buckets;
++	unsigned int nodes;
++	unsigned int objects;
++};
++
++/*! Borrowed visitor: return 0 to continue, 1 to abort; no ownership changes. */
++typedef int (*ao2_bounded_visitor)(void *object, void *context);
++
++/*!
++ * \brief Visit a live mutex hash/list without acquiring references.
++ *
++ * Caller guarantees container lifetime and must not hold its mutex. Visitor
++ * must not block, allocate, mutate/reenter the container, or retain pointers.
++ * Limits v1 ceilings are 64 buckets, 128 physical nodes, 64 live objects.
++ * A complete result alone establishes full traversal. All other results are
++ * incomplete. Result storage is required; no cursor or cleanup escapes.
++ */
++enum ao2_bounded_status ao2_container_visit_bounded_v1(
++	struct ao2_container *container, const struct ao2_bounded_limits *limits,
++	ao2_bounded_visitor visitor, void *context, struct ao2_bounded_result *result);
++
+ /*!
+  * \since 12
+  * \brief Bump refcount on an AO2 object by one, returning the object.
+diff --git a/include/asterisk/cli.h b/include/asterisk/cli.h
+index e8509e8..60f03ff 100644
+--- a/include/asterisk/cli.h
++++ b/include/asterisk/cli.h
+@@ -187,6 +187,8 @@ struct ast_cli_entry {
+ 	char *(*handler)(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a);
+ 	/*! For linking */
+ 	AST_LIST_ENTRY(ast_cli_entry) list;
++	/*! Opt-in loader lease through final dispatch access. */
++	unsigned int protected_execution;
+ };
+ 
+ #if defined(__cplusplus) || defined(c_plusplus)
+diff --git a/include/asterisk/module.h b/include/asterisk/module.h
+index 8ba29f3..754f8af 100644
+--- a/include/asterisk/module.h
++++ b/include/asterisk/module.h
+@@ -446,6 +446,17 @@ struct ast_module *__ast_module_running_ref(struct ast_module *mod, const char *
+ void __ast_module_shutdown_ref(struct ast_module *mod, const char *file, int line, const char *func);
+ void __ast_module_unref(struct ast_module *mod, const char *file, int line, const char *func);
+ 
++/*!
++ * \brief Try to admit a protected CLI reader while its entry is registry-locked.
++ * \retval 0 Admitted; release exactly once after the last entry access.
++ * \retval -1 Busy, closing, or not ready. No lease was acquired.
++ *
++ * The caller must hold the CLI registry lock and must not already hold the
++ * loader lock. Never retain the module pointer after releasing the lease.
++ */
++int ast_module_cli_try_acquire(struct ast_module *mod);
++void ast_module_cli_release(struct ast_module *mod);
++
+ /*!
+  * \brief Hold a reference to the module
+  * \param mod Module to reference
+diff --git a/main/astobj2_hash.c b/main/astobj2_hash.c
+index 890e12e..8011de4 100644
+--- a/main/astobj2_hash.c
++++ b/main/astobj2_hash.c
+@@ -1016,6 +1016,77 @@ static const struct ao2_container_methods v_table_hash = {
+ #endif	/* defined(AO2_DEBUG) */
+ };
+ 
++enum ao2_bounded_status ao2_container_visit_bounded_v1(
++	struct ao2_container *container, const struct ao2_bounded_limits *limits,
++	ao2_bounded_visitor visitor, void *context, struct ao2_bounded_result *result)
++{
++	struct ao2_container_hash *self;
++	int bucket, expected, lock_result;
++
++	if (!result) {
++		return AO2_BOUNDED_INVALID;
++	}
++	*result = (struct ao2_bounded_result) { .status = AO2_BOUNDED_INVALID };
++	if (!container || !limits || !visitor || limits->version != 1
++		|| !limits->max_buckets || limits->max_buckets > 64
++		|| !limits->max_nodes || limits->max_nodes > 128
++		|| !limits->max_objects || limits->max_objects > 64) {
++		return result->status;
++	}
++	if (container->v_table != &v_table_hash
++		|| (ao2_options_get(container) & AO2_ALLOC_OPT_LOCK_MASK) != AO2_ALLOC_OPT_LOCK_MUTEX) {
++		return result->status = AO2_BOUNDED_UNSUPPORTED;
++	}
++	lock_result = ao2_trylock(container);
++	if (lock_result) {
++		return result->status = lock_result == EBUSY ? AO2_BOUNDED_BUSY : AO2_BOUNDED_INTERNAL;
++	}
++	self = (struct ao2_container_hash *) container;
++	expected = ao2_container_count(container);
++	result->status = AO2_BOUNDED_INTERNAL;
++	if (container->destroying || self->n_buckets <= 0 || expected < 0) {
++		goto done;
++	}
++	result->status = AO2_BOUNDED_LIMIT;
++	if ((unsigned int) self->n_buckets > limits->max_buckets
++		|| (unsigned int) expected > limits->max_objects) {
++		goto done;
++	}
++	for (bucket = 0; bucket < self->n_buckets; ++bucket) {
++		struct hash_bucket_node *node;
++
++		++result->buckets;
++		node = AST_DLLIST_FIRST(&self->buckets[bucket].list);
++		while (node) {
++			int response;
++
++			if (result->nodes == limits->max_nodes) {
++				goto done;
++			}
++			++result->nodes;
++			if (node->common.obj) {
++				if (result->objects == limits->max_objects) {
++					goto done;
++				}
++				++result->objects;
++				response = visitor(node->common.obj, context);
++				if (response) {
++					result->status = response == 1 ? AO2_BOUNDED_ABORTED : AO2_BOUNDED_INTERNAL;
++					goto done;
++				}
++			}
++			node = AST_DLLIST_NEXT(node, links);
++		}
++	}
++	result->status = result->objects == (unsigned int) expected
++		? AO2_BOUNDED_COMPLETE : AO2_BOUNDED_INTERNAL;
++done:
++	if (ao2_unlock(container)) {
++		result->status = AO2_BOUNDED_INTERNAL;
++	}
++	return result->status;
++}
++
+ /*!
+  * \brief always zero hash function
+  *
+diff --git a/main/cli.c b/main/cli.c
+index a73cab9..feb970b 100644
+--- a/main/cli.c
++++ b/main/cli.c
+@@ -2546,6 +2546,24 @@ static void remove_shutdown_command(struct ast_cli_entry *e)
+ 
+ int ast_cli_unregister(struct ast_cli_entry *e)
+ {
++	if (e->protected_execution) {
++		AST_RWLIST_WRLOCK(&helpers);
++		if (e->inuse) {
++			AST_RWLIST_UNLOCK(&helpers);
++			ast_log(LOG_WARNING, "Protected CLI command is busy; not removed\n");
++			return -1;
++		}
++		AST_RWLIST_REMOVE(&helpers, e, list);
++		AST_RWLIST_UNLOCK(&helpers);
++		remove_shutdown_command(e);
++		ast_free(e->_full_cmd);
++		e->_full_cmd = NULL;
++		memset((char *) e->cmda, '\0', sizeof(e->cmda));
++		ast_free(e->command);
++		e->command = NULL;
++		e->usage = NULL;
++		return 0;
++	}
+ 	if (e->inuse) {
+ 		ast_log(LOG_WARNING, "Can't remove command that is in use\n");
+ 	} else {
+@@ -2578,6 +2596,12 @@ int __ast_cli_register(struct ast_cli_entry *e, struct ast_module *module)
+ 
+ 	AST_RWLIST_WRLOCK(&helpers);
+ 
++	if (e->protected_execution && !module) {
++		AST_RWLIST_UNLOCK(&helpers);
++		ast_log(LOG_ERROR, "Protected CLI command requires an owning module\n");
++		return -1;
++	}
++
+ 	if (cli_is_registered(e)) {
+ 		ast_log(LOG_WARNING, "Command '%s' already registered (the same ast_cli_entry)\n",
+ 			S_OR(e->_full_cmd, e->command));
+@@ -3049,7 +3073,12 @@ static char *__ast_cli_generator(const char *text, const char *word, int state,
+ 					.argc = x};
+ 
+ 				/* If the command is in a module it must be running. */
+-				if (!e->module || ast_module_running_ref(e->module)) {
++				if (e->protected_execution) {
++					if (!ast_module_cli_try_acquire(e->module)) {
++						ret = e->handler(e, CLI_GENERATE, &a);
++						ast_module_cli_release(e->module);
++					}
++				} else if (!e->module || ast_module_running_ref(e->module)) {
+ 					ret = e->handler(e, CLI_GENERATE, &a);
+ 					ast_module_unref(e->module);
+ 				}
+@@ -3094,6 +3123,8 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+ 	char *duplicate = parse_args(s, &x, args + 1, AST_MAX_ARGS, NULL);
+ 	char tmp[AST_MAX_ARGS + 1];
+ 	char *retval = CLI_FAILURE;
++	struct ast_module *lease = NULL;
++	int admission_denied = 0;
+ 	struct ast_cli_args a = {
+ 		.fd = fd, .argc = x, .argv = args+1 };
+ 
+@@ -3105,10 +3136,22 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+ 
+ 	AST_RWLIST_RDLOCK(&helpers);
+ 	e = find_cli(args + 1, 0);
++	if (e && e->protected_execution) {
++		if (ast_module_cli_try_acquire(e->module)) {
++			admission_denied = 1;
++			e = NULL;
++		} else {
++			lease = e->module;
++		}
++	}
+ 	if (e)
+ 		ast_atomic_fetchadd_int(&e->inuse, 1);
+ 	AST_RWLIST_UNLOCK(&helpers);
+ 	if (e == NULL) {
++		if (admission_denied) {
++			ast_cli(fd, "Protected command unavailable: module busy or closing\n");
++			goto done;
++		}
+ 		ast_cli(fd, "No such command '%s' (type 'core show help %s' for other possible commands)\n", s, find_best(args + 1));
+ 		goto done;
+ 	}
+@@ -3132,7 +3175,9 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+ 	args[0] = (char *)e;
+ 
+ 	/* If the command is in a module it must be running. */
+-	if (!e->module || ast_module_running_ref(e->module)) {
++	if (lease) {
++		retval = e->handler(e, CLI_HANDLER, &a);
++	} else if (!e->module || ast_module_running_ref(e->module)) {
+ 		retval = e->handler(e, CLI_HANDLER, &a);
+ 		ast_module_unref(e->module);
+ 	}
+@@ -3147,6 +3192,9 @@ done:
+ 	if (e) {
+ 		ast_atomic_fetchadd_int(&e->inuse, -1);
+ 	}
++	if (lease) {
++		ast_module_cli_release(lease);
++	}
+ 	ast_free(duplicate);
+ 	return retval == CLI_SUCCESS ? RESULT_SUCCESS : RESULT_FAILURE;
+ }
+diff --git a/main/loader.c b/main/loader.c
+index 6d92492..87338ba 100644
+--- a/main/loader.c
++++ b/main/loader.c
+@@ -36,6 +36,7 @@
+ #include "asterisk/_private.h"
+ #include "asterisk/paths.h"	/* use ast_config_AST_MODULE_DIR */
+ #include <dirent.h>
++#include <limits.h>
+ 
+ #include "asterisk/dlinkedlists.h"
+ #include "asterisk/module.h"
+@@ -307,6 +308,10 @@ struct ast_module {
+ 	void *lib;
+ 	/*! Number of 'users' and other references currently holding the module. */
+ 	int usecount;
++	/*! Protected CLI readers; admission is serialized by module_list. */
++	int cli_readers;
++	/*! Admission remains closed after teardown starts, even if unload fails. */
++	unsigned int cli_closing;
+ 	/*! List of users holding the module. */
+ 	struct module_user_list users;
+ 
+@@ -1194,11 +1199,15 @@ int modules_shutdown(void)
+ 		somethingchanged = 0;
+ 
+ 		AST_DLLIST_TRAVERSE_BACKWARDS_SAFE_BEGIN(&module_list, mod, entry) {
++			if (ast_atomic_fetchadd_int(&mod->cli_readers, 0)) {
++				continue;
++			}
+ 			if (mod->usecount) {
+ 				ast_debug(1, "Passing on %s: its use count is %d\n",
+ 					mod->resource, mod->usecount);
+ 				continue;
+ 			}
++			mod->cli_closing = 1;
+ 			AST_DLLIST_REMOVE_CURRENT(entry);
+ 			if (mod->flags.running && !mod->flags.declined && mod->info->unload) {
+ 				ast_verb(4, "Unloading %s\n", mod->resource);
+@@ -1305,6 +1314,12 @@ static int auto_unload_resource(const char *resource_name, enum ast_module_unloa
+ 		return -1;
+ 	}
+ 
++	if (ast_atomic_fetchadd_int(&mod->cli_readers, 0)) {
++		AST_DLLIST_UNLOCK(&module_list);
++		ast_log(LOG_WARNING, "Unload refused: '%s' has protected CLI readers\n", resource_name);
++		return -1;
++	}
++
+ 	if (!mod->flags.running || mod->flags.declined) {
+ 		/* If the user asks to unload a module that didn't load, obey.
+ 		 * Otherwise, we never dlclose() modules that fail to load,
+@@ -1373,6 +1388,7 @@ static int auto_unload_resource(const char *resource_name, enum ast_module_unloa
+ 	}
+ 
+ 	if (!error) {
++		mod->cli_closing = 1;
+ 		/* Request any channels attached to the module to hangup. */
+ 		__ast_module_user_hangup_all(mod);
+ 
+@@ -1888,7 +1904,10 @@ static enum ast_module_load_result start_resource(struct ast_module *mod)
+ 			ast_verb(4, "Loaded %s => (%s)\n", mod->resource, mod->info->description);
+ 		}
+ 
++		AST_DLLIST_LOCK(&module_list);
+ 		mod->flags.running = 1;
++		mod->cli_closing = 0;
++		AST_DLLIST_UNLOCK(&module_list);
+ 		if (mod->flags.builtin) {
+ 			/* Built-in modules cannot be unloaded. */
+ 			ast_module_shutdown_ref(mod);
+@@ -2874,6 +2893,29 @@ int ast_loader_unregister(int (*v)(void))
+ 	return cur ? 0 : -1;
+ }
+ 
++int ast_module_cli_try_acquire(struct ast_module *mod)
++{
++	int res = -1;
++
++	if (!mod || AST_DLLIST_TRYLOCK(&module_list)) {
++		return -1;
++	}
++	if (mod->flags.running && !mod->flags.declined && !mod->cli_closing
++		&& !ast_shutting_down()
++		&& ast_atomic_fetchadd_int(&mod->cli_readers, 0) < INT_MAX) {
++		ast_atomic_fetchadd_int(&mod->cli_readers, 1);
++		res = 0;
++	}
++	AST_DLLIST_UNLOCK(&module_list);
++	return res;
++}
++
++void ast_module_cli_release(struct ast_module *mod)
++{
++	/* The final decrement must be the last access: unload may now free mod. */
++	ast_atomic_fetchadd_int(&mod->cli_readers, -1);
++}
++
+ struct ast_module *__ast_module_ref(struct ast_module *mod, const char *file, int line, const char *func)
+ {
+ 	if (!mod) {
+diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
+new file mode 100644
+index 0000000..c7ed005
+--- /dev/null
++++ b/tests/test_bounded_queue_policy.c
+@@ -0,0 +1,373 @@
++/*
++ * Bounded queue policy proof tests.
++ * SPDX-License-Identifier: GPL-2.0-only
++ */
++
++/*** MODULEINFO
++	<depend>TEST_FRAMEWORK</depend>
++	<support_level>extended</support_level>
++ ***/
++
++#include "asterisk.h"
++
++#include <fcntl.h>
++
++#include "asterisk/astobj2.h"
++#include "asterisk/cli.h"
++#include "asterisk/module.h"
++#include "asterisk/test.h"
++#include "asterisk/utils.h"
++
++struct dispatch_fixture {
++	ast_mutex_t lock;
++	ast_cond_t condition;
++	int entered;
++	int release;
++	int fd;
++	int dispatch_result;
++	int finished;
++};
++
++static struct dispatch_fixture *active_dispatch;
++
++static char *protected_test_handler(struct ast_cli_entry *e, int cmd, struct ast_cli_args *args)
++{
++	struct dispatch_fixture *fixture;
++
++	switch (cmd) {
++	case CLI_INIT:
++		e->command = "test bounded-policy protected-reader";
++		e->usage = "Native test fixture only\n";
++		return NULL;
++	case CLI_GENERATE:
++		return NULL;
++	}
++	fixture = active_dispatch;
++	if (!fixture) {
++		return CLI_FAILURE;
++	}
++	ast_mutex_lock(&fixture->lock);
++	fixture->entered = 1;
++	ast_cond_signal(&fixture->condition);
++	while (!fixture->release) {
++		ast_cond_wait(&fixture->condition, &fixture->lock);
++	}
++	ast_mutex_unlock(&fixture->lock);
++	return CLI_SUCCESS;
++}
++
++static struct ast_cli_entry protected_entry[] = {
++	AST_CLI_DEFINE(protected_test_handler, "Native protected reader fixture", .protected_execution = 1),
++};
++
++static void *dispatch_worker(void *data)
++{
++	struct dispatch_fixture *fixture = data;
++	fixture->dispatch_result = ast_cli_command(fixture->fd, "test bounded-policy protected-reader");
++	ast_mutex_lock(&fixture->lock);
++	fixture->finished = 1;
++	ast_cond_signal(&fixture->condition);
++	ast_mutex_unlock(&fixture->lock);
++	return NULL;
++}
++
++static int count_visit(void *object, void *context)
++{
++	unsigned int *count = context;
++	++*count;
++	return 0;
++}
++
++static int abort_visit(void *object, void *context)
++{
++	unsigned int *count = context;
++	++*count;
++	return 1;
++}
++
++static int invalid_visit(void *object, void *context)
++{
++	return -1;
++}
++
++AST_TEST_DEFINE(bounded_walk)
++{
++	struct ao2_container *container = NULL;
++	struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
++	struct ao2_bounded_result result;
++	unsigned int count = 0, i;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "bounded_walk";
++		info->category = "/main/astobj2/bounded_queue_policy/";
++		info->summary = "Bounded traversal argument, object and abort boundaries";
++		info->description = "Exercise the actual new owner API, without runtime queue changes.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	container = ao2_container_alloc_list(AO2_ALLOC_OPT_LOCK_MUTEX, 0, NULL, NULL);
++	if (!container) {
++		goto done;
++	}
++	if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_COMPLETE || result.buckets != 1 || result.nodes || count) {
++		goto done;
++	}
++	limits.max_nodes = 0;
++	if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_INVALID || result.buckets || result.nodes || count) {
++		goto done;
++	}
++	limits.max_nodes = 128;
++	for (i = 0; i < 64; ++i) {
++		void *object = ao2_alloc(sizeof(int), NULL);
++		int linked;
++
++		if (!object) {
++			goto done;
++		}
++		linked = ao2_link(container, object);
++		ao2_ref(object, -1);
++		if (!linked) {
++			goto done;
++		}
++	}
++	if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_COMPLETE || result.objects != 64 || result.nodes != 64 || count != 64) {
++		goto done;
++	}
++	count = 0;
++	if (ao2_container_visit_bounded_v1(container, &limits, abort_visit, &count, &result)
++		!= AO2_BOUNDED_ABORTED || count != 1 || result.objects != 1) {
++		goto done;
++	}
++	if (ao2_container_visit_bounded_v1(container, &limits, invalid_visit, NULL, &result)
++		!= AO2_BOUNDED_INTERNAL || result.objects != 1) {
++		goto done;
++	}
++	{
++		void *object = ao2_alloc(sizeof(int), NULL);
++		int linked;
++
++		if (!object) {
++			goto done;
++		}
++		linked = ao2_link(container, object);
++		ao2_ref(object, -1);
++		if (!linked) {
++			goto done;
++		}
++	}
++	count = 0;
++	if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_LIMIT || result.nodes || count) {
++		goto done;
++	}
++	state = AST_TEST_PASS;
++done:
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Bounded traversal invariant failed\n");
++	}
++	ao2_cleanup(container);
++	return state;
++}
++
++AST_TEST_DEFINE(retained_nodes)
++{
++	struct ao2_iterator retained[129];
++	struct ao2_container *container = NULL;
++	const struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
++	struct ao2_bounded_result result;
++	unsigned int initialized = 0, count = 0, i;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "retained_nodes";
++		info->category = "/main/astobj2/bounded_queue_policy/";
++		info->summary = "Count physical empty nodes at 128 and refuse node 129";
++		info->description = "Keep unlinked iterator nodes alive in the real AO2 list owner.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	container = ao2_container_alloc_list(AO2_ALLOC_OPT_LOCK_MUTEX, 0, NULL, NULL);
++	if (!container) {
++		goto done;
++	}
++	for (i = 0; i < ARRAY_LEN(retained); ++i) {
++		void *object = ao2_alloc(sizeof(int), NULL);
++		void *borrowed;
++
++		if (!object) {
++			goto done;
++		}
++		if (!ao2_link(container, object)) {
++			ao2_ref(object, -1);
++			goto done;
++		}
++		retained[i] = ao2_iterator_init(container, 0);
++		++initialized;
++		borrowed = ao2_iterator_next(&retained[i]);
++		if (borrowed != object) {
++			ao2_cleanup(borrowed);
++			ao2_ref(object, -1);
++			goto done;
++		}
++		ao2_unlink(container, object);
++		ao2_ref(borrowed, -1);
++		ao2_ref(object, -1);
++		if (i == 127) {
++			if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++				!= AO2_BOUNDED_COMPLETE || result.nodes != 128 || result.objects || count) {
++				goto done;
++			}
++		}
++	}
++	if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_LIMIT || result.nodes != 128 || result.objects || count) {
++		goto done;
++	}
++	state = AST_TEST_PASS;
++done:
++	for (i = 0; i < initialized; ++i) {
++		ao2_iterator_destroy(&retained[i]);
++	}
++	ao2_cleanup(container);
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Physical retained-node budget invariant failed\n");
++	}
++	return state;
++}
++
++AST_TEST_DEFINE(protected_lease)
++{
++	enum ast_module_unload_mode mode;
++	int failed = 0;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "protected_lease";
++		info->category = "/main/loader/protected_cli/";
++		info->summary = "An admitted protected reader vetoes all unload modes";
++		info->description = "Acquire a real loader lease and verify refusal before teardown.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	if (ast_module_cli_try_acquire(AST_MODULE_SELF)) {
++		ast_test_status_update(test, "Could not acquire a protected lease\n");
++		return AST_TEST_FAIL;
++	}
++	for (mode = AST_FORCE_SOFT; mode <= AST_FORCE_HARD; ++mode) {
++		if (!ast_unload_resource(ast_module_name(AST_MODULE_SELF), mode)) {
++			failed = 1;
++			break;
++		}
++	}
++	ast_module_cli_release(AST_MODULE_SELF);
++	if (failed) {
++		ast_test_status_update(test, "Protected reader did not veto unload\n");
++	}
++	return failed ? AST_TEST_FAIL : AST_TEST_PASS;
++}
++
++AST_TEST_DEFINE(protected_dispatch)
++{
++	struct dispatch_fixture fixture = { .fd = -1 };
++	pthread_t worker;
++	int registered = 0, started = 0, failed = 1;
++	enum ast_module_unload_mode mode;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "protected_dispatch";
++		info->category = "/main/loader/protected_cli/";
++		info->summary = "Barrier-controlled CLI dispatch retains its lease through execution";
++		info->description = "Busy unregister and all unload modes refuse an active protected handler.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	ast_mutex_init(&fixture.lock);
++	ast_cond_init(&fixture.condition, NULL);
++	fixture.fd = open("/dev/null", O_WRONLY);
++	if (fixture.fd < 0 || active_dispatch) {
++		goto done;
++	}
++	active_dispatch = &fixture;
++	if (ast_cli_register_multiple(protected_entry, ARRAY_LEN(protected_entry))) {
++		goto done;
++	}
++	registered = 1;
++	if (ast_pthread_create(&worker, NULL, dispatch_worker, &fixture)) {
++		goto done;
++	}
++	started = 1;
++	ast_mutex_lock(&fixture.lock);
++	while (!fixture.entered && !fixture.finished) {
++		ast_cond_wait(&fixture.condition, &fixture.lock);
++	}
++	ast_mutex_unlock(&fixture.lock);
++	if (!fixture.entered) {
++		goto done;
++	}
++	if (!ast_cli_unregister(&protected_entry[0])) {
++		goto done;
++	}
++	for (mode = AST_FORCE_SOFT; mode <= AST_FORCE_HARD; ++mode) {
++		if (!ast_unload_resource(ast_module_name(AST_MODULE_SELF), mode)) {
++			goto done;
++		}
++	}
++	failed = 0;
++done:
++	if (started) {
++		ast_mutex_lock(&fixture.lock);
++		fixture.release = 1;
++		ast_cond_signal(&fixture.condition);
++		ast_mutex_unlock(&fixture.lock);
++		pthread_join(worker, NULL);
++		if (fixture.dispatch_result) {
++			failed = 1;
++		}
++	}
++	if (registered && ast_cli_unregister(&protected_entry[0])) {
++		failed = 1;
++	}
++	if (active_dispatch == &fixture) {
++		active_dispatch = NULL;
++	}
++	if (fixture.fd >= 0) {
++		close(fixture.fd);
++	}
++	ast_cond_destroy(&fixture.condition);
++	ast_mutex_destroy(&fixture.lock);
++	if (failed) {
++		ast_test_status_update(test, "Protected dispatch/unregister/unload invariant failed\n");
++	}
++	return failed ? AST_TEST_FAIL : AST_TEST_PASS;
++}
++
++static int unload_module(void)
++{
++	AST_TEST_UNREGISTER(bounded_walk);
++	AST_TEST_UNREGISTER(retained_nodes);
++	AST_TEST_UNREGISTER(protected_lease);
++	AST_TEST_UNREGISTER(protected_dispatch);
++	return 0;
++}
++
++static int load_module(void)
++{
++	AST_TEST_REGISTER(bounded_walk);
++	AST_TEST_REGISTER(retained_nodes);
++	AST_TEST_REGISTER(protected_lease);
++	AST_TEST_REGISTER(protected_dispatch);
++	return AST_MODULE_LOAD_SUCCESS;
++}
++
++AST_MODULE_INFO_STANDARD_EXTENDED(ASTERISK_GPL_KEY, "Bounded queue policy native tests");

@@ -2150,6 +2150,31 @@ work cannot be reported as verified. Next is approval/rejection of A; B/C remain
 separate. No patch, dependency install, build or PBX command was performed for
 this proposal. Exact-policy verification, full CP and M1-09 remain open.
 
+#### Gate A source candidate: no native acceptance result
+
+The user explicitly approved A, including protected-reader forced-unload veto.
+The [source-candidate record](./PROJECT-PLAN.md#gate-a-source-candidate-implemented-not-natively-verified)
+links the pinned patch, source hash manifest and read-only package validator.
+Seven existing upstream files implement opt-in CLI/loader leases, protected
+unregistration, bounded hash-owner traversal and the queue-policy getter;
+one new native test module plus an app_queue test define five initial tests.
+
+Source-package integrity, seven preimages, clean dry-run application and all
+eight exact applied postimages are checked separately from native behavior.
+Six package tests check integrity/denial and honest unverified output only.
+**No C compilation, native test, custom image, dependency install or PBX
+execution occurred.** All manifest native/runtime success flags remain false.
+
+Native test coverage is initial and incomplete: remaining deterministic
+lifecycle schedules, contention, boundary/profile and upstream regressions
+still need source/execution work. Tests containing self-module unload attempts
+require separately approved disposable native test execution; they are not
+ordinary runtime-proof authority. Host custom binding/parser wiring remains
+pending; the stock inspector and default runtime are untouched.
+
+A is authorized with a persisted candidate, **not a verified exit**. B/C,
+AT-01 through AT-10, QO-01 through QO-10, full CP and M1-09 remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

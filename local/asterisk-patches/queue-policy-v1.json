@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "upstreamRepository": "https://github.com/asterisk/asterisk",
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "upstreamTag": "22.11.0",
+  "patch": "queue-policy-v1.patch",
+  "patchSha256": "3991f19f0d72389dfd830fb7d6199491c82bfb3f85490dd7b547553ff5b224fc",
+  "stage": "gate-a-source-candidate",
+  "nativeCompiled": false,
+  "nativeTestsExecuted": false,
+  "runtimeApplyAuthorized": false,
+  "gatesBAndCApproved": false,
+  "nativeTests": [
+    "bounded_walk",
+    "retained_nodes",
+    "protected_lease",
+    "protected_dispatch",
+    "policy_snapshot_copy"
+  ],
+  "files": [
+    {
+      "path": "apps/app_queue.c",
+      "beforeSha256": "46057d05da7e078ffb5228a0eca8414c9d3ea05f1eb0a4f1b664e8a4d2f2e9a8",
+      "afterSha256": "9069f50f328935c0ddbb701795b98b185e287ff77a096fba09a256462935b263"
+    },
+    {
+      "path": "include/asterisk/astobj2.h",
+      "beforeSha256": "ea8942491b9e1f83f63f16f7557f3be1bb03fd6e93ddf73a24de8d0731202d8c",
+      "afterSha256": "53d13793fb4a69365029b54152ffa02c46fe7f5ab9af2e15d3980dcda87df6a5"
+    },
+    {
+      "path": "include/asterisk/cli.h",
+      "beforeSha256": "16b5df1e02a86d55d61c9760a6b9aa2a3393c975e4968a0502bf08b9061435f2",
+      "afterSha256": "1e6f071dab94bea837e478dabc3746c246b772da7122ed348f089fe3b89ad299"
+    },
+    {
+      "path": "include/asterisk/module.h",
+      "beforeSha256": "3111f521cc5a22ff8f041554f2cfb3d707fb82507d0ba97597d8337812d600e4",
+      "afterSha256": "23feefaacb9fc339405b4d0ab47ae09520cca4c4a4f3ac50e6922fe418666de9"
+    },
+    {
+      "path": "main/astobj2_hash.c",
+      "beforeSha256": "1ed7dc11895a244bb62a4759c8197095fc83652bfdeb509e114975efb6fd77f7",
+      "afterSha256": "0bafb8fba93513b8c4d046294383396dc1af9d40dfd03d53a9045d4242ac1e5b"
+    },
+    {
+      "path": "main/cli.c",
+      "beforeSha256": "d4f119061d6417770c3f60f3dfe3f29883889f610ac16e9ef00abf77a0193c26",
+      "afterSha256": "21dea45e33f1319191dbc79b4c492c897c7e8e31864cdf2897323a893b15e2ed"
+    },
+    {
+      "path": "main/loader.c",
+      "beforeSha256": "1d0f2e95a961b99a2b51f4cd262f197e0ff19dedb4438e14326e607516c53397",
+      "afterSha256": "5c8bafaa79bcb152a07f2b24d893a1b3af8dc985293ee6207e797950989a0abc"
+    },
+    {
+      "path": "tests/test_bounded_queue_policy.c",
+      "beforeSha256": null,
+      "afterSha256": "0d34de0edc410e8956f54d7a53b66e230de4ef138a8f0b9fcb2f9d9c7af72034"
+    }
+  ]
+}

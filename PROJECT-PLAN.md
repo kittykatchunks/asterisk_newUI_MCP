@@ -2442,6 +2442,89 @@ the exact-policy getter; it does not justify a stock-summary/disk/canary
 substitute. No stage is approved or executed by this proposal. All AT/QO
 checks, QO-03/QO-07, exact verification, full CP and M1-09 remain open.
 
+##### Gate A source candidate: implemented, not natively verified
+
+The user explicitly selected **`approve-gate-a`**, including the opt-in
+protected-reader firm/hard-unload veto. **A is authorized for source work;
+B/C remain unapproved.** This increment delivers a source candidate rather
+than another design-only step. It performs no package installation, compiler/
+configure/make invocation, image build, module load or PBX execution.
+
+Repository delivery:
+
+- [Pinned patch](./local/asterisk-patches/queue-policy-v1.patch), targeting
+  upstream commit `874768141f94bc03865cc746eee1c7669e3c46d5`, changes exactly
+  seven existing upstream files and adds one native test module.
+- [Source manifest](./local/asterisk-patches/queue-policy-v1.json) records the
+  patch checksum and exact before/after file hashes, source stage and explicit
+  false compilation/test/runtime-authorization flags. This is a **source
+  package manifest**, not the still-missing toolchain/dependency/image manifest.
+- [Read-only package validator](./scripts/Test-AsteriskQueuePolicyPatch.mjs)
+  verifies patch bytes/scope/approval flags. Its optional `--source` verifies
+  all seven pristine preimages, absence of the new test path and a `git apply
+  --check` dry run. It neither downloads nor applies/builds/runs the patch.
+  Exact source bytes are required; use `core.autocrlf=false` for upstream
+  checkout/application. Hashes detect drift, not authenticated authorship.
+- Six [package tests](./tests/asterisk-queue-policy-package.test.mjs) cover
+  honest unverified output and denial of altered bytes, authority flags,
+  paths, arguments and missing source. These do **not** execute C or prove
+  any AT/QO property. Patch LF attributes preserve its recorded checksum;
+  blank/indented context-line markers are excluded from repository whitespace
+  checks, while native patch application checks source whitespace strictly.
+
+**Implemented candidate source:**
+
+| Surface | Candidate behavior |
+|---|---|
+| CLI/module headers and core dispatch | Opt-in `protected_execution` entry field, loader lease acquisition under the registry read lock before entry use, try-only loader admission, completion protection and release after handler/output/usage/`inuse` access. Denied admission never retains an entry pointer after registry unlock. Null-module protected registration fails. Ordinary entries retain their existing dispatch behavior. |
+| Loader teardown/start | Dedicated atomic reader count; normal/firm/hard unload refuses active readers before cleanup, including recursive/refresh routes through that function. Shutdown skips active protected readers. Teardown closes admission before cleanup; failed unload does not reopen it. Startup opens it only on successful running transition under loader synchronization. Final release does not notify/call back or touch module state afterward. |
+| Protected unregister | Checks/removes under registry write lock, explicitly returns busy for active execution rather than stock's successful skip. Existing nonprotected unregister behavior is unchanged. |
+| AO2 hash owner | New typed direct-mutex API charges every bucket and physical node, including empty retained nodes, with 64/128/64 ceilings. No existing iterator/callback/hash/compare traversal, node/object/container refs, allocation, destructor or cursor cleanup. Complete, aborted, busy, unsupported, limit, invalid and internal results remain distinct. |
+| app_queue | Protected `queue policy snapshot <namespace>`, no completions, one borrowed fact-copy visitor, static-only fields, bounded/canonical names, eight rows, immediate queue/member try-locks, exact masks/timeouts/counts, sorted 8 KiB JSON and no partial observed output. Handled error envelopes use CLI transport success; actual write failures return failure and remain unavailable to strict readers. |
+
+**Native test source, not results:** the added
+`tests/test_bounded_queue_policy.c` defines `bounded_walk`, `retained_nodes`,
+`protected_lease` and `protected_dispatch`. These cover basic argument/object/
+abort limits, real retained iterator nodes at 128/129, all unload-mode refusal
+while explicitly leased, and a barrier-controlled actual CLI handler with busy
+unregister/unload refusal. app_queue adds `policy_snapshot_copy`, using an
+unlinked private queue fixture for 2/0/0 versus 7/35/35 and realtime/dead denial;
+it does not initialize normal queue/device state or read configuration.
+
+The unload-mode tests contain **actual native test calls** to unload their
+own leased test module. They are not invoked here and must not be run on a
+shared/production PBX. Future native-test approval must explicitly include this
+disposable test process and externally enforced timeout; do not mistake them
+for permission to issue runtime proof force-unload commands. Their source alone
+does not establish all deterministic schedules in the consolidated proposal.
+
+**Validation boundary and remaining work:**
+
+- Checked patch integrity and exact source paths; dry-run application to a
+  second clean pinned-source subset and actual source-only application there
+  produce all eight exact postimage hashes. A Windows automatic-CRLF conversion
+  initially broke postimage byte equality; repeating with explicit LF policy
+  produced exact equality. Neither step compiled or executed native code.
+- Source review traced lifetime admission/close/release, bounded traversal
+  branches and queue output paths. **Compilation, type/ABI correctness,
+  concurrency safety and regression preservation are not established.**
+  No full clean Asterisk tree/toolchain/dependency closure was prepared.
+- Native coverage is **initial, incomplete and unexecuted**: complete
+  lookup-before-admission/last-output/shutdown/startup/unload-failure schedules,
+  cross-thread lock contention, all malformed/boundary/profile cases and
+  affected upstream regression suites remain required before AT/QO acceptance.
+  No five-test-source count is substituted for AT-01 through AT-10.
+- Existing stock inspector, bindings/reviews, default image/Compose and
+  runtime publication authority are unchanged. Host custom-build capability/
+  binding/parser wiring is still pending a verified custom build; the source
+  manifest cannot authorize it or upgrade old unsupported evidence.
+
+**Status:** Gate A has a persisted implementation candidate, **not a completed
+verified exit**. Gates B/C, all AT/QO results, QO-03/QO-07, exact policy
+verification, full CP and M1-09 remain open. Next can complete remaining native
+test-source coverage within A, or prepare concrete B inputs for explicit
+approval; no automatic build/install/PBX action follows.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

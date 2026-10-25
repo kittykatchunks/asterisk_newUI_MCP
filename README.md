@@ -372,6 +372,26 @@ while a protected reader is active, an explicit behavior change needing approval
 **None of A/B/C is approved or executed.** Next is a decision on A, not another
 automatic research increment; declining it leaves exact publication blocked.
 
+**Gate A was subsequently explicitly approved**, including the protected-reader
+force-unload veto. A [pinned source candidate](./PROJECT-PLAN.md#gate-a-source-candidate-implemented-not-natively-verified)
+now implements the lifecycle lease, bounded AO2 walk and app_queue getter as a
+[patch](./local/asterisk-patches/queue-policy-v1.patch) with a
+[source manifest](./local/asterisk-patches/queue-policy-v1.json).
+Five initial native tests are defined but **uncompiled/unexecuted**; remaining
+native coverage and all AT/QO acceptance are still open. B/C remain unapproved.
+
+Read-only package validation (not native verification):
+
+```powershell
+node .\scripts\Test-AsteriskQueuePolicyPatch.mjs
+node --test .\tests\asterisk-queue-policy-package.test.mjs
+# Optional pristine pinned source bytes and application dry run only:
+node .\scripts\Test-AsteriskQueuePolicyPatch.mjs --source C:\path\to\asterisk
+```
+
+The validator never downloads/applies/builds/runs the patch. Default stock
+runtime/Compose/inspector behavior is unchanged, and publication remains blocked.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
