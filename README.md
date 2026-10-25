@@ -640,6 +640,13 @@ owned cleanup and unchanged post-preflight bridge/inventory all passed.
 This is SIP queue-timeout evidence, not an answering SIP agent or RTP verification.
 See [exact runtime evidence](./local/asterisk-build/sip-queue-timeout-validation.json).
 
+**[Synthetic SIP caller/agent answered-queue mode is implemented offline only](./PROJECT-PLAN.md#synthetic-sip-answered-queue-fixture-offline-only).**
+It adds a separately registered synthetic agent, ringing/shared-bridge checks,
+agent-initiated BYE, measured caller continuation, member removal and dual
+unregistration. Echo stays default and queue modes are explicit opt-ins.
+No containers, networks or SIP calls were run for this preparation; no answered
+SIP runtime or RTP quality result is claimed. Separate execution approval is required.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

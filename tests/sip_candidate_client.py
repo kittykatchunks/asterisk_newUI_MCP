@@ -52,7 +52,8 @@ class RegistrationProbe(Probe):
     def register(self, host, password, expires):
         require(expires in (0, 60), "Unsupported fixture registration lifetime")
         uri = f"sip:{host}"
-        to = f"<sip:proof-client@{host}>"
+        username = getattr(self, "username", "proof-client")
+        to = f"<sip:{username}@{host}>"
 
         def exchange(auth=None):
             self.cseq += 1
@@ -65,7 +66,7 @@ class RegistrationProbe(Probe):
         require(code == 401, "Unauthenticated REGISTER must receive 401")
         challenges = headers.get("www-authenticate", [])
         require(len(challenges) == 1, "Expected one REGISTER digest challenge")
-        auth = authorization(challenges[0], password, uri, "REGISTER")
+        auth = authorization(challenges[0], password, uri, "REGISTER", username)
         return exchange(auth)
 
 
@@ -145,7 +146,9 @@ if __name__ == "__main__":
     parser.add_argument("--host", required=True)
     parser.add_argument("--control", type=Path, required=True)
     parser.add_argument("--queue-timeout", action="store_true")
+    parser.add_argument("--queue-answer", action="store_true")
     args = parser.parse_args()
+    require(not (args.queue_timeout and args.queue_answer), "Select one queue fixture")
     socket.setdefaulttimeout(5)
     write_json(args.control / "python-ready.json", dict(pythonReady=True))
     ready_deadline = time.monotonic() + 60
@@ -154,4 +157,8 @@ if __name__ == "__main__":
             sys.exit(0)
         require(time.monotonic() < ready_deadline, "Network preflight deadline expired")
         time.sleep(0.05)
-    execute(args.host, args.control, args.queue_timeout)
+    if args.queue_answer:
+        from sip_queue_answer_client import execute_answer
+        execute_answer(args.host, args.control)
+    else:
+        execute(args.host, args.control, args.queue_timeout)

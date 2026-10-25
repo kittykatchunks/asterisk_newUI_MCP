@@ -5342,6 +5342,87 @@ queue audio quality/RTP, human service, real taxi/trunk calls, load, encrypted
 transport, WebRTC, multi-PBX isolation, Gate A/Gate C or deployment. No further
 runtime attempt is authorized by this success.
 
+##### Synthetic SIP answered-queue fixture: offline only
+
+The user accepted the recommended **implementation/offline-tests-only**
+scope. No Docker operation, new runtime credential fixture, network/container,
+SIP registration/call or RTP traffic was used. Latest live evidence remains
+the preceding empty-queue SIP timeout. [Preparation record](./local/asterisk-build/sip-answer-preparation.json)
+has zero authorized/executed answered-SIP attempts and no runtime pass.
+
+**Implementation:** the existing bounded orchestrator gains
+`--approve-sip-queue-answer`, requiring the base SIP runtime approval flag too.
+It is mutually exclusive with queue-timeout; echo remains default. One custom
+PBX and one Python-only carrier would still be used, with two identities and
+two distinct per-run secrets. The separate agent input and PBX credential
+file are removed with the existing caller secret after owned-container cleanup;
+both secrets are redacted from captured console/errors.
+
+[Private host fixture/assertions](./local/asterisk-build/runtime_sip_answer.py)
+add only `queue-answer` in the private context:
+`Answer -> Queue(proof-queue,rc,,,20) -> Wait(10) -> Hangup`.
+`c` preserves the caller after agent hangup. Only a dynamic
+`PJSIP/proof-agent` member is added. Exactly two expected endpoint/AOR/contact
+identities must be configured/registered; no tenant or production route changes.
+
+[The minimal synthetic agent](./tests/sip_queue_answer_client.py) reuses
+the existing bounded SIP parser, registration/digest, SDP checks and caller
+ACK/BYE primitives. The much larger frozen REFER peer remains untouched:
+its transfer/loss/recovery state machine is not needed for this one answered
+queue dialog. Digest/request helpers gain an optional fixture username with
+`proof-client` retained as default; only `proof-agent` is additionally accepted.
+Identity-specific digest HA1 and Contact/From/To values are tested.
+
+**Future acceptance sequence, not executed**
+
+1. Network-free Python preflight exits zero, then baseline inventory/bridge
+   is captured. Existing image/resource/isolation/watchdog checks apply.
+2. Register caller and agent with separate secrets; host verifies exactly
+   their two contacts with distinct ports. Add only the private agent member
+   to an initially empty queue and verify loaded member count one.
+3. Caller authenticates INVITE, receives 200 and ACKs. The agent holds at
+   180 Ringing while host verifies one queued caller and two expected SIP
+   legs, including the ringing agent.
+4. Agent sends PCMU SDP 200, validates matching ACK; host requires both
+   channels Up and **one identical live bridge UUID** in their details.
+5. After bridge acknowledgement, agent holds four seconds, sends correlated
+   BYE and requires 200. Host observes the sole caller in bounded result
+   Wait, zero queued callers and reads variables once.
+6. Reuse the Local answered-result validator: **QUEUESTATUS=CONTINUE,
+   3500 <= ANSWEREDTIME_MS < 7000, DIALEDTIME_MS >= ANSWEREDTIME_MS**.
+   Checkpoint/CLI work contributes to this interval; excessive delay is a
+   real test failure, not a reason to silently widen the threshold.
+7. Caller BYE/200 leaves zero channels. Require queue C:1/A:0, the agent
+   member took exactly one call, remove it and restore the initial queue
+   policy. Explicitly unregister both identities, verify zero contacts
+   while retaining both configured endpoints.
+8. Require preflight/client/PBX zero exits, unchanged warmed inventory/
+   bridge, owned-resource removal and generated credential deletion.
+
+Client total deadline is 60 seconds, host checkpoint acknowledgement ten
+seconds, agent exchanges five seconds, retransmission interval 500 ms and
+host result-transition observation five seconds. The agent accepts only
+the bounded INVITE/ACK/BYE-response sequence; foreign dialogs, re-INVITEs,
+CANCEL or malformed/oversized messages fail explicitly. It is not a full
+phone stack. No RTP packets or media-quality assertions are added: shared
+bridge and PCMU negotiation do not establish queue audio quality.
+
+**Offline verification:** tests cover independent auth/config identities,
+exact contacts, 180/200/retransmitted INVITE/ACK/BYE state, foreign/malformed
+packets and early hangup rejection; shared/different bridge IDs, invalid
+answer duration/completion, member removal and baseline restoration;
+mocked full client lifecycle/host-ACK timeout with failure-report retention;
+mutually exclusive modes before any Docker interaction; full mocked
+orchestrator success/failure and dual-secret cleanup, alongside unchanged
+echo and timeout modes. **81 offline Python tests and 37 source/evidence
+tests** pass. Historical raw-report hashes remain checked; their embedded
+source hashes describe the earlier executed revision, not the new offline code.
+
+No answered SIP runtime attempt is approved here. A later attempt needs
+explicit approval under the previous one-PBX/one-client aggregate resource
+limits; no human service, media quality, Gate A/Gate C or deployment authority
+follows from these offline results.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

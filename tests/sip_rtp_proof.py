@@ -45,8 +45,9 @@ def read_password(path):
     return password
 
 
-def authorization(challenge, password, uri, method="INVITE"):
+def authorization(challenge, password, uri, method="INVITE", username="proof-client"):
     require(method in ("INVITE", "REGISTER"), "Unsupported digest method")
+    require(username in ("proof-client", "proof-agent"), "Unsupported fixture identity")
     require(challenge.startswith("Digest "), "Expected Digest challenge")
     fields = dict(
         (match[0].lower(), match[1] or match[2])
@@ -54,10 +55,10 @@ def authorization(challenge, password, uri, method="INVITE"):
     )
     require(fields.get("algorithm", "MD5").upper() == "MD5", "Probe supports MD5 digest only")
     md5 = lambda value: hashlib.md5(value.encode()).hexdigest()
-    ha1 = md5(f"proof-client:{fields['realm']}:{password}")
+    ha1 = md5(f"{username}:{fields['realm']}:{password}")
     ha2 = md5(f"{method}:{uri}")
     parts = [
-        'username="proof-client"', f'realm="{fields["realm"]}"',
+        f'username="{username}"', f'realm="{fields["realm"]}"',
         f'nonce="{fields["nonce"]}"', f'uri="{uri}"', "algorithm=MD5",
     ]
     if "qop" in fields:
@@ -125,7 +126,9 @@ def verify_rtp_echo(sip, rtp, call_id, receive_sip):
 
 
 class Probe:
-    def __init__(self, host):
+    def __init__(self, host, username="proof-client"):
+        require(username in ("proof-client", "proof-agent"), "Unsupported fixture identity")
+        self.username = username
         self.server = (socket.gethostbyname(host), 5060)
         self.sip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sip.connect(self.server)
@@ -134,7 +137,7 @@ class Probe:
         self.rtp.bind((self.ip, 0))
         self.uri = f"sip:echo@{host}"
         self.call_id = uuid.uuid4().hex
-        self.from_value = f"<sip:proof-client@{self.ip}>;tag={uuid.uuid4().hex}"
+        self.from_value = f"<sip:{username}@{self.ip}>;tag={uuid.uuid4().hex}"
         self.to_value = f"<{self.uri}>"
         self.cseq = 1
         self.branch = "z9hG4bK" + uuid.uuid4().hex
@@ -151,7 +154,7 @@ class Probe:
             "Max-Forwards: 10", f"From: {self.from_value}",
             f"To: {to_value or self.to_value}", f"Call-ID: {self.call_id}",
             f"CSeq: {self.cseq} {method}",
-            f"Contact: <sip:proof-client@{self.ip}:{self.port}>",
+            f"Contact: <sip:{self.username}@{self.ip}:{self.port}>",
         ]
         if auth:
             headers.append(f"Authorization: {auth}")

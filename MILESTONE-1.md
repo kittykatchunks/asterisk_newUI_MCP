@@ -2688,6 +2688,20 @@ queue latency. [The handoff](./PROJECT-PLAN.md#sip-to-empty-queue-timeout-runtim
 binds exact evidence. No answering SIP agent or RTP verification was performed.
 No further runtime, Gate A/Gate C or deployment authority is granted.
 
+### Synthetic answered SIP queue fixture implemented offline only
+
+The next explicit mode adds separate synthetic caller and agent registrations
+with distinct credentials in the same Python carrier. Host acceptance requires
+a ringing agent plus queued caller, two Up SIP legs sharing one bridge,
+agent-initiated hangup after a bounded hold, measured CONTINUE result, one
+completed queue call, member removal and explicit dual unregistration.
+Existing echo/timeout behavior remains covered. No media-quality assertion,
+real phone, new runtime container/network or SIP traffic is included here.
+
+[Preparation and acceptance](./PROJECT-PLAN.md#synthetic-sip-answered-queue-fixture-offline-only)
+record zero execution authority. The latest live queue result remains the
+empty-queue SIP timeout above. An answered SIP runtime attempt needs new approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
