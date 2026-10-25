@@ -469,13 +469,16 @@ enforced resources before any native run. Gate C separately controls owned
 two-PBX proof. No custom parser/binding or runtime publication authority is
 enabled by these source definitions.
 
-[Gate B build preparation has started](./PROJECT-PLAN.md#gate-b-preparation-started-resource-probe-not-compilation).
-An isolated cached-image shell probe verified live 2-CPU/2-GiB/zero-swap
-cgroup settings and was removed; it did not start Asterisk. The 20-GiB
-aggregate storage cap is not yet proven despite Docker accepting the size
-option. The [preparation record](./local/asterisk-patches/build-preparation.json)
-lists this blocker and the missing immutable builder/dependency/profile
-closure. No dependencies were installed or native code compiled.
+[The dedicated build environment is provisioned and verified](./PROJECT-PLAN.md#dedicated-wsl-environment-provisioned-and-verified).
+After approval to increase resources, a new digest-verified Ubuntu WSL
+distribution has a 40-GiB guest disk and verified unprivileged-service limits
+of 4 CPU-equivalents, 4 GiB RAM, zero swap and 256 tasks. A short watchdog
+termination and small ext4 ENOSPC fixture passed. The distribution is stopped;
+existing distributions and shared WSL settings were not changed. Shared
+WSL/Windows overhead is outside the revised process limits. The
+[preparation record](./local/asterisk-patches/build-preparation.json) retains
+the evidence and pending compiler/dependency/profile closure. No build
+dependencies were installed, native code compiled or Asterisk started.
 
 ## Isolated PBX boot-epoch recovery proof
 

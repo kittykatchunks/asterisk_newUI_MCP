@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-preparation-blocked",
+  "stage": "gate-b-environment-verified-build-closure-pending",
   "buildAuthorized": false,
   "dependenciesInstalled": false,
   "nativeCompiled": false,
@@ -9,13 +9,24 @@
   "sourceCandidateCommit": "f51968c24910363fceb6b5e912e0bcc1feafe8e7",
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "patchSha256": "9ef837cbe49a2060b8a713999ad12a12c294b49593736f17bb54ca7b68605b66",
-  "selectedBudget": {
+  "originalBudget": {
     "cpus": 2,
     "memoryBytes": 2147483648,
     "storageBytes": 21474836480,
     "elapsedSeconds": 1800,
     "swapBytes": 0,
     "pids": 128
+  },
+  "selectedBudget": {
+    "cpus": 4,
+    "memoryBytes": 4294967296,
+    "storageBytes": 42949672960,
+    "elapsedSeconds": 3600,
+    "swapBytes": 0,
+    "pids": 256,
+    "scope": "build-process-and-dedicated-guest-disk",
+    "sharedWslAndWindowsOverheadIncluded": false,
+    "resourceIncreaseAuthorized": true
   },
   "resourceProbe": {
     "observedAt": "2026-10-25T14:39:58Z",
@@ -51,9 +62,9 @@
     "asteriskStarted": false
   },
   "wslEnvironmentPlan": {
-    "status": "proposal-only-not-provisioned",
+    "status": "provisioned-verified-stopped",
     "routeSelected": "dedicated-wsl-distribution-without-shared-settings-changes",
-    "provisioningAuthorized": false,
+    "provisioningAuthorized": true,
     "wslVersionObserved": "2.7.3.0",
     "kernelVersionObserved": "6.6.114.1-1",
     "separateVirtualMachine": false,
@@ -61,7 +72,7 @@
     "existingDistributionChangesAllowed": false,
     "globalShutdownAllowed": false,
     "distributionName": "Asterisk-GateB-f51968c",
-    "distributionNameAvailabilityVerified": false,
+    "distributionNameAvailabilityVerified": true,
     "installationDirectory": "C:\\Users\\james\\AppData\\Local\\AsteriskNativeBuild\\gate-b-f51968c\\distro",
     "installerPath": "C:\\Users\\james\\AppData\\Local\\AsteriskNativeBuild\\gate-b-f51968c\\ubuntu-24.04.5-wsl-amd64.wsl",
     "base": {
@@ -73,8 +84,8 @@
       "sha256": "bb415d824822c4b878125729af451a5d18fb13d1cf5cbed9a7393ad64ac6039e",
       "headStatusObserved": 200,
       "headContentLengthObserved": 388975696,
-      "downloaded": false,
-      "downloadHashVerified": false,
+      "downloaded": true,
+      "downloadHashVerified": true,
       "compilerDependencyClosure": false
     },
     "proposedInstallArguments": [
@@ -88,19 +99,18 @@
       "--version",
       "2",
       "--vhd-size",
-      "18GB",
+      "40GB",
       "--no-launch"
     ],
     "storageDesign": {
-      "proposedVirtualDiskBytes": 19327352832,
-      "reservedOutsideVirtualDiskBytes": 2147483648,
+      "proposedVirtualDiskBytes": 42949672960,
       "installerDownloadMaximumBytes": 536870912,
       "hostLogMaximumBytes": 16777216,
       "hostArtifactExportsAllowed": false,
       "allBuildSourcesPackagesOutputsAndLogsInsideVirtualDisk": true,
-      "diskSizeEnforcementVerified": false,
+      "diskSizeEnforcementVerified": true,
       "aggregateHostStorageEnforcementVerified": false,
-      "remainingIssue": "A guest virtual-disk capacity does not alone cap VHDX metadata, WSL-managed host files, staging or shared-VM overhead; verify accounting and enforceable bounds before treating this design as satisfying the aggregate 20 GiB budget."
+      "remainingIssue": "Verify the new guest disk capacity. The user authorized increased resources and accepted provisioning with separately disclosed shared WSL/Windows overhead; the original aggregate 20 GiB interpretation no longer applies."
     },
     "requiredDistributionConfiguration": {
       "automountWindowsDrives": false,
@@ -108,37 +118,75 @@
       "windowsInterop": false,
       "appendWindowsPath": false,
       "systemd": true,
-      "configurationAppliedAndVerified": false
+      "configurationAppliedAndVerified": true
     },
     "requiredBuildServiceProperties": {
-      "CPUQuota": "200%",
-      "MemoryMax": "2147483648",
+      "CPUQuota": "400%",
+      "MemoryMax": "4294967296",
       "MemorySwapMax": "0",
-      "TasksMax": "128",
-      "RuntimeMaxSec": "1800",
+      "TasksMax": "256",
+      "RuntimeMaxSec": "3600",
       "KillMode": "control-group",
       "SendSIGKILL": "yes",
       "runAsUnprivilegedBuildUser": true,
-      "cgroupControllersAndEnforcementVerified": false,
+      "cgroupControllersAndEnforcementVerified": true,
       "coversBootstrapOrWholeWslVm": false
     },
-    "provisioningPrerequisites": [
-      "Obtain explicit approval for the bounded image download, new distribution/disk creation, first-start configuration and isolated resource probes; this proposal does not authorize these actions.",
-      "Refuse existing distribution-name or installation/staging-path collisions; never adopt, overwrite or unregister an existing distribution.",
-      "Bound the download while streaming, reject content beyond 512 MiB, require the pinned SHA256 and fail on HTTP errors; HEAD metadata is not payload verification.",
-      "Resolve aggregate host-storage enforcement and whether bootstrap/shared-VM overhead fits the selected resource scope; do not silently reinterpret the agreed budget.",
-      "Apply and verify only the new distribution's configuration; if a restart is needed, terminate only the newly owned distribution, never run global WSL shutdown.",
-      "Verify virtual-disk capacity and full-filesystem behavior with a small disposable filesystem, then inspect actual cgroup limits and exercise watchdog termination before installing build dependencies.",
-      "If limits cannot be enforced without shared WSL changes, stop and obtain a new environment decision."
-    ],
+    "verification": {
+      "date": "2026-10-25",
+      "installerBytes": 388975696,
+      "installerSha256": "bb415d824822c4b878125729af451a5d18fb13d1cf5cbed9a7393ad64ac6039e",
+      "virtualDiskCapacityBytes": 42949672960,
+      "vhdxHostLengthBytesAtStop": 1480589312,
+      "filesystem": "ext4",
+      "filesystemCapacityBytes": 41956900864,
+      "cpuMax": "400000 100000",
+      "memoryMax": "4294967296",
+      "memorySwapMax": "0",
+      "pidsMax": "256",
+      "resourceProbeRuntimeMaxSeconds": 60,
+      "resourceProbeUnprivileged": true,
+      "resourceProbeSucceeded": true,
+      "watchdogProbeRuntimeMaxSeconds": 2,
+      "watchdogProbeChildSleepSeconds": 30,
+      "watchdogResult": "timeout",
+      "watchdogMainPidAfterExit": 0,
+      "watchdogTerminationSignal": "TERM",
+      "sigkillEscalationTested": false,
+      "smallExt4FixtureBytes": 67108864,
+      "smallExt4WriteAttemptMaximumBytes": 83886080,
+      "smallExt4Result": "ENOSPC",
+      "smallExt4FixtureRemovedAndLoopDetached": true,
+      "wholeGuestDiskFilled": false,
+      "windowsDriveMountsPresent": false,
+      "windowsInteropHandlerPresent": false,
+      "readOnlyWslDriverMountPresent": true,
+      "readOnlyDriverMount": "/usr/lib/wsl/drivers",
+      "firstMountCheckRejectedReadOnlyDriverMount": true,
+      "mountCheckCorrectedAndRerunSuccessfully": true,
+      "configurationSha256": "161f421b0517dba2ef1624c1eb14b3a1a2f797bd542209347a81209176358a6e",
+      "packageBaselinePathInGuest": "/home/asterisk-build/environment-baseline/packages.tsv",
+      "packageBaselineRows": 523,
+      "packageBaselineSha256": "a2627305d859bc2c20c48365244040ead2e0c68e340d78d3f8be3d6b58301406",
+      "gccPresent": false,
+      "makePresent": false,
+      "buildDependenciesInstalled": false,
+      "installStdoutLogBytes": 406,
+      "installStderrLogBytes": 0,
+      "hostLogMaximumEnforcedDuringProvisioning": false,
+      "ownedDistributionStopped": true,
+      "existingDistributionsModified": false,
+      "sharedWslConfigModified": false,
+      "globalWslShutdownExecuted": false
+    },
     "cleanupPolicy": "On failure stop only the newly owned distribution and report its exact name and paths; destructive unregister/disk deletion requires explicit approval and ownership verification."
   },
   "unresolvedPrerequisites": [
-    "Verify a hard aggregate 20 GiB incremental-storage bound covering source staging, dependencies, build outputs, image layers and logs; accepted container storage options and df output do not establish enforcement.",
-    "Select immutable builder and runtime images; cached stock and diagnostic images are not a matching compiler/dependency closure.",
+    "Apply the verified build-service resource properties to the eventual compiler/test commands with the proposed 60-minute watchdog; short probes do not prove the workload fits.",
+    "Complete the pinned WSL base with exact compiler dependencies and select a matching release-runtime deliverable; cached stock and diagnostic images are not a matching compiler/dependency closure.",
     "Resolve exact package snapshot, versions, archive checksums, third-party sources and license/source obligations.",
     "Pin configure, menuselect, complete runtime module/dependency closure and separate instrumented-test/release profiles.",
-    "Define and validate owned-resource watchdog/cleanup and bounded log/artifact handling for the 30-minute build.",
+    "Finish bounded log/artifact handling for the revised 60-minute build; the provisioning logs were small but no streaming host-log cap was exercised.",
     "Present the complete build manifest and exact no-unrecorded-fetch commands for explicit Gate B approval."
   ]
 }

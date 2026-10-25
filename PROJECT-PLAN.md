@@ -3858,6 +3858,73 @@ References: [Microsoft WSL configuration](https://learn.microsoft.com/en-us/wind
 [distribution format and custom names](https://learn.microsoft.com/en-us/windows/wsl/build-custom-distro),
 and [disk capacity management](https://learn.microsoft.com/en-us/windows/wsl/disk-space).
 
+##### Dedicated WSL environment provisioned and verified
+
+The user explicitly allowed increased limits as needed to compile properly.
+The subsequent form approved the concrete download/new-distribution/configuration
+and resource-verification step with **4 CPU-equivalents, 4 GiB RAM, zero
+build-process swap, 256 tasks, a 40 GiB guest disk and a proposed 60-minute
+build watchdog**. Shared WSL/Windows overhead was explicitly disclosed outside
+those process limits. This supersedes the earlier 20 GiB aggregate-storage
+blocker; it is not a claim that WSL now enforces a total host budget.
+
+Completed provisioning:
+
+- Streamed exactly 388,975,696 image bytes with a 512 MiB payload cap and
+  ten-minute cancellation deadline, verified the pinned official SHA256,
+  and refused existing distribution/staging-path collisions.
+- Installed only `Asterisk-GateB-f51968c` from that local image with
+  `--vhd-size 40GB --no-launch`. The initial distribution was stopped.
+  The installer and disk remain in the proposed Windows staging directory.
+- Applied the repository's [WSL configuration](./local/asterisk-build/wsl.conf)
+  through an explicit root bootstrap, then terminated/restarted only the
+  owned distribution. Systemd is active, Windows-drive automount/fstab and
+  Windows interop/PATH injection are disabled. This does not make WSL a
+  separate VM or a security boundary against the Windows host.
+- Ran the one-shot [environment verification script](./local/asterisk-build/verify-environment.sh).
+  The disk block device is exactly 42,949,672,960 bytes; usable ext4 capacity
+  is smaller (41,956,900,864 bytes) due to filesystem overhead. A separate
+  64 MiB loop-backed ext4 fixture rejected a bounded 80 MiB write attempt
+  with ENOSPC; it was unmounted, detached and removed. The full guest disk
+  was not filled.
+- Verified the unprivileged `asterisk-build` service's live
+  `cpu.max=400000 100000`, `memory.max=4294967296`,
+  `memory.swap.max=0` and `pids.max=256`. The successful short probe used a
+  60-second watchdog; the eventual build must explicitly set 3,600 seconds.
+- A separate two-second runtime watchdog terminated a 30-second sleep,
+  reported `Result=timeout` and left `MainPID=0`. Termination used SIGTERM;
+  escalation to SIGKILL was configured but not exercised.
+
+The initial mount assertion rejected WSL's `/usr/lib/wsl/drivers` read-only
+9p mount. Inspection confirmed it is not a mounted Windows drive. The check
+now permits only that exact read-only driver source/target and rejects other
+9p/Windows-drive mounts; the corrected probe passed. This allowance is
+explicit, not a claim that no host-provided resources exist.
+
+The new environment's generated package baseline contains 523 rows, SHA256
+`a2627305d859bc2c20c48365244040ead2e0c68e340d78d3f8be3d6b58301406`,
+stored inside the guest at
+`/home/asterisk-build/environment-baseline/packages.tsv`. Neither GCC nor
+make is installed. No apt refresh/dependency installation, native compilation,
+native test or Asterisk execution occurred.
+
+At stop, the VHDX host length was 1,480,589,312 bytes, installer length
+388,975,696 bytes, and install stdout/stderr logs were 406/0 bytes. These
+are observations, not enforced host-log/aggregate-storage limits. The proposed
+16 MiB host-log cap still needs bounded handling for the actual build.
+Only the newly owned distribution was stopped after verification; no global
+WSL shutdown, shared settings change or modification of an existing
+distribution was performed.
+
+The verification script is intentionally a **one-shot provisioning check**:
+it refuses an existing build account rather than silently adopting one.
+Do not rerun it against the provisioned environment as a generic health check.
+The [preparation record](./local/asterisk-patches/build-preparation.json)
+preserves original/revised budgets and observed evidence. Next complete the
+exact package/source/runtime/profile closure and present actual installation
+and build commands for approval. Provisioning success is not native acceptance
+or permission to operate a PBX; Gate C remains closed.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
