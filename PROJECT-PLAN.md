@@ -1467,6 +1467,89 @@ Only afterward separately authorize executor/reload/canary/recovery work, with
 complete revision/binding/current-base fencing and every external-effect boundary.
 A green baseline or optional review alone is never apply readiness or authority.
 
+#### Independent loaded-policy surface investigation
+
+The user continued with the recommended **preserve exact verification** choice.
+The next bounded research increment inspects public upstream 22.11.0 handlers
+and the pinned runtime's registered metadata without enabling any new API or
+evaluating channel functions. There is no decision to narrow the contract.
+
+The [fixed proof helper](./tests/configuration-inspection/capabilities.ts) captures
+13 help/metadata commands for each of two owned PBXs, bounded at 64 KiB per
+command, normalizes terminal formatting, checks expected version/help shapes
+and retains output hashes. [QPU-01 through QPU-04](./tests/configuration-capabilities.test.ts)
+verify exact command selection, normalization, explicit shape/size/version
+failure and outage propagation. Capture records research only, never an
+automatic "no API exists" or policy-verification conclusion. Reproduce with
+`.\scripts\Test-ConfigurationInspection.ps1 -WithCapabilities`.
+
+Observed pinned metadata: ten queue CLI registrations, eight queue functions,
+registered `QueueStatus`, `QueueSummary`, `QueueRule`, `GetConfig`,
+`GetConfigJSON` and `Getvar` help; zero `res_ari` modules loaded and HTTP server
+disabled. The proof issues no AMI/ARI requests, function reads/writes, module
+loads or reloads and creates no channels/calls.
+
+The reviewed upstream tag sources are:
+
+- [app_queue.c, Asterisk 22.11.0](https://github.com/asterisk/asterisk/blob/22.11.0/apps/app_queue.c):
+  internal queue fields at lines 2052/2053, default/config assignment and
+  empty-option parsing at 3163/3511/3564/3725, function readers/registrations
+  beginning 9289/9813, CLI status printing at 10430/10538/10754, AMI rule/summary/
+  status handlers at 10770/10806/10888 and command registrations at 12077/12238.
+  Local reviewed SHA-256:
+  `46057d05da7e078ffb5228a0eca8414c9d3ea05f1eb0a4f1b664e8a4d2f2e9a8`.
+- [ARI dynamic configuration schema](https://github.com/asterisk/asterisk/blob/22.11.0/rest-api/api-docs/asterisk.json):
+  GET `/asterisk/config/dynamic/{configClass}/{objectType}/{id}` is dynamic
+  configuration-object retrieval. Reviewed SHA-256:
+  `89b6cef41cb797a343b165e055ff91f1ec1108dbf00a86f47e918b7a624ad534`.
+- [ARI implementation](https://github.com/asterisk/asterisk/blob/22.11.0/res/ari/resource_asterisk.c#L89):
+  retrieval obtains the registered Sorcery module/type/object; this is not an
+  unrestricted app_queue struct reader. Reviewed SHA-256:
+  `214e58778181ddb6b393822ad52ef38b215f09b39c520bb93fd3bdbd8a003aa4`.
+
+Original analysis, not copied source:
+
+| Surface | Verified distinction / reason not to use as exact policy evidence |
+|---|---|
+| Queue CLI | `queue show` prints status/strategy/counters/member/caller information. `queue show rules` concerns penalty rules; the other registered commands mutate members, statistics, priority or reload state. No registered exact timeout/join/leave getter is established. |
+| Queue functions | The eight registered functions concern existence, queue metrics and callers/members. `QUEUE_VARIABLES` can assign channel variables and uses a queue lookup capable of realtime loading; treating generic function evaluation as side-effect-free would be unsafe. It still does not expose the required three fields. |
+| AMI QueueStatus | Handler emits QueueParams, QueueMember and QueueEntry data, not independent timeout/joinempty/leavewhenempty values. Source and [documented QueueParams](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Events/QueueParams/) support this; no live AMI request is made. |
+| AMI QueueSummary | Summary counts/times, not configuration policy. Source and [action documentation](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Actions/QueueSummary/) do not establish the missing reader. |
+| AMI QueueRule | Penalty-rule list/time adjustments, not queue admission/leave masks or member ring timeout. |
+| AMI GetConfig / GetConfigJSON | [File/category retrieval](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Actions/GetConfig/), not an independent live queue-object view. Enabling access would add authority without closing the gap. |
+| AMI Getvar | Generic variable/function execution, not a new policy getter; not evaluated or enabled by this proof. |
+| ARI dynamic config | Sorcery registry/object access; upstream app_queue does not establish the required registered Sorcery queue policy object. ARI is not loaded and HTTP is disabled here. No guessed endpoint or module enablement is attempted. |
+
+Important scope qualification: upstream queue lookups/status paths can load
+realtime queues when realtime is configured. "Read-only" in this fixture refers
+to these fixed static-config proof PBXs, not a blanket side-effect-free claim
+for every production Asterisk configuration. This increment's new commands are
+help/metadata only. Upstream tag review is not a binary/source reproducible-build
+attestation, and documentation plus registered help does not prove the absence
+of all possible third-party or future APIs.
+
+Recorded `run-IB8Tum` / `asterisk-inspection-ib8tum`: typecheck, **89 focused
+tests**, ten CI and four CQ checks pass, plus **26** fixed capability metadata
+reads. The prior loaded-policy counterexample and immutable review checks remain
+passing. Owned resources/generated configuration/credentials are removed,
+repository baseline unchanged; only synthetic bindings/review SQLite/report
+retained. The report distinguishes capture from `exactPolicyReaderEstablished`,
+which remains **false**. No application production code, policy truth,
+permission, dependency or runtime apply capability is added by this increment.
+
+**Exact-verification stop:** no suitable independent loaded-policy reader was
+established on the examined stock surfaces. Do not keep repeating equivalent
+summary probes or proceed to executor/canary as a proxy. The exact contract and
+all full CP/M1 gates remain unchanged. Preserving it now requires a separately
+designed/authorized observability change, potentially a getter implemented
+within app_queue using its own object lookup and locks, with bounded DTOs,
+no realtime-load/mutation side effects, queue-scope restrictions and pinned
+build/source provenance. This is an option to evaluate, not an assertion that
+a standalone module can safely access private fields or an authorization to
+patch/build/load anything. Debugger attachment, process memory reads and generic
+function evaluation remain excluded. Alternatively defer publication while
+leaving this contract intact. Only an explicit later decision may narrow it.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

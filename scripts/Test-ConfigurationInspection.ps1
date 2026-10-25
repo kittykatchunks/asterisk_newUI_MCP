@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$WithReviewPolicy)
+param([switch]$WithReviewPolicy, [switch]$WithCapabilities)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -7,10 +7,11 @@ Push-Location $root
 try {
     & npm run typecheck
     if ($LASTEXITCODE -ne 0) { throw 'Configuration inspection typecheck failed.' }
-    & node --test --test-reporter=dot (Join-Path $root 'tests\configuration-review.test.ts') (Join-Path $root 'tests\configuration-inspector.test.ts') (Join-Path $root 'tests\configuration-foundation.test.ts') (Join-Path $root 'tests\agent-provisioning-store.test.ts') (Join-Path $root 'tests\history-manifest.test.ts') (Join-Path $root 'tests\history-projection.test.ts')
+    & node --test --test-reporter=dot (Join-Path $root 'tests\configuration-capabilities.test.ts') (Join-Path $root 'tests\configuration-review.test.ts') (Join-Path $root 'tests\configuration-inspector.test.ts') (Join-Path $root 'tests\configuration-foundation.test.ts') (Join-Path $root 'tests\agent-provisioning-store.test.ts') (Join-Path $root 'tests\history-manifest.test.ts') (Join-Path $root 'tests\history-projection.test.ts')
     if ($LASTEXITCODE -ne 0) { throw 'Configuration inspection regressions failed.' }
     $proofArgs = @()
-    if ($WithReviewPolicy) { $proofArgs += '--review-policy' }
+    if ($WithCapabilities) { $proofArgs += '--capabilities' }
+    elseif ($WithReviewPolicy) { $proofArgs += '--review-policy' }
     & node (Join-Path $root 'tests\configuration-inspection\run.ts') @proofArgs
     if ($LASTEXITCODE -ne 0) { throw 'Owned read-only configuration inspection proof failed; inspect its result directory.' }
 } finally { Pop-Location }

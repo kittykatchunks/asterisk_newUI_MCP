@@ -1916,6 +1916,44 @@ or safe scoped application cannot be verified on the pinned runtime, implementat
 must stop/narrow the contract rather than substitute a green file hash.
 M1-09 remains open; the 17 full M1 gates are unchanged.
 
+#### Independent policy research: exact contract preserved, executor stopped
+
+The recommended preserve-exact-verification choice was accepted for the next
+investigation. [Fixed capability capture](./tests/configuration-inspection/capabilities.ts)
+now records 13 version/queue-registry/function-help/AMI-help/ARI-module/HTTP
+metadata reads per customer. [Four QPU tests](./tests/configuration-capabilities.test.ts)
+cover finite command identity, bounded normalized output, unsupported/version
+failure and explicit outage. No AMI/ARI service is enabled or requested, channel
+function evaluated, module loaded, debugger attached or call/reload performed.
+
+Actual pinned metadata records ten queue CLI commands, eight queue functions,
+AMI summary/rule/config/Getvar help, zero ARI modules and disabled HTTP.
+[Public upstream 22.11.0 source analysis](./PROJECT-PLAN.md#independent-loaded-policy-surface-investigation)
+distinguishes summary/member/caller data from the missing loaded timeout/
+joinempty/leavewhenempty. GetConfig reads files, QueueRule reads penalty rules,
+Getvar evaluates expressions, and ARI dynamic config retrieves registered
+Sorcery objects rather than an arbitrary private queue struct. Queue functions
+are not assumed side-effect-free; upstream lookups can load realtime queues.
+The tested fixed static fixture is not a general production read-only guarantee.
+
+Run **`run-IB8Tum`** / **`asterisk-inspection-ib8tum`** passes typecheck and
+**89 focused tests**, ten CI/four CQ runtime checks and **26** captured metadata
+reads. Reproduce with `.\scripts\Test-ConfigurationInspection.ps1 -WithCapabilities`
+(includes the review-policy checks). Owned resources and generated credentials/
+configuration absent, repository baseline unchanged; bindings/review/report only
+retained. Capture metadata is research evidence, not an automatically established
+reader or a proof that every possible API is absent.
+
+**Result: no acceptable independent reader established; no blocker closed.**
+Exact verification is not narrowed, unsupported policy remains explicit, and
+all full CP checks/M1-09 remain open. Next requires a separately approved design
+for read-only observability within the runtime's queue ownership/locking model,
+with bounded scoped output, no realtime-loading side effects and pinned
+source/build provenance, or deferral of publication. No custom module/patch/build
+is authorized here; a standalone module is not assumed capable of safe access
+to private queue fields. Do not repeat summary probes indefinitely or move to
+apply/canary as a substitute.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

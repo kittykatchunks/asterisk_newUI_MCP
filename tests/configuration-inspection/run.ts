@@ -8,11 +8,15 @@ import { CONFIGURATION_COMPILER, configurationHash, configurationNamespace, conf
 import { CONFIGURATION_FILES, CONFIGURATION_PROOF_LABEL, CONFIGURATION_PROOF_IMAGE, inspectConfigurationBinding, parseConfigurationBinding,
   writeConfigurationBinding, readConfigurationBinding, type ConfigurationBinding } from "../../src/configuration-inspector.ts";
 import { openConfigurationStore } from "../../src/configuration-store.ts";
+import { captureQueueCapabilities } from "./capabilities.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && args[0] !== "--review-policy")) throw new Error("Only --review-policy is supported");
-const reviewPolicy = args[0] === "--review-policy";
+if (args.length > 1 || (args.length === 1 && !["--review-policy", "--capabilities"].includes(args[0]))) {
+  throw new Error("Only --review-policy or --capabilities is supported");
+}
+const capabilitiesProof = args[0] === "--capabilities";
+const reviewPolicy = args[0] === "--review-policy" || capabilitiesProof;
 const parent = join(root, ".local-proof", "configuration-inspection");
 await mkdir(parent, { recursive: true });
 const directory = await mkdtemp(join(parent, "run-"));
@@ -111,6 +115,18 @@ try {
   pass("CI-02: real read-only operator CLI reloads persistent scoped binding without changing it or publishing");
   const a = bindings.get("customer-a")!, b = bindings.get("customer-b")!;
   if (reviewPolicy) {
+    if (capabilitiesProof) {
+      const inventory = [];
+      for (const customer of customers) {
+        const metadata = await captureQueueCapabilities((command) => docker([...compose, "exec", "-T", customer, "asterisk", "-rx", command]));
+        inventory.push({ customer, ...metadata });
+      }
+      assert.equal(inventory.length, 2);
+      assert.ok(inventory.every((item) => item.commands.length === 13 && item.exactPolicyReaderEstablished === false));
+      report.independentPolicyResearch = inventory;
+      report.capabilityMetadataVerified = true;
+      console.log("PASS QP: fixed read-only CLI/function/manager/HTTP/ARI metadata captured for both pinned owned PBXs");
+    }
     const capabilities: Record<string, string> = {};
     for (const command of ["core show help queue show", "core show function QUEUE_VARIABLES", "core show function QUEUE_EXISTS"]) {
       capabilities[command] = await docker([...compose, "exec", "-T", "customer-a", "asterisk", "-rx", command]);
@@ -290,7 +306,8 @@ try {
     report.generatedFilesRemoved = true;
     pass("CI-10: owned resources and generated credentials/config absent; repository baseline unchanged; only synthetic binding/review/report evidence retained");
   }
-  report.passed = report.passed === true && checks.length === 10 && (!reviewPolicy || reviewChecks.length === 4);
+  report.passed = report.passed === true && checks.length === 10 && (!reviewPolicy || reviewChecks.length === 4) &&
+    (!capabilitiesProof || report.capabilityMetadataVerified === true);
   await writeFile(join(directory, "result.json"), JSON.stringify(report, null, 2));
   if (report.checksBeforeCleanupPassed) assert.equal(report.passed, true, "Acceptance check count does not match the selected proof");
   console.log(JSON.stringify({ directory, project, passed: report.passed, checks: checks.length, reviewChecks: reviewChecks.length,

@@ -154,8 +154,8 @@ Run the owned two-customer proof:
 .\scripts\Test-ConfigurationInspection.ps1
 ```
 
-It now runs typecheck, **85 focused tests** (8 review, 9 inspector and the existing
-68-test foundation/regression set), then **CI-01 through CI-10** on a unique
+It now runs typecheck, **89 focused tests** (4 capability, 8 review, 9 inspector
+and the existing 68-test foundation/regression set), then **CI-01 through CI-10** on a unique
 project using the already available pinned image with `--pull never --no-build`.
 It proves scope/mount denial, disk-only versus loaded-only drift, unsupported
 file-type failure, outage, restart invalidation and explicit cleanup. For the
@@ -244,6 +244,52 @@ Next requires either proving a suitable independent loaded-policy surface, or an
 explicit decision to narrow that contract. Matching disk, successful review,
 queue display and a future single canary cannot silently substitute for exact
 policy verification.
+
+### Exact-policy capability investigation: no safe reader established
+
+The subsequent decision **preserves exact verification**, rather than weakening
+it. The [fixed capability capture](./tests/configuration-inspection/capabilities.ts)
+records 13 bounded help/metadata reads per customer: version, queue CLI registry,
+queue function registry/help, registered AMI command help, ARI module inventory
+and HTTP status. It never runs a model-provided command, AMI/ARI request,
+function expression, reload, module load or call.
+
+```powershell
+.\scripts\Test-ConfigurationInspection.ps1 -WithCapabilities
+```
+
+This includes the existing review-policy proof. Recorded run `run-IB8Tum` /
+`asterisk-inspection-ib8tum` passes typecheck, **89 focused tests**, all ten CI
+and four CQ checks, and captures **26** fixed metadata reads across both owned
+PBXs. Generated config/credentials and owned Docker resources are absent.
+Only synthetic binding/review/report evidence is retained.
+
+The measured registry and the upstream 22.11.0 implementation distinguish:
+
+| Candidate | Why it does not close exact loaded-policy verification |
+|---|---|
+| `queue show` | Status/strategy/counters/member/caller display, not the three required policy values. Other registered queue commands mutate state or concern penalty rules. |
+| Queue functions | Eight registered functions cover existence, caller/member queries and metrics; some also write member settings. `QUEUE_VARIABLES` is not a pure policy getter and can set channel variables. No function is evaluated by this proof. |
+| AMI `QueueStatus` / `QueueSummary` | Upstream response handlers emit summary/member/caller fields, not loaded timeout/join/leave. Registered help is inspected; no AMI service or action is enabled/executed. |
+| AMI `QueueRule` | Penalty rules from `queuerules.conf`, not empty-queue admission/leave policy. |
+| AMI `GetConfig` / `GetConfigJSON` | Configuration-file reads, not independent inspection of the live queue object. |
+| AMI `Getvar` | Generic function/variable evaluation is not a missing queue-policy getter or a safe new read-only boundary. |
+| ARI dynamic configuration | Upstream API is Sorcery-object retrieval, not a generic dump of app_queue's internal queue struct. No ARI modules are loaded in this fixture; HTTP is disabled. Nothing is enabled to test an imagined queue endpoint. |
+
+Source verification and precise boundaries are recorded in the
+[project plan](./PROJECT-PLAN.md#independent-loaded-policy-surface-investigation).
+Tag-source analysis corroborates documented handler semantics; it is not proof
+that the image binary was reproducibly built from those source bytes. Metadata
+capture never automatically proves global API absence.
+
+**Stop:** no suitable independent reader has been established within the
+approved boundary. There is no executor implementation or silent contract change.
+Preserving exact verification now requires a separately scoped runtime
+observability change (for example, an upstream-compatible getter in the queue
+module with locked, bounded read-only access and pinned build provenance), or
+deferring this publication slice. That change needs its own design and approval;
+a standalone module, debugger/memory read, source-file hash or canary must not
+be assumed to expose private loaded policy safely.
 
 ## Isolated PBX boot-epoch recovery proof
 
