@@ -4,7 +4,7 @@
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "upstreamTag": "22.11.0",
   "patch": "queue-policy-v1.patch",
-  "patchSha256": "41c0ff512bae0793e054e2690b9acf37195b5c70f00b9fbfe900816a7f57fa58",
+  "patchSha256": "b8a831da80ea35976f96834bcf167b93996228a57c5b69ad111ef2e2eea8a455",
   "stage": "gate-a-source-candidate",
   "nativeCompiled": false,
   "nativeTestsExecuted": false,
@@ -32,7 +32,8 @@
     "policy_snapshot_queue_lock_kind",
     "policy_snapshot_member_boundary",
     "policy_snapshot_status_mapping",
-    "protected_target_lifecycle"
+    "protected_target_lifecycle",
+    "protected_target_completion"
   ],
   "files": [
     {
@@ -63,7 +64,7 @@
     {
       "path": "main/cli.c",
       "beforeSha256": "d4f119061d6417770c3f60f3dfe3f29883889f610ac16e9ef00abf77a0193c26",
-      "afterSha256": "d5a6ef1ea56c643fde9e5e9718da00de01f1c3c03238c94310e6d47a1ae7d92d"
+      "afterSha256": "b607f5f77d5030afd446f93ba5234b8b8a65f64636ce2316191bc3df49848cb1"
     },
     {
       "path": "main/loader.c",
@@ -73,12 +74,12 @@
     {
       "path": "tests/test_bounded_queue_policy.c",
       "beforeSha256": null,
-      "afterSha256": "f0becedb5c3ada0faea2659d9acbec56430be7a800e7f823c84bc9e8139170c4"
+      "afterSha256": "4b4541a64eca503717b07025849709402359b87b98ba8299476c0b1369de1803"
     },
     {
       "path": "tests/test_protected_cli_target.c",
       "beforeSha256": null,
-      "afterSha256": "82e246b98c879a4f9c1467b3ad17fa5e237ec6673851e6729dc1728c44749ebe"
+      "afterSha256": "98f3d1efe58c2ef7ce0a4674a9415d6c79a35f5760459a35463f3e9ba095f529"
     }
   ]
 }

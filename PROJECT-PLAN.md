@@ -3059,6 +3059,53 @@ removed after checks. The native execution flags remain false; A's verified
 exit, Gates B/C, all AT/QO acceptance, exact publication, full CP and M1-09
 remain open.
 
+##### Gate A instrumented completion: twenty-three definitions, still unexecuted
+
+Within the separately approved target/instrumentation boundary,
+`protected_target_completion` adds **eight native source schedules**: admitted,
+callback-returned, entry-done-before-release and released, each with allocated
+`"xyz"` or null completion. The existing separate controller/target and
+core-owned observer are reused; no new source path or production API is added.
+The manifest now lists **23 uncompiled/unexecuted native definitions**.
+
+`TEST_FRAMEWORK` hooks in the real protected CLI generator record admission,
+callback return and its final pre-release boundary. The disposable target
+records its actual generation callback and returns allocated text only for
+word `"x"` at completion index zero, otherwise null. The shared controller
+checks exact acquisition/invocation/return/entry/release/unload/worker event
+counts, actual reader count one before release and zero afterward, and exact
+returned text/null. Paused snapshots must show no worker completion or unload.
+Existing dispatch schedules also gain that missing worker-completion check.
+
+Before release, all soft/firm/hard unload attempts must veto without invoking
+target teardown. At the released completion pause, the reader count is zero,
+but the CLI generator still holds the helpers registry read lock protecting
+its remaining entry traversal. The controller therefore **does not attempt
+unload or unregister there**: those may acquire a registry writer and deadlock
+against the paused generator. It resumes and joins first, then soft-unloads
+the target and checks one final release/unload. Unlike the dispatch released
+schedule, this does not prove unload can finish before generator return.
+`ENTRY_DONE` here denotes callback/lease work finished before release, not that
+all generator registry traversal or entry accesses are over.
+
+These are instrumented source assertions, not observed counts or native passes.
+The target must remain excluded from autoload; run only a separately approved,
+serialized disposable test process with external watchdog/resource caps.
+Lookup-before-admission, teardown-wins/closing denial, loader contention,
+permission/shutdown/startup/unload-failure/refresh schedules, slow output and
+broader ref/cleanup/profile instrumentation remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact source preimages/application dry run
+and all nine independently applied postimages match. Only the guarded CLI
+hooks and the two native fixtures change; queue, AO2, loader and header
+postimages are unchanged. Lexical `TEST_FRAMEWORK`-off CLI comparison matches
+the prior candidate, not a preprocessor/compiler/transparency proof. Both
+named scratch directories are removed after verification. No dependency
+install, native compile/test, image build or PBX execution occurred. A's
+verified exit, Gates B/C, AT/QO, exact publication, full CP and M1-09 remain
+open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

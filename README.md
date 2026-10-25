@@ -432,8 +432,12 @@ The inventory is now **22 uncompiled/unexecuted native definitions**, including
 12 source schedules with actual reader counts through dispatcher output/entry
 cleanup/final release, controlled outside the unloadable target.
 **Twelve package tests pass** and exact application/nine postimages match.
-This is not native lifecycle acceptance: teardown-first, shutdown and further
-instrumentation remain pending. Pinned build closure and enforced resources
+The [instrumented completion update](./PROJECT-PLAN.md#gate-a-instrumented-completion-twenty-three-definitions-still-unexecuted)
+now brings the inventory to **23 uncompiled/unexecuted native definitions**,
+adding eight completion/count schedules. Completion teardown waits for worker
+join even after lease release because generator traversal retains the registry
+read lock. This is not native lifecycle acceptance: teardown-first, shutdown
+and further instrumentation remain pending. Pinned build closure and enforced resources
 still require Gate B approval before any native run; Gate C separately controls
 owned PBX proof.
 

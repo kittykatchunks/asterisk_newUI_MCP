@@ -2305,6 +2305,17 @@ postimages match, with lexical test-profile-off core parity only.
 No build/native/PBX execution occurred; A's verified exit, AT/QO and B/C remain
 open.
 
+The subsequent [instrumented completion source](./PROJECT-PLAN.md#gate-a-instrumented-completion-twenty-three-definitions-still-unexecuted)
+brings the inventory to **23 uncompiled/unexecuted native definitions**.
+Eight separate-target completion schedules reuse actual reader/event counters
+across four pause points and allocated/null results. At post-release completion,
+unload is deferred until worker join because the registry read lock still
+protects generator traversal; zero reader count does not mean that lock is gone.
+**Twelve package tests pass** and exact application/nine postimages match;
+only guarded CLI hooks and native fixtures change. Missing teardown-first,
+loader/shutdown/profile schedules and all native acceptance remain pending.
+A's verified exit, AT/QO and Gates B/C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
