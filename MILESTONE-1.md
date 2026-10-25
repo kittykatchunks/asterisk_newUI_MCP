@@ -2543,6 +2543,21 @@ See the [image handoff](./PROJECT-PLAN.md#local-scratch-image-built-and-payload-
 The earlier prepare-only and no-host-export records remain historical;
 this newer bounded approval supersedes them only for this local build.
 
+### Corrected custom image passes isolated container startup
+
+The separately approved Desktop smoke found a genuine missing dynamic NSS
+crypto dependency. After approved correction/rebuild, the current local image
+`asterisk-local-verified:nss-1` passes all **41 modules**, five exact policy
+observations and graceful exit zero. All owned containers were removed.
+The [current validation](./local/asterisk-build/image-startup-validation.json)
+binds a new 389-file bundle, native smoke, independently inspected 390-file
+image (manifest included), 41 aliases and actual container smoke.
+The builder is stopped, existing containers are untouched, and older reports
+remain historical. **26 offline image/harness tests and 27 source/evidence
+tests pass**. No SIP registration, calls, media, deployment, redistribution,
+remaining Gate A acceptance or Gate C is implied. See the
+[container startup handoff](./PROJECT-PLAN.md#corrected-image-container-startup-passed-nss-dynamic-dependency-closure).
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

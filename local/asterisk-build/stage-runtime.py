@@ -96,6 +96,23 @@ if not gconv.is_dir():
 for source in gconv.rglob("*"):
     if source.is_file():
         copy_verified(source, root / "runtime-gconv" / source.relative_to(gconv))
+nss_integrity = subprocess.run(["dpkg", "-V", "libnss3:amd64"],
+                               capture_output=True, text=True, check=True)
+if nss_integrity.stdout or nss_integrity.stderr:
+    raise ValueError(f"NSS installed-package integrity failure: {nss_integrity}")
+nss_paths = subprocess.check_output(["dpkg-query", "-L", "libnss3:amd64"], text=True).splitlines()
+nss_runtime = {}
+for name in nss_paths:
+    source = pathlib.Path(name)
+    if source.suffix not in (".so", ".chk"):
+        continue
+    if source.parent != pathlib.Path("/usr/lib/x86_64-linux-gnu"):
+        raise ValueError(f"Unexpected NSS runtime package path: {source}")
+    copy_verified(source, root / "runtime-libs" / source.name)
+    nss_runtime[source.name] = hashlib.sha256(source.read_bytes()).hexdigest()
+if not {"libsoftokn3.so", "libsoftokn3.chk", "libfreeblpriv3.so",
+        "libfreeblpriv3.chk"}.issubset(nss_runtime):
+    raise ValueError("NSS dynamic crypto module/integrity closure is incomplete")
 for source in source_lock["sources"]:
     copy_verified(home / "source-staging" / source["filename"],
                   root / "sources" / source["filename"], source["sha256"])
@@ -116,6 +133,8 @@ record = dict(
     runtimeApplyAuthorized=False, hostExported=False, redistributionApproved=False,
     licenseClosureComplete=False, packagedRuntimeExecuted=False,
     locale="C.UTF-8", localeDataIncluded=True, glibcConversionDataIncluded=True,
+    nssRuntimePackage="libnss3:amd64", nssInstalledPackageIntegrityVerified=True,
+    nssRuntimeFiles=nss_runtime,
     entries=[
         dict(path=str(path.relative_to(root)), bytes=path.stat().st_size,
              sha256=hashlib.sha256(path.read_bytes()).hexdigest(),

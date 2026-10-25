@@ -4485,6 +4485,114 @@ needs preparation and separate runtime approval. SIP registration, calls,
 media, deployment, complete dependency-source/license closure, redistribution,
 Gate C and remaining Gate A acceptance remain unclaimed and unauthorized.
 
+##### Corrected image container startup passed: NSS dynamic dependency closure
+
+The user approved Desktop-compatible tooling and isolated image runtime,
+then bounded recovery and a specific NSS dependency correction/rebuild.
+The original one-container scope was not silently expanded: further runtime
+attempts and the new image build were separately presented for approval.
+Existing containers, shared WSL settings and production authority remained
+unchanged. The [Desktop runner](./local/asterisk-build/smoke-desktop.py)
+uses the explicit `desktop-linux` context and immutable verified image ID.
+It never builds or pulls, installs packages, exposes ports or enables calls.
+
+Two initial launches failed before Asterisk startup because Docker's local
+logging driver rejects its default compression with `max-file=1`. Both owned
+containers were removed. Diagnostic handling was corrected so the original
+daemon error is retained even when an unstarted container has no readable
+logs. Both smoke harnesses now explicitly set `compress=false`, retaining
+the 2 MiB single-file log bound. Desktop runtime state is a **64 MiB tmpfs**
+owned by UID/GID 10001, not a Windows bind mount: Unix sockets stay inside
+Linux. Only private fixture configuration is mounted read-only from Windows.
+The disposable fixture uses the same state directory for its data/db/log/
+spool/run/cache paths and private read-only empty key directories.
+
+The first actual startup failed its required `res_srtp` initialization.
+An approved loader-diagnostic attempt confirmed NSS searches for
+`libsoftokn3.so` dynamically and cannot find it. This is a genuine packaging
+gap: `ldd` does not expose these runtime loads, and a post-boot native maps
+snapshot misses modules loaded and subsequently unloaded during crypto
+self-tests. The earlier “all sampled mappings inside bundle” result remains
+true, but **was not proof of dynamic dependency closure**. No required module
+was removed and the startup requirement was not relaxed.
+
+After explicit correction approval, the dedicated builder's installed
+`libnss3:amd64` package inventory and `dpkg -V` output were checked. No package
+download/install occurred. The [stager](./local/asterisk-build/stage-runtime.py)
+now copies all **13 NSS package `.so`/`.chk` files**, preserving adjacent
+integrity files, hashes and the existing dependency notice. Eleven files
+were new relative to the original bundle. Bundle attempt 4 has **389 files,
+135,344,626 payload bytes**, the same 44 compiled release outputs, no native
+test modules and the same original source patch. The
+[new manifest](./local/asterisk-build/runtime-bundle-manifest-nss.json)
+and [native bundle smoke](./local/asterisk-build/runtime-bundle-smoke-report-nss.json)
+are separate from historical reports. Native full startup, all five loaded
+policy checks and mapping/cleanup checks passed again under the existing
+bounded private-network service limits. Real context preparation then
+reverified every file's SHA256, size and mode.
+
+The new context tar was exported byte-exactly with LF-normalized tooling.
+Docker rebuilt locally for Linux amd64, no build network/pulls, retaining
+`asterisk-local-verified:nss-1`:
+`sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967`.
+The [new image-build record](./local/asterisk-build/image-build-validation-nss.json)
+and [payload inspection](./local/asterisk-build/image-payload-validation-nss.json)
+bind all **390 files including manifest**, 41 module aliases, ownership,
+permissions, exact inventory, recipe configuration and OCI layer/identity
+hashes. The original recipe is retained as
+[runtime-initial.Dockerfile](./local/asterisk-build/runtime-initial.Dockerfile);
+the [current recipe](./local/asterisk-build/runtime.Dockerfile) and preparation
+harness pin the new manifest, without invalidating historical evidence.
+
+The first corrected-image attempt passed all boot/module/policy checks but
+the shutdown harness treated its remote CLI process being killed during
+PID-1 shutdown as a failure. The final attempt instead sends Docker's
+SIGTERM stop signal with ten seconds allowed, then requires **exit zero,
+not Running and not OOMKilled**. A forced termination would still fail.
+The successful [container smoke report](./local/asterisk-build/desktop-image-smoke-report.json)
+records all 41 exact module names Running, absent test CLI, no PJSIP
+endpoints/transports and all five exact observations. No SIP registration,
+calls or media were exercised.
+
+Desktop control uses an exec-based remote CLI, not Windows access to a
+Unix socket. Network-isolated remote CLI startup emits one exact no-Ethernet
+EID notice on stdout before command output; the runner recognizes only that
+literal prefix, records each occurrence as a diagnostic, and validates the
+remaining command response. Unknown stderr is an error; unknown stdout is
+not generally stripped. The getter payload itself must remain one bounded
+JSON line equal to the native baseline. This transport differs intentionally
+from the original Linux harness's strict Unix-socket framing.
+
+The [central validation](./local/asterisk-build/image-startup-validation.json)
+hash-binds all new reports and retains all six attempt outcomes/report hashes.
+Every owned container was removed using a unique label, exact name and ID;
+the original four stopped containers are unchanged. The five-minute watchdog
+per smoke owns the same bounded cleanup path. Inspection confirmed no network,
+ports, capabilities or writable root filesystem, no-new-privileges,
+4 CPU-equivalents, 4 GiB memory with zero additional swap and 256 tasks.
+The builder is stopped. Contexts, image archives, logs and failed-attempt
+reports remain private; only JSON evidence/tooling is committed.
+
+The correction's monitored 2 GiB incremental storage threshold was not an
+enforced aggregate quota: host attempt files were about 202 MB; guest context
+plus archive about 271 MB; shared Docker image-size reports rose from
+4.224 to 4.427 GB and cache reports from 5.768 to 6.243 GB. Conservative
+snapshot sums remain below the threshold; shared overhead/peak allocation is
+not measured or guaranteed. No unrelated image/cache/volume was pruned.
+
+**26 offline Python image/harness tests and 27 source/evidence tests pass.**
+New Desktop tests cover exact EID diagnostic handling, daemon-error retention,
+launch restrictions, missing approvals, tampered evidence, mocked success,
+startup/module/resource/shutdown failures, the five-minute watchdog setup and
+foreign-ownership cleanup refusal. The NSS evidence regressions bind every
+new report, all 13 runtime files, unchanged compiled output hashes, exact
+policy/module states and honest authority flags.
+
+This is a real, isolated, cleanly exiting **custom-image startup baseline**.
+It does not close remaining Gate A lifecycle/output/AO2 acceptance or authorize
+Gate C, production deployment, live SIP/media, redistribution or complete
+source/license closure. Those remain separate scopes.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

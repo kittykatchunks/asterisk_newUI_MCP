@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "stage": "local-image-payload-independently-verified",
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "imageArchiveSha256": "de6e00a9e3c0338f551f09bcef18537d7ffc0c5feb81cdaca205312bcf011d6c",
+  "imageConfigSha256": "3824400ea05afc0c29b6890d28b85352ad8885669bef047a4e9629a6b8df195a",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "payloadFilesVerified": 390,
+  "moduleAliasesVerified": 41,
+  "imageLayersVerified": 3,
+  "allPayloadHashesSizesModesAndOwnershipVerified": true,
+  "exactNonDirectoryImageInventoryVerified": true,
+  "imageConfigurationMatchesRecipe": true,
+  "imageRuntimeExecuted": false,
+  "runtimeApplyAuthorized": false,
+  "existingPbxOperated": false,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false
+}

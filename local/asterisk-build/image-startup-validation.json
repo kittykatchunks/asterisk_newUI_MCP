@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "stage": "corrected-local-image-full-startup-smoke-passed",
+  "authorization": "User approved Desktop-compatible tooling and isolated smoke, bounded recovery, then NSS dependency correction/rebuild and up to three corrected-image attempts.",
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "localTag": "asterisk-local-verified:nss-1",
+  "bundleAttempt": 4,
+  "nativeSmokeAttempt": 5,
+  "desktopSmokeAttempt": 6,
+  "sourceBuildAttempt": 4,
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "payloadFilesExcludingManifest": 389,
+  "payloadBytes": 135344626,
+  "imageFilesIncludingManifest": 390,
+  "moduleAliases": 41,
+  "runtimeModulesRunning": 41,
+  "loadedPolicyObservations": 5,
+  "nssRuntimeFilesVerified": 13,
+  "allOwnedSmokeContainersRemoved": true,
+  "ownedDistributionStopped": true,
+  "existingContainersChanged": false,
+  "network": "none",
+  "portsPublished": false,
+  "processExitCode": 0,
+  "watchdogExpired": false,
+  "hostBinaryExported": true,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "runtimeApplyAuthorized": false,
+  "callsOrMediaTested": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "storageStopThresholdBytes": 2147483648,
+  "aggregateStorageQuotaEnforced": false,
+  "storageObservedBelowThreshold": true,
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": false,
+      "containerRemoved": true,
+      "reportSha256": "81c099c194f74a36300c21f85c4233c6cb0524a9ee92431bf6c29ba1f821e0ef",
+      "failure": null
+    },
+    {
+      "attempt": 2,
+      "passed": false,
+      "containerRemoved": true,
+      "reportSha256": "4f9b0482ecb179b1e3cf3771d27087b3ac3e3b0669a85f905883c19ad590d548",
+      "failure": "RuntimeError(\"Docker run failed (125): docker: Error response from daemon: failed to create task for container: failed to initialize logging driver: compression cannot be enabled when max file count is 1\\n\\nRun 'docker run --help' for more information\\n 7e27a88ec93eb25e4c8863683a0a998898e967985b3d0e1726d06bb1ce2123ed\\n\")"
+    },
+    {
+      "attempt": 3,
+      "passed": false,
+      "containerRemoved": true,
+      "reportSha256": "1dbeef81d2903d89e2e789278c0ae0c778b4981d981460809a9c718ff3245aca",
+      "failure": "RuntimeError('Docker exec failed (137):  No ethernet interface found for seeding global EID. You will have to set it manually.\\n')"
+    },
+    {
+      "attempt": 4,
+      "passed": false,
+      "containerRemoved": true,
+      "reportSha256": "339c99b3b02a4a6a7e68059d7039b61f509197d8f2b03e9231e49e5336fd6c86",
+      "failure": "RuntimeError('Docker exec failed (137):         39:\\tfind library=libasteriskssl.so.1 [0]; searching\\n        39:\\t search path=/opt/asterisk/main/glibc-hwcaps/x86-64-v4:/opt/asterisk/main/glibc-hwcaps/x86-64-v3:/opt/asterisk/main/glibc-hwcaps/x86-64-v2:/opt/asterisk/main:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v4:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v3:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v2:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/glibc-hwcaps/x86-64-v4/libasteriskssl.so.1\\n        39:\\t  trying file=/opt/asterisk/main/glibc-hwcaps/x86-64-v3/libasteriskssl.so.1\\n        39:\\t  trying file=/opt/asterisk/main/glibc-hwcaps/x86-64-v2/libasteriskssl.so.1\\n        39:\\t  trying file=/opt/asterisk/main/libasteriskssl.so.1\\n        39:\\t\\n        39:\\tfind library=libasteriskpj.so.2 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v4:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v3:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v2:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libasteriskpj.so.2\\n        39:\\t\\n        39:\\tfind library=libxml2.so.2 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v4:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v3:/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v2:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libxml2.so.2\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v4/libxml2.so.2\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v3/libxml2.so.2\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/glibc-hwcaps/x86-64-v2/libxml2.so.2\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libxml2.so.2\\n        39:\\t\\n        39:\\tfind library=libsqlite3.so.0 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libsqlite3.so.0\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libsqlite3.so.0\\n        39:\\t\\n        39:\\tfind library=libssl.so.3 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libssl.so.3\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libssl.so.3\\n        39:\\t\\n        39:\\tfind library=libcrypto.so.3 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libcrypto.so.3\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libcrypto.so.3\\n        39:\\t\\n        39:\\tfind library=libjansson.so.4 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libjansson.so.4\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libjansson.so.4\\n        39:\\t\\n        39:\\tfind library=libuuid.so.1 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libuuid.so.1\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libuuid.so.1\\n        39:\\t\\n        39:\\tfind library=libcrypt.so.1 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libcrypt.so.1\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libcrypt.so.1\\n        39:\\t\\n        39:\\tfind library=libcap.so.2 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libcap.so.2\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libcap.so.2\\n        39:\\t\\n        39:\\tfind library=libedit.so.2 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libedit.so.2\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libedit.so.2\\n        39:\\t\\n        39:\\tfind library=libstdc++.so.6 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libstdc++.so.6\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libstdc++.so.6\\n        39:\\t\\n        39:\\tfind library=libm.so.6 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libm.so.6\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libm.so.6\\n        39:\\t\\n        39:\\tfind library=libc.so.6 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libc.so.6\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libc.so.6\\n        39:\\t\\n        39:\\tfind library=libgcc_s.so.1 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libgcc_s.so.1\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libgcc_s.so.1\\n        39:\\t\\n        39:\\tfind library=libicuuc.so.74 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libicuuc.so.74\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libicuuc.so.74\\n        39:\\t\\n        39:\\tfind library=libz.so.1 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libz.so.1\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libz.so.1\\n        39:\\t\\n        39:\\tfind library=liblzma.so.5 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/liblzma.so.5\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/liblzma.so.5\\n        39:\\t\\n        39:\\tfind library=libtinfo.so.6 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libtinfo.so.6\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libtinfo.so.6\\n        39:\\t\\n        39:\\tfind library=libbsd.so.0 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libbsd.so.0\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libbsd.so.0\\n        39:\\t\\n        39:\\tfind library=libicudata.so.74 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libicudata.so.74\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libicudata.so.74\\n        39:\\t\\n        39:\\tfind library=libmd.so.0 [0]; searching\\n        39:\\t search path=/opt/asterisk/main:/opt/asterisk/runtime-libs\\t\\t(--library-path)\\n        39:\\t  trying file=/opt/asterisk/main/libmd.so.0\\n        39:\\t  trying file=/opt/asterisk/runtime-libs/libmd.so.0\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/ld-linux-x86-64.so.2\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libc.so.6\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libmd.so.0\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libicudata.so.74\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libbsd.so.0\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libtinfo.so.6\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/liblzma.so.5\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libz.so.1\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libm.so.6\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libgcc_s.so.1\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libstdc++.so.6\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libicuuc.so.74\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libedit.so.2\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libcap.so.2\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libcrypt.so.1\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libuuid.so.1\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libjansson.so.4\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libcrypto.so.3\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libssl.so.3\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libsqlite3.so.0\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/runtime-libs/libxml2.so.2\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/main/libasteriskpj.so.2\\n        39:\\t\\n        39:\\t\\n        39:\\tcalling init: /opt/asterisk/main/libasteriskssl.so.1\\n        39:\\t\\n        39:\\t\\n        39:\\tinitialize program: /opt/asterisk/main/asterisk\\n        39:\\t\\n        39:\\t\\n        39:\\ttransferring control: /opt/asterisk/main/asterisk\\n        39:\\t\\n No ethernet interface found for seeding global EID. You will have to set it manually.\\n')"
+    },
+    {
+      "attempt": 5,
+      "passed": false,
+      "containerRemoved": true,
+      "reportSha256": "092627b22bfe79cf858a7eeed1b506ae0ecd7574cce4318d5e81e1dad9d3afad",
+      "failure": "RuntimeError('Docker exec failed (137):  No ethernet interface found for seeding global EID. You will have to set it manually.\\n')"
+    },
+    {
+      "attempt": 6,
+      "passed": true,
+      "containerRemoved": true,
+      "reportSha256": "79019da7e32d51ab7c113edf3a5921d17619ef269f8284adf512f7528ab85935",
+      "failure": null
+    }
+  ],
+  "evidence": {
+    "runtime-bundle-manifest-nss.json": {
+      "sha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88"
+    },
+    "runtime-bundle-smoke-report-nss.json": {
+      "sha256": "6209860cc42a50e1d7d94c933f093742464c6cf9737941648c71173e50801b57"
+    },
+    "image-build-validation-nss.json": {
+      "sha256": "33f0b26971195635565b452659a99b49bb9cb6dc6eb09ecfb8142dcdbd613798"
+    },
+    "image-payload-validation-nss.json": {
+      "sha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+    },
+    "desktop-image-smoke-report.json": {
+      "sha256": "79019da7e32d51ab7c113edf3a5921d17619ef269f8284adf512f7528ab85935"
+    }
+  },
+  "limitations": [
+    "No SIP registration, calls, media, production configuration or remaining lifecycle acceptance.",
+    "Native startup mapping sample missed transient NSS module dependencies; scratch startup exposed them.",
+    "Desktop CLI records the exact known no-Ethernet EID diagnostic separately; unknown output remains fatal.",
+    "Memory/CPU/PID settings inspected; shared Docker overhead and aggregate disk are not dedicated quotas."
+  ]
+}

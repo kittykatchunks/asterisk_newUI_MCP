@@ -550,6 +550,17 @@ started**; the earlier preparation-only flags remain historical. Existing
 containers were untouched and the dedicated builder is stopped. Docker
 Desktop-compatible runtime smoke remains a separate unapproved step.
 
+**[The corrected custom image now passes isolated container startup](./PROJECT-PLAN.md#corrected-image-container-startup-passed-nss-dynamic-dependency-closure).**
+Docker Desktop startup exposed NSS crypto modules loaded dynamically, absent
+from the original image despite its successful native smoke. After separately
+approved dependency correction/rebuild, `asterisk-local-verified:nss-1` contains
+the installed NSS modules/integrity files and passes: **41 modules Running,
+five exact policy observations, no PJSIP objects, exit zero**. All owned test
+containers were removed; existing containers stayed untouched.
+The [current image validation](./local/asterisk-build/image-startup-validation.json)
+binds the new native, image-content and container reports. The builder is
+stopped. No calls, media, redistribution, deployment or Gate C are claimed.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

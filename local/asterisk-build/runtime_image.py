@@ -14,8 +14,8 @@ import uuid
 
 
 HERE = pathlib.Path(__file__).resolve().parent
-MANIFEST_NAME = "runtime-bundle-manifest.json"
-MANIFEST_SHA256 = "1d83ef928916419a836e4297addc7e56c91b75a69314f2ded15035c9b859dffd"
+MANIFEST_NAME = "runtime-bundle-manifest-nss.json"
+MANIFEST_SHA256 = "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88"
 ENTRYPOINT = [
     "/opt/asterisk/runtime-libs/ld-linux-x86-64.so.2", "--library-path",
     "/opt/asterisk/main:/opt/asterisk/runtime-libs", "/opt/asterisk/main/asterisk",
@@ -240,6 +240,7 @@ def run_arguments(image, name, root, owner):
         "--security-opt=no-new-privileges:true", "--pids-limit=256",
         "--cpus=4", "--memory=4g", "--memory-swap=4g", "--ulimit=core=0",
         "--log-driver=local", "--log-opt=max-size=2m", "--log-opt=max-file=1",
+        "--log-opt=compress=false",
         "--user", f"{os.getuid()}:{os.getgid()}", "--stop-timeout=10",
         "--mount", f"type=bind,src={root / 'etc'},dst=/fixture,readonly",
         "--mount", f"type=bind,src={root / 'state'},dst=/state",

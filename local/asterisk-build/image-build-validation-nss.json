@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "stage": "nss-corrected-local-image-built",
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "localTag": "asterisk-local-verified:nss-1",
+  "contextTarSha256": "3b0295e881df872e691cabf32065ba288dad82630d209bb8338444ec7327abcc",
+  "contextTarBytes": 135792640,
+  "hostAttemptFileBytes": 202266327,
+  "privateHostDirectory": "C:\\Users\\james\\AppData\\Local\\AsteriskNativeBuild\\image-nss-1",
+  "buildLogSha256": "2a2d42cd1ad0d80468c692b37228493e97bf63f2a02da8302d13a087f4c9ed07",
+  "elapsedExportBuildSeconds": 16.031,
+  "hostBinaryExported": true,
+  "buildNetwork": "none",
+  "buildPullEnabled": false,
+  "imageBuilt": true,
+  "imageRuntimeExecuted": false,
+  "runtimeApplyAuthorized": false,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "dockerfileCanonicalLfSha256": "bf038fbdf7ff89b2e17eab5c03176e929b8965fd9322c279a49df3f2f1c4d4cb",
+  "evidence": {
+    "image-payload-validation-nss.json": {
+      "sha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+    }
+  }
+}

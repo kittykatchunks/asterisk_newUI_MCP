@@ -9,14 +9,15 @@ import tarfile
 HERE = pathlib.Path(__file__).resolve().parent
 
 
-def inspect_archive(archive, image_id):
-    bundle = json.loads((HERE / "runtime-bundle-manifest.json").read_text())
+def inspect_archive(archive, image_id, bundle_manifest=None):
+    manifest_path = bundle_manifest or HERE / "runtime-bundle-manifest.json"
+    bundle = json.loads(manifest_path.read_text())
     expected = {
         "opt/asterisk/" + entry["path"]: entry for entry in bundle["entries"]
     }
     expected["opt/asterisk/bundle-manifest.json"] = dict(
-        sha256=hashlib.sha256((HERE / "runtime-bundle-manifest.json").read_bytes()).hexdigest(),
-        bytes=(HERE / "runtime-bundle-manifest.json").stat().st_size,
+        sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        bytes=manifest_path.stat().st_size,
         mode="0o644",
     )
     aliases = {
@@ -164,8 +165,9 @@ if __name__ == "__main__":
     parser.add_argument("--archive", type=pathlib.Path, required=True)
     parser.add_argument("--image-id", required=True)
     parser.add_argument("--report", type=pathlib.Path, required=True)
+    parser.add_argument("--bundle-manifest", type=pathlib.Path)
     args = parser.parse_args()
-    report = inspect_archive(args.archive, args.image_id)
+    report = inspect_archive(args.archive, args.image_id, args.bundle_manifest)
     with args.report.open("x") as output:
         output.write(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

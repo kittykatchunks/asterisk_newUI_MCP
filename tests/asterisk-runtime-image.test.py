@@ -27,7 +27,8 @@ class RuntimeImageTests(unittest.TestCase):
         self.assertTrue(all(target.startswith("/opt/asterisk/") for target in links.values()))
         self.assertFalse(any(name.startswith("test_") for name in links))
         preparation = runtime.read_json(ROOT / "local/asterisk-patches/build-preparation.json")["containerPreparation"]
-        self.assertEqual(preparation["bundleManifestSha256"], runtime.MANIFEST_SHA256)
+        self.assertEqual(preparation["bundleManifestSha256"],
+                         "1d83ef928916419a836e4297addc7e56c91b75a69314f2ded15035c9b859dffd")
         for flag in ["realBuildContextPrepared", "imageBuildAuthorized", "imageBuilt",
                      "imageSmokeAuthorized", "imageSmokeExecuted", "hostExported",
                      "redistributionApproved", "licenseClosureComplete", "runtimeApplyAuthorized"]:

@@ -19,6 +19,76 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("corrected NSS image startup evidence is exact, hash-bound and isolated", () => {
+  const validation = read(`${directory}/image-startup-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const build = read(`${directory}/image-build-validation-nss.json`);
+  const payload = read(`${directory}/image-payload-validation-nss.json`);
+  const smoke = read(`${directory}/desktop-image-smoke-report.json`);
+  const native = read(`${directory}/runtime-bundle-smoke-report-nss.json`);
+  assert.equal(preparation.containerStartup.imageId, validation.imageId);
+  assert.equal(build.dockerfileCanonicalLfSha256, createHash("sha256")
+    .update(bytes(`${directory}/runtime.Dockerfile`).toString("utf8").replace(/\r\n/g, "\n"))
+    .digest("hex"));
+  for (const record of [build, payload, smoke]) {
+    assert.equal(record.imageId, validation.imageId);
+    assert.equal(record.bundleManifestSha256, hash(`${directory}/runtime-bundle-manifest-nss.json`));
+  }
+  assert.equal(smoke.payloadValidationSha256, hash(`${directory}/image-payload-validation-nss.json`));
+  assert.equal(smoke.passed, true);
+  assert.equal(smoke.ownedContainerRemoved, true);
+  assert.equal(smoke.watchdogExpired, false);
+  assert.equal(smoke.processExitCode, 0);
+  assert.equal(smoke.testCommandAbsent, true);
+  assert.deepEqual(smoke.observations, bundleSmoke.observations);
+  assert.deepEqual(native.observations, smoke.observations);
+  assert.deepEqual(smoke.loadedModules, read(`${directory}/full-module-smoke-report.json`).loadedModules);
+  assert.deepEqual(smoke.pjsipEmptyObjectChecks,
+    { endpoints: "No objects found.", transports: "No objects found." });
+  assert.deepEqual(smoke.isolationSettings, {
+    NetworkMode: "none", ReadonlyRootfs: true, Privileged: false,
+    Memory: 4294967296, MemorySwap: 4294967296, NanoCpus: 4000000000, PidsLimit: 256,
+    capDrop: ["ALL"], securityOpt: ["no-new-privileges:true"], portBindings: {},
+  });
+  assert.equal(validation.allOwnedSmokeContainersRemoved, true);
+  assert.equal(validation.ownedDistributionStopped, true);
+  assert(validation.attempts.every((attempt) => attempt.containerRemoved));
+  assert.equal(validation.attempts.filter((attempt) => attempt.passed).length, 1);
+  for (const flag of ["runtimeApplyAuthorized", "registryPushed", "redistributionApproved",
+    "licenseClosureComplete", "callsOrMediaTested", "gateAAcceptanceComplete", "gateCAuthorized"]) {
+    assert.equal(validation[flag], false, flag);
+  }
+  assert(smoke.diagnostics.length > 0);
+  assert(smoke.diagnostics.every((item) => item.stream === "stdout" && item.text ===
+    "No ethernet interface found for seeding global EID. You will have to set it manually.\n"));
+});
+
+test("NSS runtime closure retains the thirteen installed package files and original compiled outputs", () => {
+  const manifest = read(`${directory}/runtime-bundle-manifest-nss.json`);
+  const entries = new Map(manifest.entries.map((entry) => [entry.path, entry]));
+  assert.equal(entries.size, 389);
+  assert.equal(manifest.entries.reduce((sum, item) => sum + item.bytes, 0), 135344626);
+  assert.equal(manifest.nssInstalledPackageIntegrityVerified, true);
+  assert.equal(Object.keys(manifest.nssRuntimeFiles).length, 13);
+  for (const [name, sha256] of Object.entries(manifest.nssRuntimeFiles)) {
+    assert.equal(entries.get(`runtime-libs/${name}`).sha256, sha256);
+  }
+  for (const name of ["libsoftokn3.so", "libsoftokn3.chk", "libfreeblpriv3.so", "libfreeblpriv3.chk"]) {
+    assert(entries.has(`runtime-libs/${name}`), name);
+  }
+  for (const output of read(`${directory}/compile-report-optional-api.json`)
+    .profiles.find((profile) => profile.name === "release").outputs) {
+    assert.equal(entries.get(output.path).sha256, output.sha256);
+  }
+  const payload = read(`${directory}/image-payload-validation-nss.json`);
+  assert.equal(payload.payloadFilesVerified, 390);
+  assert.equal(payload.moduleAliasesVerified, 41);
+  assert.equal(payload.allPayloadHashesSizesModesAndOwnershipVerified, true);
+  assert.equal(payload.exactNonDirectoryImageInventoryVerified, true);
+});
+
 test("built image evidence binds actual inspected payload without implying container execution", () => {
   const build = read(`${directory}/image-build-validation.json`);
   const payload = read(`${directory}/image-payload-validation.json`);
@@ -27,7 +97,7 @@ test("built image evidence binds actual inspected payload without implying conta
   assert.equal(build.bundleManifestSha256, hash(`${directory}/runtime-bundle-manifest.json`));
   assert.equal(payload.bundleManifestSha256, build.bundleManifestSha256);
   assert.equal(build.dockerfileCanonicalLfSha256, createHash("sha256")
-    .update(bytes(`${directory}/runtime.Dockerfile`).toString("utf8").replace(/\r\n/g, "\n"))
+    .update(bytes(`${directory}/runtime-initial.Dockerfile`).toString("utf8").replace(/\r\n/g, "\n"))
     .digest("hex"));
   assert.equal(hash(`${directory}/image-payload-validation.json`),
     build.evidence["image-payload-validation.json"].sha256);
