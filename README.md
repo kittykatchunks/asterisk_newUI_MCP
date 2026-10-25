@@ -424,44 +424,26 @@ private and unlinked; request/traversal/locking logic is unchanged.
 This does not establish C compilation, native correctness or AT/QO acceptance;
 Gates B/C remain closed.
 
-The [acceptance reconciliation](./PROJECT-PLAN.md#gate-a-acceptance-reconciliation-source-coverage-is-not-an-exit)
-maps the current source assertions to every AT/QO requirement. All remain open.
-The subsequently approved [separate lifecycle target](./PROJECT-PLAN.md#gate-a-separate-lifecycle-target-twenty-two-definitions-still-unexecuted)
-adds one disposable native module and test-profile-only core barriers/counters.
-The inventory is now **22 uncompiled/unexecuted native definitions**, including
-12 source schedules with actual reader counts through dispatcher output/entry
-cleanup/final release, controlled outside the unloadable target.
-**Twelve package tests pass** and exact application/nine postimages match.
-The [instrumented completion update](./PROJECT-PLAN.md#gate-a-instrumented-completion-twenty-three-definitions-still-unexecuted)
-now brings the inventory to **23 uncompiled/unexecuted native definitions**,
-adding eight completion/count schedules. Completion teardown waits for worker
-join even after lease release because generator traversal retains the registry
-read lock. The [teardown-first closing update](./PROJECT-PLAN.md#gate-a-teardown-first-closing-twenty-four-definitions-still-unexecuted)
-now brings the inventory to **24 uncompiled/unexecuted native definitions**.
-It specifies failed-soft-teardown denial for dispatch and both completion
-outcomes, exact zero leases/callbacks, successful cleanup and fresh-load
-recovery. The [lookup ordering update](./PROJECT-PLAN.md#gate-a-lookup-ordering-twenty-five-definitions-still-unexecuted)
-now brings the inventory to **25 uncompiled/unexecuted native definitions**.
-Three worker schedules specify failed teardown winning after lookup but before
-admission, requiring a closing denial without a lease or handler call.
-The [loader contention update](./PROJECT-PLAN.md#gate-a-loader-contention-twenty-six-definitions-still-unexecuted)
-now brings the inventory to **26 uncompiled/unexecuted native definitions**.
-It specifies denial of dispatch and both completions while another thread
-holds the loader lock, then successful recovery on the same loaded target.
-The [permission denial update](./PROJECT-PLAN.md#gate-a-permission-denial-twenty-seven-definitions-still-unexecuted)
-now brings the inventory to **27 uncompiled/unexecuted native definitions**.
-Three dispatch cleanup schedules use a scoped real deny rule and require
-no handler invocation, exact lease release and safe post-release teardown.
-The [nonrecursive refresh update](./PROJECT-PLAN.md#gate-a-nonrecursive-refresh-twenty-eight-definitions-still-unexecuted)
-now brings the inventory to **28 uncompiled/unexecuted native definitions**.
-It adds active-lease refresh veto and failed-soft-refresh closing denial,
-followed by successful refresh and normal dispatch/completion on the new load.
-This is not measured latency, successful-removal race or native lifecycle
-acceptance; recursive refresh, shutdown and slow output remain pending.
-**Twelve package tests pass** and exact application/nine postimages match.
-Pinned build closure and enforced resources
-still require Gate B approval before any native run; Gate C separately controls
-owned PBX proof.
+The [current acceptance handoff](./PROJECT-PLAN.md#gate-a-current-acceptance-handoff-twenty-eight-definitions-no-native-exit)
+reconciles the **28 uncompiled/unexecuted native definitions** against the
+earlier AT/QO matrix. A separate disposable target and test-profile-only core
+barriers/counters specify dispatch/completion lease drain, failed-teardown
+closing denial, lookup-before-admission ordering, foreign-thread loader
+contention, real permission denial and nonrecursive refresh recovery.
+Completion teardown waits for worker join when generator traversal still
+holds the registry read lock, even after lease release.
+
+**Twelve package tests passed** for source candidate `72c5ef0`; exact application
+and all nine source postimages matched. Those checks do not prove C compilation,
+native behavior, measured latency or lifecycle acceptance. Shutdown, recursive
+teardown, stalled/disconnected output, AO2 work/ref instrumentation and broader
+profile/regression evidence remain pending. All AT/QO gates remain open.
+
+Source-only Gate A work is authorized, but its verified exit remains blocked.
+Gate B requires a complete immutable build/dependency closure and approved,
+enforced resources before any native run. Gate C separately controls owned
+two-PBX proof. No custom parser/binding or runtime publication authority is
+enabled by these source definitions.
 
 ## Isolated PBX boot-epoch recovery proof
 

@@ -3360,6 +3360,80 @@ source scratch directories are removed after verification. No dependency
 installation, native build/test, image build or PBX operation occurred.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A current acceptance handoff: twenty-eight definitions, no native exit
+
+This reconciliation applies to source candidate **`72c5ef0`**, patch SHA-256
+`2ae70680493482bd7053f70f172bfa32b348cd5be35b9fefacd2bad8c0adc725`.
+The exact nine-path package contains **28 uncompiled/unexecuted native
+definitions**, seven modified upstream files and two new native fixtures.
+It supersedes the *current-status* reading of the earlier 21-definition
+acceptance reconciliation, not its requirements or historical evidence.
+No source/package bytes or approval flags change in this documentation-only
+increment. Test-definition counts are inventory, not an acceptance score.
+
+**Lifecycle delta since the earlier matrix (AT-09/QO-03):**
+
+| Obligation | Source assertion now defined | Still missing before acceptance |
+|---|---|---|
+| Dispatch lease through output/entry cleanup/final release | Separate-target controller, four pause points across success/failure/usage, actual reader/event counters and successful soft unload while dispatch is paused safely in core after release. | Compile/run; slow/disconnected transport, actual destructor/dlclose accounting, all failure paths and affected regressions. |
+| Completion lifetime | Four pause points across allocated/null results; pre-release unload veto and exact release counts. | Compile/run; registry-lock contention and remaining generator traversal/lifetime instrumentation. Zero readers does not imply registry read-lock exit. |
+| Teardown-first and lookup-before-admission | Sequential retained-closing denial and three worker schedules where failed soft teardown wins after lookup. | Compile/run; successful-removal ordering and broader concurrency. A refusal before unregister is not proof of completed removal under a paused registry reader. |
+| Loader contention | Real foreign-thread module-list owner; three requests return denied before owner release; same loaded target recovers with exact acquisition/release counts. | Compile/run and validate profiles/watchdog; no measured elapsed-time threshold is asserted. |
+| Permission denial | Real scoped deny rule and credentialed dispatch; admitted/entry-done/released pauses require no handler and one final release. | Compile/run; exact transport output, policy/reload races and other denial/error branches. No permission default or disk configuration is changed. |
+| Nonrecursive refresh/unload failure | Active-lease soft/firm/hard refresh veto; one-shot soft refusal retains closing, successful retry reloads and serves dispatch/completion. | Compile/run; recursive dependencies, reload/start failure, partial cleanup, declined modules and broader unload failures. |
+| Registration and protected unregister | Null-owner registration/admission rejection; older active-dispatch busy-unregister fixture. | Compile/run; full registration/startup failure cleanup and independent helpers-writer contention. Older self-module fixtures are not separate-target removal evidence. |
+| Shutdown | Production candidate has shutdown admission checks and leased-module skip logic. | Deterministic actual shutdown-before-admission and shutdown-after-admission schedules, process-exit ordering, cleanup and native evidence. No shutdown fixture exists merely because checks appear in source. |
+
+**Other acceptance requirements remain open:**
+
+| Requirements | Remaining work not discharged by these lifecycle additions |
+|---|---|
+| AT-01 through AT-07 | Rejection-before-lock/work accounting; zero-bucket inconsistency; explicit 63-live and mixed retained/live collision cases; exact physical-node/ref/allocation/mutation/cleanup instrumentation; retirement/unlink and debug/ref/lock profile proof. Existing real-container fixtures remain unexecuted. |
+| AT-08, QO-01 through QO-05 | Exact 17-acquisition and bounded visitor-work accounting; no backend/device/file/DB effects; full policy alias/unknown-bit/timer cases; total inventory/expected-target comparisons; actual handler/adapter and loaded-versus-disk/isolation evidence. |
+| QO-06 | Strict 8 KiB host parser and new custom capability/binding, malformed/truncated/extra-stdout/unknown-field/error-exit negatives and stock regressions. None is enabled by the native source package. |
+| AT-10, QO-07 | Immutable build/dependency/archive closure, licenses, configure/menuselect/module manifest, full compatible runtime, native tests, affected upstream regressions and profile/image/startup provenance. |
+| QO-08 | Separately approved Gate C unique two-customer custom-runtime proof; no substitution with private fixtures or prior stock-runtime proofs. |
+| QO-09, QO-10 | Outage/restart/concurrent-read/object-change/receipt-write uncertainty preservation, stock/custom regressions and owned-resource cleanup evidence. No executor or verified publication pointer is added. |
+
+**Next bounded source priority:** extend the existing AO2 fixture matrix for
+the explicit 63-live-object and mixed retained/live physical-node boundaries,
+with exact expected visitor/destructor counts. Reuse actual owner containers
+and existing fixtures; do not add caller-side private-layout mutation or treat
+these assertions as runtime work-accounting evidence. This is still within
+the approved source-only boundary. After that, remaining shutdown, output and
+ref/work instrumentation require a concrete safe fixture design; obtain a
+scope decision before changing any source path or production behavior beyond
+the existing approval. More definitions alone cannot clear A's verified exit.
+
+**Build handoff remains a separate decision, not the next automatic command:**
+
+1. Select and verify immutable builder/runtime digests and architecture,
+   package snapshot with exact versions/hashes, third-party source archive
+   hashes and license/source obligations. Version strings and the prior stock
+   runtime digest are not a source/toolchain closure.
+2. Pin configure/menuselect/module and test/release profile manifests, the
+   transitive runtime dependency/startup chain and exact no-unrecorded-fetch
+   commands. Distinguish instrumented test artifacts from release artifacts.
+3. Present enforceable CPU/memory/storage/time/PID/log/network limits, cleanup
+   ownership and stop behavior before approval. The old 2 CPU/2 GiB/20 GiB/
+   30-minute proposal is neither measured sufficiency nor approved capacity;
+   account for the 65,536-member fixture and debug/ref logging.
+4. Obtain explicit Gate B approval for that closed environment before any
+   dependency installation, compilation or native test. If storage or another
+   required cap cannot be enforced, stop rather than silently weakening it.
+5. Retain actual command/results/hashes and native/regression/profile evidence
+   before claiming A's verified exit. Only a separate Gate C decision can then
+   authorize the owned two-PBX proof; neither stage enables stock fallback,
+   automatic binding promotion or publication authority.
+
+The preceding source candidate recorded twelve package passes, seven exact
+preimages/application dry run and all nine independent postimages. Those
+results are not rerun or promoted by this documentation-only reconciliation.
+Documentation links/whitespace and unchanged patch/manifest are checked.
+No dependency install, native build/test, image build, module load or PBX
+operation occurs. All AT/QO gates, A's verified exit, Gates B/C, exact
+publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

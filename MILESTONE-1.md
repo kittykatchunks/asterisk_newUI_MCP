@@ -2372,6 +2372,16 @@ coverage remain pending. **Twelve package tests pass** and exact application/
 nine postimages match; this is not native evidence. A's verified exit, AT/QO
 and Gates B/C remain open; no native/PBX execution.
 
+The [current 28-definition acceptance handoff](./PROJECT-PLAN.md#gate-a-current-acceptance-handoff-twenty-eight-definitions-no-native-exit)
+reconciles these lifecycle additions against AT/QO without changing the patch
+or manifest. All acceptance gates remain open: native execution, shutdown,
+recursive/startup/transport failure and exact AO2 work/ref instrumentation
+are not established by package checks. The next bounded source priority is
+the explicit 63-live/mixed-retained AO2 fixture matrix. Build execution still
+needs immutable dependency/profile closure, enforceable resources and explicit
+Gate B approval; Gate C separately gates owned runtime proof. This
+documentation-only handoff runs no native tests or PBXs.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
