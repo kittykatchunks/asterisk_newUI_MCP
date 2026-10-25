@@ -3791,6 +3791,73 @@ pull/build, dependency installation, native compile/test or PBX operation
 occurred. The source patch/manifest remain unchanged; documentation links,
 JSON shape/source binding and whitespace are checked, not native tests.
 
+##### Dedicated WSL build environment proposal
+
+The user selected preparation of a **new dedicated WSL distribution without
+changing shared WSL settings**. Read-only investigation found WSL 2.7.3.0
+with kernel 6.6.114.1-1. Installed CLI help supports per-install `--name`,
+`--location`, `--from-file`, `--version`, `--vhd-size` and `--no-launch`.
+No distribution was installed or started during this investigation.
+
+This is a dedicated filesystem/process environment, **not a separate VM**.
+Microsoft documents `.wslconfig` resource settings as global across WSL2
+distributions. Do not change that file, resize an existing distribution,
+enable shared Docker integration, or run `wsl --shutdown` to implement this
+proposal. The running Docker Desktop environment and all existing Linux
+distributions remain untouched.
+
+The [environment proposal](./local/asterisk-patches/build-preparation.json)
+pins Microsoft's distribution manifest at commit
+`341f1ddf76f089ff6351590b03f92bad30041725`, the Ubuntu 24.04 amd64 image URL
+and SHA256 `bb415d824822c4b878125729af451a5d18fb13d1cf5cbed9a7393ad64ac6039e`.
+A HEAD request returned HTTP 200 and content length 388,975,696 bytes.
+No image body was downloaded or hashed; the checksum is the official
+manifest's expected value, not a locally verified payload.
+
+Proposed installation, **not yet authorized or executed**, after a bounded
+download and successful SHA256 verification:
+
+```powershell
+wsl.exe --install --from-file "C:\Users\james\AppData\Local\AsteriskNativeBuild\gate-b-f51968c\ubuntu-24.04.5-wsl-amd64.wsl" --name Asterisk-GateB-f51968c --location "C:\Users\james\AppData\Local\AsteriskNativeBuild\gate-b-f51968c\distro" --version 2 --vhd-size 18GB --no-launch
+```
+
+Refuse name/path collisions before provisioning. The proposed guest disk is
+18 GiB, leaving 2 GiB of the selected budget for installer/staging/metadata;
+the installer must have a streaming 512 MiB maximum, host logs a 16 MiB
+maximum, and no host artifact exports are proposed. All package downloads,
+sources, outputs and build logs belong inside the new disk. **This allocation
+is a design, not proof of an aggregate hard cap**: VHDX metadata, WSL-managed
+host writes and shared-VM overhead still need a bounded accounting strategy.
+Do not equate a guest capacity with a hard total host-storage limit.
+
+Before any build, configure and verify only the new distribution: disable
+Windows-drive automount, fstab mounting, Windows interop and Windows PATH
+injection; enable systemd if supported. Configuration only takes effect
+after the applicable distribution restart; a first bootstrap launch must
+not be represented as already having these protections. Use only targeted
+termination of the owned distribution if needed.
+
+An unprivileged build service is proposed with `CPUQuota=200%`,
+`MemoryMax=2147483648`, `MemorySwapMax=0`, `TasksMax=128`,
+`RuntimeMaxSec=1800`, `KillMode=control-group` and `SendSIGKILL=yes`.
+Controller availability and actual limits require live verification;
+exercise watchdog termination and a small disposable full-filesystem probe.
+These service properties do not cap bootstrap, system services or the
+shared WSL VM. Resolve that budget scope explicitly rather than silently
+claiming whole-environment enforcement.
+
+Provisioning approval is still required for download, new disk/distribution,
+configuration and resource probes. The full compiler/package/runtime closure
+and subsequent Gate B build approval remain separate outstanding work.
+If WSL cannot enforce the selected budget without shared settings changes,
+stop and obtain an environment decision. Preserve a failed owned environment
+for explicit cleanup approval rather than automatically unregistering a
+distribution or deleting its disk.
+
+References: [Microsoft WSL configuration](https://learn.microsoft.com/en-us/windows/wsl/wsl-config),
+[distribution format and custom names](https://learn.microsoft.com/en-us/windows/wsl/build-custom-distro),
+and [disk capacity management](https://learn.microsoft.com/en-us/windows/wsl/disk-space).
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
