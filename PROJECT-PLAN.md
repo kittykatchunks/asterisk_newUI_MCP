@@ -3158,6 +3158,54 @@ The two named source scratch directories are removed after verification.
 No dependency install, native build/test, image build or PBX execution occurred.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A lookup ordering: twenty-five definitions, still unexecuted
+
+`protected_target_lookup` adds **three instrumented source schedules** within
+the existing nine-path approval: real dispatch, allocated-result-word
+completion and null-result-word completion. The inventory is now **25
+uncompiled/unexecuted native definitions**. The existing disposable target
+and its one-shot unload refusal are unchanged.
+
+Test-profile hooks now record protected entry lookup immediately before lease
+admission in dispatch and generation, while the helpers registry read lock is
+still held. The core observer permits pausing at this new event. Each schedule
+arms target unload refusal before observation, starts the existing worker and
+requires exactly one lookup and no acquisition, callback, release, unload or
+worker completion at the pause. The separate controller then soft-unloads:
+the real callback must refuse before unregistering, leaving the module present
+and closing. No fixture mutex is held when calling loader APIs.
+
+After controller resume/join, dispatch must fail or completion must return
+null, with exactly one closing-state denial and its actual reader count zero.
+The final event matrix requires one lookup/denial/worker completion, two unload
+callbacks (refusal and post-join successful cleanup), no acquisitions, handlers,
+handler returns, entry cleanup or releases. Existing admitted lifecycle tests
+now require one lookup each; the sequential closing test requires three.
+All controller/session cleanup failures remain explicit native-test failures.
+
+This specifies **failed teardown winning between lookup and admission**, not
+successful removal of an entry still protected by the registry read lock.
+The controller must not attempt normal successful teardown while that worker
+is paused: unregister requires the registry writer and would block. A broken
+one-shot refusal or lock regression can still hang; serialized disposable
+execution, target exclusion from autoload and an external watchdog/resource
+cap remain mandatory. No shared/runtime PBX is an acceptable test host.
+The barrier establishes a controlled ordering, not exhaustive concurrency,
+loader-lock-contention, successful-teardown-race, permission/shutdown,
+refresh/recursive or slow-output acceptance. All AT/QO gates remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match. Only guarded header/CLI/loader
+instrumentation and the controller fixture change; the other five postimages,
+including the separate target, are unchanged. Lexical `TEST_FRAMEWORK`-off
+header/CLI/loader parity matches the preceding candidate; that is not
+preprocessing, compilation or profile-transparency proof.
+Both named source scratch directories are removed after verification.
+No dependency install, native compile/test, image build or PBX operation
+occurred. A's verified exit, Gates B/C, exact publication, full CP and M1-09
+remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

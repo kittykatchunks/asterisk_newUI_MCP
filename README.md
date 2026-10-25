@@ -440,8 +440,12 @@ read lock. The [teardown-first closing update](./PROJECT-PLAN.md#gate-a-teardown
 now brings the inventory to **24 uncompiled/unexecuted native definitions**.
 It specifies failed-soft-teardown denial for dispatch and both completion
 outcomes, exact zero leases/callbacks, successful cleanup and fresh-load
-recovery. This is not a concurrent lookup/teardown proof or native lifecycle
-acceptance; shutdown and further instrumentation remain pending.
+recovery. The [lookup ordering update](./PROJECT-PLAN.md#gate-a-lookup-ordering-twenty-five-definitions-still-unexecuted)
+now brings the inventory to **25 uncompiled/unexecuted native definitions**.
+Three worker schedules specify failed teardown winning after lookup but before
+admission, requiring a closing denial without a lease or handler call.
+This is not successful-removal race or native lifecycle acceptance;
+shutdown and further instrumentation remain pending.
 **Twelve package tests pass** and exact application/nine postimages match.
 Pinned build closure and enforced resources
 still require Gate B approval before any native run; Gate C separately controls

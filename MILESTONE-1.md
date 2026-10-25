@@ -2327,6 +2327,17 @@ failed-teardown-before-admission coverage, not a lookup/teardown race proof.
 test-profile-off header/loader lexical parity passes, not native acceptance.
 A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
 
+The [lookup ordering source](./PROJECT-PLAN.md#gate-a-lookup-ordering-twenty-five-definitions-still-unexecuted)
+brings the inventory to **25 uncompiled/unexecuted native definitions**.
+Three worker schedules pause real dispatch/completion after lookup but before
+admission; a failed soft teardown wins, and resumed requests must produce
+one closing denial each with zero acquisitions/callbacks/readers. Successful
+cleanup waits until worker join. This does not test successful removal while
+the registry read lock protects the entry, nor exhaustive concurrency.
+**Twelve package tests pass** and exact application/nine postimages match;
+header/CLI/loader test-profile-off lexical parity is not native evidence.
+A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
