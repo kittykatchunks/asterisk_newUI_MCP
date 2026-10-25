@@ -15,6 +15,85 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Synthetic queue-member service observations
+
+QS-01 through QS-06 add an **isolated automated member** proof and conservative
+operator projection observations. No real agent phone is enabled. Temporary
+service dialplan/queue configuration is mounted only in the owned proof; ordinary
+routes, the existing empty-queue timeout fixture and frozen REFER tests do not change.
+
+New builds use **`marked-caller-v3`**. Existing v1/v2 revisions remain readable
+without adding fields or rewriting their documents; rebuilding appends a new
+revision using unchanged `history-entity-v1` journey/visit keys. Raw history
+schema 5 and projection database schema 1 are unchanged.
+
+The [service observer](./src/history-queue-service.ts) adds `visit.service`:
+
+- `connection`: `not-observed|observed|unresolved|conflicting`. A valid ordered
+  CONNECT must follow the unique ENTERQUEUE in the **same queue source/generation**,
+  with a non-placeholder member and exactly `hold|member-uniqueid|ring` parameters.
+  Numeric fields must be canonical nonnegative safe integers; identities are
+  nonblank, control-free and bounded. Numbers remain raw evidence, not durations.
+- `memberCorrelation`: `not-observed|unresolved|answered-channel-observed|conflicting`.
+  The exact CONNECT uniqueid must identify one consistent member channel with
+  one CHAN_START before one ANSWER in the marked caller's **same CEL
+  source/generation and selected customer/runtime/epoch**. No other CONNECT may
+  claim it; caller/root IDs, reused channel identities, contradictory lifecycle
+  or duplicate answers are conflicts. Foreign, absent, unassigned and partial
+  evidence cannot supply a correlated answer.
+- `memberUniqueid`, source-qualified `memberEvidence` and `memberChannelEnd` retain
+  the independent identity, records and end observation. A correlated answer may
+  be observed before CHAN_END arrives. No linkedid, Local-half, bridge peer,
+  endpoint-name or timestamp relationship is invented.
+- `completion`: `not-observed|member-ended-queue-service-observed|unresolved|conflicting`.
+  The **sole** remaining record must be a same-stream, later COMPLETEAGENT with
+  the same member and exactly `hold|call|original-position` canonical unsigned
+  safe integers, with positive original position. COMPLETECALLER, transfers,
+  abandonment and other unsupported/mismatched records remain explicit;
+  competing terminals conflict. `queueEvidence` preserves their references.
+
+These observations are independent: a valid queue CONNECT/completion can remain
+visible while member correlation is missing/conflicting. `completion-observed`
+means only the supported **queue record**, never whole-journey completion.
+Visit summaries also support `connection-observed`; contradictory connection,
+member identity or terminal candidates yield `conflicting`. Read the service
+fields and issues rather than treating the summary as a business outcome.
+Caller PBX ANSWER/CHAN_END remain separate. No new inbound root is created for
+the member. Quality still says `service:not-classified`, completeness unverified,
+and independently retains CEL/queue gaps. Existing input/output bounds include
+all new references; no truncation or partial publication is allowed.
+
+### Reproduce and recorded result
+
+```powershell
+.\scripts\Test-QueueServiceEvidence.ps1
+```
+
+This runs typecheck, **85 focused tests** (nine QS additions plus the 76 existing
+history/collector regressions), then the owned two-customer `--service` proof
+using the locally available pinned image without a pull or build.
+Recorded `run-n7q0gL` (`asterisk-history-n7q0gl`) retained **44 CEL records /
+7,497 bytes and six queue records / 370 bytes per customer**, with exact raw
+round trips and zero-insert replay. The new visit emitted
+ENTERQUEUE -> CONNECT -> COMPLETEAGENT. Each CONNECT named a member uniqueid
+with exact CEL CHAN_START, ANSWER, BRIDGE_ENTER, BRIDGE_EXIT, HANGUP, CHAN_END.
+Bridge events remain evidence, not a reconstructed peer graph or media proof.
+Trusted entry/visit markers precede caller answer/Queue. Both PBXs reused caller
+ID `1792898562.4` without cross-customer attribution.
+
+Revisions **3/4** retain the prior timeout journey and stable keys, add one
+synthetic served visit with ten caller and six member CEL references, and
+survive persisted CLI reopen, offline inspection and revision replay. Foreign
+scope reads fail. Genuine retained v1/v2 documents also remain readable.
+Owned container/network/volume absence is checked independently of Compose down;
+temporary configurations and credentials are removed. Only synthetic databases
+and reports remain in ignored local proof directories.
+
+**This does not prove a human answered, agent identity, two-way service audio,
+media quality, caller abandonment, transfers, business totals or M1-06/07
+completion.** The harness's separate authenticated echo baseline is not evidence
+of audio across the synthetic queue-member call.
+
 ## Operator-only queue collector recovery
 
 QR-01 through QR-07 add durable local-file collection for queue evidence,
@@ -88,10 +167,11 @@ readers **3/4/5**, manifests **4/5**, queue collectors **5 only**.
 Read-only commands never migrate; old binaries reject schema 5, with no downgrade.
 Separate projection/diagnostic/agent/simulation formats are unchanged.
 
-New projections use **`marked-caller-v2`**, with independent `kind:cel|queue`
-collector/gap observations in the input vector and current health output.
-Earlier `marked-caller-v1` revisions remain readable; rebuilding appends v2
-without rewriting history or prior revisions. The independent
+The queue recovery increment introduced **`marked-caller-v2`**, with independent
+`kind:cel|queue` collector/gap observations in the input vector and current health
+output. Current `marked-caller-v3` retains that provenance and adds the separate
+service observations above. Earlier v1/v2 revisions remain readable; rebuilding
+appends v3 without rewriting history or prior revisions. The independent
 `history-entity-v1` journey/visit identity namespace is unchanged.
 Reading old schema-4 history remains possible: queue collection capability and
 quality explicitly say `unavailable-legacy-schema`, not healthy or gap-free.
@@ -174,8 +254,8 @@ interchangeable. Filesystem/CLI access is a trusted operator boundary, not tenan
 authentication or an approved sensitive-data export.
 
 Each revision returns ID, scope, publication time, algorithm
-`marked-caller-v2`, input SHA-256, projection SHA-256 and the document
-(earlier `marked-caller-v1` revisions remain readable).
+`marked-caller-v3`, input SHA-256, projection SHA-256 and the document
+(earlier `marked-caller-v1`/`marked-caller-v2` revisions remain readable).
 `revisions` returns metadata with `nextAfterId`; pass that cursor until null.
 Revision IDs are database-wide, not per-customer counters.
 An identical latest input/output reuses its revision (`reused:true`); late input
@@ -221,6 +301,9 @@ freshness fallback.
 - Attach **only the explicitly marked caller uniqueid in its exact CEL
   source/generation**. Shared linkedid, Local halves, bridges, consultation,
   proximity, endpoint names and timestamps never create additional legs or joins.
+  The separate v3 service observation can correlate the exact queue CONNECT
+  member uniqueid under the stricter rules above; it never joins a member as
+  another inbound root or reconstructs a bridge/transfer graph.
   Invalid/untrusted markers, unassigned records and unattributed evidence remain
   explicit issues. Unsupported caller CEL events retain their references.
 - Visits require a validated marker on that root's caller channel, after entry,
@@ -228,9 +311,10 @@ freshness fallback.
   is associated only with exactly one candidate visit and one queue entry for
   that scoped caller/queue. Re-entry or competing stream/entry candidates stay
   unresolved; there is **no nearest-timestamp pairing**.
-- Only pinned ENTERQUEUE (`caller-url|caller-id|position`) and
-  EXITWITHTIMEOUT (`position|original-position|wait`) shapes are recognized,
-  with member `NONE`. No caller fields/durations are interpreted.
+- Pinned ENTERQUEUE (`caller-url|caller-id|position`) and
+  EXITWITHTIMEOUT (`position|original-position|wait`) retain their existing
+  member-`NONE` rules. V3 additionally recognizes the bounded CONNECT/
+  COMPLETEAGENT observations above. No caller fields/durations are interpreted.
   A sole correctly ordered timeout in the same queue stream becomes
   `timeout-observed`. Unsupported/invalid evidence or competing terminals
   remain unresolved/conflicting. QUEUESTART stays administrative evidence.
@@ -238,7 +322,9 @@ freshness fallback.
   `observed|not-observed|conflicting`; absence is not proof of no answer or a
   completed journey. Root state `marked-caller-observed` is an observation,
   **not a confirmed business journey count**. Visit states are `unresolved`,
-  `conflicting`, `entry-observed` or `timeout-observed`.
+  `conflicting`, `entry-observed`, `timeout-observed`, `connection-observed`
+  or `completion-observed`; the latter two are queue observations, not human
+  service or whole-journey outcomes.
 
 Quality always says **completeness unverified** and **service not classified**.
 Queue coverage is `not-collected`, `unverified` with configured queue collection,

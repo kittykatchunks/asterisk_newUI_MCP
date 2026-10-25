@@ -3,8 +3,9 @@ import type { openCelHistory, CelEvent } from "./cel-history.ts";
 import type { QueueEvent } from "./queue-history.ts";
 import { inspectHistoryMarker } from "./history-markers.ts";
 import { historyIdentifier as identifier, historySha256 as sha256 } from "./history-evidence.ts";
+import { emptyQueueService, observeQueueService, type QueueServiceObservation } from "./history-queue-service.ts";
 
-export const PROJECTION_ALGORITHM = "marked-caller-v2";
+export const PROJECTION_ALGORITHM = "marked-caller-v3";
 export const PROJECTION_DOCUMENT_LIMIT = 8 * 1024 * 1024;
 export interface ProjectionScope { customer: string; runtime: string; epoch: string }
 export interface EvidenceRef {
@@ -19,8 +20,9 @@ interface Marker {
 export interface ProjectionIssue { reason: string; evidence: EvidenceRef[] }
 export interface ProjectedVisit {
   id: string; visitId: string; queue: string; markerEvidence: EvidenceRef[];
-  state: "unresolved" | "conflicting" | "entry-observed" | "timeout-observed";
+  state: "unresolved" | "conflicting" | "entry-observed" | "timeout-observed" | "connection-observed" | "completion-observed";
   queueEvidence: EvidenceRef[];
+  service: QueueServiceObservation;
 }
 export interface ProjectedJourney {
   id: string; journeyId: string; entryKind: string;
@@ -212,7 +214,7 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
       }
       const visit: ProjectedVisit = { id: stableId(scope, "visit", visitId), visitId, queue: first.queue!,
         markerEvidence: references(candidates.map((m) => m.ref)), state: signature.size === 1 ? "unresolved" : "conflicting",
-        queueEvidence: [] };
+        queueEvidence: [], service: emptyQueueService() };
       journey.visits.push(visit);
       if (signature.size !== 1) { issue("conflicting-visit-marker", visit.markerEvidence); continue; }
       const rivals = new Set(allVisits.filter((m) => m.channel === first.channel && m.queue === first.queue).map((m) => m.visitId));
@@ -228,6 +230,21 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
       visit.state = "entry-observed";
       usedQueue.add(refKey(enter.ref));
       const rest = matches.filter((q) => q !== enter);
+      if (rest.some((q) => q.event.event === "CONNECT" || q.event.event.startsWith("COMPLETE"))) {
+        const observed = observeQueueService(enter, rest, cel, queue, new Set(entries.map((m) => m.channel)), root.ref);
+        visit.service = observed.service;
+        references(visit.service.queueEvidence); references(visit.service.memberEvidence);
+        for (const problem of observed.issues) issue(problem.reason, problem.evidence);
+        for (const ref of observed.consumed) usedQueue.add(refKey(ref));
+        if (visit.service.memberCorrelation === "answered-channel-observed") {
+          for (const ref of visit.service.memberEvidence) usedCel.add(refKey(ref));
+        }
+        visit.state = visit.service.connection === "observed" ? "connection-observed" : "unresolved";
+        if (visit.service.completion === "member-ended-queue-service-observed") visit.state = "completion-observed";
+        if (visit.service.connection === "conflicting" || visit.service.memberCorrelation === "conflicting" ||
+            visit.service.completion === "conflicting") visit.state = "conflicting";
+        continue;
+      }
       if (rest.length > 1 && rest.every((q) => q.event.event === "EXITWITHTIMEOUT")) {
         visit.state = "conflicting"; issue("conflicting-queue-terminals", rest.map((q) => q.ref)); continue;
       }

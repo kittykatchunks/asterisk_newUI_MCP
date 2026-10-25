@@ -786,6 +786,61 @@ No new dependency, ordinary route, live phone, HTTP/UI/permission or frozen
 REFER work. Stop after this finite local-file increment; M1-06/07, remote
 delivery/retention and broad journey/outcome acceptance remain incomplete.
 
+### Synthetic queue-member service observation completion
+
+The user selected QS-01 through QS-06: isolated automated-member connection/
+completion evidence plus conservative projection observations. This is **not**
+a human-service or two-way-media proof. The new service route and Local `/n`
+member run only through temporary owned configuration. Ordinary routes,
+empty-queue timeout behavior, live phones and frozen REFER fixtures are unchanged.
+
+The pinned runtime emitted ENTERQUEUE, CONNECT (`hold|member-uniqueid|ring`) and
+COMPLETEAGENT (`hold|call|original-position`). Exact raw records and IDs remain
+durable. `marked-caller-v3` separates caller PBX answer/end, queue connection,
+exact member-channel answer/end correlation, and queue-member completion.
+A unique same-stream queue sequence and supported exact parameter shapes are
+required. Member correlation requires one consistent exact uniqueid with an
+ordered start/answer in the caller's CEL source/generation and explicit selected
+customer/runtime/epoch. Missing, foreign, unassigned, reused/root/caller,
+duplicate and contradictory identities stay unresolved/conflicting.
+No timestamp, linkedid, Local-half or bridge-peer join is introduced.
+
+Queue connection/completion remains an independent record observation even if
+member correlation cannot be established. COMPLETEAGENT is not human identity,
+caller abandonment or whole-journey completion. COMPLETECALLER and transfers
+remain unsupported. Numeric parameters stay raw, not metrics. No extra inbound
+journey root, business outcome or total is created. Quality remains service
+unclassified/completeness unverified, with independent collection/gap warnings.
+
+V1/v2 revisions remain readable as stored, without new service fields. Rebuilds
+append v3; entity keys and raw/projection schemas stay unchanged. Late member
+evidence creates a new immutable revision, with prior ambiguity still inspectable.
+Existing output-reference/document bounds include new service provenance.
+
+Typecheck and **85 focused tests** pass: nine QS additions plus the existing 76
+history/collector regressions. Coverage includes supported/invalid/order/duplicate
+CONNECT and completion shapes, partial/conflicting/reused member identities,
+competing claims, exact scope collisions, late evidence, retained independent
+gaps, replay, old-revision byte preservation and historical algorithm reads.
+Real `run-n7q0gL` (`asterisk-history-n7q0gl`) retains **44 CEL records / 7,497
+bytes and six queue records / 370 bytes per customer**. Both customers emit
+the same three-event service sequence. Each member has exact CEL
+CHAN_START/ANSWER/BRIDGE_ENTER/BRIDGE_EXIT/HANGUP/CHAN_END. Service caller IDs
+are equal (`1792898562.4`) across customers without cross-attribution.
+Revisions **3/4** preserve the earlier timeout journey/keys and add separate
+service observations with ten caller and six member CEL references. Raw replay,
+persisted CLI reopen, offline read, immutable replay and scope denial pass.
+Genuine retained v1/v2 projections remain readable using the v3 reader.
+Owned containers/networks/volumes are independently checked absent; temporary
+configurations/credentials are removed.
+
+Reproduce with `.\scripts\Test-QueueServiceEvidence.ps1`; see
+[QS evidence](./MILESTONE-1.md#selected-next-increment-synthetic-queue-member-service-observations)
+and [observation semantics](./README.md#synthetic-queue-member-service-observations).
+No dependency, production route, UI or permission surface changes. Stop after
+this bounded increment: human service, two-way service audio, broader lifecycle/
+outcome acceptance, remote evidence delivery/retention and M1-06/07 remain open.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:

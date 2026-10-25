@@ -1289,6 +1289,79 @@ schema 1 and v1 revisions remain readable. No new dependency, ordinary route,
 live phone, frozen REFER fixture or HTTP/UI/permission change. M1-06/07 and all
 17 remaining broad gates are still incomplete; stop after this finite increment.
 
+### Selected next increment: synthetic queue-member service observations
+
+The user selected an isolated automated queue member plus conservative projection
+service observations. No human-answer, media, transfer, totals or live-phone claim.
+
+| Check | Finite required evidence |
+|---|---|
+| QS-01 | New isolated service route/member/queue configuration only; ordinary timeout route and frozen REFER fixtures unchanged. Fresh trusted entry/visit markers precede Answer/Queue. Automated member answers and terminates deterministically. |
+| QS-02 | Real pinned queue CONNECT/completion shapes retained with exact raw bytes and caller/member IDs. Verify actual member CEL CHAN_START/ANSWER/CHAN_END, separately from caller answer and channel end. Never infer a human, verified agent identity, two-way media or entire journey outcome. |
+| QS-03 | Versioned operator projection adds independent queue connection, exact scoped member-answer correlation and queue completion observations. Unique source/epoch/caller/visit evidence required; missing, malformed, duplicate, conflicting or cross-stream identities remain unresolved/conflicting. Completion is not whole-journey completion; durations remain raw, not metrics. |
+| QS-04 | Preserve older algorithm revisions, stable entity keys, immutable replay/late revisions and independent coverage warnings. No raw schema change. Bound evidence references and retain unsupported records; no new inferred Local/bridge/transfer joins or business totals. |
+| QS-05 | Focused tests exercise CONNECT/completion shapes/order/member agreement, missing/contradictory/reused member IDs, independent roots, customer/runtime/epoch isolation, late evidence, old revision readability and all existing history regressions. |
+| QS-06 | Two-customer real proof verifies exact caller/member/queue evidence, persisted projection/reopen/replay and scope denial; clean owned resources and retain non-secret synthetic evidence. No REFER reruns or live phones. |
+
+Stop after QS-01 through QS-06. Synthetic member-channel answer is not real human
+service; M1-06/07, production delivery and four-outcome acceptance remain incomplete.
+
+Implemented and verified for this bounded operator-only scope. The new isolated
+route emits trusted service-v1 entry before caller Answer and visit before Queue.
+A temporary service-queue has one automated Local `/n` member that answers,
+waits two seconds and hangs up; neither ordinary queue configuration nor live
+phones are changed. The service caller's wait/queue operations are bounded.
+
+Actual pinned records are CONNECT with exactly `hold|member-uniqueid|ring`, then
+COMPLETEAGENT with `hold|call|original-position`, member `synthetic-member`.
+V3 validates same-stream queue order, unique entry/connect/terminal, supported
+parameter counts and canonical nonnegative safe integers (positive original
+position). Exact member uniqueid correlation requires one consistent channel,
+one start before one answer and no contradictory end, competing CONNECT/root
+identity or source/generation reuse in the selected scope. An open member channel
+may have answer observed with end not observed. Missing or cross-stream evidence
+cannot supply an answer. Unsupported COMPLETECALLER/transfer/other terminal
+records stay unresolved; conflicting candidates retain references.
+
+Caller answer/end, queue connection, member answer/end and queue completion are
+separate. A queue connection/completion observation may survive unresolved member
+correlation, never promoting that uncertainty to human identity or whole-journey
+completion. V3 visit summaries add connection-observed/completion-observed with
+separate service fields and explicit issue references. Bridge records are retained
+but no peer graph or service audio is inferred. Quality remains unclassified/
+unverified; existing source gaps and bounds are unchanged.
+
+`marked-caller-v3` appends revisions while preserving history-entity-v1 keys,
+raw schema 5 and projection schema 1. V1/v2 documents remain readable without new
+fields or mutation. Late member evidence/replay/old revisions are tested.
+Typecheck and **85 focused tests pass**: nine QS additions and all 76 existing
+CEL/queue/manifest/collector/projection regressions. Equal IDs in distinct
+customer/runtime/epoch scopes, including same-generation epoch ranges, remain
+separate. Genuine retained real v1 and v2 stores also read successfully.
+
+Recorded real `run-n7q0gL` (`asterisk-history-n7q0gl`):
+
+| Observation | Customer A | Customer B |
+|---|---|---|
+| Exact durable CEL | 44 records / 7,497 bytes | 44 records / 7,497 bytes |
+| Exact durable queue | 6 records / 370 bytes | 6 records / 370 bytes |
+| Service caller uniqueid | `1792898562.4` | `1792898562.4` |
+| CONNECT member uniqueid | `1792898562.5` | `1792898563.5` |
+| Service queue sequence | ENTERQUEUE, CONNECT, COMPLETEAGENT | ENTERQUEUE, CONNECT, COMPLETEAGENT |
+| Member CEL | CHAN_START, ANSWER, BRIDGE_ENTER, BRIDGE_EXIT, HANGUP, CHAN_END | Same six-event lifecycle |
+| V3 revision | 3 | 4 |
+| New visit | completion-observed; 10 caller / 6 member CEL refs | Same separate observations |
+
+Exact raw round trips, zero-insert import replay, unchanged previous timeout
+journey/keys/revisions, exact rebuild reuse, persisted CLI reopen, offline
+freshness not-checked and foreign-scope denial pass. Independent resource listing
+after Compose down verifies no owned containers/networks/volumes. Temporary
+configs/credentials are removed; ignored synthetic databases/reports remain.
+Reproduce with `.\scripts\Test-QueueServiceEvidence.ps1`. The separate authenticated
+echo baseline is **not** proof of media on the synthetic member call.
+No real human, verified agent identity, two-way service audio, journey completion,
+caller abandonment, transfer, totals or broad M1 gate is claimed. No REFER rerun.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

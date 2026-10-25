@@ -1,0 +1,7 @@
+services:
+  customer-a:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned service directory required}/queues.conf:/etc/asterisk/queues.conf:ro
+  customer-b:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned service directory required}/queues.conf:/etc/asterisk/queues.conf:ro

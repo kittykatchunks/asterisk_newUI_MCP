@@ -10,18 +10,20 @@ import type { QueueEvent } from "../../src/queue-history.ts";
 import { proveHistoryMarkers } from "./markers.ts";
 import { proveHistoryProjection } from "./projection.ts";
 import { proveQueueRecovery } from "./queue-recovery.ts";
+import { proveQueueService } from "./queue-service.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery"].includes(args[0]))) {
-  throw new Error("Only --recovery, --queue, --markers, --projection or --queue-recovery is supported");
+if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery", "--service"].includes(args[0]))) {
+  throw new Error("Only --recovery, --queue, --markers, --projection, --queue-recovery or --service is supported");
 }
 const recovery = args[0] === "--recovery";
 const queueProof = args[0] === "--queue";
 const queueRecovery = args[0] === "--queue-recovery";
-const projectionProof = args[0] === "--projection" || queueRecovery;
+const serviceProof = args[0] === "--service";
+const projectionProof = args[0] === "--projection" || queueRecovery || serviceProof;
 const markerProof = args[0] === "--markers" || projectionProof;
-const mode = recovery ? "cel-collector" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
+const mode = recovery ? "cel-collector" : serviceProof ? "queue-service" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
   projectionProof ? "history-projection" : markerProof ? "history-markers" : "cel-history";
 const parent = join(root, ".local-proof", mode);
 await mkdir(parent, { recursive: true });
@@ -32,6 +34,7 @@ const compose = ["compose", "--project-name", project,
   "-f", join(root, "compose.yaml"), "-f", join(root, "compose.sip-proof.yaml"),
   "-f", join(root, "compose.cel-history-proof.yaml")];
 if (markerProof) compose.push("-f", join(root, "compose.history-markers-proof.yaml"));
+if (serviceProof) compose.push("-f", join(root, "compose.history-service-proof.yaml"));
 const execute = promisify(execFile);
 const customers = ["customer-a", "customer-b"] as const;
 async function docker(args: string[], timeout = 30000) {
@@ -68,6 +71,7 @@ let composeAttempted = false;
 const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
   scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
+    serviceProof ? "isolated automated queue member CONNECT/completion and exact CEL member answer observations; no human or media claim" :
     queueRecovery ? "operator local-file queue interruption/replay, independent collector status and permanent unknown replacement gap in projection provenance" :
     queueProof ? "operator queue evidence with isolated empty Local-channel timeout and PBX restart; not human service or journey reconstruction" :
     projectionProof ? "conservative operator marked-caller/visit projection revisions; isolated synthetic entry and queue timeout only; no totals, service or transfer classification" :
@@ -85,6 +89,14 @@ try {
     await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}`.replaceAll("\r\n", "\n"));
     await writeFile(join(directory, "modules.conf"), `${modules}\nload = func_uuid.so\n`.replaceAll("\r\n", "\n"));
     await writeFile(join(directory, "cel.conf"), cel.replace("apps = all", "apps = Queue").replaceAll("\r\n", "\n"));
+    if (serviceProof) {
+      const [service, queues] = await Promise.all([
+        readFile(join(root, "tests", "history-markers", "service.conf"), "utf8"),
+        readFile(join(root, "local", "asterisk", "queues.conf"), "utf8"),
+      ]);
+      await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}\n${service}`.replaceAll("\r\n", "\n"));
+      await writeFile(join(directory, "queues.conf"), `${queues}\n[service-queue]\nstrategy = ringall\ntimeout = 3\nretry = 1\njoinempty = yes\nleavewhenempty = no\nmember => Local/answer@history-service-member/n,0,synthetic-member\n`.replaceAll("\r\n", "\n"));
+    }
   }
   const template = await readFile(join(root, "local", "sip", "endpoint.conf.template"), "utf8");
   for (const customer of customers) {
@@ -161,6 +173,11 @@ try {
       const projections: Record<string, unknown>[] = [];
       report.projections = projections;
       await proveHistoryProjection(database, join(directory, "projections.sqlite"), project, cli, projections);
+      if (serviceProof) {
+        const services: Record<string, unknown>[] = [];
+        report.service = services;
+        await proveQueueService(database, directory, project, docker, freshSnapshot, cli, services);
+      }
       if (queueRecovery) {
         const recovered: Record<string, unknown>[] = [];
         report.queueRecovery = recovered;
@@ -347,6 +364,15 @@ try {
   }
   if (composeAttempted) {
     await cleanup(() => docker(["down", "--volumes", "--remove-orphans", "--timeout", "5"], 45000));
+    if (serviceProof) {
+      for (const kind of ["container", "network", "volume"]) {
+        await cleanup(async () => {
+          const listed = await execute("docker", [kind, "ls", "--filter", `label=com.docker.compose.project=${project}`, "--format", "{{.ID}}"],
+            { cwd: root, timeout: 15000 });
+          assert.equal(listed.stdout.trim(), "", `Owned service ${kind} resources remain`);
+        });
+      }
+    }
   }
   for (const customer of customers) {
     await cleanup(() => rm(join(directory, customer), { recursive: true, force: true }));
@@ -355,6 +381,7 @@ try {
     for (const file of ["extensions.conf", "modules.conf", "cel.conf"]) {
       await cleanup(() => rm(join(directory, file), { force: true }));
     }
+    if (serviceProof) await cleanup(() => rm(join(directory, "queues.conf"), { force: true }));
   }
   if (errors.length > 0) {
     report.passed = false;

@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { openCelHistory } from "../src/cel-history.ts";
-import { buildHistoryProjection, type ProjectionScope } from "../src/history-projection.ts";
+import { buildHistoryProjection, PROJECTION_ALGORITHM, type ProjectionScope } from "../src/history-projection.ts";
 import { distinctProjectionPaths, openHistoryProjections } from "../src/history-projection-store.ts";
 import type { HistoryManifest } from "../src/history-manifest.ts";
 import { historySha256 } from "../src/history-evidence.ts";
@@ -57,6 +57,283 @@ function seed(history: ReturnType<typeof openCelHistory>, rows = call(), queued 
   history.manifests.register({ ...selected, operator: "projection-test", reason: "Bounded test fixture", routes: [route], ranges });
   return { raw, queueRaw };
 }
+
+const memberUid = "member-id";
+const servedQueue = (event: string, params: string, member = "synthetic-member", uid = "same-id") =>
+  Buffer.from(`1792890000|${uid}|proof-queue|${member}|${event}|${params}\n`);
+const connect = () => servedQueue("CONNECT", `0|${memberUid}|0`);
+const complete = () => servedQueue("COMPLETEAGENT", "0|2|1");
+const memberRows = () => ["CHAN_START", "ANSWER", "HANGUP", "CHAN_END"].map((event) => cel(event, undefined, memberUid));
+const projectedVisit = (history: ReturnType<typeof openCelHistory>) =>
+  buildHistoryProjection(history, scope).document.journeys.find((j) => j.journeyId === journeyId)!.visits[0];
+
+test("QS-02/03: independent queue CONNECT, exact member answer/end and COMPLETEAGENT observations; no human/media outcome", async () => {
+  await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), complete()]);
+    const built = buildHistoryProjection(history, scope);
+    const root = built.document.journeys[0], visit = root.visits[0];
+    assert.equal(built.document.algorithm, PROJECTION_ALGORITHM);
+    assert.equal(built.document.journeys.length, 1);
+    assert.equal(root.channel?.answer, "observed");
+    assert.equal(root.channel.evidence.length, 6);
+    assert.equal(visit.state, "completion-observed");
+    assert.deepEqual(visit.service, { connection: "observed", memberCorrelation: "answered-channel-observed",
+      memberUniqueid: memberUid, memberChannelEnd: "observed", completion: "member-ended-queue-service-observed",
+      queueEvidence: visit.queueEvidence.slice(1),
+      memberEvidence: history.read({ ...source, uniqueid: memberUid }).events.map((e) =>
+        ({ kind: "cel", source: source.source, generation: source.generation, offset: e.offset, sha256: e.sha256 })) });
+    assert.equal(built.document.quality.service, "not-classified");
+    assert.equal(built.document.quality.completeness, "unverified");
+    assert.equal(built.document.quality.attribution, "explicit-marked-caller-only");
+    assert.equal("humanAnswer" in visit.service, false);
+    assert.equal("duration" in visit.service, false);
+    assert.equal("totals" in built.document, false);
+    assert.deepEqual(buildHistoryProjection(history, scope), built);
+  });
+  await fixture((history) => {
+    seed(history, [...call(), ...memberRows().slice(0, 2)], [entered, connect()]);
+    assert.equal(projectedVisit(history).state, "connection-observed");
+    assert.equal(projectedVisit(history).service.memberCorrelation, "answered-channel-observed");
+    assert.equal(projectedVisit(history).service.memberChannelEnd, "not-observed");
+    assert.equal(projectedVisit(history).service.completion, "not-observed");
+  });
+});
+
+test("QS-03/05: missing, foreign-customer, runtime, epoch, generation and unassigned member evidence cannot supply an answer", async () => {
+  for (const location of ["absent", "customer", "runtime", "epoch", "generation", "source", "unassigned"] as const) {
+    await fixture((history) => {
+      const { raw } = seed(history, call(), [entered, connect(), complete()]);
+      if (location === "unassigned") history.ingest(source, Buffer.concat([raw, ...memberRows()]));
+      else if (location !== "absent") {
+        const selected = { ...scope, ...(location === "customer" ? { customer: "customer-b" } :
+          location === "runtime" ? { runtime: "runtime-b" } : location === "epoch" ? { epoch: "boot-2" } : {}) };
+        const separateSource = { ...source, customer: selected.customer,
+          source: location === "generation" ? source.source : "member-cel",
+          ...(location === "generation" ? { generation: "stream-2" } : {}) };
+        seed(history, memberRows(), [], selected, separateSource);
+      }
+      const service = projectedVisit(history).service;
+      assert.equal(service.connection, "observed", location);
+      assert.equal(service.memberCorrelation, "unresolved", location);
+      assert.equal(service.completion, "member-ended-queue-service-observed", location);
+      assert.equal(service.memberChannelEnd, "not-observed", location);
+    });
+  }
+  for (const rows of [[cel("ANSWER", undefined, memberUid)], [cel("CHAN_START", undefined, memberUid)],
+    [cel("CHAN_START", undefined, memberUid), cel("CHAN_END", undefined, memberUid)]]) await fixture((history) => {
+    seed(history, [...call(), ...rows], [entered, connect(), complete()]);
+    assert.equal(projectedVisit(history).service.memberCorrelation, "unresolved");
+  });
+});
+
+test("QS-05: identical complete caller/member IDs in separate customer/runtime/epoch scopes do not compete or join", async () => {
+  await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), complete()]);
+    const original = buildHistoryProjection(history, scope).document.journeys[0];
+    for (const selected of [{ ...scope, customer: "customer-b" }, { ...scope, runtime: "runtime-b" }]) {
+      const otherSource = { ...source, customer: selected.customer, source: `cel-${selected.customer}-${selected.runtime}` };
+      seed(history, [...call(), ...memberRows()], [entered, connect(), complete()], selected, otherSource);
+      const root = buildHistoryProjection(history, selected).document.journeys[0];
+      assert.notEqual(root.id, original.id);
+      assert.equal(root.visits[0].service.memberCorrelation, "answered-channel-observed");
+      assert.ok(root.visits[0].service.memberEvidence.every((r) => r.source === otherSource.source));
+      assert.equal(projectedVisit(history).service.memberCorrelation, "answered-channel-observed");
+    }
+  });
+  await fixture((history) => {
+    const { raw, queueRaw } = seed(history, [...call(), ...memberRows()], [entered, connect(), complete()]);
+    history.ingest(source, Buffer.concat([raw, raw]));
+    history.queue.ingest(source, Buffer.concat([queueRaw, queueRaw]));
+    const second = { ...scope, epoch: "boot-2" };
+    history.manifests.register({ ...second, operator: "test", reason: "Second explicit epoch with identical synthetic IDs",
+      routes: [route], ranges: [
+        { kind: "cel", source: source.source, generation: source.generation, start: raw.length, end: raw.length * 2 },
+        { kind: "queue", source: source.source, generation: source.generation, start: queueRaw.length, end: queueRaw.length * 2 },
+      ] });
+    const original = buildHistoryProjection(history, scope).document.journeys[0];
+    const next = buildHistoryProjection(history, second).document.journeys[0];
+    assert.notEqual(original.id, next.id);
+    assert.equal(original.visits[0].service.memberCorrelation, "answered-channel-observed");
+    assert.equal(next.visits[0].service.memberCorrelation, "answered-channel-observed");
+    assert.ok(original.visits[0].service.memberEvidence.every((r) => r.offset < raw.length));
+    assert.ok(next.visits[0].service.memberEvidence.every((r) => r.offset >= raw.length));
+  });
+});
+
+test("QS-03/05: ambiguous/reused/root/caller member IDs and contradictory member lifecycle stay conflicting", async () => {
+  for (const problem of ["duplicate-start", "duplicate-answer", "duplicate-end", "two-streams", "reused-connect", "root", "caller",
+    "answer-before-start", "end-before-answer", "changed-channel"] as const) {
+    await fixture((history) => {
+      let member = memberRows();
+      let queued = [entered, connect(), complete()];
+      if (problem === "duplicate-start") member.push(cel("CHAN_START", undefined, memberUid));
+      if (problem === "duplicate-answer") member.push(cel("ANSWER", undefined, memberUid));
+      if (problem === "duplicate-end") member.push(cel("CHAN_END", undefined, memberUid));
+      if (problem === "root") member.splice(1, 0, entry(otherJourney, memberUid));
+      if (problem === "caller") queued = [entered, servedQueue("CONNECT", "0|same-id|0"), complete()];
+      if (problem === "answer-before-start") member = [member[1], member[0], member[3]];
+      if (problem === "end-before-answer") member = [member[0], member[3], member[1]];
+      if (problem === "changed-channel") member.push(Buffer.from(cel("BRIDGE_ENTER", undefined, memberUid).toString().replace("Local/test-", "PJSIP/")));
+      if (problem === "reused-connect") queued.push(servedQueue("CONNECT", `1|${memberUid}|1`, "another-member", "another-caller"));
+      seed(history, [...call(), ...member], queued);
+      if (problem === "two-streams") seed(history, memberRows(), [], scope, { ...source, generation: "stream-2" });
+      const visit = projectedVisit(history);
+      assert.equal(visit.service.connection, "observed", problem);
+      assert.equal(visit.service.memberCorrelation, "conflicting", problem);
+      assert.equal(visit.state, "conflicting", problem);
+      assert.equal(visit.service.completion, "member-ended-queue-service-observed", problem);
+    });
+  }
+});
+
+test("QS-03/05: CONNECT exact shapes/order/uniqueness are required; timestamps and linkedid cannot rescue malformed identity", async () => {
+  const invalid = [
+    [entered, servedQueue("CONNECT", `0|${memberUid}`)],
+    [entered, servedQueue("CONNECT", `0|${memberUid}|0|extra`)],
+    [entered, servedQueue("CONNECT", `-1|${memberUid}|0`)],
+    [entered, servedQueue("CONNECT", `1.5|${memberUid}|0`)],
+    [entered, servedQueue("CONNECT", `0|${memberUid}|9007199254740992`)],
+    [entered, servedQueue("CONNECT", `0|${memberUid}|01`)],
+    [entered, servedQueue("CONNECT", "0||0")],
+    [entered, servedQueue("CONNECT", "0| |0")],
+    [entered, servedQueue("CONNECT", "0|NONE|0")],
+    [entered, servedQueue("CONNECT", `0|${memberUid}|0`, "NONE")],
+    [connect(), entered],
+    [entered, complete()],
+  ];
+  for (const queued of invalid) await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], queued);
+    const visit = projectedVisit(history);
+    assert.equal(visit.state, "unresolved");
+    assert.equal(visit.service.connection, "unresolved");
+    assert.notEqual(visit.service.memberCorrelation, "answered-channel-observed");
+    assert.notEqual(visit.service.completion, "member-ended-queue-service-observed");
+  });
+  await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), connect(), complete()]);
+    assert.equal(projectedVisit(history).service.connection, "conflicting");
+    assert.equal(projectedVisit(history).state, "conflicting");
+  });
+  await fixture((history) => {
+    assert.throws(() => seed(history, [...call(), ...memberRows()],
+      [entered, servedQueue("CONNECT", `0|${memberUid}|0`, "")]), /Invalid queue record/);
+  });
+});
+
+test("QS-03/05: completion is independent and requires ordered same-stream same-member exact supported shape", async () => {
+  for (const end of [
+    servedQueue("COMPLETEAGENT", "0|2|1", "wrong-member"), servedQueue("COMPLETEAGENT", "0|2"),
+    servedQueue("COMPLETEAGENT", "0|2|0"), servedQueue("COMPLETEAGENT", "0|2|-1"),
+    servedQueue("COMPLETEAGENT", "0|2|1|extra"), servedQueue("COMPLETEAGENT", "0|9007199254740992|1"),
+    servedQueue("COMPLETECALLER", "0|2|1"), servedQueue("ABANDON", "1|1|2"), timeout,
+  ]) await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), end]);
+    const service = projectedVisit(history).service;
+    assert.equal(service.connection, "observed");
+    assert.equal(service.memberCorrelation, "answered-channel-observed");
+    assert.equal(service.completion, "unresolved");
+  });
+  await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, complete(), connect()]);
+    assert.equal(projectedVisit(history).service.completion, "unresolved");
+  });
+  await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), complete(), complete()]);
+    assert.equal(projectedVisit(history).service.completion, "conflicting");
+    assert.equal(projectedVisit(history).state, "conflicting");
+  });
+});
+
+test("QS-03/05: cross-stream queue CONNECT/completion do not acquire same-ID visit evidence", async () => {
+  for (const split of ["CONNECT", "COMPLETEAGENT"] as const) await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], split === "CONNECT" ? [entered] : [entered, connect()]);
+    seed(history, [], split === "CONNECT" ? [connect(), complete()] : [complete()], scope, { ...source, source: "queue-b" });
+    const service = projectedVisit(history).service;
+    if (split === "CONNECT") assert.equal(service.connection, "unresolved");
+    else {
+      assert.equal(service.connection, "observed");
+      assert.equal(service.completion, "unresolved");
+    }
+  });
+});
+
+test("QS-04/05: late member evidence appends immutable service revision, stable IDs, replay and retained independent gaps", async () => {
+  await fixture((history, _historyPath, projectionPath, directory) => {
+    const { raw } = seed(history, call(), [entered, connect(), complete()]);
+    history.queue.collectors.configure({ customer: scope.customer, source: source.source, generation: source.generation,
+      path: join(directory, "queue_log"), staleAfterMs: 1000 }, 1000);
+    history.queue.collectors.transition(scope.customer, source.source, "replacement", "operator", "Unknown queue coverage", 2000);
+    const projections = openHistoryProjections(projectionPath);
+    let before: ReturnType<typeof buildHistoryProjection>["document"];
+    let after: ReturnType<typeof buildHistoryProjection>["document"];
+    let oldId: number;
+    try {
+      const first = projections.rebuild(history, scope);
+      oldId = first.id;
+      before = buildHistoryProjection(history, scope).document;
+      assert.equal(before.journeys[0].visits[0].service.memberCorrelation, "unresolved");
+      assert.equal(projections.rebuild(history, scope).id, oldId);
+      const appended = Buffer.concat([raw, ...memberRows()]);
+      history.ingest(source, appended);
+      history.manifests.register({ ...scope, operator: "operator", reason: "Explicit late member evidence",
+        routes: [], ranges: [{ kind: "cel", source: source.source, generation: source.generation, start: raw.length, end: appended.length }] });
+      const next = projections.rebuild(history, scope);
+      after = buildHistoryProjection(history, scope).document;
+      assert.ok(next.id > oldId);
+      assert.notEqual(next.inputSha256, first.inputSha256);
+      assert.equal(after.journeys[0].visits[0].service.memberCorrelation, "answered-channel-observed");
+      assert.equal(after.journeys[0].id, before.journeys[0].id);
+      assert.equal(after.journeys[0].visits[0].id, before.journeys[0].visits[0].id);
+      assert.equal(after.input.coverage[0].gaps.length, 1);
+      assert.equal(after.input.coverage[0].association, "possibly-applicable");
+      assert.equal(after.quality.queueCoverage, "unverified");
+      assert.equal(projections.rebuild(history, scope).id, next.id);
+      assert.deepEqual(projections.read(scope, oldId).document, before);
+    } finally { projections.close(); }
+    const reopened = openHistoryProjections(projectionPath, { readOnly: true });
+    try {
+      assert.deepEqual(reopened.read(scope, oldId!).document, before!);
+      assert.deepEqual(reopened.read(scope).document, after!);
+    } finally { reopened.close(); }
+  });
+});
+
+test("QS-04/05: v1/v2 documents without service fields remain readable byte-for-byte; v3 rebuild preserves entity keys", async () => {
+  for (const algorithm of ["marked-caller-v1", "marked-caller-v2"]) await fixture((history, _historyPath, path) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), complete()]);
+    const projections = openHistoryProjections(path);
+    const built = buildHistoryProjection(history, scope);
+    const legacy = JSON.parse(JSON.stringify(built.document));
+    legacy.algorithm = algorithm; legacy.input.algorithm = algorithm;
+    for (const root of legacy.journeys) for (const visit of root.visits) {
+      delete visit.service;
+      visit.state = "unresolved";
+    }
+    if (algorithm === "marked-caller-v1") {
+      delete legacy.input.queueCollectionCapability;
+      for (const coverage of legacy.input.coverage) delete coverage.kind;
+    }
+    const text = JSON.stringify(legacy);
+    const db = new DatabaseSync(path);
+    try {
+      const inserted = db.prepare(`INSERT INTO projection_revisions
+        (customer,runtime,epoch,algorithm,input_sha256,document,sha256,created_at) VALUES(?,?,?,?,?,?,?,?)`)
+        .run(scope.customer, scope.runtime, scope.epoch, algorithm, historySha256(Buffer.from(JSON.stringify(legacy.input))),
+          text, historySha256(Buffer.from(text)), "2026-10-25T00:00:00.000Z");
+      const oldId = Number(inserted.lastInsertRowid);
+      assert.equal(projections.read(scope).algorithm, algorithm);
+      assert.deepEqual(projections.read(scope).document, legacy);
+      const next = projections.rebuild(history, scope);
+      assert.ok(next.id > oldId);
+      assert.equal(next.algorithm, "marked-caller-v3");
+      assert.equal(built.document.journeys[0].id, legacy.journeys[0].id);
+      assert.equal(built.document.journeys[0].visits[0].id, legacy.journeys[0].visits[0].id);
+      assert.deepEqual(projections.read(scope, oldId).document, legacy);
+      assert.equal(db.prepare("SELECT document FROM projection_revisions WHERE id=?").get(oldId)?.document, text);
+      assert.equal(projections.rebuild(history, scope).id, next.id);
+    } finally { db.close(); projections.close(); }
+  });
+});
 
 test("JP-01/02/04: deterministic marked caller and timeout observations; no linkedid joins, totals or service inference", async () => {
   await fixture((history) => {

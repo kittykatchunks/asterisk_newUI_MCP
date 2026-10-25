@@ -254,7 +254,7 @@ test("QR-05: kind-qualified queue gaps change projection inputs without claiming
   });
 });
 
-test("QR-05: old projection algorithm revisions remain readable and rebuild under v2 without changing entity keys", async () => {
+test("QR-05: old projection algorithm revisions remain readable and rebuild under the current version without changing entity keys", async () => {
   await fixture(async (store, _database, _path, directory) => {
     const id = "11111111-1111-4111-8111-111111111111";
     const entry = Buffer.from(['HISTORY_ENTRY', '2026-10-25 01:30:00', 'Local/test;2', 'same-id', 'same-linked',
@@ -279,7 +279,7 @@ test("QR-05: old projection algorithm revisions remain readable and rebuild unde
       assert.equal(projections.read(projectionScope).algorithm, "marked-caller-v1");
       const next = projections.rebuild(store, projectionScope);
       assert.notEqual(next.id, first.id);
-      assert.equal(next.algorithm, "marked-caller-v2");
+      assert.equal(next.algorithm, "marked-caller-v3");
       assert.equal(buildHistoryProjection(store, projectionScope).document.journeys[0].id, v1.journeys[0].id);
       assert.equal(projections.read(projectionScope, first.id).algorithm, "marked-caller-v1");
     } finally { db.close(); projections.close(); }
