@@ -1570,7 +1570,7 @@ permissions but no history-specific grant. Do not repurpose those grants silentl
 |---|---|---|---|
 | 1 | Read-only authenticated history-evidence workspace | Subsequently authorized: explicit customer `history:read` members only, no support grants, references-only exposure. Reuses session/audit/customer boundaries, not CLI authority. | HR-01 through HR-10 below pass in the bounded local scope. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
 | 2 | Integrated restart/interruption/replay proof | Subsequently selected: LR local process slice, then separately authorized BE isolated PBX boot-epoch slice. Exact ten-check contracts below. | LR-01 through LR-10 and BE-01 through BE-10 pass in their bounded scopes. Full M1-06/07 outcomes, continuous remote delivery and production boot attestation remain open. |
-| 3 | Limited route/queue publication foundation | Critical dependency for intended agent call path (M1-09, then M1-02/04/05/18). Needs agreed managed-file ownership, draft/revision/drift and rollback semantics. | Invalid/stale/drifted publication fails; owned apply/verify proof, no broad admin editor or Docker socket in the web process. |
+| 3 | Limited route/queue publication foundation | Selected design: one isolated route/empty queue; explicit same-author approval; trusted operator CLI, no web apply authority. Detailed CP contract below. | Planning only; CP-01 through CP-10 unexecuted. Invalid/stale/drifted publication must fail; exact loaded-state/canary and recovery proof required. No broad editor or web Docker socket. |
 | 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
 | 5 | Recording, engineering/export and combined restore | Requires explicit storage/retention/access/capture-limit contracts and links to durable identities. Can be separately planned where independent. | Close exact M1-08/11-17 requirements through executed scoped workflows, not report/hash proxies. |
 
@@ -1760,8 +1760,53 @@ continuous remote delivery/rotation/retention, human queue service/media,
 transfer/repeated-visit attribution, recording/export or combined restore.
 Existing/shared PBXs and ordinary routing are untouched, live agent phones
 remain disabled, and REFER is frozen. All 17 full M1 gates remain open.
-Limited route/queue publication planning is the next recommended scope, not
-automatically authorized by this batch.
+Limited route/queue publication planning was next recommended; the subsequent
+selected design is recorded below, without implementation authority.
+
+#### Selected CP design: limited route/queue publication
+
+**25 October 2026: planning only.** User decisions:
+`route-empty-queue`, `same-author-explicit`, `operator-cli`.
+One isolated synthetic route points to one empty queue with bounded timeout and
+hangup. Existing ordinary routes, endpoint/member/credential management, live
+inbound numbers/trunks, recordings and agent calling are excluded.
+The same trusted local operator may explicitly approve the exact immutable
+validated draft, but apply remains a distinct deliberate action. No four-eyes
+or authenticated customer-operator claim. A trusted CLI targets only a provisioned
+uniquely owned proof project; web processes receive no Docker socket or runtime
+apply authority. Browser draft/approval surfaces are deferred.
+
+The [detailed publication contract](./PROJECT-PLAN.md#selected-first-publication-slice)
+defines reserved generated fragments/include prerequisites, desired/published/
+observed state, canonical hashes and base-revision binding, durable operation
+identity, exact loaded-state inspection, deliberate canary, drift blocking and
+conditional verified rollback. Proposed model bounds are one route/queue,
+slugs `[a-z][a-z0-9-]{0,31}`, integer wait 1-30 seconds, unknown keys rejected.
+These are initial implementation acceptance bounds, not a production taxonomy.
+
+| Check | Planned finite acceptance; **not run** |
+|---|---|
+| CP-01 | Strict bounded versioned route/empty-queue model and deterministic compiler. Reject invalid/missing/foreign destinations, unsafe identifiers/text, unknown fields, boundary/type errors, collisions and unsupported configuration without disk/runtime effects. Valid min/max waits and canonical output shapes pass; marker ordering and revision provenance are exact. |
+| CP-02 | Immutable scoped drafts, exact validation/impact/output hashes and explicit revision/base-bound approval persist across process restart. Editing cannot reuse approval. Same-author approval is visibly permitted, not represented as four-eyes; unauthenticated local operator references are not customer identity. |
+| CP-03 | Expected verified revision and a durable customer/runtime operation claim fence two competing CLI processes. Stale approvals, cross-scope IDs and operation-ID payload reuse conflict before external effects. Exact retry inspects the same attempt; it cannot duplicate apply or automatically repeat a canary. |
+| CP-04 | Provisioned owned-project identity, reserved files/include/dependency hashes and exact disk/loaded inventory are rechecked. Missing/extra/changed managed objects, unmanaged collisions, symlinks, disk drift, loaded-only drift and runtime restart during apply block or become explicit uncertainty. Never silently adopt/overwrite external edits. |
+| CP-05 | Pinned two-customer owned fixture proves supported include hooks, deterministic artifact staging and fixed queue-before-route/scoped-reload sequence. Require quiescence. Unmanaged baseline and other-customer state remain unchanged. No arbitrary paths/commands, broad directory rewrite, global reload or web Docker authority. |
+| CP-06 | Valid explicit apply independently verifies exact loaded route priorities/destination/wait/markers and queue policy/empty member set, then deliberate bounded marked timeout/hangup canary. Reload acknowledgement, source checksum or revision label alone cannot verify. Only full verification advances the published pointer. |
+| CP-07 | Inject validation/staging/replacement/reload/inspection/canary/receipt failures and real process death at external-effect boundaries. Prior immutable intent/history survives; no partial grouped write, missing receipt or unknown canary delivery becomes success. Block new applies while recovery is required. |
+| CP-08 | Separate explicit recovery first inspects state, conditionally restores only operation-attributable bytes, scoped reloads and independently verifies/canaries a nonempty last-verified base. For the empty initial baseline, verify reserved object absence and unchanged unmanaged inventory, not a call through a removed route. External edits block restoration; failed recovery stays uncertain. No claim to reverse call side effects. |
+| CP-09 | Persistent bounded operator/reason/diff/approval/application/recovery receipts distinguish desired, last-verified and independently observed state. Status/inspect is read-only, PBX outage is explicit, audit/receipt failure is not empty success, and application restart never auto-applies or auto-resumes. |
+| CP-10 | Focused offline/store/concurrency tests plus owned pinned runtime acceptance cover both customers, malformed/stale/drift/error/restart/rollback paths, measured exact runtime facts and required canary records. Verify owned resource/credential cleanup and unchanged ordinary/shared PBXs; no live agent phone, production deployment, member/credential change or REFER rerun. |
+
+All CP checks remain **planned/unverified**. No tooling or configuration was
+implemented, no new permissions or dependencies were introduced, and no PBX
+was started/reloaded by this design increment. Documentation-only validation:
+check consistency and diff hygiene; no runtime test result is claimed.
+
+Next scope decision is CP implementation, starting with the strict model/compiler
+and durable store before the owned runtime executor. If exact loaded-state facts
+or safe scoped application cannot be verified on the pinned runtime, implementation
+must stop/narrow the contract rather than substitute a green file hash.
+M1-09 remains open; the 17 full M1 gates are unchanged.
 
 ## 6. Proposed implementation backlog
 

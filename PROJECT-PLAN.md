@@ -1004,9 +1004,15 @@ Recommended sequence:
    independently verified absent; only synthetic SQLite/report files remain.
    **Full M1-06/07 remain open**, including all business outcomes after restart,
    production boot attestation and remote delivery/rotation/retention.
-3. **Plan limited route/queue publication** with validation, stale revisions,
-   managed-file drift and owned apply/verify; this is a critical intended-call
-   dependency, not replaced by report approval.
+3. **Limited publication first-slice design: selected, not implemented.**
+   One isolated synthetic inbound route to one empty queue with timeout/hangup;
+   no member/endpoint/credential changes. Same authorized operator may explicitly
+   approve the exact immutable draft; apply is a separate deliberate trusted
+   operator CLI action against a uniquely owned proof project, not a web Docker
+   capability. The [selected contract](#selected-first-publication-slice)
+   defines fail-closed ownership, validation, stale/drift checks, exact observed
+   runtime verification and conditional verified recovery. CP-01 through CP-10
+   are planned, not passed. No runtime publication is authorized by this design.
 4. **Explicitly gate browser-agent activation**, then intended queue/media/
    controls/roaming/error acceptance. Existing reservations do not enable phones.
 5. **Complete recording/engineering/export and combined restore** using agreed
@@ -1025,8 +1031,8 @@ See the [executed ten-check HR batch](./MILESTONE-1.md#selected-hr-batch-read-on
 [executed LR contract](./MILESTONE-1.md#selected-lr-batch-local-process-interruption-and-replay)
 and [executed BE contract](./MILESTONE-1.md#selected-be-batch-isolated-pbx-boot-epoch-recovery).
 HR/LR/BE do not close any full M1 gate. Limited route/queue publication planning
-is the next recommended priority, requiring its own bounded ownership,
-validation, drift and rollback decisions before runtime publication.
+is now selected below. Its implementation/owned runtime acceptance is the next
+scope decision; neither draft approval nor this design authorizes a live apply.
 M1 startup/capture thresholds, production capacity, retention and deployment
 questions remain unresolved.
 
@@ -1106,6 +1112,185 @@ it is not automatically atomic across all components.
 
 Preserve a last-known-working revision and verify recovery. Configuration rollback
 does not reverse calls, bookings, or messages already completed.
+
+### Selected first publication slice
+
+Selected after BE on **25 October 2026**. This is a design contract only:
+no configuration store, permission, API, executor or runtime application has
+been implemented or tested by this increment. M1-09 remains open.
+
+The user selected:
+
+- **Model:** one isolated synthetic inbound route to one empty queue, followed
+  by bounded timeout and explicit hangup. No live inbound number, trunk,
+  outbound destination, IVR, recording, member, agent assignment, endpoint,
+  credential or existing route is editable in this slice.
+- **Approval:** same-author approval permitted for the local prototype.
+  Approval is explicit and bound to the exact customer/runtime, immutable draft,
+  base revision, canonical model/compiler/output hashes and impact summary.
+  This is not separation of duties or a four-eyes control.
+- **Execution:** trusted operator CLI against a unique owned proof project.
+  No web Docker socket, arbitrary command, host/path input or production apply.
+  Browser draft/approval surfaces and worker-based execution remain deferred
+  until separately scoped; a future UI must reuse the same backend operations,
+  not reimplement the state machine.
+
+#### Finite managed model and ownership
+
+Use a strict versioned model (`schemaVersion:1`) with only logical route ID,
+queue ID and queue-wait seconds. The initial fixture has exactly one route
+and one queue; identifiers are lowercase bounded slugs and never executable
+dialplan text. Proposed concrete bounds: slug `[a-z][a-z0-9-]{0,31}` and wait
+integer **1 through 30 seconds** inclusive. Reject unknown keys, duplicates,
+wrong types, noncanonical numbers and references to absent/foreign objects.
+No customer ID inside the model confers authority.
+
+Server/operator provisioning assigns the customer, runtime, owned project,
+reserved context/queue namespace and destination paths. The command selects
+only a provisioned binding, never arbitrary filesystem paths, Compose files,
+container IDs, executable strings or dialplan fragments. Namespace derivation
+must be deterministic and collision-checked against unmanaged disk and loaded
+runtime objects. A new binding starts only from explicitly inspected empty
+reserved ownership, not automatic adoption of matching external objects.
+
+Only two generated artifacts are owned: the reserved dialplan fragment and
+queue fragment. Existing fixture baseline files receive only the explicit
+include hooks at owned project bootstrap. Those baseline files, hooks and their
+relevant dependency hashes are prerequisites, not editable publication payloads.
+No wildcard include, general configuration-directory rewrite, global/module
+reload, PJSIP/manager secret rewrite or broad expert editor is part of the model.
+Actual safe include/reload behavior and scope must be established on the pinned
+runtime by CP-05/06 before being described as supported.
+
+The route's fixed semantics are: mark a synthetic entry/visit with fresh
+per-call UUIDs and the exact route revision, PBX Answer, enter the selected empty
+queue for the bounded configured wait, then Hangup. Entry must precede Answer;
+visit must precede Queue. Empty-queue options must preserve the existing proof
+behavior. This Answer is not human queue service. Runtime publication does not
+register historical evidence manifests automatically; any later history proof
+requires its own exact observed source/epoch/range assignment. Static/reused
+marker IDs from BE are not a production route-generation pattern.
+
+#### Durable intent, approval and application identity
+
+Use a dedicated customer/runtime-scoped local store following existing SQLite
+identity/schema, transaction and bounded-input conventions. Persist immutable
+draft revisions with canonical model bytes, compiler version, both output
+digests, expected current **verified** publication revision, operator/reason and
+timestamps. Validation returns bounded structured errors and the exact
+generated diff/impact; it does not mutate disk/runtime or silently correct input.
+
+An approval stores the exact validated identity/hash tuple and approving
+operator/reason. An edit creates a new draft; it cannot move an existing approval.
+Reapproval never changes the expected base. Same-author permission must be
+visible in receipts. Operator attribution comes from trusted local execution
+and an explicit bounded operator reference; it is **not authenticated customer
+identity**. Do not invent web `config:*` grants in this CLI-only slice.
+
+Apply requires the approved revision/hash, expected verified base and a unique
+operation ID. Atomically claim one active operation per customer/runtime before
+external effects; competing processes and stale approvals must fail closed.
+Retries using the same ID return/inspect that exact operation, never execute a
+second apply. Reusing an ID for a different intent conflicts. Approval, CLI
+acknowledgement, file write, reload acknowledgement and runtime verification are
+separate facts. Persist step intent before each external effect and the observed
+result afterward; a SQLite transaction cannot make multiple files plus PBX reload
+atomic. Do not hold a database transaction across slow runtime commands.
+
+Proposed finite states:
+
+`draft -> validated -> approved -> applying -> verified`
+
+Other explicit terminal/holding states are `validation-failed`, `stale`,
+`drift-blocked`, `failed-before-change`, `recovery-required`, `recovering`,
+`rolled-back-verified` and `uncertain`. Preserve per-attempt results as an
+append-only operation history; validation/approval do not advance published state.
+Only a verified operation advances the last-verified publication pointer.
+An uncertain or recovering operation blocks new applies until reconciled.
+Resuming is never automatic on application or CLI startup.
+
+#### Preflight, staged apply and independent verification
+
+Preflight must recheck the binding, owned project/container identity and pinned
+runtime, current verified revision, approval hashes, compiler version, include/
+dependency hashes, both managed disk files and selected loaded runtime objects.
+Inspect the exact expected inventory, not only an embedded revision label.
+Manual reload or a runtime restart may produce loaded-state drift even when
+disk matches. Unexpected/missing/extra objects in the reserved namespace block.
+A drift report distinguishes disk, loaded and intended state and is bounded/
+customer-scoped. Do not import arbitrary external edits into guided forms.
+
+Stage deterministic artifacts in the same owned filesystem with safe fixed
+permissions, complete-write/flush/close and integrity checks. Save the prior
+verified exact bytes and observed inventory (including an explicit empty
+baseline for first apply). Recheck hashes immediately before each replacement
+and reload. Refuse symlinks/unexpected file types or changed ownership bindings.
+Atomic per-file replacement is not atomic grouped publication. Fixed ordering,
+step receipts and a restrictive lock shared by cooperating executors limit
+interleaving; unmanaged editors do not obey that lock. Do not claim compare-and-
+swap filesystem safety against a concurrent privileged external writer.
+
+The first proof may apply only while both owned PBXs are quiescent and the target
+queue has no members/callers. No active-call-safe publication claim is made.
+Apply the queue dependency before the route, reload only the required supported
+components, and independently inspect the exact loaded queue policy/member set
+and route priorities/destinations/timeout/markers for the approved revision.
+An accepted reload or successful file write is never `verified`.
+If the pinned runtime cannot expose enough of these facts, stop the runtime
+implementation and narrow the claimed contract; do not substitute a green hash.
+
+Require both static observation and a bounded **explicit synthetic canary**:
+invoke only the reserved route, correlate its exact marked caller/queue records
+to the selected revision, observe the expected timeout/hangup, and prove no queue
+member connection. Read-only `inspect`/status must never originate a call.
+Canary intent/attempt is durable; if the executor dies after sending it but
+before a receipt, flag unknown canary delivery rather than auto-originate again.
+A verified canary is not service audio, human availability or production health.
+The other customer's files/runtime/owned bindings must remain unchanged.
+
+#### Failure, rollback and restart reconciliation
+
+Before-change failure leaves the verified pointer and disk/runtime untouched.
+After any possible external effect, an exception, timeout, lost acknowledgement,
+process death or runtime restart yields `recovery-required`/`uncertain`, never a
+success-shaped fallback or blind retry. Inspector commands are read-only and
+show intended, observed and last-verified states plus the operation reference.
+They must work when the PBX is unavailable, displaying observation failure rather
+than replacing previous evidence with an empty success.
+
+Recovery is a separate explicit operator command referencing the interrupted
+operation and reason. Inspect disk/runtime first. If already exactly at the
+approved target, require the missing verification before recording completion.
+If rollback is selected, restore exact last-verified bytes **only if** current
+files still match bytes attributable to the operation's recorded effects.
+Unexpected external edits block automatic restoration; preserve evidence and
+require controlled reconciliation, not overwrite. Restore dependencies in a
+safe fixed order, scoped reload, then independently inspect and canary a
+restored nonempty configuration before `rolled-back-verified`. For the empty
+initial baseline, verify absence of every reserved loaded route/queue object
+and unchanged unmanaged inventory; do not originate through a removed route.
+Failed rollback stays
+uncertain and blocks further applies. A rollback receipt references both the
+failed target and recovered base; historical attempts remain immutable.
+No rollback claims to reverse any call/event already generated.
+
+#### Planned CP acceptance and implementation stop
+
+The exact ten-check [CP acceptance contract](./MILESTONE-1.md#selected-cp-design-limited-routequeue-publication)
+is **planned/unexecuted**. Proposed implementation order:
+
+1. Strict model/compiler and dedicated durable revision/approval/operation store;
+   offline tests first, no runtime executor.
+2. Provisioned owned-project binding and read-only disk/loaded-state inspector.
+3. Scoped operator apply/recovery and pinned two-customer quiescent canaries;
+   failure injection verifies every external-effect boundary.
+4. Only after exact CLI acceptance, separately decide browser permission/audit
+   policy, member/endpoint changes and any production worker.
+
+Stop this increment after documenting the contract. No apply/reload, runtime
+permission, new member, ordinary routing change, phone activation or REFER rerun
+is authorized. The next implementation must verify the claimed runtime surfaces
+and durable recovery end-to-end before calling M1-09 complete.
 
 ## 8. AI assistance, MCP, reports, and wallboards
 

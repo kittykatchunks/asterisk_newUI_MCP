@@ -38,6 +38,30 @@ Limited route/queue publication, explicitly gated browser-agent calling,
 recording/engineering/export and combined restore remain separate work.
 Live phones remain disabled, ordinary routing unchanged and REFER frozen.
 
+## Selected publication design (not implemented)
+
+The next publication slice is now planned in depth:
+**one isolated synthetic route to one empty queue**, explicit approval permitted
+by the same trusted local operator, and a separate **operator CLI** apply against
+an owned proof project. No web Docker socket or runtime apply authority.
+Members, endpoints, credentials, ordinary routes and live inbound numbers remain
+outside this first slice.
+
+The [detailed contract](./PROJECT-PLAN.md#selected-first-publication-slice)
+specifies managed-file ownership, strict model/compiler bounds, immutable drafts,
+revision-bound approval, stale-operation fencing, disk versus loaded-runtime
+drift, deliberate canary verification and conditional verified rollback.
+Multi-file writes/reloads are not represented as one atomic transaction;
+interrupted or uncertain application blocks new publication until explicit
+reconciliation. A reload acknowledgement or matching checksum cannot verify
+loaded behavior.
+
+[CP-01 through CP-10](./MILESTONE-1.md#selected-cp-design-limited-routequeue-publication)
+are **planned, not executed**. This increment changes documentation only; it
+does not authorize or implement runtime publication. M1-09 and the other full
+open gates remain unchanged. Next is separately scoped implementation, beginning
+with the model/compiler and durable draft/approval/operation store.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
