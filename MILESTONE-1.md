@@ -2236,6 +2236,18 @@ shutdown/output-boundary schedules are not established.
 all seven production postimages are unchanged. A's verified exit, native
 execution, AT/QO and Gates B/C remain open.
 
+The next [rejected-state source increment](./PROJECT-PLAN.md#gate-a-rejected-states-seventeen-definitions-still-unexecuted)
+brings the inventory to **seventeen uncompiled/unexecuted native definitions**.
+Its eighteen private-fixture schedules combine nine realtime/dead/member/
+policy/count rejection states with zero/one prior row. They assert
+`unsupported-state`, byte-preserved rows, cross-thread original mutex cleanup
+and recovery after supported state is restored. Probes are shared with the
+existing contention fixture; no global queues or backends are used.
+**Eleven package tests pass**; exact preimages/application/eight postimages
+match. Production implementation is unchanged outside native-test fixtures/
+registration. Remaining instrumentation, integration, member ceilings and
+loader/shutdown coverage, A's verified exit, AT/QO and Gates B/C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

@@ -2752,6 +2752,51 @@ Both named scratch directories are removed after verification. No dependency
 install, native build/test, image build or PBX execution occurred. A's verified
 exit, Gates B/C, AT/QO, exact publication, full CP and M1-09 remain open.
 
+##### Gate A rejected states: seventeen definitions, still unexecuted
+
+Continuing within A, the source package adds
+`policy_snapshot_rejected_state`, for **seventeen native definitions** with
+matching registration/unregistration inventory. None have been compiled or
+executed.
+
+The new test defines eighteen private-fixture schedules: realtime, dead,
+missing member container, RW-locked member container, unlocked member
+container, invalid timeout, out-of-range empty mask, inconsistent caller
+count/head and invalid strategy, each with zero/one previously copied row.
+Every schedule must abort with `unsupported-state`, append nothing and
+preserve all row bytes. The fixture then restores supported owner state.
+A separate probe thread must acquire/release the original queue and
+member-container mutexes, followed by a successful visit that appends exactly
+one target row without modifying the prefix.
+
+The existing contention test and new rejected-state test share their
+cross-thread probe implementation. This catches original queue/member mutexes
+left held by rejection paths without a same-thread recursive-lock false
+positive. The RW/no-lock substitute containers are real AO2 fixtures, not
+private-layout edits; the test restores the original member container before
+probing and cleanup. It does **not** establish that a rejected substitute was
+never locked/refcounted or that all allocation/debug instrumentation is absent.
+Realtime is a private fixture flag, not a realtime backend lookup, and queues
+remain unlinked globally.
+
+These source assertions cover rejection branches before/after member-lock
+acquisition. They are not native acceptance results, a complete error-injection
+matrix or a watchdog. Unsupported queue-object lock kinds, member-count
+ceilings, unlock-error injection, traversal/response integration, remaining
+loader/shutdown/release-count schedules and profile/regression execution remain
+open. Separately approved disposable native execution with an external timeout
+is still required.
+
+**Eleven package tests pass**, with JavaScript syntax, whitespace and added
+documentation link checks. Seven exact preimages/application dry run pass;
+independent source-only application matches all eight postimages. Exact
+comparison confirms production `app_queue` source is unchanged outside the
+`TEST_FRAMEWORK` fixture region and registration calls; the other seven
+postimages are unchanged. Both named scratch directories are removed after
+checks. No dependency install, native build/test, image build or PBX execution
+occurred. A's verified exit, Gates B/C, AT/QO, exact publication, full CP and
+M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
