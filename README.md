@@ -448,8 +448,12 @@ The [loader contention update](./PROJECT-PLAN.md#gate-a-loader-contention-twenty
 now brings the inventory to **26 uncompiled/unexecuted native definitions**.
 It specifies denial of dispatch and both completions while another thread
 holds the loader lock, then successful recovery on the same loaded target.
+The [permission denial update](./PROJECT-PLAN.md#gate-a-permission-denial-twenty-seven-definitions-still-unexecuted)
+now brings the inventory to **27 uncompiled/unexecuted native definitions**.
+Three dispatch cleanup schedules use a scoped real deny rule and require
+no handler invocation, exact lease release and safe post-release teardown.
 This is not measured latency, successful-removal race or native lifecycle
-acceptance; shutdown and further instrumentation remain pending.
+acceptance; shutdown, slow output and further instrumentation remain pending.
 **Twelve package tests pass** and exact application/nine postimages match.
 Pinned build closure and enforced resources
 still require Gate B approval before any native run; Gate C separately controls

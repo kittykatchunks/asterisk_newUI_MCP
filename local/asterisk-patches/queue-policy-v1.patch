@@ -1570,10 +1570,10 @@ index e8509e89317d7354979c3370cf5bb84d33f5b585..60f03ff40d99f00baccbf29939be4e3c
  
  #if defined(__cplusplus) || defined(c_plusplus)
 diff --git a/include/asterisk/module.h b/include/asterisk/module.h
-index 8ba29f32a9f725c9a966288b7d4fb255d4b354b0..dbd8e200aac088871edc18f1fb01c532cd8d79fb 100644
+index 8ba29f32a9f725c9a966288b7d4fb255d4b354b0..84244c1f3f56fe158f963284b3db959be2c13aa8 100644
 --- a/include/asterisk/module.h
 +++ b/include/asterisk/module.h
-@@ -446,6 +446,49 @@ struct ast_module *__ast_module_running_ref(struct ast_module *mod, const char *
+@@ -446,6 +446,52 @@ struct ast_module *__ast_module_running_ref(struct ast_module *mod, const char *
  void __ast_module_shutdown_ref(struct ast_module *mod, const char *file, int line, const char *func);
  void __ast_module_unref(struct ast_module *mod, const char *file, int line, const char *func);
  
@@ -1594,6 +1594,7 @@ index 8ba29f32a9f725c9a966288b7d4fb255d4b354b0..dbd8e200aac088871edc18f1fb01c532
 +	AST_CLI_LEASE_TEST_LOOKUP,
 +	AST_CLI_LEASE_TEST_ACQUIRED,
 +	AST_CLI_LEASE_TEST_CLOSING_DENIED,
++	AST_CLI_LEASE_TEST_PERMISSION_DENIED,
 +	AST_CLI_LEASE_TEST_ADMITTED,
 +	AST_CLI_LEASE_TEST_HANDLER,
 +	AST_CLI_LEASE_TEST_HANDLER_RETURNED,
@@ -1618,6 +1619,8 @@ index 8ba29f32a9f725c9a966288b7d4fb255d4b354b0..dbd8e200aac088871edc18f1fb01c532
 +void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_test_event event);
 +void ast_cli_lease_test_worker_done(void);
 +void ast_cli_lease_test_hold_loader(void);
++int ast_cli_lease_test_deny_begin(void);
++int ast_cli_lease_test_deny_end(void);
 +#endif
 +
  /*!
@@ -1706,10 +1709,101 @@ index 890e12e385dfde7c25ddd344a520a08606616947..8011de47389cd328b63393889c61f4b8
   * \brief always zero hash function
   *
 diff --git a/main/cli.c b/main/cli.c
-index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b5501219d 100644
+index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..22a83e68e4ded0f52d56b38deb01ba77d5d31566 100644
 --- a/main/cli.c
 +++ b/main/cli.c
-@@ -2546,6 +2546,24 @@ static void remove_shutdown_command(struct ast_cli_entry *e)
+@@ -46,6 +46,9 @@
+ #include <pwd.h>
+ #include <grp.h>
+ #include <fnmatch.h>
++#ifdef TEST_FRAMEWORK
++#include <limits.h>
++#endif
+ 
+ #include "asterisk/cli.h"
+ #include "asterisk/linkedlists.h"
+@@ -93,6 +96,80 @@ AST_MUTEX_DEFINE_STATIC(permsconfiglock);
+ /*! \brief  List of users and permissions. */
+ static AST_RWLIST_HEAD_STATIC(cli_perms, usergroup_cli_perm);
+ 
++#ifdef TEST_FRAMEWORK
++static struct usergroup_cli_perm *cli_lease_test_deny;
++
++int ast_cli_lease_test_deny_begin(void)
++{
++	struct usergroup_cli_perm *existing, *rule;
++	struct cli_perm *permission;
++
++	if (ast_mutex_trylock(&permsconfiglock)) {
++		return -1;
++	}
++	AST_RWLIST_WRLOCK(&cli_perms);
++	AST_LIST_TRAVERSE(&cli_perms, existing, list) {
++		if (existing->uid == INT_MAX || existing->gid == INT_MAX) {
++			break;
++		}
++	}
++	if (cli_lease_test_deny || existing) {
++		AST_RWLIST_UNLOCK(&cli_perms);
++		ast_mutex_unlock(&permsconfiglock);
++		return -1;
++	}
++	rule = ast_calloc(1, sizeof(*rule));
++	permission = ast_calloc(1, sizeof(*permission));
++	if (rule && permission) {
++		rule->perms = ast_calloc(1, sizeof(*rule->perms));
++		permission->command = ast_strdup("test bounded-policy lifecycle-target ");
++	}
++	if (!rule || !permission || !rule->perms || !permission->command) {
++		if (rule) {
++			ast_free(rule->perms);
++		}
++		if (permission) {
++			ast_free(permission->command);
++		}
++		ast_free(permission);
++		ast_free(rule);
++		AST_RWLIST_UNLOCK(&cli_perms);
++		ast_mutex_unlock(&permsconfiglock);
++		return -1;
++	}
++	rule->uid = INT_MAX;
++	rule->gid = -1;
++	AST_LIST_INSERT_TAIL(rule->perms, permission, list);
++	AST_RWLIST_INSERT_TAIL(&cli_perms, rule, list);
++	cli_lease_test_deny = rule;
++	AST_RWLIST_UNLOCK(&cli_perms);
++	/* Controller retains the reload mutex until its worker has joined. */
++	return 0;
++}
++
++int ast_cli_lease_test_deny_end(void)
++{
++	struct usergroup_cli_perm *rule = cli_lease_test_deny;
++	struct cli_perm *permission;
++
++	if (!rule) {
++		return -1;
++	}
++	AST_RWLIST_WRLOCK(&cli_perms);
++	AST_LIST_REMOVE(&cli_perms, rule, list);
++	cli_lease_test_deny = NULL;
++	while ((permission = AST_LIST_REMOVE_HEAD(rule->perms, list))) {
++		ast_free(permission->command);
++		ast_free(permission);
++	}
++	ast_free(rule->perms);
++	ast_free(rule);
++	AST_RWLIST_UNLOCK(&cli_perms);
++	ast_mutex_unlock(&permsconfiglock);
++	return 0;
++}
++#endif
++
+ /*!
+  * \brief map a debug or verbose level to a module name
+  */
+@@ -2546,6 +2623,24 @@ static void remove_shutdown_command(struct ast_cli_entry *e)
  
  int ast_cli_unregister(struct ast_cli_entry *e)
  {
@@ -1734,7 +1828,7 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b
  	if (e->inuse) {
  		ast_log(LOG_WARNING, "Can't remove command that is in use\n");
  	} else {
-@@ -2578,6 +2596,12 @@ int __ast_cli_register(struct ast_cli_entry *e, struct ast_module *module)
+@@ -2578,6 +2673,12 @@ int __ast_cli_register(struct ast_cli_entry *e, struct ast_module *module)
  
  	AST_RWLIST_WRLOCK(&helpers);
  
@@ -1747,7 +1841,7 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b
  	if (cli_is_registered(e)) {
  		ast_log(LOG_WARNING, "Command '%s' already registered (the same ast_cli_entry)\n",
  			S_OR(e->_full_cmd, e->command));
-@@ -3049,7 +3073,22 @@ static char *__ast_cli_generator(const char *text, const char *word, int state,
+@@ -3049,7 +3150,22 @@ static char *__ast_cli_generator(const char *text, const char *word, int state,
  					.argc = x};
  
  				/* If the command is in a module it must be running. */
@@ -1771,7 +1865,7 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b
  					ret = e->handler(e, CLI_GENERATE, &a);
  					ast_module_unref(e->module);
  				}
-@@ -3094,6 +3133,8 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+@@ -3094,6 +3210,8 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
  	char *duplicate = parse_args(s, &x, args + 1, AST_MAX_ARGS, NULL);
  	char tmp[AST_MAX_ARGS + 1];
  	char *retval = CLI_FAILURE;
@@ -1780,7 +1874,7 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b
  	struct ast_cli_args a = {
  		.fd = fd, .argc = x, .argv = args+1 };
  
-@@ -3105,14 +3146,34 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+@@ -3105,14 +3223,34 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
  
  	AST_RWLIST_RDLOCK(&helpers);
  	e = find_cli(args + 1, 0);
@@ -1815,7 +1909,19 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b
  	if (ast_shutting_down() && !allowed_on_shutdown(e)) {
  		ast_cli(fd, "Command '%s' cannot be run during shutdown\n", s);
  		goto done;
-@@ -3132,11 +3193,18 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+@@ -3121,6 +3259,11 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+ 	ast_join(tmp, sizeof(tmp), args + 1);
+ 	/* Check if the user has rights to run this command. */
+ 	if (!cli_has_permissions(uid, gid, tmp)) {
++#ifdef TEST_FRAMEWORK
++		if (lease) {
++			ast_cli_lease_test_checkpoint(lease, AST_CLI_LEASE_TEST_PERMISSION_DENIED);
++		}
++#endif
+ 		ast_cli(fd, "You don't have permissions to run '%s' command\n", tmp);
+ 		goto done;
+ 	}
+@@ -3132,11 +3275,18 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
  	args[0] = (char *)e;
  
  	/* If the command is in a module it must be running. */
@@ -1835,7 +1941,7 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b
  	if (retval == CLI_SHOWUSAGE) {
  		ast_cli(fd, "%s", S_OR(e->usage, "Invalid usage, but no usage information available.\n"));
  	} else if (retval == CLI_FAILURE) {
-@@ -3147,6 +3215,12 @@ done:
+@@ -3147,6 +3297,12 @@ done:
  	if (e) {
  		ast_atomic_fetchadd_int(&e->inuse, -1);
  	}
@@ -1849,7 +1955,7 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..443bb68b8c6f3256ca35066c4a60ba9b
  	return retval == CLI_SUCCESS ? RESULT_SUCCESS : RESULT_FAILURE;
  }
 diff --git a/main/loader.c b/main/loader.c
-index 6d924928335bc769c7e058360dc02ae0e6637e17..bce766df4153e20f5732440de425a9ce9bbe6927 100644
+index 6d924928335bc769c7e058360dc02ae0e6637e17..994bc4476bc97d44f7f9ea8327a8673188cfafbc 100644
 --- a/main/loader.c
 +++ b/main/loader.c
 @@ -36,6 +36,7 @@
@@ -1919,7 +2025,7 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..bce766df4153e20f5732440de425a9ce
  		if (mod->flags.builtin) {
  			/* Built-in modules cannot be unloaded. */
  			ast_module_shutdown_ref(mod);
-@@ -2874,6 +2893,177 @@ int ast_loader_unregister(int (*v)(void))
+@@ -2874,6 +2893,178 @@ int ast_loader_unregister(int (*v)(void))
  	return cur ? 0 : -1;
  }
  
@@ -2030,6 +2136,7 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..bce766df4153e20f5732440de425a9ce
 +	if ((event == AST_CLI_LEASE_TEST_LOOKUP || event == AST_CLI_LEASE_TEST_ADMITTED
 +		|| event == AST_CLI_LEASE_TEST_HANDLER
 +		|| event == AST_CLI_LEASE_TEST_HANDLER_RETURNED || event == AST_CLI_LEASE_TEST_ENTRY_DONE
++		|| event == AST_CLI_LEASE_TEST_PERMISSION_DENIED
 +		|| event == AST_CLI_LEASE_TEST_UNLOAD) && cli_lease_test_target(mod)) {
 +		cli_lease_test_record(event, 0);
 +	}
@@ -2099,10 +2206,10 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..bce766df4153e20f5732440de425a9ce
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289af355360
+index 0000000000000000000000000000000000000000..1cbb4aaf508c4511a0c87f04ff61180e55d5aab3
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,1338 @@
+@@ -0,0 +1,1388 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -2866,6 +2973,7 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +	int generate;
 +	const char *word;
 +	char *completion;
++	int restricted;
 +};
 +
 +static void *lifecycle_target_dispatch(void *data)
@@ -2875,7 +2983,9 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +	if (worker->generate) {
 +		worker->completion = ast_cli_generator(worker->command, worker->word, 0);
 +	} else {
-+		worker->result = ast_cli_command(worker->fd, worker->command);
++		worker->result = worker->restricted
++			? ast_cli_command_full(INT_MAX, INT_MAX, worker->fd, worker->command)
++			: ast_cli_command(worker->fd, worker->command);
 +	}
 +	ast_cli_lease_test_worker_done();
 +	return NULL;
@@ -2891,6 +3001,9 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +	pthread_t worker;
 +	enum ast_module_unload_mode mode;
 +	int armed = 0, started = 0, loaded = 0, failed = 1;
++	int restricted = !strcmp(outcome, "denied");
++
++	fixture.restricted = restricted;
 +
 +	if (ast_module_check(target)) {
 +		ast_test_status_update(test, "Disposable target already loaded; refusing to adopt it\n");
@@ -2915,11 +3028,13 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +		|| snapshot.events[AST_CLI_LEASE_TEST_LOADER_LOCKED]
 +		|| snapshot.events[AST_CLI_LEASE_TEST_LOOKUP] != 1
 +		|| snapshot.events[AST_CLI_LEASE_TEST_CLOSING_DENIED]
++		|| snapshot.events[AST_CLI_LEASE_TEST_PERMISSION_DENIED]
++			!= (restricted && pause_at != AST_CLI_LEASE_TEST_ADMITTED)
 +		|| snapshot.events[AST_CLI_LEASE_TEST_UNLOAD]
 +		|| snapshot.events[AST_CLI_LEASE_TEST_WORKER_DONE]
 +		|| snapshot.events[AST_CLI_LEASE_TEST_ADMITTED] != 1
-+		|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER] != (pause_at != AST_CLI_LEASE_TEST_ADMITTED)
-+		|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER_RETURNED] != (pause_at != AST_CLI_LEASE_TEST_ADMITTED)
++		|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER] != (!restricted && pause_at != AST_CLI_LEASE_TEST_ADMITTED)
++		|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER_RETURNED] != (!restricted && pause_at != AST_CLI_LEASE_TEST_ADMITTED)
 +		|| snapshot.events[AST_CLI_LEASE_TEST_ENTRY_DONE] != (pause_at == AST_CLI_LEASE_TEST_ENTRY_DONE
 +			|| pause_at == AST_CLI_LEASE_TEST_RELEASED)
 +		|| snapshot.events[AST_CLI_LEASE_TEST_RELEASED] != (pause_at == AST_CLI_LEASE_TEST_RELEASED)
@@ -2976,10 +3091,11 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +			|| snapshot.events[AST_CLI_LEASE_TEST_LOADER_LOCKED]
 +			|| snapshot.events[AST_CLI_LEASE_TEST_LOOKUP] != 1
 +			|| snapshot.events[AST_CLI_LEASE_TEST_CLOSING_DENIED]
++			|| snapshot.events[AST_CLI_LEASE_TEST_PERMISSION_DENIED] != restricted
 +			|| snapshot.events[AST_CLI_LEASE_TEST_RELEASED] != 1
 +			|| snapshot.events[AST_CLI_LEASE_TEST_ADMITTED] != 1
-+			|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER] != 1
-+			|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER_RETURNED] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER] != !restricted
++			|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER_RETURNED] != !restricted
 +			|| snapshot.events[AST_CLI_LEASE_TEST_ENTRY_DONE] != 1
 +			|| snapshot.events[AST_CLI_LEASE_TEST_UNLOAD] != 1
 +			|| snapshot.events[AST_CLI_LEASE_TEST_WORKER_DONE] != 1
@@ -3402,6 +3518,45 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +	return AST_TEST_PASS;
 +}
 +
++AST_TEST_DEFINE(protected_target_permission)
++{
++	const enum ast_cli_lease_test_event pauses[] = {
++		AST_CLI_LEASE_TEST_ADMITTED, AST_CLI_LEASE_TEST_ENTRY_DONE, AST_CLI_LEASE_TEST_RELEASED,
++	};
++	unsigned int i;
++	int failed = 0;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "protected_target_permission";
++		info->category = "/main/loader/protected_cli/";
++		info->summary = "Real permission denial skips handler and drains acquired lease through output";
++		info->description = "Three separate-target cleanup schedules use scoped deny rule, not a permission bypass.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	if (ast_cli_lease_test_deny_begin()) {
++		ast_test_status_update(test, "Could not install isolated test identity deny rule\n");
++		return AST_TEST_FAIL;
++	}
++	for (i = 0; i < ARRAY_LEN(pauses); ++i) {
++		if (lifecycle_target_case(test, pauses[i], "denied", 0)) {
++			failed = 1;
++			break;
++		}
++	}
++	if (ast_cli_lease_test_deny_end()) {
++		ast_test_status_update(test, "Could not remove test deny rule; discard native test process\n");
++		failed = 1;
++	}
++	if (failed) {
++		return AST_TEST_FAIL;
++	}
++	return lifecycle_target_case(test, AST_CLI_LEASE_TEST_RELEASED, "success", 0)
++		? AST_TEST_FAIL : AST_TEST_PASS;
++}
++
 +static int unload_module(void)
 +{
 +	AST_TEST_UNREGISTER(bounded_walk);
@@ -3415,6 +3570,7 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +	AST_TEST_UNREGISTER(protected_target_closing);
 +	AST_TEST_UNREGISTER(protected_target_lookup);
 +	AST_TEST_UNREGISTER(protected_target_loader_busy);
++	AST_TEST_UNREGISTER(protected_target_permission);
 +	AST_TEST_UNREGISTER(bounded_matrix);
 +	AST_TEST_UNREGISTER(bounded_contention);
 +	AST_TEST_UNREGISTER(bounded_ownership);
@@ -3434,6 +3590,7 @@ index 0000000000000000000000000000000000000000..512cb0fba51ca1f8415d0701b67ef289
 +	AST_TEST_REGISTER(protected_target_closing);
 +	AST_TEST_REGISTER(protected_target_lookup);
 +	AST_TEST_REGISTER(protected_target_loader_busy);
++	AST_TEST_REGISTER(protected_target_permission);
 +	AST_TEST_REGISTER(bounded_matrix);
 +	AST_TEST_REGISTER(bounded_contention);
 +	AST_TEST_REGISTER(bounded_ownership);

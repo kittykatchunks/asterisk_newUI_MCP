@@ -2349,6 +2349,18 @@ not measured latency. The test-only helper is disposable-process-only.
 header/loader test-profile-off lexical parity passes, not native evidence.
 A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
 
+The [permission denial source](./PROJECT-PLAN.md#gate-a-permission-denial-twenty-seven-definitions-still-unexecuted)
+brings the inventory to **27 uncompiled/unexecuted native definitions**.
+A scoped test-profile deny rule uses the real permission list for a reserved
+identity and disposable target prefix, without changing defaults or disk
+configuration. Three lifecycle pauses require actual denial, no handler call,
+one acquisition/release, correct unload veto and successful post-release
+teardown. The controller removes its rule after worker joins. Output remains
+`/dev/null`; shutdown, slow output and broader acceptance remain pending.
+**Twelve package tests pass**, exact application/nine postimages match and
+header/CLI/loader test-profile-off lexical parity passes, not native evidence.
+A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

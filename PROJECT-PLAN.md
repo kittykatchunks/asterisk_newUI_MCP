@@ -3258,6 +3258,57 @@ directories are removed after verification. No dependency installation,
 native build/test, image build or PBX operation occurred. A's verified exit,
 Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A permission denial: twenty-seven definitions, still unexecuted
+
+`protected_target_permission` adds **three source schedules** within the same
+nine-path approval. The inventory is **27 uncompiled/unexecuted native
+definitions**. The production permission decision is not bypassed, replaced
+or given a new exception.
+
+A `TEST_FRAMEWORK`-only core fixture installs one deny rule for UID `INT_MAX`
+and the disposable target command prefix in the real CLI permission list.
+It refuses an existing matching UID/GID or an active fixture rather than
+adopting another rule, and refuses a busy permission-reload mutex. It retains
+that mutex on the controller until all workers join and the exact inserted
+rule/storage are removed. List changes use the existing permission-list writer
+lock; normal permission reads still use their normal reader lock. Allocation
+failures clean up without inserting a partial rule. No configuration file,
+default permission, existing rule or operating-system identity is changed.
+The fixture is serialized and disposable-only; never arm it on a runtime PBX.
+
+The existing lifecycle worker can dispatch through `ast_cli_command_full` with
+the reserved UID/GID. Three schedules pause at admitted-before-permission,
+post-denial-output/entry-cleanup and final release. A new target-scoped core
+event records the **real permission-denied branch**. Each schedule requires
+one lookup/acquisition/admission, one permission denial, no target handler or
+handler-return event, one entry cleanup/release, zero final readers, one
+successful target unload and one worker completion. At admission the denial
+has not happened yet; by entry cleanup it must have happened without invoking
+the handler. Before release all soft/firm/hard target unloads must veto.
+At the released pause soft unload must succeed while the worker is safely
+paused in core. A fresh lookup of the removed command must fail.
+
+The shared lifecycle assertions now distinguish ordinary handler outcomes from
+permission-denied dispatch and require zero permission-denial events for the
+existing success/failure/usage/completion schedules. After removing the scoped
+rule, a normal uncredentialed lifecycle schedule checks fresh target load/
+admission/release/unload. That uses the existing internal CLI permission bypass,
+not evidence that the reserved UID's prior policy was permit. Permission-
+denial output is bracketed but still goes to `/dev/null`; exact text, slow or
+disconnected output, shutdown denial and broader policy/reload races remain
+unproven. All AT/QO/native acceptance gates remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match. Only test-profile header/
+CLI/loader instrumentation and the controller fixture change; the other five
+postimages, including the disposable target, are unchanged. Lexical
+`TEST_FRAMEWORK`-off header/CLI/loader parity matches the preceding candidate,
+not preprocessing, compilation or runtime-transparency proof. Both named
+source scratch directories are removed after verification. No dependency
+installation, native compile/test, image build or PBX operation occurred.
+A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
