@@ -5423,6 +5423,72 @@ explicit approval under the previous one-PBX/one-client aggregate resource
 limits; no human service, media quality, Gate A/Gate C or deployment authority
 follows from these offline results.
 
+##### Synthetic SIP answered-queue: runtime passed
+
+After offline preparation, the user explicitly selected **one answered-SIP
+runtime attempt** within the existing isolated resource/network/watchdog/
+cleanup limits. Focused tests passed before execution; no harness change was
+needed. **The first answered-SIP queue attempt passed**, without retry.
+
+**Observed lifecycle**
+
+- Network-free Python preflight exited zero, then the warmed inventory and
+  bridge were captured. Custom-image startup verified all 41 required
+  modules Running, absent test CLI and initial queue policy.
+- Separate caller/agent secrets authenticated both registrations. The host
+  verified their two exact contacts, distinct UDP ports and accepted
+  **59-second** contact lifetimes. Two configured endpoint/AOR identities
+  were retained, with no production routes.
+- Only dynamic member `PJSIP/proof-agent` was added to `proof-queue`.
+  Authenticated caller INVITE/ACK reached the private `queue-answer`
+  extension. Host observation showed one queued caller, one member and
+  a Ringing agent PJSIP leg.
+- Agent 200/ACK changed both expected SIP legs to **Up**. Host channel
+  details verified the same live bridge UUID for caller and agent.
+- After host bridge acknowledgement the agent held four synthetic seconds,
+  sent BYE and received **200**. Caller continued due Queue option `c`,
+  with no queued caller and only the caller's result-hold channel left.
+- Channel variables captured once were **QUEUESTATUS=CONTINUE,
+  ANSWEREDTIME_MS=5182, DIALEDTIME_MS=6448**, inside the existing 3500–6999 ms
+  answered interval and dialed-not-less-than-answered requirement.
+- Caller BYE returned **200** and channels drained to zero. Queue output
+  recorded **C:1, A:0**, the agent member took one call and there were no
+  callers. The dynamic member was removed and exact queue policy restored.
+- Both authenticated unregistrations returned **200**; host contacts were
+  empty while both endpoint configurations remained present.
+- Protocol client and PBX exited **zero**, without OOM or watchdog expiry.
+  Both client lifetimes, PBX and owned private network were removed, followed
+  by caller-secret input, agent-secret input and generated PBX credentials.
+
+One custom PBX and one Python-only carrier ran concurrently at most, with
+two synthetic identities in that client, not a second PBX. Aggregate ceilings
+remained 4.5 CPU-equivalents, 4 GiB + 128 MiB RAM, no extra swap and 288 tasks.
+No published ports/external trunks, image build/pull, dependency installation
+or operation of existing customer containers occurred. Four pre-existing
+containers remained stopped; post-preflight bridge snapshots and existing
+resource inventories were exactly equal before/after.
+
+Overall **26.61 seconds** includes preflight, protocol/CLI checkpoints,
+the agent hold and cleanup. It is not answer/media latency; the measured
+5182 ms answered interval includes checkpoint/CLI overhead around the
+four-second synthetic hold. No RTP payload or audio-quality assertion was
+made, even though private PCMU SDP and the live bridge were verified.
+
+[Validation summary](./local/asterisk-build/sip-answered-queue-validation.json)
+hash-binds the [byte-exact passing report](./local/asterisk-build/sip-answered-queue-smoke-report.json).
+Independent acceptance checks verified result variables, member restoration,
+shared-bridge observations, executed-tool identity, zero exits, live inventory
+and absence of all three generated credential files. Earlier preparation and
+runtime reports remain immutable historical evidence.
+Final validation passed **81 offline Python tests and 38 source/evidence tests**.
+
+**Boundary:** this proves synthetic registered SIP caller-to-agent answered
+queue signalling and teardown on one isolated custom PBX. It does not prove
+human service, real phone interoperability, queue RTP/media quality, external
+trunks, SIP unanswered-member behavior, load, encrypted transport, WebRTC,
+multi-PBX tenant isolation, Gate A/Gate C, license closure or deployment.
+No further runtime execution is authorized by this pass.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

@@ -647,6 +647,16 @@ unregistration. Echo stays default and queue modes are explicit opt-ins.
 No containers, networks or SIP calls were run for this preparation; no answered
 SIP runtime or RTP quality result is claimed. Separate execution approval is required.
 
+**[The first synthetic SIP answered-queue runtime attempt now passes](./PROJECT-PLAN.md#synthetic-sip-answered-queue-runtime-passed).**
+Separate registered caller/agent identities progressed from queued/ringing to
+two Up SIP legs sharing a live bridge. Agent BYE/200 led to caller `CONTINUE`
+with **5182 ms answered / 6448 ms dialed**, one completed queue call and no
+abandonment. Caller BYE, member removal, dual unregistration, zero exits and
+owned-resource/credential cleanup all passed. Warmed bridge/inventory snapshots
+matched; existing containers stayed stopped. This is synthetic signalling/
+queue-lifecycle evidence, **not RTP quality or human service**.
+See [exact passing evidence](./local/asterisk-build/sip-answered-queue-validation.json).
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

@@ -19,6 +19,83 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("answered SIP queue runtime binds dual registrations, bridged legs, measured continuation and cleanup", () => {
+  const validation = read(`${directory}/sip-answered-queue-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const report = read(`${directory}/sip-answered-queue-smoke-report.json`);
+  const answer = report.sipQueueAnswer;
+  const startup = read(`${directory}/desktop-image-smoke-report.json`);
+  assert.equal(validation.passed, true);
+  assert.equal(report.passed, true);
+  assert.equal(report.sipQueueAnswerRequested, true);
+  assert.equal(report.sipQueueTimeoutRequested, false);
+  assert.equal(report.imageId, validation.imageId);
+  assert.equal(report.bundleManifestSha256, validation.bundleManifestSha256);
+  assert.deepEqual(report.loadedModules, startup.loadedModules);
+  assert.equal(report.testCommandAbsent, true);
+  assert.equal(answer.passed, true);
+  assert.equal(answer.memberAddedPolicy.memberCount, 1);
+  assert.equal(answer["agent-ringing"].policy.callerCount, 1);
+  const ringing = answer["agent-ringing"].channels;
+  assert.equal(ringing.length, 2);
+  assert(ringing.some((row) => row.name.startsWith("PJSIP/proof-agent-") && row.state === "Ringing"));
+  assert(ringing.some((row) => row.name.startsWith("PJSIP/proof-client-") && row.application === "Queue"));
+  assert.equal(answer["agent-answered"].channels.length, 2);
+  assert(answer["agent-answered"].channels.every((row) => row.state === "Up"));
+  assert.match(answer.bridgeId, /^[a-f0-9-]{36}$/);
+  assert.deepEqual(answer.resultVariables, {
+    QUEUESTATUS: "CONTINUE", ANSWEREDTIME_MS: "5182", DIALEDTIME_MS: "6448",
+  });
+  assert(Number(answer.resultVariables.ANSWEREDTIME_MS) >= 3500);
+  assert(Number(answer.resultVariables.ANSWEREDTIME_MS) < 7000);
+  assert.match(answer.completedQueueOutput, /\bC:1\b/);
+  assert.match(answer.completedQueueOutput, /\bA:0\b/);
+  assert.match(answer.completedQueueOutput, /PJSIP\/proof-agent.*has taken 1 calls/);
+  assert.equal(answer.memberRemoved, true);
+  assert.deepEqual(answer.initialPolicy, answer.finalPolicy);
+  assert.equal(answer.finalPolicy.memberCount, 0);
+  assert.equal(answer.finalPolicy.callerCount, 0);
+  assert.equal(report.registrationPassed, true);
+  assert.equal(report.clientReport.passed, true);
+  assert.equal(report.clientReport.answeredQueueRequested, true);
+  assert.deepEqual(report.phases.map((phase) => phase.client.phase), [
+    "registered-both", "agent-ringing", "agent-answered", "agent-ended", "call-complete", "unregistered-both",
+  ]);
+  for (const phase of report.phases.slice(0, 5)) {
+    assert.equal(phase.contacts.length, 2);
+    assert(phase.contacts.includes(`proof-client/sip:proof-client@${report.clientReport.clientAddress}:${report.clientReport.clientPort}`));
+    assert(phase.contacts.includes(`proof-agent/sip:proof-agent@${report.clientReport.clientAddress}:${report.clientReport.agentPort}`));
+  }
+  assert.notEqual(report.clientReport.clientPort, report.clientReport.agentPort);
+  assert.equal(report.phases[2].client.ackSeen, true);
+  assert.equal(report.phases[3].client.byeCode, 200);
+  assert.equal(report.phases[4].client.callerByeCode, 200);
+  assert.deepEqual(report.phases[5].contacts, []);
+  assert.equal(report.phases[5].client.code, 200);
+  assert.deepEqual(report.preflightClientStopped, { exitCode: 0, oomKilled: false });
+  assert.deepEqual(report.processExitCodes, { pbx: 0, client: 0 });
+  assert.deepEqual(report.initialInventory, report.finalInventory);
+  assert.deepEqual(report.initialBridge, report.finalBridge);
+  assert.equal(report.ownedResourcesRemoved, true);
+  assert.equal(report.credentialFilesRemoved, true);
+  assert.equal(report.watchdogExpired, false);
+  assert.equal(report.elapsedSeconds, 26.61);
+  for (const [name, digest] of Object.entries(report.toolCanonicalLfHashes)) {
+    const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
+    assert.equal(canonical, digest, name);
+  }
+  for (const flag of ["mediaTested", "humanAnsweringTested", "existingPbxOperated",
+    "runtimeApplyAuthorized", "gateAAcceptanceComplete", "gateCAuthorized",
+    "redistributionApproved", "licenseClosureComplete", "furtherRuntimeAuthorized"]) {
+    assert.equal(validation[flag], false, flag);
+  }
+  assert.equal(report.mediaTested, false);
+  assert.equal(report.mediaPassed, false);
+  assert.equal(preparation.sipAnsweredExecution.passed, true);
+});
+
 test("answered SIP preparation retains offline-only authority and distinct synthetic identities", () => {
   const record = read(`${directory}/sip-answer-preparation.json`);
   assert.equal(record.stage, "synthetic-sip-answered-queue-implemented-offline-only");

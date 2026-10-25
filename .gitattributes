@@ -12,3 +12,4 @@ local/asterisk-build/sip-proof-attempt-1-report.json -text whitespace=cr-at-eol
 local/asterisk-build/sip-proof-attempt-2-report.json -text whitespace=cr-at-eol
 local/asterisk-build/sip-proof-attempt-3-report.json -text whitespace=cr-at-eol
 local/asterisk-build/sip-queue-timeout-smoke-report.json -text whitespace=cr-at-eol
+local/asterisk-build/sip-answered-queue-smoke-report.json -text whitespace=cr-at-eol

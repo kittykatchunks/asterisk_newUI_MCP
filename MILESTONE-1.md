@@ -2702,6 +2702,22 @@ real phone, new runtime container/network or SIP traffic is included here.
 record zero execution authority. The latest live queue result remains the
 empty-queue SIP timeout above. An answered SIP runtime attempt needs new approval.
 
+### First synthetic SIP answered-queue runtime proof passed
+
+One separately approved attempt registered distinct caller/agent identities,
+added the private SIP queue member, observed queued/ringing then two Up legs
+on one bridge, and completed agent-initiated hangup. Caller continuation was
+CONTINUE with **5182 ms answered / 6448 ms dialed**; queue C:1/A:0 and member
+took one call. Caller BYE, member removal, both unregistrations and exact queue
+baseline restoration passed. Preflight/client/PBX exited zero; owned resources
+and all three generated credential files were removed.
+
+The [runtime handoff](./PROJECT-PLAN.md#synthetic-sip-answered-queue-runtime-passed)
+binds exact evidence and unchanged warmed bridge/inventory. Overall 26.61 seconds
+is not media or answer latency. No RTP payload verification, human service,
+real phone/trunk interoperability, Gate A/Gate C or deployment is claimed.
+Further runtime needs separate approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

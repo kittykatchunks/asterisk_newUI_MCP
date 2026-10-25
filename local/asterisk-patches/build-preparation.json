@@ -1,6 +1,26 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-custom-image-sip-empty-queue-timeout-passed",
+  "stage": "gate-b-custom-image-synthetic-sip-answered-queue-passed",
+  "sipAnsweredExecution": {
+    "validation": "../asterisk-build/sip-answered-queue-validation.json",
+    "approvedAnsweredSipAttempts": 1,
+    "executedAnsweredSipAttempts": 1,
+    "passed": true,
+    "queueStatus": "CONTINUE",
+    "answeredMilliseconds": 5182,
+    "dialedMilliseconds": 6448,
+    "sharedBridgeVerified": true,
+    "memberRemoved": true,
+    "bothUnregistered": true,
+    "finalChannelsCallersMembersContactsZero": true,
+    "postPreflightBridgeAndInventoryUnchanged": true,
+    "ownedResourcesAndCredentialsRemoved": true,
+    "mediaTested": false,
+    "humanAnsweringTested": false,
+    "furtherRuntimeAuthorized": false,
+    "runtimeApplyAuthorized": false,
+    "gateCAuthorized": false
+  },
   "sipAnsweredPreparation": {
     "stage": "offline-only-synthetic-caller-agent-implemented",
     "preparation": "../asterisk-build/sip-answer-preparation.json",
