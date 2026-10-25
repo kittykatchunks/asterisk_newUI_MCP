@@ -2185,6 +2185,18 @@ to the manifest. Clean patch application and all eight exact postimages were
 rechecked. None of these are native test results: compilation, remaining native
 coverage, AT/QO and Gates B/C remain pending; no image/PBX ran.
 
+The next [queue coverage-source increment](./PROJECT-PLAN.md#gate-a-queue-coverage-eleven-native-definitions-still-unexecuted)
+brings the inventory to **eleven unexecuted native definitions**. Three private
+`app_queue` tests cover canonical/foreign/invalid names, suffix/name/row bounds,
+duplicate denial, policy/count/head consistency, empty/one-member counts and
+exact malformed-request JSON plus metadata-only init/completion.
+Changes are confined to `TEST_FRAMEWORK` fixtures and registration; comparison
+with the prior candidate confirms unchanged production queue implementation.
+**Ten package tests pass** and exact preimages/application/eight postimages
+match. Successful/error-after-sampling protocol, member ceilings, subordinate
+contention, lifecycle/profile schedules and native compilation/execution remain
+pending. A is not a verified exit; Gates B/C and AT/QO stay open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

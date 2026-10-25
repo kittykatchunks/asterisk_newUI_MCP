@@ -392,11 +392,15 @@ node .\scripts\Test-AsteriskQueuePolicyPatch.mjs --source C:\path\to\asterisk
 The validator never downloads/applies/builds/runs the patch. Default stock
 runtime/Compose/inspector behavior is unchanged, and publication remains blocked.
 
-The [coverage-source update](./PROJECT-PLAN.md#gate-a-coverage-increment-eight-native-definitions-still-unexecuted)
-now defines **eight unexecuted native tests**, including cross-thread contention,
-budget/unsupported-type matrices and ownership/abort checks. **Ten package
+The [AO2 coverage-source update](./PROJECT-PLAN.md#gate-a-coverage-increment-eight-native-definitions-still-unexecuted)
+added cross-thread contention, budget/unsupported-type matrices and ownership/
+abort checks. The subsequent [queue coverage update](./PROJECT-PLAN.md#gate-a-queue-coverage-eleven-native-definitions-still-unexecuted)
+brings the inventory to **eleven unexecuted native tests**, adding selection/
+name/row limits, effective value/count boundaries and exact malformed-request
+error bytes. Queue fixtures remain private and unlinked. **Ten package
 tests pass**; the validator also checks the native-test inventory against added
-definitions and registration pairs. The production patch bytes are unchanged.
+definitions and registration pairs. Exact application/postimages are verified;
+production queue code is unchanged outside test fixtures/registration.
 This does not establish C compilation, native correctness or AT/QO acceptance;
 Gates B/C remain closed.
 

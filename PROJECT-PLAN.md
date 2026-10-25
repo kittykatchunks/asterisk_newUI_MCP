@@ -2563,6 +2563,45 @@ queue protocol/selection boundaries and upstream regressions remain required.
 A's verified exit, B/C, all AT/QO acceptance, exact publication, full CP and
 M1-09 remain open.
 
+##### Gate A queue coverage: eleven native definitions, still unexecuted
+
+The next source-only increment stays within A's approval and adds three
+`TEST_FRAMEWORK` tests in `app_queue`. The manifest now lists **eleven native
+definitions**, each with matching registration/unregistration. These are source
+assertions awaiting a separately approved native build/run, not passed tests.
+
+| Native source addition | Assertions to execute later, not results |
+|---|---|
+| `policy_snapshot_selection` | Canonical proof/reserved names select; case variants, empty/digit-led suffixes, underscore, quote and slash deny. Foreign and namespace-only names add no row. Reserved suffix length 32 accepts and 33 denies; unrelated name length 96 skips and 97 conservatively denies. Eight unique rows copy, the ninth denies with `limit`; a duplicate denies without appending. |
+| `policy_snapshot_values` | Strategy endpoints, timeout 0/86400, masks 0/255 and caller counts 0/65535 copy exactly. Out-of-range strategy/timeout/masks/counts and inconsistent caller-count/head state deny without appending. Empty and one-member containers report their actual count without walking member/device state. |
+| `policy_snapshot_invalid_request` | Missing/extra namespace arguments, empty/short/long namespaces, bad prefix, uppercase/nonhex/quote bytes emit exactly the single fixed `invalid-request` JSON line with namespace null, no objects and CLI transport success. Initialization/completion use metadata only. |
+
+The three sampling tests reuse a private AO2 queue/member-container fixture; queues
+are never linked globally, caller heads are inert stack fixtures and member
+objects have no device/member initialization or cleanup side effects. The
+malformed-request test uses a pipe to capture the direct handler's small error
+output, without dispatching through the live registry or reading global queues.
+Its byte comparison covers malformed requests only: successful JSON ordering/
+escaping, failure after partial sampling, output failure and real dispatch
+still require native protocol tests. Member-count ceiling cases, subordinate
+queue/member contention and broader lifecycle/profile/instrumentation schedules
+also remain open. Native tests still require the separately approved disposable
+test process and external timeout; pipe capture is not an execution watchdog.
+
+**Ten package tests pass**, with JavaScript syntax and whitespace checks.
+Seven exact preimages pass the validator/application dry run; independent
+source-only application matches all eight manifest postimages. Six other
+production-file postimages and the existing native-test module are unchanged.
+An exact comparison against the preceding candidate, excluding the queue
+`TEST_FRAMEWORK` fixture block and its registration calls, confirms no
+production queue implementation change. This is source/package evidence, not
+C preprocessing, compilation, native execution or runtime correctness.
+
+Both named scratch source directories are removed after checks. No dependency
+install, native build/test, image build or PBX execution is authorized or
+performed. A's verified exit, Gates B/C, AT/QO acceptance, exact publication,
+full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
