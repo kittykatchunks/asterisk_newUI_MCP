@@ -991,8 +991,19 @@ Recommended sequence:
    unknown gaps survive successful recovery. Application restart preserves
    durable audit/evidence, invalidates old sessions and supports isolated
    authenticated HTTP/browser reads. Canonical bytes remain unchanged; owned
-   processes/transient snapshots are cleaned. **PBX restart/boot-epoch coverage
-   and full M1-06/07 remain open**, as do remote delivery/rotation/retention.
+   processes/transient snapshots are cleaned.
+   The user then separately authorized **BE-01 through BE-10** for isolated PBX
+   restart/boot-epoch recovery. `run-VntQha` / `asterisk-history-vntqha` passes
+   typecheck, 111 focused regressions and all ten BE checks: sequential restarts
+   preserve exact log prefixes, observed process changes and stopped-volume byte
+   boundaries establish explicit boot ranges, and actual reused uniqueid/linkedid/
+   marker/queue identities remain isolated across four customer/boot scopes.
+   One source generation spans two boots; no time-based join or automatic epoch
+   assignment. Four authenticated HTTP/browser scope cases and replay/overlap/
+   foreign revision denials pass. Owned Docker/credential resources are removed,
+   independently verified absent; only synthetic SQLite/report files remain.
+   **Full M1-06/07 remain open**, including all business outcomes after restart,
+   production boot attestation and remote delivery/rotation/retention.
 3. **Plan limited route/queue publication** with validation, stale revisions,
    managed-file drift and owned apply/verify; this is a critical intended-call
    dependency, not replaced by report approval.
@@ -1011,10 +1022,11 @@ collection, voice AI and real Autocab integration remain out of scope.
 
 See the [executed ten-check HR batch](./MILESTONE-1.md#selected-hr-batch-read-only-history-evidence-ten-acceptance-checks),
 [opt-in setup](./README.md#opt-in-read-only-history-workspace) and
-[executed LR contract](./MILESTONE-1.md#selected-lr-batch-local-process-interruption-and-replay).
-Neither HR nor LR closes any full M1 gate. The remaining isolated PBX
-restart/boot-epoch recovery proof requires its own selected bounded contract;
-limited route/queue publication planning remains a separate priority.
+[executed LR contract](./MILESTONE-1.md#selected-lr-batch-local-process-interruption-and-replay)
+and [executed BE contract](./MILESTONE-1.md#selected-be-batch-isolated-pbx-boot-epoch-recovery).
+HR/LR/BE do not close any full M1 gate. Limited route/queue publication planning
+is the next recommended priority, requiring its own bounded ownership,
+validation, drift and rollback decisions before runtime publication.
 M1 startup/capture thresholds, production capacity, retention and deployment
 questions remain unresolved.
 

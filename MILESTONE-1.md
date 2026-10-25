@@ -1539,8 +1539,8 @@ The original startup/capture thresholds remain proposed, not newly approved.
 | M1-03 | Separate runtime resources, credential/API denials and scoped raw/projection reads; simultaneous echo calls. | **Open:** simultaneous intended calls with signalling, media, history and recording disclosure checks in one correlated run. |
 | M1-04 | Frozen REFER transaction/media matrix. | **Open:** actual authorised agent mute, hold/resume, receiver-verified keypad and blind-transfer controls. No REFER rerun is a prerequisite here. |
 | M1-05 | Authenticated assignment/reservation exclusivity, expiry/release and provisioning fixtures. | **Open:** live offers move A to B, correct historical agent/session attribution, explicit assignment conflict; reservation is not phone activation. |
-| M1-06 | HF/QF durable raw evidence; MM manifests/markers; immutable JP v1-v5; QS/QC/QA exact timeout, member-/caller-ended connection/completion and ABANDON observations. Latest real proof retains 82 CEL/11 queue records per customer with replay and prior revisions preserved. | **Open:** all four required outcomes, including transferred calls, with coherent journey/leg/visit accounting and retained expected evidence after restart. Current synthetic queue observations do not prove human service, whole-journey outcomes or a transfer graph. |
-| M1-07 | Independent CEL/queue fenced local-file collectors, stale/failure state, atomic replay/checkpoints, permanent replacement gaps and projection coverage warnings. | **Open:** integrated interruption/recovery against full wording with visible gaps in the intended workflow. Current one-shot/bounded copied-file collection is not continuous remote PBX delivery, automated rotation or production collector lifecycle. |
+| M1-06 | HF/QF durable raw evidence; MM manifests/markers; immutable JP v1-v5; QS/QC/QA exact timeout, member-/caller-ended connection/completion and ABANDON observations. QA retains 82 CEL/11 queue records per customer. Subsequent LR preserves those observations after local process interruption; BE separately verifies real isolated PBX boot boundaries and deliberately reused identities in timeout fixtures. | **Open:** all four required outcomes, including transferred calls, with coherent journey/leg/visit accounting and retained expected evidence after restart. Current synthetic queue observations do not prove human service, whole-journey outcomes or a transfer graph. |
+| M1-07 | Independent CEL/queue fenced local-file collectors, stale/failure state, atomic replay/checkpoints, permanent replacement gaps and projection coverage warnings. Subsequent LR adds combined process-recovery/authenticated reads; BE adds isolated PBX restart/epoch isolation and replay. | **Open:** integrated interruption/recovery against full wording with visible gaps in the intended workflow. Current one-shot/bounded copied-file collection is not continuous remote PBX delivery, automated rotation or production collector lifecycle. |
 | M1-08 | Synthetic WAV payload/format and restart/hash fixtures. | **Open:** journey-linked authorised playable assets plus visible upload failure/retry/reconciliation. |
 | M1-09 | Revision/approval patterns in diagnostics and narrow provisioning. | **Open:** validated route/queue draft, stale-revision conflict, apply/verify and external-edit drift handling. Report approval is not configuration publication. |
 | M1-10 | MO real run `run-2KzA6j`: 60.502-second per-customer media observation and fresh conventional calls while the owned management process remained down. | **Selected local scope passed:** conventional echo only; queue/browser-agent, public trunk, identity outage and production failover are not covered. |
@@ -1569,7 +1569,7 @@ permissions but no history-specific grant. Do not repurpose those grants silentl
 | Priority | Bounded work package | Why now / dependencies | Exit and non-claims |
 |---|---|---|---|
 | 1 | Read-only authenticated history-evidence workspace | Subsequently authorized: explicit customer `history:read` members only, no support grants, references-only exposure. Reuses session/audit/customer boundaries, not CLI authority. | HR-01 through HR-10 below pass in the bounded local scope. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
-| 2 | Integrated restart/interruption/replay proof | Subsequently selected: LR local process slice on owned retained evidence copies. Exact ten-check contract below; PBX restart explicitly excluded. | LR-01 through LR-10 pass for local collector/writer/application processes. PBX restart/boot attribution and full M1-06/07 outcomes remain open; remote delivery separately designed. |
+| 2 | Integrated restart/interruption/replay proof | Subsequently selected: LR local process slice, then separately authorized BE isolated PBX boot-epoch slice. Exact ten-check contracts below. | LR-01 through LR-10 and BE-01 through BE-10 pass in their bounded scopes. Full M1-06/07 outcomes, continuous remote delivery and production boot attestation remain open. |
 | 3 | Limited route/queue publication foundation | Critical dependency for intended agent call path (M1-09, then M1-02/04/05/18). Needs agreed managed-file ownership, draft/revision/drift and rollback semantics. | Invalid/stale/drifted publication fails; owned apply/verify proof, no broad admin editor or Docker socket in the web process. |
 | 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
 | 5 | Recording, engineering/export and combined restore | Requires explicit storage/retention/access/capture-limit contracts and links to durable identities. Can be separately planned where independent. | Close exact M1-08/11-17 requirements through executed scoped workflows, not report/hash proxies. |
@@ -1690,9 +1690,78 @@ and retained-output details are in the
 restart acceptance as a whole. M1-06/07 are not closed: no PBX restart, new boot
 epoch, live unanswered/transfer fixture, transfer/repeated-visit attribution,
 remote delivery/rotation/retention, power-loss durability or combined restore
-was tested. The remaining PBX restart/epoch proof needs a separately selected
-isolated fixture. Phones remain disabled, ordinary routing unchanged and REFER
-frozen. The 17 full M1 gates remain open.
+was tested in LR. The PBX restart/epoch slice was subsequently authorized
+separately and is recorded below. Phones remain disabled, ordinary routing
+unchanged and REFER frozen. The 17 full M1 gates remain open.
+
+#### Selected BE batch: isolated PBX boot-epoch recovery
+
+After LR, the user explicitly authorized **pbx-epoch-recovery** and autonomous
+execution of the finite batch. A unique owned two-customer Compose project uses
+the existing pinned Asterisk 22.11.0 image, no image pull/build, and no host
+published PBX/AMI port. Only the owned test PBXs are stopped/restarted.
+
+The test-only `history-epoch` route emits fixed journey/visit UUIDs and enters
+the existing empty proof queue. An ephemeral localhost-only AMI account with
+only `originate` write authority supplies `ChannelId`/`OtherChannelId`, deliberately
+reusing actual uniqueid/linkedid strings across both customers and both boots.
+Raw bytes remain original; reuse is not achieved by editing stored evidence.
+This is bounded synthetic timeout evidence, not human service/media, unanswered
+target, abandonment, transfer or live agent-console calling.
+
+| Check | Executed acceptance (all pass) |
+|---|---|
+| BE-01 | Originate one deterministic synthetic caller per customer's first observed boot; validate real marked caller answer/end and a distinct queue timeout observation. Record process start token and explicit runtime/epoch scope. |
+| BE-02 | Complete CEL/queue snapshots round-trip byte-for-byte, replays insert zero and identical rebuilds reuse boot-1 revisions. |
+| BE-03 | Stop only A; its PBX command fails, B remains responsive with unchanged process/log prefix, and A's stored evidence remains readable with freshness `not-checked`. |
+| BE-04 | Read A's stopped persistent volume using a one-off Python container without launching Asterisk. Restart only A, observe changed PID-1 start token, preserve old byte prefixes and record another real call using the same IDs. Before boot-2 assignment, new evidence is unassigned and boot-1 observations cannot change. |
+| BE-05 | Register exact disjoint A boot-2 CEL/queue ranges in the same source generation. Marker, caller and queue identities intentionally match boot-1, but stable root/visit keys and references are epoch-scoped. |
+| BE-06 | Repeat the independent stop/snapshot/restart/assignment for B; A's process and Asterisk uptime command remain responsive. |
+| BE-07 | Four customer/epoch scopes each contain one root/visit with exact selected references. Actual uniqueid `epoch-reused-caller`, linkedid `epoch-reused-originator`, journey/visit marker IDs and `proof-queue` match across all four; stable root/visit keys remain distinct with no cross-epoch join. |
+| BE-08 | Separate CLI-process CEL/queue replays insert zero; exact raw snapshots and prior immutable revisions survive. Rebuild current views, then reuse identical revisions. One source generation per customer/kind contains two explicitly assigned boot epochs. |
+| BE-09 | Reject overlapping boot ranges, runtime rebinding, foreign raw reads, foreign customer scope and wrong-epoch revision IDs without changing manifests. Never infer a boot or generation from timestamps or reused IDs. |
+| BE-10 | Reuse the existing authenticated HTTP/Chromium proof across all four customer/boot scopes. Stored observations match persisted facts, wrong-epoch revisions and customer substitution are denied, offline/checked freshness is explicit, and browser errors/unexpected routes/microphone/WebSockets are prohibited. Raw/projection bytes remain unchanged by reads. |
+
+**Measured run:** `run-VntQha`, Compose project `asterisk-history-vntqha`.
+Typecheck and **111 focused history/workspace regression tests** pass before
+the ten runtime checks. All ten BE checks pass. A prior owned reproduction
+(`run-KzysZz`) also passed; its resources were independently confirmed absent.
+No production implementation, algorithm-version or permission change was needed.
+
+Both customers retain 32 CEL records / 5,668 bytes and six queue records /
+342 bytes. Each customer's boot-1 ranges are CEL `[0,3246)` and queue `[0,171)`;
+boot-2 ranges are CEL `[3246,5668)` and queue `[171,342)`.
+PID-1 start ticks change from `12551` to `14917` for A and from `12551` to
+`16251` for B in this run. Start ticks are scoped observational test evidence,
+not a globally unique or production-attested boot identifier. Equal first-boot
+ticks across customers confer no shared identity. Four current projection scopes
+have six stored revisions; earlier boot-1 revisions remain unchanged while
+current-input coverage hashes incorporate later local manifests/evidence.
+
+Boot assignment uses the observed process restart and complete quiescent stopped
+volume byte boundaries, not QUEUESTART or timestamps. Graceful-shutdown bytes,
+if any, remain raw evidence; later unassigned data is not silently attributed.
+The source generation deliberately stays `asterisk-history-vntqha` across both
+boots. This complements LR's inverse case, where explicit source replacement
+changes generation without inventing a PBX boot.
+
+Reproduce with `.\scripts\Test-PbxEpochRecovery.ps1`; see
+[setup/results](./README.md#isolated-pbx-boot-epoch-recovery-proof).
+Owned containers, networks and volumes are removed and their absence is verified
+by Compose-project label; generated credentials/configurations are deleted.
+Only ignored `history.sqlite`, `projections.sqlite` and `result.json` remain.
+Temporary authenticated-proof identity/audit/browser resources are closed and
+removed. The result records `ownedResourceAbsenceVerified:true`.
+
+**Stop boundary:** BE completes this isolated restart/epoch slice, not the full
+M1-06/07 gates. It does not prove all four business outcomes after restart,
+production boot attestation, abrupt host/power failure, active-call survival,
+continuous remote delivery/rotation/retention, human queue service/media,
+transfer/repeated-visit attribution, recording/export or combined restore.
+Existing/shared PBXs and ordinary routing are untouched, live agent phones
+remain disabled, and REFER is frozen. All 17 full M1 gates remain open.
+Limited route/queue publication planning is the next recommended scope, not
+automatically authorized by this batch.
 
 ## 6. Proposed implementation backlog
 

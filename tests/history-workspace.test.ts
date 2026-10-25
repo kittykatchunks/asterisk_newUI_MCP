@@ -399,7 +399,8 @@ test("HR-09: browser escapes hostile evidence, surfaces failures, clears logout/
 
 test("HR-10: both customers read persisted revisions through real session HTTP/browser boundaries without changing evidence", async () => {
   const root = process.env.HR_PROOF_ROOT;
-  const cases = root ? [
+  const epochDirectory = process.env.HR_EPOCH_PROOF_DIRECTORY;
+  const cases = root && !epochDirectory ? [
     ["history-projection", "run-99RbJ4", "marked-caller-v1"], ["queue-collector", "run-XYvtHl", "marked-caller-v2"],
     ["queue-service", "run-n7q0gL", "marked-caller-v3"], ["caller-queue-service", "run-nOTX5T", "marked-caller-v4"],
     ["queue-abandonment", "run-PIl5h8", "marked-caller-v5"],
@@ -407,7 +408,8 @@ test("HR-10: both customers read persisted revisions through real session HTTP/b
   const browser = await chromium.launch();
   try {
     for (const [kind, run, algorithm] of cases) {
-      const paths = root && kind && run ? { historyPath: join(root, kind, run, "history.sqlite"),
+      const paths = epochDirectory ? { historyPath: join(epochDirectory, "history.sqlite"), projectionPath: join(epochDirectory, "projections.sqlite") } :
+        root && kind && run ? { historyPath: join(root, kind, run, "history.sqlite"),
         projectionPath: join(root, kind, run, "projections.sqlite") } : undefined;
       const c = await setup(paths);
       const before = await Promise.all([readFile(c.historyPath), readFile(c.projectionPath)]);
@@ -415,8 +417,8 @@ test("HR-10: both customers read persisted revisions through real session HTTP/b
         for (const customer of ["customer-a", "customer-b"]) {
           const session = await c.login("reader", customer);
           const scopes = await c.result(await c.call(session, "scopes", { customer }));
-          assert.equal(scopes.scopes.length, 1);
-          const selected = scopes.scopes[0];
+          assert.equal(scopes.scopes.length, epochDirectory ? 2 : 1);
+          for (const selected of scopes.scopes) {
           const params = new URLSearchParams({ runtime: selected.runtime, epoch: selected.epoch });
           const stored = await c.result(await c.call(session, `stored?${params}`, { customer }));
           assert.equal(stored.algorithm, algorithm); assert.ok(stored.observation.journeys.length > 0);
@@ -427,12 +429,34 @@ test("HR-10: both customers read persisted revisions through real session HTTP/b
             assert.deepEqual(stored.observation.issues, original.document.issues);
           } finally { projections.close(); }
           assert.equal(stored.freshness.state, "not-checked");
+          if (epochDirectory) {
+            const otherScope = scopes.scopes.find((s: { epoch: string }) => s.epoch !== selected.epoch);
+            const otherParams = new URLSearchParams({ runtime: otherScope.runtime, epoch: otherScope.epoch });
+            const other = await c.result(await c.call(session, `stored?${otherParams}`, { customer }));
+            assert.notEqual(other.observation.journeys[0].id, stored.observation.journeys[0].id);
+            assert.equal(other.observation.journeys[0].journeyId, stored.observation.journeys[0].journeyId);
+            assert.equal((await c.call(session, `stored?${params}&revision=${other.id}`, { customer })).status, 404);
+          }
           assert.equal((await c.call(session, `stored?${params}`, { customer: customer === "customer-a" ? "customer-b" : "customer-a" })).status, 403);
           const context = await browser.newContext();
           try {
             const [name, value] = session.cookie.split("=");
             await context.addCookies([{ name, value, url: c.origin, httpOnly: true, sameSite: "Lax" }]);
             const page = await context.newPage();
+            const unexpected: string[] = [], errors: string[] = [];
+            page.on("pageerror", (error) => errors.push(error.message));
+            page.on("websocket", (socket) => unexpected.push(socket.url()));
+            page.on("request", (request) => {
+              const url = new URL(request.url());
+              if (url.origin !== c.origin || !new RegExp(`^/(?:engineering/(?:history/${customer}|history\\.js)|auth/(?:session|logout)|api/customers/${customer}/history/(?:scopes|revisions|stored|check))$`).test(url.pathname)) {
+                unexpected.push(url.pathname);
+              }
+            });
+            await page.addInitScript(() => {
+              Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+                value: () => { throw new Error("History proof must not request a microphone"); },
+              });
+            });
             await page.goto(`${c.origin}/engineering/history/${customer}`);
             await page.getByRole("button", { name: `${selected.runtime} / ${selected.epoch}`, exact: true }).click();
             await page.locator("#stored").click();
@@ -444,7 +468,9 @@ test("HR-10: both customers read persisted revisions through real session HTTP/b
             await page.locator("#freshness").filter({ hasText: algorithm === "marked-caller-v5" ? "inputs-match" : "inputs-changed" }).waitFor();
             const csp = (await fetch(`${c.origin}/engineering/history/${customer}`)).headers.get("content-security-policy")!;
             assert.match(csp, /connect-src 'self'/); assert.doesNotMatch(csp, /unsafe-inline/);
+            assert.deepEqual(unexpected, []); assert.deepEqual(errors, []);
           } finally { await context.close(); }
+          }
         }
         assert.deepEqual(await Promise.all([readFile(c.historyPath), readFile(c.projectionPath)]), before);
         assert.deepEqual(c.errors, []);

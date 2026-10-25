@@ -1,0 +1,9 @@
+services:
+  customer-a:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned epoch directory required}/customer-a/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./tests/history-markers/epoch_originate.py:/run/epoch_originate.py:ro
+  customer-b:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned epoch directory required}/customer-b/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./tests/history-markers/epoch_originate.py:/run/epoch_originate.py:ro

@@ -12,12 +12,14 @@ import { proveHistoryProjection } from "./projection.ts";
 import { proveQueueRecovery } from "./queue-recovery.ts";
 import { proveQueueService } from "./queue-service.ts";
 import { proveQueueAbandonment } from "./queue-abandonment.ts";
+import { provePbxEpochRecovery } from "./epoch-recovery.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery", "--service", "--caller-service", "--abandonment"].includes(args[0]))) {
-  throw new Error("Only --recovery, --queue, --markers, --projection, --queue-recovery, --service, --caller-service or --abandonment is supported");
+if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery", "--service", "--caller-service", "--abandonment", "--epochs"].includes(args[0]))) {
+  throw new Error("Only --recovery, --queue, --markers, --projection, --queue-recovery, --service, --caller-service, --abandonment or --epochs is supported");
 }
+const epochProof = args[0] === "--epochs";
 const recovery = args[0] === "--recovery";
 const queueProof = args[0] === "--queue";
 const queueRecovery = args[0] === "--queue-recovery";
@@ -25,8 +27,8 @@ const abandonmentProof = args[0] === "--abandonment";
 const callerServiceProof = args[0] === "--caller-service" || abandonmentProof;
 const serviceProof = args[0] === "--service" || callerServiceProof;
 const projectionProof = args[0] === "--projection" || queueRecovery || serviceProof;
-const markerProof = args[0] === "--markers" || projectionProof;
-const mode = recovery ? "cel-collector" : abandonmentProof ? "queue-abandonment" : callerServiceProof ? "caller-queue-service" : serviceProof ? "queue-service" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
+const markerProof = args[0] === "--markers" || projectionProof || epochProof;
+const mode = epochProof ? "pbx-epoch-recovery" : recovery ? "cel-collector" : abandonmentProof ? "queue-abandonment" : callerServiceProof ? "caller-queue-service" : serviceProof ? "queue-service" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
   projectionProof ? "history-projection" : markerProof ? "history-markers" : "cel-history";
 const parent = join(root, ".local-proof", mode);
 await mkdir(parent, { recursive: true });
@@ -38,6 +40,7 @@ const compose = ["compose", "--project-name", project,
   "-f", join(root, "compose.cel-history-proof.yaml")];
 if (markerProof) compose.push("-f", join(root, "compose.history-markers-proof.yaml"));
 if (serviceProof) compose.push("-f", join(root, "compose.history-service-proof.yaml"));
+if (epochProof) compose.push("-f", join(root, "compose.history-epoch-proof.yaml"));
 const execute = promisify(execFile);
 const customers = ["customer-a", "customer-b"] as const;
 async function docker(args: string[], timeout = 30000) {
@@ -73,7 +76,8 @@ let failed: unknown;
 let composeAttempted = false;
 const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
-  scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
+  scope: epochProof ? "isolated two-customer PBX restart with explicit boot ranges, deliberately reused real channel/marker identities and authenticated reference-only reads; no production restart, human service or transfer claim" :
+    recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
     abandonmentProof ? "isolated pre-connection caller hangup ABANDON record and conservative projection; no human intent, business outcome or media claim" :
     callerServiceProof ? "isolated caller-ended and member-ended automated queue service evidence; no human, abandonment, whole-journey or media claim" :
     serviceProof ? "isolated automated queue member CONNECT/completion and exact CEL member answer observations; no human or media claim" :
@@ -94,6 +98,10 @@ try {
     await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}`.replaceAll("\r\n", "\n"));
     await writeFile(join(directory, "modules.conf"), `${modules}\nload = func_uuid.so\n`.replaceAll("\r\n", "\n"));
     await writeFile(join(directory, "cel.conf"), cel.replace("apps = all", "apps = Queue").replaceAll("\r\n", "\n"));
+    if (epochProof) {
+      const epoch = await readFile(join(root, "tests", "history-markers", "epoch.conf"), "utf8");
+      await writeFile(join(directory, "extensions.conf"), `${extensions}\n${epoch}`.replaceAll("\r\n", "\n"));
+    }
     if (serviceProof) {
       const [service, queues] = await Promise.all([
         readFile(join(root, "tests", "history-markers", "service.conf"), "utf8"),
@@ -120,6 +128,11 @@ try {
     await mkdir(join(directory, customer));
     await writeFile(join(directory, customer, "pjsip.conf"),
       template.replace("@PASSWORD@", randomBytes(32).toString("hex")).replaceAll("\r\n", "\n"));
+    if (epochProof) {
+      await writeFile(join(directory, customer, "manager.conf"), "[general]\nenabled = yes\nport = 5038\nbindaddr = 127.0.0.1\n" +
+        "[epoch-proof]\nsecret = " + randomBytes(32).toString("hex") +
+        "\ndeny = 0.0.0.0/0.0.0.0\npermit = 127.0.0.1/255.255.255.255\nread = none\nwrite = originate\n");
+    }
   }
   await docker(["config", "--quiet"]);
   composeAttempted = true;
@@ -182,7 +195,12 @@ try {
       assert.equal(sources.sources[0].source, `pbx-${customer}`);
     }
   } finally { reopened.close(); }
-  if (markerProof) {
+  if (epochProof) {
+    const epochs: Record<string, unknown>[] = [];
+    report.epochs = epochs;
+    await provePbxEpochRecovery(database, directory, project, docker, freshSnapshot, cli, epochs);
+  }
+  if (markerProof && !epochProof) {
     const markers: Record<string, unknown>[] = [];
     report.markers = markers;
     await proveHistoryMarkers(database, directory, project, docker, freshSnapshot, cli, markers);
@@ -391,7 +409,7 @@ try {
   }
   if (composeAttempted) {
     await cleanup(() => docker(["down", "--volumes", "--remove-orphans", "--timeout", "5"], 45000));
-    if (serviceProof) {
+    if (serviceProof || epochProof) {
       for (const kind of ["container", "network", "volume"]) {
         await cleanup(async () => {
           const listed = await execute("docker", [kind, "ls", "--filter", `label=com.docker.compose.project=${project}`, "--format", "{{.ID}}"],
@@ -399,6 +417,7 @@ try {
           assert.equal(listed.stdout.trim(), "", `Owned service ${kind} resources remain`);
         });
       }
+      if (errors.length === 0) report.ownedResourceAbsenceVerified = true;
     }
   }
   for (const customer of customers) {

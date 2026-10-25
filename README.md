@@ -32,11 +32,66 @@ history access. Only allowlisted observations and scoped evidence references are
 exposed, not raw records. This closes the bounded HR batch, not any full M1 gate.
 
 The [prioritized plan](./PROJECT-PLAN.md#milestone-checkpoint-and-current-recommendation)
-now includes the completed bounded [local process-recovery batch](#local-process-recovery-proof).
-PBX restart/boot-epoch coverage remains unproved by this batch. Limited route/
-queue publication, explicitly gated browser-agent calling, recording/engineering/
-export and combined restore remain separate work.
+now includes the completed bounded [local process-recovery batch](#local-process-recovery-proof)
+and the separately authorized [isolated PBX boot-epoch proof](#isolated-pbx-boot-epoch-recovery-proof).
+Limited route/queue publication, explicitly gated browser-agent calling,
+recording/engineering/export and combined restore remain separate work.
 Live phones remain disabled, ordinary routing unchanged and REFER frozen.
+
+## Isolated PBX boot-epoch recovery proof
+
+The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
+Compose project using the existing digest-pinned Asterisk 22.11.0 image.
+It restarts only those temporary PBXs, one at a time. Existing/shared PBXs,
+ordinary routes, live agent phone functionality and frozen REFER tests are untouched.
+The synthetic Local-channel route uses an empty queue and proves timeout only,
+not human service, transfer, live unanswered-target handling or media after restart.
+
+```powershell
+.\scripts\Test-PbxEpochRecovery.ps1
+```
+
+The wrapper runs typecheck and **111 focused history/workspace regressions**,
+then the ten boot-epoch checks. Docker uses `--pull never --no-build`; the pinned
+image must already be available. No new dependency or production permission is added.
+
+Recorded run **`run-VntQha`**, project **`asterisk-history-vntqha`**:
+
+- Both customers deliberately reuse actual CEL uniqueid `epoch-reused-caller`,
+  linkedid `epoch-reused-originator`, marker journey/visit UUIDs and `proof-queue`
+  across their two real Asterisk boots. Four scoped roots and four visit keys
+  remain distinct. Raw bytes are not normalized or rewritten to manufacture reuse.
+- A temporary localhost-only AMI user has only `originate` write authority;
+  AMI supplies explicit channel IDs to the synthetic Local call. No AMI host
+  port is published. Random credentials and generated configuration are removed.
+- A changed PID-1 start token and exact stopped-volume byte boundaries establish
+  the observed boot transition. A one-off owned Python reader takes the stopped
+  volume snapshots without starting Asterisk. No timestamp, QUEUESTART event,
+  channel ID or source generation alone invents a boot boundary.
+- Log prefixes survive both restarts in the **same source generation**. New
+  evidence remains unassigned until exact disjoint boot-2 ranges are registered;
+  boot-1 observations are unchanged. Two epochs do not mean two source generations.
+- Each customer retains **32 CEL records / 5,668 bytes** and **6 queue records /
+  342 bytes**. Boot-1 boundaries are CEL byte **3,246** and queue byte **171**.
+  Replays insert zero; prior revisions remain immutable and repeated current
+  rebuilds reuse revisions.
+- Overlap/runtime rebinding and foreign raw/revision guesses fail.
+  Authenticated HTTP/Chromium tests cover all four customer/boot scopes,
+  wrong-epoch revision denial, customer substitution denial, reference-only
+  display and explicit `not-checked` versus `inputs-match`. Browser requests
+  are allowlisted; no microphone, WebSocket or unexpected route is invoked.
+
+Only ignored `history.sqlite`, `projections.sqlite` and `result.json` remain in
+`.local-proof\pbx-epoch-recovery\run-VntQha`. The report records all ten passes
+and `ownedResourceAbsenceVerified:true`; container/network/volume absence was
+also independently checked. The authenticated proof leaves raw/projection bytes
+unchanged; its temporary identity/audit/browser resources are removed.
+
+See the [exact BE contract/results](./MILESTONE-1.md#selected-be-batch-isolated-pbx-boot-epoch-recovery).
+This completes the selected restart/epoch slice, not full M1-06/07: remote
+continuous collection, rotation/retention, all business outcomes after restart,
+human service/media, transfers, production boot attestation and combined restore
+remain open. Limited route/queue publication planning is the next recommendation.
 
 ## Local process-recovery proof
 
