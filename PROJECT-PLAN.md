@@ -2875,6 +2875,42 @@ scratch directories are removed after checks. No dependency install, native
 build/test, image build or PBX execution occurred. A's verified exit, Gates
 B/C, AT/QO, exact publication, full CP and M1-09 remain open.
 
+##### Gate A status mapping: twenty-one definitions, still unexecuted
+
+The source candidate extracts the handler's existing traversal-status switch
+into private `policy_snapshot_apply_status`, called immediately after the same
+bounded traversal. Its case logic is unchanged: complete preserves any prior
+error; busy/limit/unsupported replace it with their matching error; aborted
+preserves a visitor error or supplies `internal`; invalid/internal/unknown
+statuses map to `internal`. The extraction is a production-source refactor,
+not a tests-only delta or an intentional wire behavior change.
+
+New `policy_snapshot_status_mapping` brings the inventory to **twenty-one
+uncompiled/unexecuted native definitions**. Its 90 source combinations cover
+all seven declared statuses plus two unknown enum values, five prior-error
+states (none/busy/limit/unsupported/internal) and zero/one copied row.
+It checks exact selected error, unchanged namespace/count/row bytes, then
+compares output from the real responder against exact JSON. Only complete
+with no prior error may produce observed JSON; all incomplete statuses and
+complete-with-prior-error emit only an error envelope, never retained rows.
+
+These are explicit injected status inputs to the actual helper, not evidence
+that the global container produced every status or that the handler was
+dispatched under those conditions. They complement the private actual
+traversal integration; they do not replace real global-handler/CLI execution,
+concurrent reload/unload, output/lock/ref instrumentation, exact lease-drain
+or outstanding lifecycle/profile regressions.
+
+**Eleven package tests pass**, along with JavaScript syntax, whitespace and
+added documentation link checks. Seven exact preimages/application dry run
+pass; independent source-only application matches all eight postimages.
+An exact comparison reconstructing the extraction from the preceding source
+confirms the switch body is unchanged apart from argument/pointer spelling,
+with no other production delta; all seven other postimages are unchanged.
+Both named scratch directories are removed after verification. No dependency
+install, native build/test, image build or PBX execution occurred. A's verified
+exit, Gates B/C, AT/QO, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

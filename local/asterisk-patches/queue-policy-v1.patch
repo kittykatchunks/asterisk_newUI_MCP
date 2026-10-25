@@ -1,5 +1,5 @@
 diff --git a/apps/app_queue.c b/apps/app_queue.c
-index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c65b2d5124 100644
+index 73719a9d92f6acce41236abb1c0e6553e2e9b173..79b6d148b2139fc71a2daf8d67d22eb396db62f4 100644
 --- a/apps/app_queue.c
 +++ b/apps/app_queue.c
 @@ -107,6 +107,7 @@
@@ -10,7 +10,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c6
  
  /*!
   * \par Please read before modifying this file.
-@@ -12073,7 +12074,1363 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
+@@ -12073,7 +12074,1454 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
  	return 0;
  }
  
@@ -210,6 +210,31 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c6
 +	return ast_carefulwrite(fd, output, written, 100) < 0 ? CLI_FAILURE : CLI_SUCCESS;
 +}
 +
++static void policy_snapshot_apply_status(struct policy_snapshot *sample,
++	enum ao2_bounded_status status)
++{
++	switch (status) {
++	case AO2_BOUNDED_COMPLETE:
++		break;
++	case AO2_BOUNDED_BUSY:
++		sample->error = "busy";
++		break;
++	case AO2_BOUNDED_LIMIT:
++		sample->error = "limit";
++		break;
++	case AO2_BOUNDED_UNSUPPORTED:
++		sample->error = "unsupported-state";
++		break;
++	case AO2_BOUNDED_ABORTED:
++		if (!sample->error) {
++			sample->error = "internal";
++		}
++		break;
++	default:
++		sample->error = "internal";
++	}
++}
++
 +static char *handle_queue_policy_snapshot(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 +{
 +	const struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
@@ -247,26 +272,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c6
 +		goto respond;
 +	}
 +	ao2_container_visit_bounded_v1(queues, &limits, policy_snapshot_visit, &sample, &result);
-+	switch (result.status) {
-+	case AO2_BOUNDED_COMPLETE:
-+		break;
-+	case AO2_BOUNDED_BUSY:
-+		sample.error = "busy";
-+		break;
-+	case AO2_BOUNDED_LIMIT:
-+		sample.error = "limit";
-+		break;
-+	case AO2_BOUNDED_UNSUPPORTED:
-+		sample.error = "unsupported-state";
-+		break;
-+	case AO2_BOUNDED_ABORTED:
-+		if (!sample.error) {
-+			sample.error = "internal";
-+		}
-+		break;
-+	default:
-+		sample.error = "internal";
-+	}
++	policy_snapshot_apply_status(&sample, result.status);
 +respond:
 +	return policy_snapshot_respond(a->fd, &sample, namespace_json);
 +}
@@ -298,6 +304,91 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c6
 +		return 1;
 +	}
 +	return 0;
++}
++
++AST_TEST_DEFINE(policy_snapshot_status_mapping)
++{
++	const struct {
++		enum ao2_bounded_status status;
++		const char *error;
++		int preserve_error;
++	} cases[] = {
++		{ AO2_BOUNDED_COMPLETE, NULL, 1 },
++		{ AO2_BOUNDED_INVALID, "internal", 0 },
++		{ AO2_BOUNDED_UNSUPPORTED, "unsupported-state", 0 },
++		{ AO2_BOUNDED_BUSY, "busy", 0 },
++		{ AO2_BOUNDED_LIMIT, "limit", 0 },
++		{ AO2_BOUNDED_ABORTED, "internal", 1 },
++		{ AO2_BOUNDED_INTERNAL, "internal", 0 },
++		{ (enum ao2_bounded_status) -1, "internal", 0 },
++		{ (enum ao2_bounded_status) 99, "internal", 0 },
++	};
++	const char *prior_errors[] = { NULL, "busy", "limit", "unsupported-state", "internal" };
++	struct policy_snapshot sample, before;
++	char expected[1024];
++	unsigned int i, j, count;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "policy_snapshot_status_mapping";
++		info->category = "/apps/app_queue/policy_snapshot/";
++		info->summary = "Incomplete/unknown traversal statuses cannot serialize copied rows as observed";
++		info->description = "All statuses with zero/one row and prior visitor errors use the real mapping and responder.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	for (i = 0; i < ARRAY_LEN(cases); ++i) {
++		for (j = 0; j < ARRAY_LEN(prior_errors); ++j) {
++			for (count = 0; count <= 1; ++count) {
++				const char *error = cases[i].preserve_error && prior_errors[j]
++					? prior_errors[j] : cases[i].error;
++				int written;
++
++				sample = (struct policy_snapshot) {
++					.namespace = "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
++					.count = count, .error = prior_errors[j],
++				};
++				if (count) {
++					ast_copy_string(sample.rows[0].name, "proof-queue", sizeof(sample.rows[0].name));
++					sample.rows[0].timeout = 2;
++					sample.rows[0].caller_list_empty = 1;
++				}
++				before = sample;
++				policy_snapshot_apply_status(&sample, cases[i].status);
++				if ((error ? !sample.error || strcmp(error, sample.error) : sample.error != NULL)
++					|| sample.count != before.count
++					|| memcmp(sample.rows, before.rows, sizeof(sample.rows))
++					|| memcmp(sample.namespace, before.namespace, sizeof(sample.namespace))) {
++					ast_test_status_update(test, "Status mapping changed sample or selected wrong error\n");
++					return AST_TEST_FAIL;
++				}
++				if (error) {
++					written = snprintf(expected, sizeof(expected),
++						"{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++						"\"maskMapping\":\"asterisk-22-empty-v1\","
++						"\"namespace\":\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\","
++						"\"status\":\"error\",\"code\":\"%s\"}\n", error);
++				} else {
++					written = snprintf(expected, sizeof(expected),
++						"{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++						"\"maskMapping\":\"asterisk-22-empty-v1\",\"status\":\"observed\","
++						"\"namespace\":\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\","
++						"\"consistency\":\"bounded-per-object-sample\",\"objects\":[%s]}\n",
++						count ? "{\"name\":\"proof-queue\",\"origin\":\"static\",\"strategy\":\"ringall\","
++						"\"memberTimeoutSeconds\":2,\"joinEmptyMask\":0,\"leaveWhenEmptyMask\":0,"
++						"\"memberCount\":0,\"callerCount\":0,\"callerListEmpty\":true}" : "");
++				}
++				if (written < 0 || (size_t) written >= sizeof(expected)
++					|| policy_test_response(test, &sample, expected)) {
++					ast_test_status_update(test, "Status response failed: case=%u prior=%u rows=%u\n",
++						i, j, count);
++					return AST_TEST_FAIL;
++				}
++			}
++		}
++	}
++	return AST_TEST_PASS;
 +}
 +
 +AST_TEST_DEFINE(policy_snapshot_protocol)
@@ -1374,7 +1465,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c6
  	AST_CLI_DEFINE(queue_show, "Show status of a specified queue"),
  	AST_CLI_DEFINE(handle_queue_rule_show, "Show the rules defined in queuerules.conf"),
  	AST_CLI_DEFINE(handle_queue_add_member, "Add a channel to a specified queue"),
-@@ -12091,6 +13448,17 @@ static struct stasis_forward *topic_forwarder;
+@@ -12091,6 +13539,18 @@ static struct stasis_forward *topic_forwarder;
  
  static int unload_module(void)
  {
@@ -1389,10 +1480,11 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c6
 +	AST_TEST_UNREGISTER(policy_snapshot_traversal);
 +	AST_TEST_UNREGISTER(policy_snapshot_queue_lock_kind);
 +	AST_TEST_UNREGISTER(policy_snapshot_member_boundary);
++	AST_TEST_UNREGISTER(policy_snapshot_status_mapping);
  	stasis_message_router_unsubscribe_and_join(agent_router);
  	agent_router = NULL;
  
-@@ -12317,6 +13685,17 @@ static int load_module(void)
+@@ -12317,6 +13777,18 @@ static int load_module(void)
  		unload_module();
  		return AST_MODULE_LOAD_DECLINE;
  	}
@@ -1407,6 +1499,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c6
 +	AST_TEST_REGISTER(policy_snapshot_traversal);
 +	AST_TEST_REGISTER(policy_snapshot_queue_lock_kind);
 +	AST_TEST_REGISTER(policy_snapshot_member_boundary);
++	AST_TEST_REGISTER(policy_snapshot_status_mapping);
  	return AST_MODULE_LOAD_SUCCESS;
  }
  

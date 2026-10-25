@@ -411,10 +411,12 @@ added eighteen private-fixture rejection/prefix schedules with cross-thread
 lock cleanup and recovery assertions. The [private traversal integration](./PROJECT-PLAN.md#gate-a-private-traversal-integration-eighteen-definitions-still-unexecuted)
 connected actual traversal, queue copying and exact observed/error output
 without global queue substitution. The [owner-boundary update](./PROJECT-PLAN.md#gate-a-owner-boundaries-twenty-definitions-still-unexecuted)
-brings the inventory to **twenty uncompiled/unexecuted native definitions**,
-adding unsupported queue lock kinds and real 65,535/65,536 member counts,
+added unsupported queue lock kinds and real 65,535/65,536 member counts,
 recovery and destructor accounting. The large fixture still needs an approved
-native resource/time budget. Exact lease-count release, global-handler
+native resource/time budget. The [status-mapping update](./PROJECT-PLAN.md#gate-a-status-mapping-twenty-one-definitions-still-unexecuted)
+brings the inventory to **twenty-one uncompiled/unexecuted native definitions**,
+with 90 status/error/row combinations using the unchanged extracted mapping
+and real responder. Exact lease-count release, global-handler
 integration, instrumentation and wider loader/shutdown schedules remain unproven.
 **Eleven package tests pass**; the validator checks definitions/registration
 pairs and exact application/postimages were rechecked. Queue fixtures stay

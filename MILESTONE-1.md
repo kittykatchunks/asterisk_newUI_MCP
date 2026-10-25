@@ -2270,6 +2270,17 @@ production code remains unchanged outside test fixtures/registration.
 A's verified exit, global-handler/lease/lifecycle/profile acceptance, AT/QO
 and Gates B/C remain open.
 
+The subsequent [status-mapping increment](./PROJECT-PLAN.md#gate-a-status-mapping-twenty-one-definitions-still-unexecuted)
+extracts the existing handler switch unchanged into a private helper and brings
+the inventory to **twenty-one uncompiled/unexecuted native definitions**.
+Its 90 injected status/prior-error/retained-row combinations check exact error
+selection, unchanged sample data and real responder JSON with no partial
+observed output on incomplete traversal. These do not execute the global
+handler or demonstrate that actual containers produced every status.
+**Eleven package tests pass**; exact extraction comparison, source application
+and all eight postimages match. Remaining native/global/lifecycle/profile
+acceptance, A's verified exit, AT/QO and Gates B/C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
