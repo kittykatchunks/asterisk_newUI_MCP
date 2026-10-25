@@ -97,6 +97,86 @@ guard; future user-facing identity, permissions and reconciliation must not rely
 on caller-supplied scope. See the
 [BS-01 through BS-10 evidence](./PROJECT-PLAN.md#executed-booking-simulation-evidence).
 
+### Authenticated simulation API foundation
+
+The simulation workspace is being implemented in bounded increments. Its backend
+foundation exists; there is **no simulation browser page, navigation link, dedicated
+login return or local-launcher switch yet**. Normal local engineering startup still
+does not open a simulation database or grant simulation permission. Calling and
+real dispatch remain disabled.
+
+The optional final `bookingSimulation` argument to `createDiagnosticApi` is the
+explicit embedded-server opt-in. Supply a dedicated absolute-path store from
+`openBookingSimulation` and matching application-session configuration; supplying
+the store without application sessions fails at startup. The server owner must
+close the store after stopping the server. Existing agent/device/diagnostic stores
+must not be supplied as the simulation database. With no supplied simulation
+store, eligible requests receive `503 booking_simulation_disabled`.
+
+Every simulation request requires a current application session bound to the URL
+customer and provisioned membership in **both** `agent:access` and
+`booking:simulate`. Neither token roles nor diagnostic support grants supply these
+permissions. The adapter derives issuer/subject from verified server context and
+does not expose the trusted customer-only harness methods. Session mutations use
+the existing exact-origin/CSRF protections; bearer-only use is denied. Reads do not
+mutate or reconcile. All responses are non-cacheable and carry a request reference;
+simulation responses are explicitly labelled, including unavailable/error results.
+
+The API prefix is `/api/customers/<customer>/booking-simulation`. This is an
+authenticated synthetic test surface, **not** real booking authorisation:
+
+| Method and suffix | Strict JSON body / result |
+|---|---|
+| GET `conversations` | Own conversation IDs and operation IDs/states/revisions only. No request body or query parameters. |
+| POST `conversations` | `{}`; allocate a server-generated synthetic conversation owned by the verified issuer/subject/customer. |
+| POST `conversations/<id>/drafts` | `{ "details": <SyntheticJourney> }`; create a validated draft in an owned conversation. |
+| GET `operations/<id>` | Read an owned operation's actual durable state. |
+| POST `operations/<id>/edit` | `{ "details": <SyntheticJourney>, "revision": <displayed revision> }`; update only that revision and invalidate confirmation. |
+| POST `operations/<id>/review` | `{ "revision": <displayed revision> }`; return the canonical summary for confirmation. |
+| POST `operations/<id>/confirm` | `{ "revision": <displayed revision> }`; explicitly confirm that summary. |
+| POST `operations/<id>/submit` | `{ "scenario": "accept" \| "reject" \| "lose-reply" \| "unresolved", "revision": <displayed revision> }`; separately submit the confirmed revision. |
+| POST `operations/<id>/reconcile` | `{}`; look up the existing result without another dispatch effect. |
+| POST `operations/<id>/handover` | `{ "reason": "human_requested" \| "caller_disconnected" \| "unsupported_request" }`; return context without transferring/cancelling. |
+
+Bodies are limited to 2,048 bytes, JSON only with no extra keys or compressed
+encoding. Invalid input is `400`, foreign/unowned resources are `404`, state/stale
+revision conflicts are `409`, and unexpected storage/audit errors are `503` without
+private exception text. `401`/`403` retain the existing session/permission/CSRF
+meaning. A lost response is not a business rejection: explicitly list your own
+conversations to recover lost creation receipts, then read/reconcile known operation
+IDs. Do not automatically repeat creation or submission after a transport error.
+
+Simulation schema 2 adds persistent conversation ownership; schema-1 harness
+records stay unowned and inaccessible through this API. The trusted local harness
+still reads them. The diagnostic audit store migrates schemas 1/2 to schema 3 with
+a nullable booking-operation correlation column. Existing rows remain intact and
+older schema-1/2 diagnostic backups remain readable. Backup manifest format 2 is
+unchanged (it is not the database schema number). Use matching updated binaries
+for upgraded databases; old binaries reject the newer schemas. Simulation ownership
+storage is not covered by the diagnostic backup and no production backup/recovery
+claim is made for this new surface.
+
+Audit commits gate data responses/mutation intents; they are not completed booking
+receipts and are not atomic with the simulation database. Known authorised operation
+IDs are correlated without storing passenger/contact details, cookies or tokens.
+Logout while an audit is waiting fences the subsequent mutation. An unexpected
+failure after simulator commit is an explicit unavailable result; the existing
+operation remains discoverable for reconciliation, never automatically resubmitted.
+
+Reproduce the foundation and affected regressions:
+
+```powershell
+npm run typecheck
+node --test .\tests\booking-simulation.test.ts .\tests\booking-simulation-ownership.test.ts .\tests\booking-simulation-http.test.ts .\tests\access.test.ts .\tests\application-session.test.ts .\tests\agent-device-http.test.ts .\tests\diagnostic-store.test.ts
+```
+
+Recorded result: typecheck and 60 tests passed, including six new ownership/HTTP
+tests, permission-specific checks and audit migration/backup coverage. The suite
+uses temporary databases and loopback synthetic identity servers, cleaned up on
+completion. It does not run the real Keycloak launcher proof or any REFER checks.
+The full SW checklist remains open; see
+[partial foundation evidence](./PROJECT-PLAN.md#executed-workspace-foundation-evidence).
+
 ## Local runtime proof
 
 Prerequisites: Docker Desktop with a running Linux engine, Docker Compose v2,

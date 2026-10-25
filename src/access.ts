@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export type DiagnosticPermission = "diagnostics:read" | "diagnostics:report" | "diagnostics:review";
-export type CustomerPermission = DiagnosticPermission | "agent:access";
+export type CustomerPermission = DiagnosticPermission | "agent:access" | "booking:simulate";
 
 export interface Membership {
   issuer: string;
@@ -50,7 +50,8 @@ export function createAccessVerifier(config: AccessConfig) {
         !/^[a-z0-9][a-z0-9-]{0,63}$/.test(membership.customer) ||
         membership.permissions.some((permission) =>
           permission !== "diagnostics:read" && permission !== "diagnostics:report" &&
-          permission !== "diagnostics:review" && permission !== "agent:access")) {
+          permission !== "diagnostics:review" && permission !== "agent:access" &&
+          permission !== "booking:simulate")) {
       throw new Error("Invalid provisioned customer membership");
     }
   }
@@ -99,7 +100,9 @@ export function createAccessVerifier(config: AccessConfig) {
     const permits = (entry: Membership) => entry.subject === subject &&
       entry.customer === customer && entry.permissions.includes(permission);
     if (memberships.some(permits)) return { allowed: true, subject, basis: "membership" };
-    if (permission === "agent:access") return { allowed: false, status: 403, code: "customer_access_denied" };
+    if (permission === "agent:access" || permission === "booking:simulate") {
+      return { allowed: false, status: 403, code: "customer_access_denied" };
+    }
     const now = Date.now() / 1000;
     if (grants.some((grant) => permits(grant) && grant.startsAt <= now && now < grant.expiresAt)) {
       return { allowed: true, subject, basis: "support-grant" };

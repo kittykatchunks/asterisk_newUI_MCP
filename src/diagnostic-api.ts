@@ -13,6 +13,8 @@ import type { AgentDirectory } from "./agent-directory.ts";
 import { assertAgentProfile } from "./agent-directory.ts";
 import { handleAgentDeviceRequest } from "./agent-device-http.ts";
 import type { AgentDeviceLeaseStore } from "./agent-device-lease.ts";
+import type { BookingSimulationStore } from "./booking-simulation.ts";
+import { handleBookingSimulationRequest } from "./booking-simulation-http.ts";
 
 export interface AccessAudit {
   requestId: string;
@@ -22,8 +24,9 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout" | "agent-device-acquire" | "agent-device-renew" | "agent-device-release";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout" | "agent-device-acquire" | "agent-device-renew" | "agent-device-release" | "booking-simulation";
   incident?: string;
+  bookingOperation?: string;
 }
 
 export function createDiagnosticApi(
@@ -37,7 +40,9 @@ export function createDiagnosticApi(
   pbxEndpoints?: PbxEndpointSource,
   agents?: AgentDirectory,
   deviceLeases?: AgentDeviceLeaseStore,
+  bookingSimulation?: BookingSimulationStore,
 ) {
+  if (bookingSimulation && !sessionConfig) throw new Error("Booking simulation requires application sessions");
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
       sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
   const sessions = sessionConfig ? createApplicationSessions(sessionConfig) : undefined;
@@ -50,13 +55,16 @@ export function createDiagnosticApi(
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("X-Request-Id", requestId);
     response.setHeader("Referrer-Policy", "no-referrer");
+    let simulationRequest = false;
     const send = (status: number, code: string) => {
       if (status === 401) response.setHeader("WWW-Authenticate", 'Bearer realm="diagnostics"');
-      response.writeHead(status).end(JSON.stringify({ code, requestId }));
+      response.writeHead(status).end(JSON.stringify({ code, requestId,
+        ...(simulationRequest ? { simulation: true } : {}) }));
     };
     let customer: string | undefined;
     try {
       const path = new URL(request.url ?? "/", "http://localhost").pathname;
+      simulationRequest = /^\/api\/customers\/[^/]+\/booking-simulation(?:\/|$)/.test(path);
       if (sessions && await sessions.handle(request, response, requestId, audit)) return;
       if (path.startsWith("/api/") && sessions) {
         const session = sessions.authorization(request);
@@ -103,6 +111,14 @@ export function createDiagnosticApi(
       const endpointMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/endpoints$/);
       const agentMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/profile$/);
       const deviceMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/device-lease(?:\/(renew|release))?$/);
+      const simulationMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/booking-simulation(?:\/(.*))?$/);
+      if (simulationMatch) {
+        customer = simulationMatch[1];
+        await handleBookingSimulationRequest(request, response, requestId, customer,
+          simulationMatch[2] ?? "", identityIssuer, () => sessions?.identity(request),
+          verify, audit, bookingSimulation);
+        return;
+      }
       if (deviceMatch) {
         customer = deviceMatch[1];
         const action = deviceMatch[2] === "renew" ? "renew" : deviceMatch[2] === "release" ? "release" : "acquire";
@@ -289,7 +305,7 @@ export function createDiagnosticApi(
       }));
     } catch (error) {
       logError(error, requestId);
-      send(503, "diagnostic_access_unavailable");
+      send(503, simulationRequest ? "booking_simulation_unavailable" : "diagnostic_access_unavailable");
     }
   });
 }

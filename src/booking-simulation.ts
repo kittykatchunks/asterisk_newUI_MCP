@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { assertAgentIdentity, type AgentIdentity } from "./agent-directory.ts";
 
 export type BookingState = "collecting" | "awaiting confirmation" | "submitting" |
   "accepted" | "rejected" | "outcome unknown";
@@ -28,6 +29,8 @@ export interface SimulatedBooking {
   history: Transition[];
 }
 export class BookingSimulationError extends Error {}
+export class BookingSimulationInputError extends BookingSimulationError {}
+export class BookingSimulationOwnershipError extends BookingSimulationError {}
 class UncertainSimulationOutcome extends Error {}
 const customers = ["customer-a", "customer-b"];
 const states: BookingState[] = ["collecting", "awaiting confirmation", "submitting",
@@ -39,7 +42,7 @@ const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 function scope(customer: string, conversation?: string) {
   if (!customers.includes(customer) || (conversation !== undefined &&
       !/^synthetic-[a-z0-9-]{1,64}$/.test(conversation))) {
-    throw new BookingSimulationError("Invalid synthetic customer/conversation scope");
+    throw new BookingSimulationInputError("Invalid synthetic customer/conversation scope");
   }
 }
 function journey(customer: string, value: unknown): SyntheticJourney {
@@ -57,7 +60,7 @@ function journey(customer: string, value: unknown): SyntheticJourney {
       !/^test-contact-[a-z0-9-]{1,32}$/.test(value.contact) ||
       !("passengers" in value) || typeof value.passengers !== "number" ||
       !Number.isInteger(value.passengers) || value.passengers < 1 || value.passengers > 8) {
-    throw new BookingSimulationError("Invalid or unsupported synthetic journey");
+    throw new BookingSimulationInputError("Invalid or unsupported synthetic journey");
   }
   return { pickup: value.pickup, destination: value.destination,
     passenger: value.passenger, contact: value.contact, passengers: value.passengers };
@@ -75,9 +78,17 @@ function validate(value: unknown): asserts value is SimulatedBooking {
       !(b.confirmedRevision === null || b.confirmedRevision === b.revision) ||
       !b.state || !states.includes(b.state) || !b.reason || !reasons.includes(b.reason) ||
       !Array.isArray(b.history) || b.history.length === 0) throw new Error("Corrupt booking simulation record");
-  scope(b.customer, b.conversation);
   const revision = b.revision;
-  const details = journey(b.customer, b.details);
+  let details: SyntheticJourney;
+  try {
+    scope(b.customer, b.conversation);
+    details = journey(b.customer, b.details);
+  } catch (error) {
+    if (error instanceof BookingSimulationInputError) {
+      throw new Error("Corrupt booking simulation record", { cause: error });
+    }
+    throw error;
+  }
   if (b.summary !== summary(details) ||
       (b.state === "accepted" ? b.reference !== `SIM-${b.id}` : b.reference !== null) ||
       (["submitting", "accepted", "rejected", "outcome unknown"].includes(b.state) &&
@@ -89,7 +100,7 @@ function validate(value: unknown): asserts value is SimulatedBooking {
       b.history.at(-1)?.revision !== b.revision) throw new Error("Corrupt booking simulation record");
 }
 
-// Trusted synthetic harness only; customer scope is not user authentication.
+// The customer-only methods remain trusted harness APIs; HTTP must use forOwner.
 export function openBookingSimulation(path: string, options: {
   afterEffect?: () => void;
 } = {}) {
@@ -98,7 +109,7 @@ export function openBookingSimulation(path: string, options: {
   try {
     db.exec("PRAGMA busy_timeout = 250; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;");
     const version = db.prepare("PRAGMA user_version").get()?.user_version;
-    if (version !== 0 && version !== 1) throw new Error("Unsupported booking simulation schema");
+    if (version !== 0 && version !== 1 && version !== 2) throw new Error("Unsupported booking simulation schema");
     if (version === 0) {
       if (db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").get()) {
         throw new Error("Refusing nonempty unversioned booking database");
@@ -111,6 +122,18 @@ export function openBookingSimulation(path: string, options: {
     }
     db.prepare("SELECT id, customer, record FROM simulated_bookings LIMIT 0");
     db.prepare("SELECT id, customer, payload, scenario, outcome FROM simulated_dispatch LIMIT 0");
+    if (version === 0 || version === 1) {
+      db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE simulated_conversations (id TEXT PRIMARY KEY, customer TEXT NOT NULL,
+          issuer TEXT NOT NULL, subject TEXT NOT NULL) STRICT;
+        PRAGMA user_version = 2; COMMIT;`);
+    }
+    for (const row of db.prepare("SELECT id, customer, issuer, subject FROM simulated_conversations").all()) {
+      assertAgentIdentity(row);
+      scope(row.customer, String(row.id));
+      if (typeof row.id !== "string" || !row.id.startsWith("synthetic-") ||
+          !uuid.test(row.id.slice("synthetic-".length))) throw new Error("Corrupt simulation conversation");
+    }
     if (db.prepare("PRAGMA quick_check").get()?.quick_check !== "ok") throw new Error("Corrupt booking database");
     for (const row of db.prepare("SELECT id, customer, record FROM simulated_bookings").all()) {
       const record: unknown = JSON.parse(String(row.record));
@@ -125,7 +148,7 @@ export function openBookingSimulation(path: string, options: {
   }
   function read(customer: string, id: string): SimulatedBooking {
     scope(customer);
-    if (!uuid.test(id)) throw new BookingSimulationError("Invalid operation ID");
+    if (!uuid.test(id)) throw new BookingSimulationInputError("Invalid operation ID");
     const row = db.prepare("SELECT record FROM simulated_bookings WHERE customer = ? AND id = ?").get(customer, id);
     if (!row) throw new BookingSimulationError("Booking operation not found in customer scope");
     const value: unknown = JSON.parse(String(row.record));
@@ -188,9 +211,9 @@ export function openBookingSimulation(path: string, options: {
       read(String(row.customer), String(row.id));
     }
   } catch (error) { db.close(); throw error; }
-  return {
+  const store = {
     create(customer: string, conversation: string, input: unknown) {
-      if (typeof conversation !== "string") throw new BookingSimulationError("Synthetic conversation required");
+      if (typeof conversation !== "string") throw new BookingSimulationInputError("Synthetic conversation required");
       scope(customer, conversation);
       const details = journey(customer, input);
       return transaction(() => {
@@ -204,18 +227,20 @@ export function openBookingSimulation(path: string, options: {
       });
     },
     read,
-    edit(customer: string, id: string, input: unknown) {
+    edit(customer: string, id: string, input: unknown, expectedRevision?: number) {
       const details = journey(customer, input);
       return transaction(() => {
         const b = read(customer, id);
+        if (expectedRevision !== undefined && expectedRevision !== b.revision) throw new BookingSimulationError("Current revision required");
         if (!["collecting", "awaiting confirmation"].includes(b.state)) throw new BookingSimulationError("Submitted payload is immutable");
         b.details = details; b.summary = summary(details); b.revision++; b.confirmedRevision = null;
         return transition(b, "collecting", "draft_edited");
       });
     },
-    review(customer: string, id: string) {
+    review(customer: string, id: string, expectedRevision?: number) {
       return transaction(() => {
         const b = read(customer, id);
+        if (expectedRevision !== undefined && expectedRevision !== b.revision) throw new BookingSimulationError("Current revision required");
         if (b.state !== "collecting") throw new BookingSimulationError("Draft is not collecting");
         return transition(b, "awaiting confirmation", "summary_presented");
       });
@@ -228,10 +253,11 @@ export function openBookingSimulation(path: string, options: {
         return transition(b, "awaiting confirmation", "explicit_confirmation");
       });
     },
-    submit(customer: string, id: string, scenario: SimulationCase) {
-      if (!scenarios.includes(scenario)) throw new BookingSimulationError("Invalid simulation case");
+    submit(customer: string, id: string, scenario: SimulationCase, expectedRevision?: number) {
+      if (!scenarios.includes(scenario)) throw new BookingSimulationInputError("Invalid simulation case");
       const b = transaction(() => {
         const current = read(customer, id);
+        if (expectedRevision !== undefined && expectedRevision !== current.revision) throw new BookingSimulationError("Current revision required");
         if (["accepted", "rejected", "outcome unknown"].includes(current.state)) return current;
         if (current.state !== "awaiting confirmation" || current.confirmedRevision !== current.revision) {
           throw new BookingSimulationError("Confirm current revision or reconcile pending submission");
@@ -266,9 +292,91 @@ export function openBookingSimulation(path: string, options: {
       });
     },
     handover(customer: string, id: string, reason: "caller_disconnected" | "human_requested" | "unsupported_request") {
-      if (!["caller_disconnected", "human_requested", "unsupported_request"].includes(reason)) throw new BookingSimulationError("Invalid handover reason");
+      if (!["caller_disconnected", "human_requested", "unsupported_request"].includes(reason)) throw new BookingSimulationInputError("Invalid handover reason");
       return { ...read(customer, id), handoverReason: reason };
     },
     close() { db.close(); },
   };
+  return {
+    ...store,
+    forOwner(identity: AgentIdentity) {
+      assertAgentIdentity(identity);
+      const owner = { ...identity };
+      scope(owner.customer);
+      function conversation(id: string) {
+        if (!db.prepare(`SELECT 1 FROM simulated_conversations
+            WHERE id = ? AND customer = ? AND issuer = ? AND subject = ?`)
+          .get(id, owner.customer, owner.issuer, owner.subject)) {
+          throw new BookingSimulationOwnershipError("Simulation resource not found in owner scope");
+        }
+      }
+      function operation(id: string) {
+        if (!uuid.test(id)) throw new BookingSimulationOwnershipError("Simulation resource not found in owner scope");
+        const row = db.prepare(`SELECT b.record FROM simulated_bookings b
+          JOIN simulated_conversations c ON c.id = json_extract(b.record, '$.conversation')
+            AND c.customer = b.customer
+          WHERE b.id = ? AND c.customer = ? AND c.issuer = ? AND c.subject = ?`)
+          .get(id, owner.customer, owner.issuer, owner.subject);
+        if (!row) throw new BookingSimulationOwnershipError("Simulation resource not found in owner scope");
+        return read(owner.customer, id);
+      }
+      return {
+        createConversation() {
+          return transaction(() => {
+            const id = `synthetic-${randomUUID()}`;
+            if (db.prepare("SELECT 1 FROM simulated_bookings WHERE json_extract(record, '$.conversation') = ?").get(id)) {
+              throw new Error("Simulation conversation ID collision");
+            }
+            db.prepare("INSERT INTO simulated_conversations VALUES (?, ?, ?, ?)").run(
+              id, owner.customer, owner.issuer, owner.subject);
+            return { simulation: true as const, customer: owner.customer, conversation: id };
+          });
+        },
+        list() {
+          return db.prepare(`SELECT id FROM simulated_conversations
+            WHERE customer = ? AND issuer = ? AND subject = ? ORDER BY id`)
+            .all(owner.customer, owner.issuer, owner.subject).map((row) => {
+              const id = String(row.id);
+              const operations = db.prepare(`SELECT id FROM simulated_bookings
+                  WHERE customer = ? AND json_extract(record, '$.conversation') = ? ORDER BY id`)
+                .all(owner.customer, id).map((entry) => {
+                  const b = operation(String(entry.id));
+                  return { id: b.id, state: b.state, revision: b.revision };
+                });
+              return { simulation: true as const, customer: owner.customer, conversation: id, operations };
+            });
+        },
+        create(id: string, input: unknown) {
+          conversation(id);
+          return store.create(owner.customer, id, input);
+        },
+        read: operation,
+        edit(id: string, input: unknown, revision: number) {
+          operation(id);
+          return store.edit(owner.customer, id, input, revision);
+        },
+        review(id: string, revision: number) {
+          operation(id);
+          return store.review(owner.customer, id, revision);
+        },
+        confirm(id: string, revision: number) {
+          operation(id);
+          return store.confirm(owner.customer, id, revision);
+        },
+        submit(id: string, scenario: SimulationCase, revision: number) {
+          operation(id);
+          return store.submit(owner.customer, id, scenario, revision);
+        },
+        reconcile(id: string) {
+          operation(id);
+          return store.reconcile(owner.customer, id);
+        },
+        handover(id: string, reason: Parameters<typeof store.handover>[2]) {
+          operation(id);
+          return store.handover(owner.customer, id, reason);
+        },
+      };
+    },
+  };
 }
+export type BookingSimulationStore = ReturnType<typeof openBookingSimulation>;

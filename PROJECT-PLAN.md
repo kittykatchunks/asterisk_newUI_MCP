@@ -408,7 +408,8 @@ do not add a framework, service or vendor dependency.
 
 #### Finite workspace acceptance checklist
 
-All SW checks are **pending implementation and execution**. The completed BS
+The SW checklist is **not yet complete**. Backend foundation evidence is recorded
+below; browser/launcher and real-identity checks remain pending. The completed BS
 checks remain required regression coverage, not evidence for this new surface.
 
 | ID | Required evidence |
@@ -429,6 +430,40 @@ checks remain required regression coverage, not evidence for this new surface.
 Stop after SW-01 through SW-12 evidence or an explicit blocker. This closes only a
 synthetic browser exercise, not live calling, real dispatch, Milestone 1 or production
 readiness. Voice integration remains a separately authorised next decision.
+
+#### Executed workspace foundation evidence
+
+The first implementation increment adds explicit `booking:simulate` membership
+validation, persistent issuer/subject/customer-owned conversations and a narrow
+session-only HTTP adapter. It does not yet supply a browser page, eligible agent
+navigation, simulation login/return workspace or local-launcher opt-in. Existing
+startup remains disabled for simulation; embedded-server callers must explicitly
+supply a dedicated simulation store and application-session configuration.
+See [API contract and reproduction](./README.md#authenticated-simulation-api-foundation).
+
+| Checks | Actual foundation evidence and remaining scope |
+|---|---|
+| SW-01 | Access tests require explicit membership and deny support/token-role authority. API tests deny agent-only, simulation-only and diagnostics-only users. Missing store is explicitly disabled; store without sessions fails startup. Navigation/login/launcher wiring is pending. |
+| SW-02 | HTTP tests deny no-session/bearer-only requests, customer substitution, missing CSRF, foreign origin, cross-site mutations and mixed bearer/session credentials. Logout during an awaited audit fences mutation. Existing application-session regression passes; real-identity workspace proof remains pending. |
+| SW-03 | Ownership and HTTP tests deny foreign customers and different same-customer agents across list/read/create/edit/review/confirm/submit/reconcile/handover. Ownership survives reopen and a new login for the same identity. Schema-1 migration preserves unowned harness records without adopting them. |
+| SW-04 | HTTP tests enforce strict bodies, no client-supplied owner/customer/conversation, synthetic journey validation and the exact 2,048-byte/2,049-byte boundary. Output is explicitly simulated and non-cacheable. Fixed browser choices/notice and browser traffic assertions are pending. |
+| SW-05 | Edit/review/submit require the displayed revision; confirmation remains revision-bound. A submit held at the audit boundary is rejected after another tab edits and confirms a newer revision, with zero effects. Browser controls remain pending. |
+| SW-06/07 | HTTP/domain tests cover four outcomes, repeat submission, same-conversation replacement fencing, discarded creation receipts recovered through owner listing, reopen/new-session recovery, and explicit reconciliation. Actual transport-loss browser UX remains pending. |
+| SW-08 | HTTP handover preserves unknown outcome after disconnect; domain regressions retain truthful handover semantics. Browser handover presentation remains pending. |
+| SW-09/11 | Existing session logout/rotation regressions pass; no new simulation browser has been implemented or tested. UI data clearing, response fencing, explicit resume and keyboard/status/traffic checks remain pending. |
+| SW-10 | Persistent audit gates reads and mutation intents; tests inject failed audits, logout during audit, unexpected failure after effect commit and stored-data corruption. Operation correlation survives audit schema-2-to-3 migration and backup/restore. Intent is explicitly not completion; browser error display remains pending. |
+| SW-12 | Typecheck and 60 focused tests pass, including all eight BS tests and existing access, session, device HTTP and diagnostic storage/backup regressions. Six new owner/HTTP tests are included. Browser and real Keycloak launcher/session proof for the new surface remain unverified. |
+
+Simulation schema 2 adds ownership without granting access to legacy records.
+Diagnostic schema 3 adds nullable booking-operation audit correlation; its backup
+reader accepts old schemas as well as the new schema without changing manifest
+format 2. Tests clean temporary databases and loopback identity servers. No
+dependencies, live vendor calls, phone capabilities or services left running were
+introduced; the frozen REFER suite was not expanded or rerun.
+
+Next bounded increment: wire explicit local-launcher opt-in and simulation
+login/navigation, then implement the synthetic browser interactions and execute
+the remaining SW evidence. Do not mark the whole workspace complete from API tests.
 
 ## 6. Interface and roaming agents
 

@@ -28,7 +28,7 @@ async function digest(path: string): Promise<string> {
 
 function inspect(db: DatabaseSync) {
   const schema = db.prepare("PRAGMA user_version").get()?.user_version;
-  if (schema !== 1 && schema !== 2) {
+  if (schema !== 1 && schema !== 2 && schema !== 3) {
     throw new Error("Unsupported diagnostic backup schema");
   }
   const checks = db.prepare("PRAGMA integrity_check").all();
@@ -43,11 +43,12 @@ function inspect(db: DatabaseSync) {
     if (entry.customer !== row.customer || entry.summary.id !== row.incident) {
       throw new Error("Stored incident provenance mismatch");
     }
-    if (schema === 2) assertIncidentApproval(db, entry.customer, entry.summary.id, row.entry);
+    if (schema === 2 || schema === 3) assertIncidentApproval(db, entry.customer, entry.summary.id, row.entry);
     incidents++;
   }
   db.prepare(`SELECT sequence, request_id, timestamp, customer, subject, outcome, status,
     basis, operation, incident FROM access_audit LIMIT 0`);
+  if (schema === 3) db.prepare("SELECT booking_operation FROM access_audit LIMIT 0");
   const auditRecords = db.prepare("SELECT count(*) AS total FROM access_audit").get()?.total;
   if (typeof auditRecords !== "number" || !Number.isSafeInteger(auditRecords)) {
     throw new Error("Invalid diagnostic audit count");

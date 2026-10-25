@@ -106,6 +106,28 @@ async function access(customer: string, bearer?: string) {
   });
 }
 
+test("simulation authority requires explicit membership and cannot come from support grants or token roles", async () => {
+  const permissions = ["agent:access", "booking:simulate"] as const;
+  const now = Date.now() / 1000;
+  const verify = createAccessVerifier({ ...config,
+    memberships: [
+      { issuer, subject: "alice", customer: "customer-a", permissions },
+      { issuer, subject: "agent", customer: "customer-a", permissions: ["agent:access"] },
+    ],
+    supportGrants: ["engineer", "agent"].map((subject) => ({
+      issuer, subject, customer: "customer-a", permissions, startsAt: now - 1, expiresAt: now + 120,
+      reason: "Synthetic", contractReference: "Synthetic",
+    })),
+  });
+  for (const permission of permissions) {
+    assert.equal((await verify(`Bearer ${await token("alice")}`, "customer-a", permission)).allowed, true);
+    assert.equal((await verify(`Bearer ${await token("alice")}`, "customer-b", permission)).allowed, false);
+    assert.equal((await verify(`Bearer ${await token("engineer")}`, "customer-a", permission)).allowed, false);
+  }
+  assert.equal((await verify(`Bearer ${await token("agent")}`, "customer-a", "booking:simulate")).allowed, false,
+    "Agent membership plus a support simulation grant is still insufficient");
+});
+
 test("persistent audit commit gates report bytes and storage failures return 503", async () => {
   const directory = await mkdtemp(join(tmpdir(), "asterisk-api-store-"));
   const path = join(directory, "diagnostics.sqlite");

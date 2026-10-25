@@ -74,7 +74,7 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
   try {
     db.exec("PRAGMA busy_timeout = 250; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;");
     const version = db.prepare("PRAGMA user_version").get()?.user_version;
-    if (version !== 0 && version !== 1 && version !== 2) throw new Error("Unsupported diagnostic database version");
+    if (version !== 0 && version !== 1 && version !== 2 && version !== 3) throw new Error("Unsupported diagnostic database version");
     if (version === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").get()) {
       throw new Error("Refusing to initialise a nonempty unversioned database");
     }
@@ -144,6 +144,12 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
     db.exec("PRAGMA foreign_keys = ON");
     db.prepare("SELECT id, customer, incident, entry, sha256, staged_at FROM report_candidates LIMIT 0");
     db.prepare("SELECT candidate, decision, reviewer, reason, sha256, decided_at FROM incident_reviews LIMIT 0");
+    if (version !== 3) {
+      db.exec(`BEGIN IMMEDIATE;
+        ALTER TABLE access_audit ADD COLUMN booking_operation TEXT;
+        PRAGMA user_version = 3; COMMIT;`);
+    }
+    db.prepare("SELECT booking_operation FROM access_audit LIMIT 0");
   } catch (error) {
     db.close();
     throw error;
@@ -162,10 +168,11 @@ export function openDiagnosticStore(path: string): DiagnosticStore {
   };
   const persistAudit = (event: AccessAudit) => {
     db.prepare(`INSERT INTO access_audit
-      (request_id, timestamp, customer, subject, outcome, status, basis, operation, incident)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      (request_id, timestamp, customer, subject, outcome, status, basis, operation, incident, booking_operation)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       event.requestId, event.timestamp, event.customer ?? null, event.subject ?? null,
       event.outcome, event.status, event.basis ?? null, event.operation ?? null, event.incident ?? null,
+      event.bookingOperation ?? null,
     );
   };
   return {

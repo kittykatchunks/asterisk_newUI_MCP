@@ -800,9 +800,14 @@ explicit uncertain-outcome reconciliation.
 now closes this bounded in-process checklist; it does not include voice or UI.
 The selected follow-on is the
 [authenticated simulation workspace](./PROJECT-PLAN.md#selected-next-increment-authenticated-simulation-workspace).
-Its SW-01 through SW-12 checklist is specified but unimplemented/unverified:
+Its SW-01 through SW-12 checklist remains open:
 separate simulation permission, verified session/CSRF, persistent per-agent
 ownership, explicit confirmation/recovery and synthetic-only browser controls.
 Existing `agent:access` alone will not authorise it; phone capabilities stay disabled.
+The [backend foundation evidence](./PROJECT-PLAN.md#executed-workspace-foundation-evidence)
+now records explicit grants, persistent per-agent ownership, session/CSRF-protected
+HTTP operations and revision/recovery/audit checks (60 focused tests and typecheck).
+Simulation browser controls, navigation/login/launcher wiring and real-identity
+workspace validation remain pending; API evidence does not close those gates.
 This parallel business-workflow increment does not waive unfinished M1 calling,
 isolation, publication or production-readiness gates.

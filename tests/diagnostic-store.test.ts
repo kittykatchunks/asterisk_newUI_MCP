@@ -79,6 +79,39 @@ test("pending report summaries are allowlisted, customer-scoped and detached fro
   });
 });
 
+test("schema-2 audit migration preserves old rows and backup/restore retains simulation correlation", async () => {
+  await fixture(async (path) => {
+    const original = openDiagnosticStore(path);
+    await original.audit(event("legacy-request"));
+    original.close();
+    const legacy = new DatabaseSync(path);
+    legacy.exec("ALTER TABLE access_audit DROP COLUMN booking_operation; PRAGMA user_version = 2;");
+    legacy.close();
+    // Existing schema-2 backups remain readable, and restored stores migrate on open.
+    const oldBackup = await backupDiagnosticStore(path, dirname(path));
+    const oldRestore = await restoreDiagnosticStore(oldBackup, dirname(path));
+    const restoredLegacy = openDiagnosticStore(oldRestore);
+    restoredLegacy.close();
+    const migrated = openDiagnosticStore(path);
+    const operationId = "12345678-1234-1234-1234-123456789abc";
+    try {
+      await migrated.audit({ ...event("simulation-request"), incident: undefined,
+        operation: "booking-simulation", outcome: "simulation_submit_requested", bookingOperation: operationId });
+    } finally { migrated.close(); }
+    const snapshot = await backupDiagnosticStore(path, dirname(path));
+    const restored = await restoreDiagnosticStore(snapshot, dirname(path));
+    const reader = new DatabaseSync(restored, { readOnly: true });
+    try {
+      assert.equal(reader.prepare("PRAGMA user_version").get()?.user_version, 3);
+      const rows = reader.prepare("SELECT request_id, booking_operation FROM access_audit ORDER BY sequence").all();
+      assert.deepEqual(rows.map((row) => ({ ...row })), [
+        { request_id: "legacy-request", booking_operation: null },
+        { request_id: "simulation-request", booking_operation: operationId },
+      ]);
+    } finally { reader.close(); }
+  });
+});
+
 test("staging batches are atomic, validated, insert-only and customer-keyed", async () => {
   await fixture(async (path) => {
     const store = openDiagnosticStore(path);
@@ -535,7 +568,7 @@ test("staged and rejected reports stay hidden; approvals bind the exact reviewed
         assert.equal(await store.catalog.report("customer-a", entry().summary.id), html);
         const reader = new DatabaseSync(recoveredPath, { readOnly: true });
         try {
-          assert.equal(reader.prepare("PRAGMA user_version").get()?.user_version, 2);
+          assert.equal(reader.prepare("PRAGMA user_version").get()?.user_version, 3);
           assert.equal(reader.prepare("SELECT request_id FROM access_audit").get()?.request_id, "legacy-request");
         } finally { reader.close(); }
       } finally { store.close(); }
