@@ -2050,6 +2050,185 @@ QO-07 build closure, all QO execution, exact verification, full CP and M1-09
 remain open. Only documentation consistency, source-hash checks and diff hygiene
 are validation for this increment; no getter or contention result is claimed.
 
+##### Selected AO2 design: budgeted borrowed traversal
+
+The user selected **`design-ao2-bounded-traversal`**, explicitly expanding the
+**design only** boundary into AO2 ownership. No source patch, API implementation,
+dependency install, image build or PBX execution is authorized. This proposes
+a way to close the hidden-traversal gap; it is **not an implemented or measured
+closure of QO-03**. Earlier source findings and stock unsupported reports remain
+valid. The ordinary iterator/callback fallback is not acceptable.
+
+Review re-read `astobj2.h`, `astobj2.c`, `astobj2_container.c` and
+`astobj2_hash.c` at commit `874768141f94bc03865cc746eee1c7669e3c46d5`;
+their hashes match the feasibility table. Additional reviewed owner source:
+`main/astobj2_container_private.h`, SHA-256
+`8575504472f8058c6ca7de662206d0a978efec80303d2efbdf605087dc485dc0`.
+This header defines container/node ownership and the private methods table.
+`astobj2_hash.c:35-76` owns physical bucket/node links;
+`1002-1089` owns hash type identification and allocation. An AO2 list shares
+that hash implementation with one bucket; it is not a separate runtime type.
+These are source facts, not build provenance.
+
+**Proposed narrow owner API (names provisional):**
+
+`ao2_container_visit_bounded_v1(container, limits, visitor, context, result)`
+
+- Declaration/types belong in the public AO2 header; the implementation belongs
+  inside the hash owner. Identify its own methods table before interpreting
+  hash storage. No new generic vtable slot, AO2/node layout change or copied
+  private struct in app_queue is needed by this design. Existing API behavior
+  remains unchanged. No hash/sort/compare hook, existing traversal method,
+  iterator, stats formatter or integrity traversal is called by the new walk.
+- Accept only the pinned hash-family container with a **direct mutex**:
+  reject RW, no-lock, delegated-lock and other container implementations.
+  Check the complete lock-kind mask (`astobj2.h:363-378`), not whether an
+  options word is nonzero; the mutex kind's value is zero and other option
+  bits can coexist. `ao2_options_get` is the existing owner API.
+  A one-bucket list may be supported as the same family, but app_queue's global
+  queue container is specifically the known 53-bucket hash.
+- The API owns one `ao2_trylock` and matching unlock, with **no retry, blocking
+  lock, promotion, recursive traversal or caller-lock flag**. Its precondition
+  is that the calling thread does not already hold this container mutex;
+  Asterisk mutexes are recursive, so try-lock alone cannot detect violation.
+  Only the reviewed top-level getter call site may use this path initially.
+  The caller must already guarantee container and containing-module lifetime
+  for the entire call. The API does not acquire/release a container reference
+  to manufacture that guarantee.
+- `limits` is a fixed typed set of three positive integer budgets:
+  `maxBuckets`, `maxPhysicalNodes`, `maxObjects`. Proposed v1 hard ceilings are
+  **64 / 128 / 64**, respectively, with caller values no greater than those
+  ceilings. Zero, overflow/out-of-range values, null required arguments or
+  unknown API versions are `invalid` before lock acquisition. No flags,
+  predicate, arbitrary search key, resume cursor or output allocation.
+  This small fixed ceiling is intentional for the owned proof, not a new
+  general-purpose production inventory API.
+- `result` is caller-owned fixed storage, initialized before any attempt:
+  API version, terminal status, and unsigned counters `bucketsVisited`,
+  `physicalNodesVisited`, `objectsVisited`. No pointer, name, object data,
+  destructor token or resumable state is returned. Counts are internal test/
+  diagnostic facts, not extra fields in the queue CLI protocol.
+
+**Budget charging and completion (normative proposal):**
+
+1. Validate well-formed typed arguments and supported immutable container kind.
+   A live AO2 container is a caller precondition, not an arbitrary-pointer
+   validator. A well-formed but unsupported kind returns `unsupported`.
+   A contended try-lock returns `busy` with zero counters; a non-contention
+   lock failure is `internal`, not disguised as busy or empty inventory.
+2. Under the mutex, reject destruction/inconsistent owner state, including a
+   nonpositive bucket count or negative live count. If declared
+   bucket count exceeds `maxBuckets` or atomic live count exceeds `maxObjects`,
+   return `limit` without walking. An empty live count **does not permit an
+   early complete result**: physical retained nodes still need bounded traversal.
+3. Walk buckets forward by index. Charge one bucket **before** reading that
+   bucket's head, including an empty bucket. Before dereferencing any non-null
+   node cursor, check the remaining physical-node budget, then charge one node.
+   Empty retained nodes consume the same unit as live ones. A node unit covers
+   a fixed number of owner-field reads, including its next link; no internal
+   "skip empty nodes" loop is outside the budget.
+4. For a non-null stored object, check/charge `maxObjects` before invoking the
+   visitor. For this stable walk the final live-visit count must equal the
+   initial live count, or return `internal`; the equality check is not a
+   substitute for visiting every physical node. All arithmetic is checked or
+   proven below the small fixed ceilings; no counter wraps or clamping.
+5. Each visitor returns only `continue` or `abort`. An invalid callback return
+   is `internal`. `abort` is always **incomplete**, never successful early
+   termination. No `CMP_MATCH`, object return, ownership transfer or unlink.
+   On abort stop immediately; do not read the next node to tidy up a cursor.
+   The visitor's bounded context can retain a queue-specific failure code,
+   but no borrowed object pointer.
+6. The raw node cursor remains valid because the mutex is held and the visitor
+   is forbidden to mutate container membership or node ownership. The API
+   takes **no node/object/container references**, creates no iterator/result
+   container and performs no node cleanup, allocation, free or destructor call.
+   Pending external iterator cleanup cannot change links until this mutex is
+   released. No physical-node count preflight or AO2_DEBUG statistic is needed.
+7. Only reaching the actual end of **all** declared buckets, with consistent
+   live counts and every visitor continuing, yields `complete`. Budget equality
+   alone is not an error: exactly 128 nodes is complete if traversal really ends
+   there; a non-null next cursor requires `limit` **before** examining node 129.
+   Exactly 64 objects may likewise complete, while any attempted object 65 is
+   denied before its visitor. Empty remaining buckets still consume bucket
+   budget. No post-limit drain, second pass, resume or retry-to-green.
+8. On every acquired-lock path, perform one matching unlock; on busy/invalid/
+   unsupported pre-lock paths, none. No deferred cursor/ref cleanup survives
+   the return. Unlock failure is `internal` and cannot publish observed output;
+   normal argument/contention/limit errors do not require logging under the
+   mutex. Repository-standard diagnostics/output belong after normal unlock.
+   Catastrophic invalid pointers or broken mutexes are not recoverable safety
+   guarantees of this API.
+
+This bounds **AO2 walk work**, not arbitrary callback execution, scheduler
+latency, page faults or wall-clock real-time behavior. Even corrupt cyclic links
+cannot cause an unbounded loop if every node iteration is charged, but this is
+not memory-corruption hardening or permission to dereference invalid storage.
+Only valid owner-managed containers and a reviewed conforming visitor are in
+scope. Try-lock/unlock wrapper instrumentation remains part of the build review.
+
+**Visitor and queue integration contract:**
+
+The visitor is trusted C code, not a plugin/user callback. AO2 cannot enforce
+its behavioral contract from a function pointer. It must not mutate/unlink/
+relink the visited container, reenter its APIs, release ownership, retain raw
+pointers, block, allocate/free, log, serialize, access files/DB/devices/channels,
+or invoke other application operations. The single permitted application
+callback is this bounded fact-copy visitor itself; earlier prohibitions on
+application callbacks mean **no further application callback invocation**.
+It may perform explicitly reviewed try-lock-only access to subordinate objects.
+No generic API claim that arbitrary visitors are safe is made.
+
+For app_queue, the candidate passes exactly 64/128/64 budgets and uses the
+static-field matrix above. It prepares eight fixed rows, validates at most 97
+name bytes per visited queue (at most **6,208** bytes across 64 visitors), selects
+case-folded baseline/reserved matches and rejects unsafe/colliding names.
+Selected-object overflow aborts before attempting locks for a ninth row.
+For at most eight selected queues it checks direct mutex kinds, tries queue
+then member-container locks once, rejects realtime before reading retirement
+facts, copies the bounded fields and unwinds these locks before returning.
+At most **17 acquisition attempts** occur: one global plus two per selected
+queue. No member/caller traversal, individual member locks or queue ref changes.
+Name comparisons, policy mapping and duplicate checks also need explicit fixed
+loop bounds; byte-length limits do not license unbounded library string calls.
+
+Only `complete` plus no queue-specific error permits the existing sorted 8 KiB
+DTO after global unlock. AO2 `busy` maps to queue `busy`, budget exhaustion to
+`limit`, unsupported container kind to `unsupported-state`, malformed invocation
+to `invalid-request`, and consistency/lock/visitor-contract faults to `internal`.
+Visitor abort uses its explicit validated queue error; a missing/unknown error
+is `internal`. Any partial row buffer is discarded, never serialized as observed.
+No extra global inventory counters, foreign names or internal pointers enter
+the CLI response. Existing getter schema/mask mapping can remain the proposal;
+the build manifest must additionally pin the AO2 API/budget profile. No old
+report/binding is upgraded, and no fallback to ordinary AO2 traversal exists.
+
+**Planned AO2 acceptance (all unexecuted, prerequisite to QO-03):**
+
+| Check | Required measurable result |
+|---|---|
+| AT-01 | Invalid/zero/overflow/over-ceiling limits and null arguments reject before locks; hash/list family and direct-mutex checks reject unsupported kinds without private caller casts or fallback. |
+| AT-02 | Cross-thread held container returns busy with zero visits; each acquired path unlocks once, no recursive call-site use or spin. Lock/unlock internal errors never verify. |
+| AT-03 | Zero buckets reject as inconsistent; 1/53/64 buckets and empty bucket chains charge exact steps; over-budget bucket count rejects before scanning. Empty live count does not hide retained nodes. |
+| AT-04 | Retained-empty-node fixtures at 127/128/129 prove all physical work is counted, exact-boundary completion and refusal before examining node 129; no cleanup scan after limit. |
+| AT-05 | Live counts at 63/64/65 and mixed empty/live/collision nodes prove callback ceilings, consistency checks and no implicit comparator/hash callback or unbudgeted skip loop. |
+| AT-06 | Visitor abort at first/middle/final object and invalid returns produce incomplete/internal status, discard partial rows and leave no cursor, ref, lock or allocation to clean later. |
+| AT-07 | Instrumented node/object/container ref, allocation/free/destructor and mutation counters remain unchanged by traversal; retirement/unlink waits for the bounded-work locked sample and cannot transfer final queue cleanup to the reader. |
+| AT-08 | Queue/member contention, eight/nine selected rows, 96/97-byte names, case collisions, realtime/dead and protocol errors enforce exact callback work/lock bounds and no private output. |
+| AT-09 | Source/profile plus instrumented tests cover lock wrappers, no debug/reference-log traversal side effects, and module/container use lifetime including handler shutdown; no unproven runtime latency claim. |
+| AT-10 | Existing AO2 iterator/callback/list/hash regressions and planned QO tests pass in the separately approved full custom build; ABI/source/image/profile provenance and owned cleanup are verified. |
+
+**Outcome and remaining gates:** a physical-node/bucket charged raw walk inside
+the AO2 hash owner offers a concrete design route past the hidden traversal
+problem **without weakening its bound**. It changes the proposed source surface
+from app_queue-only to AO2 public API plus hash owner plus app_queue; it remains
+unimplemented and not accepted upstream. Caller/module lifetime, the restricted
+visitor, lower-level instrumentation, the exact source patch and all AT/QO
+tests still need implementation review and proof. The candidate supersedes
+ordinary `ao2_callback` as the proposed queue integration, not as existing code.
+QO-03 is not passed, QO-07 build closure is unresolved, and no full CP/M1-09
+gate is closed. Next requires explicit implementation scope and separate pinned
+dependency/resource/build approval; this design alone grants none of them.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

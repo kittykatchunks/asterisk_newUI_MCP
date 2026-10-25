@@ -2070,6 +2070,34 @@ explicit scope decision, or getter work must be deferred. No source patch,
 dependency install, image build, PBX command, QO execution or gate closure
 occurred. The existing stock unsupported behavior remains unchanged.
 
+#### Selected AO2 bounded-traversal design: not implemented
+
+User selected **`design-ao2-bounded-traversal`**, expanding **design only** into
+AO2 ownership. The [owner API contract](./PROJECT-PLAN.md#selected-ao2-design-budgeted-borrowed-traversal)
+proposes a new hash-family/direct-mutex visitor API with one try-lock and
+explicit bucket, physical-node and live-object budgets, capped at **64/128/64**.
+Every empty retained node is charged inside the owner; no ordinary iterator/
+callback skipping, returned references, allocation, destructor, resume or retry.
+An exactly exhausted budget can succeed only if the actual full traversal ends.
+Visitor abort and any limit/error are incomplete, never partial green inventory.
+
+The queue integration uses one restricted borrowed-pointer fact-copy visitor,
+at most eight selected rows and 17 global/queue/member acquisition attempts.
+Global membership stays stable; static fields use the prior lock matrix.
+No queue pointer escapes, and serialization happens after unlock. Callback
+behavior, module/container lifetime and lower-level wrappers are explicit proof
+obligations, not properties enforced by an arbitrary C function pointer.
+
+**AT-01 through AT-10 are planned/unexecuted prerequisites to QO-03**, covering
+exact node/bucket/object boundaries, retained nodes, contention, all abort/cleanup
+paths, reference/mutation counters, restricted queue integration, lifetime and
+stock regressions. This is a concrete design route past the traversal gap, not
+an implemented API, runtime latency measurement or accepted upstream change.
+The custom source boundary would now include the public AO2 header/hash owner
+and app_queue. No source patch/install/build/PBX was performed. QO-03/QO-07,
+all QO execution, publication verification, full CP and M1-09 remain open;
+implementation and build/resource approval are still separate decisions.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

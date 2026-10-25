@@ -342,6 +342,17 @@ strict traversal bound. Further work would require a separately approved
 AO2-owned budgeted traversal/node-bound design, or deferral of this getter.
 No app_queue/AO2 patch, build, installation or runtime test was performed.
 
+The user then authorized **AO2 API design only**. The
+[budgeted borrowed-traversal contract](./PROJECT-PLAN.md#selected-ao2-design-budgeted-borrowed-traversal)
+proposes counting bucket/physical-node/live-object work **inside** AO2, including
+empty retained nodes, with ceilings **64/128/64**, one try-lock, no returned
+references and explicit incomplete/error outcomes. A restricted queue visitor
+could then copy facts under stable membership without the hidden skip loop.
+**AT-01 through AT-10 are planned, not executed.** This expands the proposed
+patch surface but does not authorize implementation/build or claim QO-03 passed.
+Module lifetime, visitor safety, build provenance and all runtime proof remain
+gates; the stock inspector and publication block are unchanged.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
