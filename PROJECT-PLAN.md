@@ -2,9 +2,10 @@
 
 Planning baseline: 22 October 2026.
 
-Status: planning with an initial local Asterisk runtime and authenticated SIP/RTP
-proof implemented. No management web application, production deployment, or capacity
-claim has been validated. See the README for executed tests and limitations.
+Status: planning with local Asterisk/authenticated SIP/RTP proofs and bounded
+authenticated prototype workspaces. No complete production management platform,
+enabled live agent phone or capacity claim has been validated. See the README
+for executed tests and limitations.
 
 ## 1. Purpose
 
@@ -942,6 +943,57 @@ The agreed ten-test batch is complete; stop before expanding scope. Human
 service, service audio, whole-journey outcomes, totals, remote delivery/retention
 and M1-06/07 remain incomplete.
 
+### Milestone checkpoint and current recommendation
+
+Review date: **25 October 2026**, evidence baseline `04bb990`. This documentation
+review supersedes historical "selected next" wording for current priorities,
+without changing past results or authorizing implementation.
+
+The [current gate matrix](./MILESTONE-1.md#milestone-checkpoint-after-the-autonomous-ten-test-batch)
+maps every M1-01 through M1-18 requirement. **17 full gates remain open**;
+M1-10 has a pass only for the selected local conventional echo-route outage
+scope. No percentage-complete or production-ready claim is justified.
+The recent 101 focused tests and real two-customer QA proof establish durable,
+conservative synthetic observations, not all four business outcomes after restart,
+human service, two-way queue-agent audio, recording access or a transfer graph.
+This checkpoint inspects existing evidence; it does not rerun tests or REFER.
+
+The main integration gap is between trusted operator history tools and the
+authenticated application. Raw CEL/queue, manifests, collector/gap provenance
+and immutable v1-v5 projections exist; current-input versus offline reads are
+explicit. They are not a tenant-authorized history service or usable selected-call
+workspace. Existing diagnostic/agent/simulation grants must not implicitly expose
+history. Repeated same-caller/same-queue entry stays ambiguous by design.
+
+Recommended sequence:
+
+1. **Agree then implement a bounded read-only history-evidence workspace.**
+   The proposed HR-01 through HR-10 contract covers opt-in/read-only stores,
+   customer/session/explicit permission and audit boundaries, bounded scope/
+   revision navigation, unmodified legacy documents, honest freshness/gaps,
+   separate observations and hostile-data/error tests. Audience, raw evidence
+   exposure and support grants remain decisions, not assumptions.
+2. **Integrate restart/interruption/replay acceptance** against the fixed
+   scenarios and visible evidence, preserving explicit unknown gaps; distinguish
+   local proof from continuous remote collection/rotation/retention.
+3. **Plan limited route/queue publication** with validation, stale revisions,
+   managed-file drift and owned apply/verify; this is a critical intended-call
+   dependency, not replaced by report approval.
+4. **Explicitly gate browser-agent activation**, then intended queue/media/
+   controls/roaming/error acceptance. Existing reservations do not enable phones.
+5. **Complete recording/engineering/export and combined restore** using agreed
+   storage/access/retention/capture contracts and actual negative disclosures.
+
+These are priorities, not a new authorization to build all five packages.
+Further event interpretation, repeated-visit or transfer joins should be driven
+by an agreed unsupported scenario, not an indefinite synthetic-test cycle.
+No dependency/runtime/permission change, ordinary routing, live phone, production
+collector, voice AI or real Autocab integration is part of this checkpoint.
+
+See the [proposed ten-check HR batch](./MILESTONE-1.md#proposed-hr-batch-read-only-history-evidence-ten-acceptance-checks)
+before selecting the next implementation. M1 startup/capture thresholds,
+production capacity, retention and deployment questions remain unresolved.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:
@@ -1535,6 +1587,12 @@ before declaring these tests passed.
 6. Harden isolation, retention, recovery, multilingual quality, and IONOS deployment.
 
 Next detailed planning work:
+
+**Current priority:** the
+[post-QA milestone checkpoint](#milestone-checkpoint-and-current-recommendation)
+and its proposed read-only history-evidence batch. The sequence below records
+earlier selections/completions, not pending instructions to repeat AW/BS/SW.
+No new implementation or phone activation is authorized by this checkpoint.
 
 Current priority after the final synthetic REFER regression: resume step 3,
 the management and roaming-agent vertical slice. The

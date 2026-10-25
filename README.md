@@ -12,8 +12,29 @@ calling, tenant-isolation, and engineering-evidence proof.
 The [component evaluation](./COMPONENT-EVALUATION.md) records the foundation
 shortlist, upstream sources, and technical proof gates.
 
-Status: planning plus an initial local Asterisk runtime proof. No web application
-or production deployment exists yet.
+Status: planning plus local Asterisk proofs and bounded authenticated prototype
+workspaces. No production management deployment or enabled live agent phone exists.
+
+## Current milestone checkpoint
+
+The 25 October 2026 [gate review](./MILESTONE-1.md#milestone-checkpoint-after-the-autonomous-ten-test-batch)
+maps all 18 M1 requirements after QA completion (`04bb990`).
+**17 full gates remain open**; M1-10 has a recorded pass only for its selected
+local conventional echo-route outage scope. The 101 focused history tests and
+two-customer synthetic queue evidence do not complete the live calling milestone.
+This checkpoint reviewed existing evidence; it did not run new runtime tests.
+
+Recommended next: agree the scope/access policy for a **read-only authenticated
+history-evidence workspace**, then implement the proposed
+[HR-01 through HR-10 batch](./MILESTONE-1.md#proposed-hr-batch-read-only-history-evidence-ten-acceptance-checks).
+Existing CLI scoping is not tenant authorization, and diagnostic/agent/simulation
+permissions must not silently grant history access. Raw evidence exposure and
+support access remain decisions. No implementation is authorized by this review.
+
+The [prioritized plan](./PROJECT-PLAN.md#milestone-checkpoint-and-current-recommendation)
+then sequences integrated restart/replay, route/queue publication, explicitly gated
+browser-agent calling, recording/engineering/export and combined restore.
+Live phones remain disabled, ordinary routing unchanged and REFER frozen.
 
 ## Ten-test batch: pre-connection queue abandonment observations
 

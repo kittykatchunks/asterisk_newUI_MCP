@@ -1518,6 +1518,90 @@ synthetic databases/reports remain. Reproduce with
 The autonomous ten-test batch stops here. No live phones, ordinary routing or
 frozen REFER changes; no human, whole-journey/business outcome or M1-06/07 claim.
 
+### Milestone checkpoint after the autonomous ten-test batch
+
+Review date: **25 October 2026**. Reviewed implementation/evidence baseline:
+`04bb990` (QA completion). This is a documentation checkpoint, **not a new test
+run or a declaration of milestone completion**. It supersedes the earlier
+evidence-gap table for current priorities; historical increment results remain
+valid only within their recorded scopes.
+
+**Gate accounting:** 17 full gates remain open. M1-10 has a recorded pass only
+for its explicitly selected local conventional echo-route scope (MO-01 through
+MO-06), not production resilience or queue/agent outage behavior. No other full
+gate is promoted by the 101 focused history tests or synthetic fixture names.
+The original startup/capture thresholds remain proposed, not newly approved.
+
+| Gate | Current recorded evidence | Remaining acceptance gap / status |
+|---|---|---|
+| M1-01 | Pinned isolated two-PBX startup/health and bounded owned harnesses. | **Open:** complete required-service readiness within the agreed startup threshold; PBX readiness alone is insufficient. |
+| M1-02 | Authenticated echo/media fixtures and automated Local queue members. | **Open:** ten consecutive calls/customer through the intended queue/browser agent with measured two-way audio; automated member ANSWER is not this proof. |
+| M1-03 | Separate runtime resources, credential/API denials and scoped raw/projection reads; simultaneous echo calls. | **Open:** simultaneous intended calls with signalling, media, history and recording disclosure checks in one correlated run. |
+| M1-04 | Frozen REFER transaction/media matrix. | **Open:** actual authorised agent mute, hold/resume, receiver-verified keypad and blind-transfer controls. No REFER rerun is a prerequisite here. |
+| M1-05 | Authenticated assignment/reservation exclusivity, expiry/release and provisioning fixtures. | **Open:** live offers move A to B, correct historical agent/session attribution, explicit assignment conflict; reservation is not phone activation. |
+| M1-06 | HF/QF durable raw evidence; MM manifests/markers; immutable JP v1-v5; QS/QC/QA exact timeout, member-/caller-ended connection/completion and ABANDON observations. Latest real proof retains 82 CEL/11 queue records per customer with replay and prior revisions preserved. | **Open:** all four required outcomes, including transferred calls, with coherent journey/leg/visit accounting and retained expected evidence after restart. Current synthetic queue observations do not prove human service, whole-journey outcomes or a transfer graph. |
+| M1-07 | Independent CEL/queue fenced local-file collectors, stale/failure state, atomic replay/checkpoints, permanent replacement gaps and projection coverage warnings. | **Open:** integrated interruption/recovery against full wording with visible gaps in the intended workflow. Current one-shot/bounded copied-file collection is not continuous remote PBX delivery, automated rotation or production collector lifecycle. |
+| M1-08 | Synthetic WAV payload/format and restart/hash fixtures. | **Open:** journey-linked authorised playable assets plus visible upload failure/retry/reconciliation. |
+| M1-09 | Revision/approval patterns in diagnostics and narrow provisioning. | **Open:** validated route/queue draft, stale-revision conflict, apply/verify and external-edit drift handling. Report approval is not configuration publication. |
+| M1-10 | MO real run `run-2KzA6j`: 60.502-second per-customer media observation and fresh conventional calls while the owned management process remained down. | **Selected local scope passed:** conventional echo only; queue/browser-agent, public trunk, identity outage and production failover are not covered. |
+| M1-11 | Operator-scoped customer/incident capture and bounded-duration path. | **Open:** authenticated interactive start/stop and agreed ten-minute/100-MiB hard-limit proof; sampled thresholds are not hard quotas. |
+| M1-12 | Diagnostic packet/CEL reports, inert review preview and separate operator history CLI. | **Open:** complete authenticated selected-call SIP/SDP/directions/legs and explicit missing/truncated/dropped evidence. A proposed projection reader alone will not close this gate. |
+| M1-13 | Encrypted browser signalling/media fixture; packet proof explicitly UDP-only. | **Open:** display encrypted network payload honestly, with separately labelled authorised application signalling. Do not disable encryption. |
+| M1-14 | Frozen synthetic unavailable/unanswered transfer evidence with known limits. | **Open:** selected fault incidents exported through the intended workflow, evidence-cited and without unsupported blame; no automatic expansion of REFER. |
+| M1-15 | Redacted report generation, integrity hashes and permission-controlled review/viewing. | **Open:** complete scoped incident conclusion/export/capture-limit contract plus executed disclosure checks for that surface. |
+| M1-16 | Existing customer/owner/session negative tests; history CLI scope checks. | **Open:** history/call/recording/export/capture boundaries as implemented. Trusted CLI scoping is not HTTP tenant authorisation; absent routes are not passed permission tests. |
+| M1-17 | Raw source/PBX restart fixtures and separate SQLite backup/restore proofs. | **Open:** one separate-environment restore of configuration, call metadata and playable recording together; saved projection reopen is not full restoration. |
+| M1-18 | Session/backend/assignment/reservation errors distinguished; phone disabled. | **Open:** live microphone denial, registration failure and backend disconnect with no false readiness. Disabled controls do not prove live error handling. |
+
+What is complete locally: bounded AW workspace, BS/SW synthetic booking,
+MO local outage proof, raw history/manifests, independent collector recovery and
+conservative synthetic queue observations. Latest QA run `run-PIl5h8` and the
+101-test result were inspected as **recorded evidence**, not rerun at checkpoint.
+The [projection builder](./src/history-projection.ts) still deliberately leaves
+repeated same-caller/same-queue entries unresolved and performs no transfer graph.
+The [CLI](./scripts/Manage-HistoryProjection.ts) exposes rebuild/current/stored/
+revision operations; its filesystem access is a trusted operator boundary.
+The [current access model](./src/access.ts) has diagnostic, agent and simulation
+permissions but no history-specific grant. Do not repurpose those grants silently.
+
+#### Prioritized next work, not implementation authorization
+
+| Priority | Bounded work package | Why now / dependencies | Exit and non-claims |
+|---|---|---|---|
+| 1 | Read-only authenticated history-evidence workspace | Integrate existing durable facts with visible uncertainty before adding more event interpretations. First agree audience, explicit history read grant/support policy and whether raw records are exposed. Reuse session/audit/customer-boundary patterns, not CLI authority. | Finite HR contract below, then approve implementation. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
+| 2 | Integrated restart/interruption/replay proof | Requires fixed scenario/evidence contracts, not completion of the UI; can proceed independently once scoped. Combine existing durable stores/collectors with owned failure injection rather than another isolated event-name case. | Prior observations survive process/PBX restart, late data/replay/unknown gaps remain explicit. Map exact remaining M1-06/07 gaps; remote delivery remains separately designed. |
+| 3 | Limited route/queue publication foundation | Critical dependency for intended agent call path (M1-09, then M1-02/04/05/18). Needs agreed managed-file ownership, draft/revision/drift and rollback semantics. | Invalid/stale/drifted publication fails; owned apply/verify proof, no broad admin editor or Docker socket in the web process. |
+| 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
+| 5 | Recording, engineering/export and combined restore | Requires explicit storage/retention/access/capture-limit contracts and links to durable identities. Can be separately planned where independent. | Close exact M1-08/11-17 requirements through executed scoped workflows, not report/hash proxies. |
+
+No repeated-visit matching, transfer reconstruction, production collector service,
+Autocab integration or voice AI is authorized as a side effect. Further history
+reconstruction should follow evidence of a required unsupported scenario, not an
+automatic sequence of algorithm versions.
+
+#### Proposed HR batch: read-only history evidence, ten acceptance checks
+
+**Proposed only.** Audience/access policy, raw evidence exposure and service
+integration/storage wiring must be agreed before implementation; this review
+does not choose a new permission or grant anyone access.
+
+| Check | Proposed finite acceptance |
+|---|---|
+| HR-01 | Explicit opt-in and configured existing read-only stores; no store creation, migration, import, rebuild or background collector on page load. |
+| HR-02 | Authenticated customer-bound access with an explicitly agreed read permission/support policy; agent or simulation access alone never grants history. Guessed foreign runtime/epoch/revision IDs disclose nothing. |
+| HR-03 | Reuse persistent audit and request-reference conventions for allowed/denied/error reads; audit/storage failures surface, not empty success. Test logout/session expiry and no stale protected data after loss of access. |
+| HR-04 | Select only authorized customer/runtime/epoch/revision scope; bounded metadata pages with explicit cursors. Never list other customers or accept arbitrary filesystem paths from the browser. |
+| HR-05 | Read immutable v1-v5 documents as stored, including absent newer fields; display algorithm/revision and supported legacy limitations without reinterpretation. |
+| HR-06 | Separate explicit current-input checking from stored/offline inspection. Show inputs-match/inputs-changed/not-checked and independent coverage/health; failure is never green freshness. |
+| HR-07 | Display caller answer/end, queue timeout/CONNECT/member correlation/completion/ABANDON as separate observations. No human-service badge, business total or whole-journey outcome. |
+| HR-08 | Show unresolved/conflicting/unassigned evidence and permanent unknown gaps prominently. Do not hide incomplete data behind an empty timeline or join by timestamps/linkedid. |
+| HR-09 | Evidence references retain kind/source/generation/offset/hash; raw record viewing only if explicitly approved with bounded access/audit and scope validation. Escape hostile strings; no recording/export/capture actions. |
+| HR-10 | Focused API/browser tests for scope/session/audit/storage/freshness/legacy/error cases plus both-customer persisted synthetic proof. No microphone/WebSocket phone activation, PBX changes or REFER reruns; clean up only owned test resources. |
+
+Stop this checkpoint at the updated plan. Selecting/implementing HR, or another
+priority, is the next scope decision. No runtime code or acceptance status changes
+are made by this documentation-only review.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
@@ -1533,6 +1617,9 @@ frozen REFER changes; no human, whole-journey/business outcome or M1-06/07 claim
 
 Avoid introducing a separate broker/cache/analytics engine until a demonstrated
 requirement justifies it. Do not put Docker's socket in the management application.
+This table is the original dependency map, not an untouched implementation queue.
+Use the [post-QA checkpoint](#milestone-checkpoint-after-the-autonomous-ten-test-batch)
+for current gate status and recommended priorities.
 
 ## 7. Risks and decisions before implementation
 
@@ -1583,3 +1670,10 @@ with one simulated effect. Calling and real dispatch stay disabled, and simulati
 is still off by default.
 This parallel business-workflow increment does not waive unfinished M1 calling,
 isolation, publication or production-readiness gates.
+
+Current checkpoint after QA completion: see the
+[gate review and proposed HR batch](#milestone-checkpoint-after-the-autonomous-ten-test-batch).
+Historical "selected next" paragraphs above describe completed finite increments;
+they are not instructions to repeat simulation or activate phones. The recommended
+next work is an explicitly authorized read-only history workspace, not more
+synthetic event cases or automatic voice/dispatch activation.
