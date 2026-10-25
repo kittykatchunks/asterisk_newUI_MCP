@@ -2041,6 +2041,35 @@ blocked.** Next is design resolution of traversal/lifetime/locking and pinned
 build inputs, or deferral. No implicit build authority, acceptance weakening,
 publication executor or M1-09 closure follows from this review.
 
+#### QO design resolution: stable membership does not prove traversal bounds
+
+User authorized **`resolve-design-only`**, with a stop if bounds could not be
+established. The [design resolution and field-lock matrix](./PROJECT-PLAN.md#design-resolution-membership-stable-candidate-traversal-stop)
+replace the original split reference/recheck approach with a **conditional,
+unimplemented candidate**: hold the global queue-container mutex, borrow queue
+pointers inside a no-data/no-unlink callback, try-lock selected queue/member
+containers without waiting, copy facts and finish traversal cleanup before
+global unlock. No queue pointer escapes and the getter owns no queue reference
+whose release could become final after concurrent retirement.
+
+The matrix distinguishes static retirement under the global lock, policy/caller
+facts under queue locks and member counts under the member-container lock.
+Realtime objects must be rejected before reading retirement facts; the candidate
+does not fix or claim to protect realtime writes outside those locks. Module/
+container lifetime and lower-level logging/cleanup remain proof prerequisites.
+
+**The strict bound is still unresolved:** iterator **and callback** traversal
+can skip retained empty hash nodes before the next application callback.
+Holding the global lock prevents new changes but does not bound existing nodes.
+Callback counters/time checks, debug stats text, exact-name-only lookup and
+host timeouts are not accepted substitutes.
+
+**Stop: QO-03 remains blocked; no coding/build is cleared.** A budgeted traversal/
+typed physical-node-bound API would expand into AO2 ownership and needs its own
+explicit scope decision, or getter work must be deferred. No source patch,
+dependency install, image build, PBX command, QO execution or gate closure
+occurred. The existing stock unsupported behavior remains unchanged.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

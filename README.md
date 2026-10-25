@@ -333,6 +333,15 @@ unselected; resource caps are not approved or measured build costs.
 Next is design resolution or deferral; QO acceptance and publication remain
 blocked, not automatically authorized by this review.
 
+The subsequent [design resolution](./PROJECT-PLAN.md#design-resolution-membership-stable-candidate-traversal-stop)
+maps static queue fields to their writer locks and proposes membership-stable
+borrowed-pointer sampling to avoid getter-owned final-reference destruction.
+**That candidate is still not cleared:** public callback traversal also hides
+retained-node work, so neither visit counters nor try-locks establish the required
+strict traversal bound. Further work would require a separately approved
+AO2-owned budgeted traversal/node-bound design, or deferral of this getter.
+No app_queue/AO2 patch, build, installation or runtime test was performed.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

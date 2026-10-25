@@ -1940,6 +1940,116 @@ full CP gates and M1-09 remain open. Next is a separately agreed **design
 resolution** for these blockers (or deferral), not patch/build execution.
 Named public-source scratch copies are removed after recording these hashes.
 
+##### Design resolution: membership-stable candidate, traversal stop
+
+The user selected **`resolve-design-only`** following feasibility review:
+assess stable membership, lifetime and field locks, and stop if bounds cannot
+be established. This increment changes documentation only. It does not authorize
+an app_queue/AO2 patch, dependency installation, image build, PBX startup or
+weaker acceptance. The four re-read owner/AO2 declaration/container/hash files
+match the hashes above at the same immutable commit.
+
+**Disposition of the original algorithm:** do not implement its split
+enumeration/retained-queue-reference/recheck sequence. A replacement candidate
+can avoid that particular final-reference race by keeping container membership
+stable, but cannot yet meet the strict traversal contract. The following is
+conditional design reasoning, **not an approved runnable algorithm**.
+
+1. Prepare fixed local storage before locking. Try-lock the global `queues`
+   mutex exactly once; contention returns `busy`, with no loop/backoff/retry.
+   Verify expected container/lifetime assumptions through the future pinned
+   implementation; do not dereference private AO2 structures to test them.
+2. While that mutex remains held, use borrowed queue pointers only within a
+   synchronous callback, with no queue reference retained or released by the
+   getter. The candidate public traversal is
+   `ao2_callback(queues, OBJ_NOLOCK | OBJ_NODATA | OBJ_MULTIPLE, ...)`.
+   Callbacks return zero to continue or `CMP_STOP` to fail early; they never
+   return matches for later retrieval and never unlink. The no-data flag
+   avoids both returned queue references and the multiple-result container
+   allocation (`astobj2_container.c:257,299-398`). AO2 still manipulates
+   **internal node references**; "no returned queue references" does not mean
+   reference-free execution or automatically bounded/no-I/O traversal.
+3. Validate names using bounded reads (reject if no terminator within 97
+   bytes), case-folded matching and canonical spelling rules. Count all live
+   callbacks, at most 64, and selected rows, at most 8, without exporting
+   foreign names. Try-lock only selected queues, then their member containers,
+   once each. Never wait for a queue/member lock while holding the global lock.
+   On contention or invalid facts, release any acquired member/queue locks,
+   stop traversal, finish AO2 traversal cleanup under the global mutex, then
+   release that mutex. No leaked pointer, lock, reference or partial success.
+4. Read `realtime` first under the queue lock and reject realtime objects
+   **before reading `dead` or other policy/state facts**. For selected static
+   queues, hold both the global and queue locks while reading retirement/
+   policy/caller facts. Take the member-container mutex for its count; do not
+   iterate members or acquire individual member/device/channel locks. Release
+   member/queue locks before the next selected object.
+5. Copy only bounded facts; do not allocate, format JSON, log success, emit CLI
+   output, load realtime state or invoke application callbacks under these
+   locks. No raw pointer escapes global unlock. Because linked queues retain
+   their container-owned reference throughout this candidate sample, it does
+   not need the getter's own queue-reference cleanup and cannot become the last
+   queue owner merely by finishing that callback. Module/container lifetime
+   must still be established separately.
+6. Complete traversal and all internal cleanup before global unlock. Serialize
+   the copied DTO afterward. Membership would be stable during this interval;
+   policy/caller/member facts would still be **per-object samples**, not a
+   simultaneous all-queue/disk/dialplan snapshot. No ABA or active-call-safe
+   publication claim follows. The candidate avoids the original identity
+   re-enumeration race rather than pretending a second scan solves it.
+
+**Source-derived reader/writer matrix for the requested facts:**
+
+| Fact / ownership | Pinned writers and publication paths | Candidate reader discipline / limit |
+|---|---|---|
+| Container membership and queue lifetime | Static load/reload links and removes under `queues` (`app_queue.c:10159,10275,10334-10355`); realtime link/unlink uses the container too (`3973-4048`); `leave_queue` unlinks at `4656`. | Hold global mutex throughout borrowed-pointer use and traversal cleanup. No object pointer survives unlock. This is not a module-unload lifetime proof. |
+| `name` | Assigned by `alloc_queue` before linking (`3949-3958`); reviewed owner source has no later name setter. | Global membership protection supplies lifetime; bounded name read and canonical/case-collision checks still required. |
+| `realtime` / DTO `origin` | New realtime objects set it before linking (`4021-4048`); static AO2 allocation initializes it to zero. Reviewed owner has no post-publication assignment. | Read under selected queue lock; reject true before reading realtime retirement fields. This is source-specific, not a universal AO2 invariant. |
+| `dead` | Defaults/reset in `init_queue` (`3156`); static retirement writes under global lock in `kill_if_unfound` (`10292`); realtime refresh writes under queue/global ownership (`4012`), but realtime `leave_queue` writes after releasing the queue lock (`4644-4650`). | For **static only**, hold global plus queue mutex. Queue mutex alone was insufficient. Do not claim these locks fix the existing realtime writer; realtime is rejected before this read. |
+| `strategy`, `timeout`, `joinempty`, `leavewhenempty` | `init_queue`, `queue_set_param` and mask parser (`3156,3511,3554,3724-3728`); static existing-object reload holds global then queue (`10159-10232`); realtime parameter setup is in `find_queue_by_name_rt` (`3973-4069`). | Copy static loaded fields under global plus queue mutex; new objects initialize before publication. No setter/parser is invoked by the reader. Exact mapping and range checks remain required. |
+| `members` pointer and member count | Member container initialized in `init_queue` (`3206-3212`); add/remove helpers lock that container (`3768-3793`); reload replacement/direct link/unlink locks it too (`10105-10115,10241-10270`). | Under queue lock, try-lock the existing member container and call atomic `ao2_container_count`; no member traversal/ref/device lookup. Destructor paths must be excluded by lifetime, not manually run. |
+| `count`, `head` / DTO `callerCount`, `callerListEmpty` | `join_queue` inserts/increments under queue lock (`4281-4362`, helper `2291`); `leave_queue` removes/decrements under queue lock (`4594-4630`); priority reordering changes/reinserts head under queue lock (`7938-8006`). | Copy count and head-nullness under queue mutex; do not traverse caller list. Validate zero/nonzero consistency; no caller identity or channel inspection. |
+| Reader/mapping/version/namespace and sorted DTO | Protocol constants and trusted adapter request, not queue configuration. | Validate before locking; derive origin from static check; sort/serialize after unlock. These fields cannot attest the loaded binary. |
+
+This matrix covers the selected owner fields and relevant named writer paths,
+not a whole-program concurrency proof. Busy unwinding, lower-level lock wrappers,
+AO2 reference logging, module-use lifetime and unload ordering still need review/
+tests before implementation. `unload_module` unregisters CLI handlers before
+`ao2_cleanup(queues)` (`app_queue.c:12116,12150`), but source order alone does not
+prove an executing getter pins the module/container. No debug/ref-logging profile
+or source patch is selected here.
+
+**Unresolved hard bound and rejected shortcuts:**
+
+- Both iterator and callback hash traversal skip empty retained nodes internally
+  (`astobj2_hash.c:436-465,481-593,611`). `CMP_STOP`, a callback visit counter,
+  or a clock check in the callback cannot interrupt work **before** the next
+  callback. Holding the mutex prevents new concurrent changes during that
+  interval, but does not remove or bound empty nodes retained from earlier
+  activity. The new global-lock candidate therefore also lacks a proven maximum
+  critical-section duration/work budget.
+- `ao2_container_stats` is a printing/debug facility
+  (`astobj2_container.c:819`): physical-node counts are conditional on
+  `AO2_DEBUG`, it calls a formatter and container-specific statistics, and it
+  is not a bounded typed preflight API. Enabling debug and parsing its text
+  under the lock is not the selected fix. The atomic live-object count alone
+  is still inadequate.
+- Exact expected-name lookup would hide unexpected reserved queues and can
+  traverse collision/empty-node chains. A host timeout cannot cancel those
+  server-side steps safely. Cold-boot/no-writer fixture assumptions alone are
+  not the required busy/replacement/traversal proof.
+
+**Stop/result:** membership-stable borrowing addresses the identified
+getter-owned last-reference race at design level and provides a more accurate
+static-field lock discipline. **It does not clear QO-03 or authorize coding.**
+Strict traversal needs a separately scoped owner-supported AO2 budgeted
+traversal/typed node-bound design (including internal cleanup and contention
+semantics), or this getter must be deferred. That would expand the original
+small app_queue-only patch boundary; it requires an explicit decision, not
+another assumed loop of stock probes or an unapproved internal-structure read.
+QO-07 build closure, all QO execution, exact verification, full CP and M1-09
+remain open. Only documentation consistency, source-hash checks and diff hygiene
+are validation for this increment; no getter or contention result is claimed.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
