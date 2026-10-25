@@ -317,6 +317,22 @@ and runtime publication is still blocked. Next requires separate implementation/
 build approval, starting with lock feasibility and build provenance—not an
 executor, reload or canary.
 
+The subsequent **read-only feasibility review** found supported try-lock APIs,
+but **did not clear the proposed algorithm for implementation**:
+
+- Live-object limits do not bound hidden hash traversal over retained nodes.
+- Releasing a retired queue's final reference can perform blocking member
+  cleanup and device-state changes.
+- Retirement field ownership and AO2 debug/logging paths need further analysis.
+
+The [pinned-source findings and build prerequisites](./PROJECT-PLAN.md#read-only-feasibility-review-implementation-not-cleared)
+record source hashes, a read-only host-capacity sample and proposed resource
+caps. Build package/archive closure and the builder/runtime pair remain
+unselected; resource caps are not approved or measured build costs.
+**No patch, dependency install, image build or PBX startup occurred.**
+Next is design resolution or deferral; QO acceptance and publication remain
+blocked, not automatically authorized by this review.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

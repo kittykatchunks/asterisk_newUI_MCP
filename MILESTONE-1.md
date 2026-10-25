@@ -2011,6 +2011,36 @@ Documentation consistency and diff hygiene are the only validation required.
 Next is a separate implementation/build decision; the selected exact-verification
 blocker, full CP gates and M1-09 remain open.
 
+#### QO feasibility review: source findings, not acceptance passes
+
+The user next selected **`feasibility-only`**. The
+[read-only review](./PROJECT-PLAN.md#read-only-feasibility-review-implementation-not-cleared)
+pins upstream 22.11.0 to commit
+`874768141f94bc03865cc746eee1c7669e3c46d5` and records eight reviewed source
+hashes. Supported AO2 try-locks and mutex container types are confirmed in
+source, **not tested in a patched runtime**.
+
+The proposed algorithm is not yet cleared for implementation:
+
+- A 64-live-object ceiling does not bound hash iteration over retained empty
+  nodes; ordinary iterator and teardown paths can also take blocking locks.
+- A getter's final reference release after queue retirement can invoke queue
+  destruction, blocking member cleanup and device-state changes.
+- Queue retirement writes `dead` under the global container lock without the
+  individual queue lock. Field ownership needs a complete lock matrix.
+- AO2 debug/reference logging and integrity checks affect bounded/no-I/O claims.
+
+Host/daemon capacity was sampled read-only; no build benchmark or reservation
+was made. Required dependency categories and declared bundled versions were
+identified, but immutable builder/runtime/package/archive closure remains
+unselected. Proposed resource caps require later approval and enforcement.
+No packages, patch, image, module or PBX were installed, built or started.
+
+**QO-01 through QO-10 remain unexecuted; QO-03 and QO-07 are specifically
+blocked.** Next is design resolution of traversal/lifetime/locking and pinned
+build inputs, or deferral. No implicit build authority, acceptance weakening,
+publication executor or M1-09 closure follows from this review.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

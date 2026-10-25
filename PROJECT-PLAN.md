@@ -1804,6 +1804,142 @@ provenance and these acceptance bounds are agreed. If any of those cannot be
 met, stop or explicitly revise the design; do not weaken exact verification
 implicitly or expand the getter into a general-purpose queue editor.
 
+##### Read-only feasibility review: implementation not cleared
+
+On 2026-10-25 the user selected **`feasibility-only`**: inspect public pinned
+source and local host capacity, with no patch, dependency installation, image
+build, module command or PBX startup. This review **does not clear QO-03 or
+QO-07**. Supported try-lock primitives exist, but the proposed algorithm above
+is not yet a demonstrated bounded, nonmutating reader on every exit path.
+
+The public annotated tag `22.11.0` resolves through tag object
+`1789a2b8ef9f52478203b6044be3d5492ed98c8f` to commit
+`874768141f94bc03865cc746eee1c7669e3c46d5`. Review used raw files at that commit,
+not a moving branch. Source base:
+[Asterisk pinned tree](https://github.com/asterisk/asterisk/tree/874768141f94bc03865cc746eee1c7669e3c46d5).
+The following SHA-256 values identify the reviewed files, not a runtime binary,
+complete build-input manifest or reproducibility result:
+
+| Upstream file | Reviewed SHA-256 |
+|---|---|
+| `apps/app_queue.c` | `46057d05da7e078ffb5228a0eca8414c9d3ea05f1eb0a4f1b664e8a4d2f2e9a8` |
+| `include/asterisk/astobj2.h` | `ea8942491b9e1f83f63f16f7557f3be1bb03fd6e93ddf73a24de8d0731202d8c` |
+| `main/astobj2.c` | `4d4f255a00c8409c135a9b33e6147540bd0804c4a3463ed7b84d9a3adcdbfd0a` |
+| `main/astobj2_container.c` | `ccf2ae264764df1392b8fb3f57abc1eb741cdeb74232f8dc3a03d333351d8a72` |
+| `main/astobj2_hash.c` | `1ed7dc11895a244bb62a4759c8197095fc83652bfdeb509e114975efb6fd77f7` |
+| `configure.ac` | `55e16603107d42492352b4ec10d4bb4cad5c132850904054e45e350c5349714c` |
+| `build_tools/menuselect-deps.in` | `737ef8819bb6c4609c89b95d23cff258954d6528b1f58716ab6dc65703b99acf` |
+| `third-party/versions.mak` | `fe916b7e8afca2d0858e98517fbf88dcb103bbe96377fceafa8cf1512c43060f` |
+
+**Lock/lifetime findings (source evidence, not executed contention tests):**
+
+1. **Supported candidate primitives.** `astobj2.h:738` exposes `ao2_trylock`
+   and read/write variants; `astobj2.c:342` dispatches to the object's lock
+   kind. The queue container is a 53-bucket mutex hash
+   (`app_queue.c:1753,12175`); queue allocation uses the default AO2 mutex
+   (`app_queue.c:3949`, `astobj2.h:363,407`); member containers use mutex list/
+   hash allocation (`app_queue.c:3206`). This supports a candidate immediate
+   `busy` path, not a hard real-time latency claim.
+2. **Iteration must not silently reacquire blocking locks.**
+   `AO2_ITERATOR_DONTLOCK` requires the caller to hold the container lock
+   through iterator operations **and destruction** (`astobj2.h:1836`).
+   The implementation calls `__adjust_lock` even with that flag
+   (`astobj2_container.c:502,556`). It is a no-adjustment path for the pinned
+   mutex kind; it must not be generalized to RW containers, whose read-to-write
+   promotion can release and block (`astobj2.c:425`). Ordinary iterator calls
+   without this flag use blocking locks. Busy handling must cover iterator
+   teardown too; killing a remote CLI client is not a solution.
+3. **A live-object ceiling is not an internal traversal ceiling.**
+   `ao2_container_count` is an atomic element-count read
+   (`astobj2_container.c:34`), not a count of physical hash nodes.
+   `hash_ao2_iterator_next` skips empty retained nodes internally
+   (`astobj2_hash.c:611`). Other iterators can retain unlinked nodes; counting
+   64 returned live objects does not bound that hidden work. The fixed bucket
+   count alone does not bound retained nodes either. Strict traversal limits
+   require an independently established node bound or a separately reviewed
+   bounded API/design; no private-container access is authorized.
+4. **Reference cleanup can perform forbidden work.** Last-reference release
+   synchronously invokes the destructor (`astobj2.c:613`).
+   `destroy_queue` calls `free_members` (`app_queue.c:3918,3934`), which uses
+   ordinary member iteration/removal. Removal takes locks, updates device state
+   and unlinks members (`app_queue.c:3784`). After concurrent queue retirement,
+   the getter's retained reference can become the last one. Thus "release every
+   reference" is necessary but not sufficient for bounded/no-mutation cleanup,
+   including busy/error paths and references to nonselected queues encountered
+   during enumeration. Name/identity rechecks do not eliminate this race; neither
+   reference leaks nor an unapproved background cleanup worker are acceptable
+   workarounds.
+5. **The queue lock alone is not a complete field-ownership proof.**
+   Reload holds the global queue-container mutex (`app_queue.c:10334`).
+   `kill_if_unfound` writes `q->dead` without taking the individual queue lock
+   (`app_queue.c:10292`); existing-queue parameter reload separately takes that
+   queue lock (`app_queue.c:10159`). Before implementation, produce a
+   field-by-field reader/writer lock matrix and lifetime/unlink analysis.
+   Merely taking the queue lock and rechecking `dead` cannot be described as
+   protecting every concurrent retirement path.
+6. **Build settings affect the bounded-path claim.** AO2 reference-debug
+   logging can write/flush during reference operations (`astobj2.c:498`).
+   Developer/debug integrity checks can traverse containers
+   (`astobj2_hash.c:143`). A future exact build/runtime profile must account for
+   these paths rather than claiming no I/O/unbounded work solely because the
+   proposed handler contains none. This review did not audit every lower-level
+   allocator, mutex wrapper, module-unload or logging path.
+
+The design's current split enumeration/reference/recheck algorithm is therefore
+**blocked pending design resolution**, not approved for coding as written.
+Quiescent fixture assumptions reduce exposure but do not satisfy planned
+retirement/replacement/busy tests. Keeping membership stable under a global
+lock could change the analysis, but requires a separate bounded critical-section,
+lock-order and cleanup design; it is not selected here. Do not introduce a
+mutation-generation mechanism, modify AO2 internals or relax QO-03 implicitly.
+
+**Build prerequisites and resource feasibility:**
+
+- A native Windows compiler is not the proposed runtime target. Available
+  Docker reports a Linux `x86_64` engine, version `29.6.2`, 16 CPUs and about
+  **7.38 GiB** total daemon memory. The host sample showed about **3.88 GiB**
+  free physical memory and **672 GiB** free on C:. Host and daemon figures
+  overlap; they must not be added or treated as reserved capacity. Docker VM
+  filesystem free space, current competing load and build peak usage were
+  **not measured**. No container was created or started.
+- Source `configure.ac:716-790,2696` requires libedit development support,
+  UUID support, Jansson >=2.11 (unless bundled), libxml2 for menuselect and
+  SQLite3 for AstDB. GCC-compatible C/C++ tools, make, pkg-config and the source
+  generation/menuselect toolchain must also be pinned. These are prerequisite
+  categories, **not an approved/exhaustive package lock or install command**.
+  Menuselect build/configure files are present in the pinned source tree.
+- Current explicit module loading must be preserved, including PJSIP, crypto/
+  SRTP, RTP, WAV, codecs, queue, CEL and the proof's UUID function. This requires
+  a transitive module/dependency inventory, not just compiling app_queue.
+  PJSIP/TLS/SRTP and codec dependencies remain selection/build gates.
+  Source `third-party/versions.mak` declares bundled Jansson **2.15.1**,
+  PJPROJECT **2.17** and libjwt **1.15.3**; version strings do not pin fetched
+  archive bytes. PJPROJECT bundling defaults on in `configure.ac:470`.
+  No configure/make/download helper was executed.
+- No immutable builder/runtime base, package snapshot/version/hash closure,
+  third-party archive hashes, configure/menuselect profile or license manifest
+  has yet been selected and checked as a complete set. The stock image digest
+  is a prior runtime reference, **not a matching source/toolchain build recipe**.
+  Do not run upstream automatic dependency installers or allow build-time
+  downloads to resolve these gaps silently.
+- A future budget proposal is **one build at a time, at most 2 CPUs, 2 GiB
+  build memory, 20 GiB incremental storage and 30 minutes elapsed**, with
+  bounded logs and no registry push. These are proposed stop limits, **not
+  measured requirements, reserved resources or user approval**. The selected
+  builder must enforce them, including storage accounting; if enforcement
+  cannot be established, stop before building. Two future owned proof PBXs
+  would retain the existing per-PBX 1 CPU/384 MiB/128-PID limits, and need a
+  separate capacity/readiness check after the build. Exceeding limits requires
+  an explicit decision, not automatic escalation.
+
+**Outcome:** source-level candidate try-lock support is established, but bounded
+traversal, safe retirement cleanup, complete lock ownership and pinned build
+closure remain unresolved. No build duration/cost, contention behavior, getter
+output or runtime provenance was measured. Exact-policy verification, QO,
+full CP gates and M1-09 remain open. Next is a separately agreed **design
+resolution** for these blockers (or deferral), not patch/build execution.
+Named public-source scratch copies are removed after recording these hashes.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
