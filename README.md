@@ -447,6 +447,9 @@ The [owner callback-work fixture](./PROJECT-PLAN.md#gate-a-owner-callback-work-t
 brings the inventory to **30 uncompiled/unexecuted native definitions**.
 Eight walks on a real sorted hash collision container require unchanged
 positively calibrated hash/sort/comparison counters and exact visitor counts.
+The [sparse-bucket extension](./PROJECT-PLAN.md#gate-a-sparse-bucket-accounting-inventory-unchanged-still-unexecuted)
+runs that matrix at first/middle/final collision buckets: 24 source schedules
+require exact leading-empty-bucket accounting, with the inventory unchanged.
 **Twelve package tests pass**; exact application and all nine source postimages
 match. Those checks do not prove C compilation,
 native behavior, measured latency or lifecycle acceptance. Shutdown, recursive

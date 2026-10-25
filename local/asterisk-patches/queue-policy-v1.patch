@@ -2206,10 +2206,10 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..994bc4476bc97d44f7f9ea8327a86731
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..ac60fc8166fed5ba84b276e0cf7ad709941c4886
+index 0000000000000000000000000000000000000000..6741e5359fca409b49cd25deb96ba2e2e49d6b89
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,1811 @@
+@@ -0,0 +1,1826 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -2905,6 +2905,7 @@ index 0000000000000000000000000000000000000000..ac60fc8166fed5ba84b276e0cf7ad709
 +}
 +
 +struct bounded_callback_counts {
++	unsigned int bucket;
 +	unsigned int hash;
 +	unsigned int sort;
 +	unsigned int compare;
@@ -2921,7 +2922,7 @@ index 0000000000000000000000000000000000000000..ac60fc8166fed5ba84b276e0cf7ad709
 +	const struct bounded_callback_object *item = object;
 +
 +	++item->counts->hash;
-+	return 0;
++	return item->counts->bucket;
 +}
 +
 +static int bounded_counted_sort(const void *left, const void *right, int flags)
@@ -2947,7 +2948,7 @@ index 0000000000000000000000000000000000000000..ac60fc8166fed5ba84b276e0cf7ad709
 +	++item->counts->destroyed;
 +}
 +
-+AST_TEST_DEFINE(bounded_callback_work)
++static enum ast_test_result_state bounded_callback_case(struct ast_test *test, unsigned int bucket)
 +{
 +	const struct {
 +		unsigned int max_nodes;
@@ -2967,22 +2968,12 @@ index 0000000000000000000000000000000000000000..ac60fc8166fed5ba84b276e0cf7ad709
 +		{ 128, 64, 0, 32, AO2_BOUNDED_INTERNAL, 1, 32 },
 +		{ 128, 64, 0, 0, AO2_BOUNDED_COMPLETE, 53, 64 },
 +	};
-+	struct bounded_callback_counts counts = { 0 }, baseline;
++	struct bounded_callback_counts counts = { .bucket = bucket }, baseline;
 +	struct ao2_container *container = NULL;
 +	struct ao2_bounded_result result;
 +	unsigned int allocated = 0, i;
 +	enum ast_test_result_state state = AST_TEST_FAIL;
 +
-+	switch (cmd) {
-+	case TEST_INIT:
-+		info->name = "bounded_callback_work";
-+		info->category = "/main/astobj2/bounded_queue_policy/";
-+		info->summary = "Bounded hash walks never invoke owner hash/sort/comparison callbacks";
-+		info->description = "Real sorted 53-bucket collision container calibrates callbacks before eight measured walks.";
-+		return AST_TEST_NOT_RUN;
-+	case TEST_EXECUTE:
-+		break;
-+	}
 +	container = ao2_container_alloc_hash(AO2_ALLOC_OPT_LOCK_MUTEX, 0, 53,
 +		bounded_counted_hash, bounded_counted_sort, bounded_counted_compare);
 +	if (!container) {
@@ -3018,15 +3009,16 @@ index 0000000000000000000000000000000000000000..ac60fc8166fed5ba84b276e0cf7ad709
 +	for (i = 0; i < ARRAY_LEN(cases); ++i) {
 +		struct ao2_bounded_limits limits = { 1, 64, cases[i].max_nodes, cases[i].max_objects };
 +		struct bounded_owned_visit visit = { .abort_at = cases[i].abort_at, .invalid_at = cases[i].invalid_at };
++		unsigned int expected_buckets = cases[i].buckets == 1 ? bucket + 1 : cases[i].buckets;
 +
 +		if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
 +			!= cases[i].status || result.status != cases[i].status
-+			|| result.buckets != cases[i].buckets || result.nodes != cases[i].visited
++			|| result.buckets != expected_buckets || result.nodes != cases[i].visited
 +			|| result.objects != cases[i].visited || visit.seen != cases[i].visited || visit.bad_reference
 +			|| counts.hash != baseline.hash || counts.sort != baseline.sort
 +			|| counts.compare != baseline.compare || counts.destroyed
 +			|| ao2_container_count(container) != 64 || ao2_ref(container, 0) != 1) {
-+			ast_test_status_update(test, "Callback-work matrix failed at case %u\n", i);
++			ast_test_status_update(test, "Callback-work matrix failed at bucket %u case %u\n", bucket, i);
 +			goto done;
 +		}
 +	}
@@ -3040,6 +3032,29 @@ index 0000000000000000000000000000000000000000..ac60fc8166fed5ba84b276e0cf7ad709
 +		ast_test_status_update(test, "Hash callback calibration/work or fixture cleanup failed\n");
 +	}
 +	return state;
++}
++
++AST_TEST_DEFINE(bounded_callback_work)
++{
++	const unsigned int buckets[] = { 0, 26, 52 };
++	unsigned int i;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "bounded_callback_work";
++		info->category = "/main/astobj2/bounded_queue_policy/";
++		info->summary = "Bounded hash walks charge sparse buckets without owner callbacks";
++		info->description = "Twenty-four calibrated walks place sorted collision chains in first/middle/final buckets.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	for (i = 0; i < ARRAY_LEN(buckets); ++i) {
++		if (bounded_callback_case(test, buckets[i]) != AST_TEST_PASS) {
++			return AST_TEST_FAIL;
++		}
++	}
++	return AST_TEST_PASS;
 +}
 +
 +AST_TEST_DEFINE(bounded_ownership)

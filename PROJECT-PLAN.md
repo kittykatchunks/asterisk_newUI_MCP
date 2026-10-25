@@ -3613,6 +3613,43 @@ container-owner review download are removed after verification. No dependency
 install, native compile/test, image build, module load or PBX operation occurs.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A sparse bucket accounting: inventory unchanged, still unexecuted
+
+The existing `bounded_callback_work` definition now runs its eight-case matrix
+with collision chains in buckets **0, 26 and 52** of real sorted 53-bucket
+containers. This makes **24 walk schedules**, not 24 test definitions; the
+inventory remains **30 uncompiled/unexecuted native definitions** on the same
+nine paths. Only the controller fixture postimage changes.
+
+The original calibrated setup/walk/cleanup is extracted into a private fixture
+helper with an explicit collision-bucket input. Each independently allocated
+container retains 64 reverse-inserted keyed objects, a successful ordinary
+find, positive hash/sort/comparison calibration and exact destructor cleanup.
+The fixture hash returns the selected bucket; no internal bucket pointer or
+private container layout is manipulated.
+
+Complete/recovery walks must charge all **53 buckets**, regardless of where
+the objects are. Object-budget preflight rejection must charge **zero buckets**.
+Node-budget limits, first/middle/final aborts and invalid visitor returns must
+charge **1, 27 or 53 buckets**, including every preceding empty bucket.
+Their existing exact node/object/visitor counts remain unchanged. Every walk
+still requires no hash/sort/comparison callback increments, no destructor,
+borrowed reference count one, unchanged live count and sole container reference.
+Case failures now report both collision bucket and matrix index.
+
+This narrows AT-03/AT-05 source assertions for sparse traversal, but does not
+instrument every internal bucket step, establish native bounded latency or
+clear debug/ref/lock/concurrency acceptance. Setup/find/cleanup remain outside
+the measured bounded walks. All AT/QO/native gates remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match; the other eight postimages
+are unchanged. Both named scratch directories are removed after verification.
+No dependency install, native compile/test, image build, module load or PBX
+operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
+M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

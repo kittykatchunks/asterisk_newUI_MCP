@@ -2423,6 +2423,15 @@ destructor until cleanup. Only the controller postimage changes.
 Full work/ref/profile instrumentation and native acceptance remain pending;
 Gates B/C stay closed with no native/PBX execution.
 
+The [sparse-bucket accounting extension](./PROJECT-PLAN.md#gate-a-sparse-bucket-accounting-inventory-unchanged-still-unexecuted)
+runs the existing callback matrix with collision chains in buckets 0/26/52:
+**24 source walk schedules**, still **30 uncompiled/unexecuted definitions**.
+Partial walks must count 1/27/53 buckets including preceding empty buckets;
+complete walks count all 53 and object preflight counts zero. Callback/ref/
+destructor assertions remain intact. Only the controller postimage changes.
+**Twelve package tests pass** and exact application/nine postimages match.
+All native/AT/QO acceptance and Gates B/C remain open; no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
