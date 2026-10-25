@@ -570,6 +570,15 @@ observed; the disposable container exited zero and was removed. See the
 No image rebuild, SIP registration, external call, audio/media or human service
 was tested. Existing containers and Gate C remain untouched.
 
+**[Synthetic queue-member answering now passes too](./PROJECT-PLAN.md#custom-image-synthetic-answered-member-and-caller-continuation-passed).**
+A private Local-channel member answered, held briefly and hung up; the caller
+continued with `QUEUESTATUS=CONTINUE` and **4,505 ms answered time**. All four
+Local legs, one queued caller and one completed queue call were observed.
+The member was removed, the empty queue policy restored, and zero channels
+remained before clean container exit/removal. See the
+[answered-call validation](./local/asterisk-build/synthetic-answered-call-validation.json).
+This is synthetic answer-path execution—not SIP, human service or audio/media.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

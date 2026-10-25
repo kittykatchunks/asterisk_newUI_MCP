@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "stage": "synthetic-local-answered-member-passed",
+  "authorization": "User selected answer-proof for one disposable synthetic answered-member call, then explicitly accepted one additional attempt after exact CLI member-removal formatting correction.",
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "passed": true,
+  "queueStatus": "CONTINUE",
+  "answeredMilliseconds": 4505,
+  "dialedMilliseconds": 7009,
+  "syntheticAnswerHoldSeconds": 4,
+  "acceptedAnsweredIntervalMilliseconds": [
+    3500,
+    7000
+  ],
+  "observedLocalChannelLegs": 4,
+  "queuedCallerObserved": true,
+  "completedCallCount": 1,
+  "memberRemoved": true,
+  "finalActiveChannels": 0,
+  "finalQueuePolicyRestored": true,
+  "elapsedSeconds": 13.328,
+  "processExitCode": 0,
+  "allOwnedContainersRemoved": true,
+  "existingContainersChanged": false,
+  "imageRebuilt": false,
+  "syntheticCallsTested": true,
+  "sipTested": false,
+  "mediaTested": false,
+  "humanAnsweringTested": false,
+  "existingPbxOperated": false,
+  "runtimeApplyAuthorized": false,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "failedAttempt": {
+    "reportPrivatePath": "C:\\Users\\james\\AppData\\Local\\AsteriskNativeBuild\\answer-call-smoke-1\\desktop-smoke-report.json",
+    "reportSha256": "49dbb1fe77684a67fe1f7ffe2916b692a474a99a106e5dab5468099196a3df9a",
+    "failure": "ValueError('Member removal failed: \"Removed interface Local/member@isolated-local-answer-proof/n from queue \\'proof-queue\\'\\\\n\"')",
+    "containerRemoved": true
+  },
+  "evidence": {
+    "synthetic-answered-call-smoke-report.json": {
+      "sha256": "aba4c31715df7d14c17cae5453e530a749d4382f5d1ec61e9c0e10f7ed0f8abd"
+    },
+    "image-startup-validation.json": {
+      "sha256": "4639b0b9c9750f4bd97a1014ad9565812e23264e88d2dd0fbc0dd06c882e9c94"
+    },
+    "image-payload-validation-nss.json": {
+      "sha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+    }
+  }
+}

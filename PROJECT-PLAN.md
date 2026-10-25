@@ -4667,6 +4667,83 @@ configuration or remaining Gate A lifecycle/output/AO2 acceptance. Gate C,
 deployment, redistribution and complete source/license closure remain
 separate and unapproved.
 
+##### Custom image synthetic answered-member and caller continuation passed
+
+The user selected **answer-proof**: prepare and execute one synthetic
+answered-member call in the same verified no-network custom image. The
+[answered helper](./local/asterisk-build/runtime_answer_call.py) is wired
+behind `--approve-synthetic-answered-call` in the
+[Desktop harness](./local/asterisk-build/smoke-desktop.py), in addition to
+the existing image-smoke approval. Timeout and answer call modes are mutually
+exclusive; omitted flags preserve startup-only behavior.
+
+The private `isolated-local-answer-proof` context has a caller leg using
+`Queue(proof-queue,rc,,,12)`, then a five-second result-inspection hold and
+hangup. Queue's `c` option continues the caller dialplan after the member
+hangs up. The synthetic member waits two seconds before `Answer`, holds
+four seconds and hangs up; this is not a real agent or audio assertion.
+The helper adds only `Local/member@isolated-local-answer-proof/n` to the
+owned empty proof queue and originates a `/n` caller with bounded `Wait 25`.
+No SIP driver configuration, external destination, shell, AGI, image rebuild
+or new network/port is introduced.
+
+Preflight requires zero channels and the empty original policy. Adding the
+member must yield exactly one loaded member; static policy fields and the
+other selected queue remain unchanged. Polling must observe one queued caller,
+all four private Local legs and the member's post-answer four-second hold.
+The caller's result hold must expose exactly one `QUEUESTATUS=CONTINUE`,
+numeric `ANSWEREDTIME_MS` in **[3500, 7000) ms**, and `DIALEDTIME_MS` at least
+as large as answered time. The tolerance bounds detect a missing/too-short
+answer or an unbounded hold; they are not production latency targets.
+After all channels end, queue status must show one completed call and no
+callers. Removing the member must restore the original zero-member/caller
+policy, followed by another zero-channel check within 25 seconds.
+
+The first attempt reached the answer/completion checks but failed the
+harness's assumed quoting in the CLI member-removal reply. Asterisk prints
+the removed interface **without** quotes. That owned container was removed;
+the user approved one additional attempt. The corrected parser now requires
+the exact actual reply rather than accepting a generic success substring.
+The second attempt passed with **4,505 ms answered time, 7,009 ms dialed time**,
+`CONTINUE`, four Local legs, one completed queue call, member removed and
+original empty policy restored. Overall fixture observation was **13.328
+seconds**, including pre-answer delay, four-second synthetic answer hold,
+five-second inspection hold and CLI polling; it is not queue wait or
+service latency. The queue status also reports one call taken by that
+synthetic member. Both owned attempt containers were removed.
+
+The [central functional validation](./local/asterisk-build/synthetic-answered-call-validation.json)
+hash-binds the **byte-exact successful raw**
+[smoke report](./local/asterisk-build/synthetic-answered-call-smoke-report.json),
+existing image-startup validation and payload inspection. Independent checks
+reparsed actual channel result variables, compared the four-leg and policy
+observations, and verified no owned smoke container remains. The failed
+attempt report remains private with its hash/error recorded in the summary;
+no earlier successful timeout or startup evidence was overwritten.
+
+All 41 modules and the five loaded-policy startup observations passed in
+the same successful process. No PJSIP endpoints/transports or test CLI were
+present. Docker SIGTERM shutdown exited zero without OOM/watchdog expiry,
+then owned-label/name/ID cleanup removed the container. Existing containers
+were untouched; the dedicated builder stayed stopped and the image was not
+rebuilt. The existing no-network/no-ports/read-only-root/cap-drop/no-new-
+privileges, 4 CPU-equivalent, 4 GiB/no-extra-swap, 256-task, 64 MiB tmpfs,
+five-minute watchdog and bounded-log controls remained in effect.
+
+Nine new offline answer tests cover bounded fixture contents, exact answer
+threshold edges, wrong/duplicate/missing result variables, dialed-vs-answered
+consistency, exact member/caller state, foreign channels, four-leg success,
+completed-call rejection, initial-channel rejection, absolute deadline and
+mutually exclusive fixture flags. Existing Desktop tests cover answered-mode
+wiring while preserving startup/timeout behavior. Together **43 offline
+Python tests and 29 source/evidence tests pass**.
+
+This demonstrates synthetic queue-member answering and caller continuation,
+not human agent service, SIP registration, external calls, sound quality,
+audio/media, transfer or production configuration. Gate C, remaining Gate A
+lifecycle/output/AO2 acceptance, deployment and redistribution/source-license
+closure remain separate scopes.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

@@ -2570,6 +2570,20 @@ binds the existing image proof. This proves dialplan/empty-queue timeout and
 cleanup only, not SIP registration, audio/media, human answering or Gate C.
 See the [functional handoff](./PROJECT-PLAN.md#custom-image-synthetic-local-channel-queue-timeout-passed).
 
+### Synthetic answered-member call and caller continuation passed
+
+The custom image now exercises the complementary successful-answer path:
+a synthetic Local member answered and held, then hung up; the caller
+continued with `QUEUESTATUS=CONTINUE` and **4,505 ms answered time**.
+All four Local legs, a queued caller and one completed queue call were
+observed. Member removal restored the original empty queue policy, zero
+channels remained, and the disposable container exited zero and was removed.
+The [functional evidence](./local/asterisk-build/synthetic-answered-call-validation.json)
+binds the exact raw report. **43 offline Python tests and 29 source/evidence
+tests pass**. No image rebuild, SIP, human answering, media, existing-container
+change or Gate C is implied. See the
+[answered-member handoff](./PROJECT-PLAN.md#custom-image-synthetic-answered-member-and-caller-continuation-passed).
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
