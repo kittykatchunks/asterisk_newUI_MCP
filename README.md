@@ -15,6 +15,142 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Operator-only queue evidence foundation
+
+QF-01 through QF-07 add raw queue-log ingestion and scoped reads in the **same
+dedicated history database**, with independent `queue_sources`/`queue_events`
+tables. The owning [history store](./src/cel-history.ts) exposes `store.queue`;
+[queue-history.ts](./src/queue-history.ts) implements the pipe-delimited format.
+CEL APIs/collector state remain unchanged. A small shared
+[evidence helper](./src/history-evidence.ts) now supplies bounded file reads, scope
+validation and hashes to both kinds; CEL's existing snapshot reader is retained
+as a compatible export.
+
+This is an **operator evidence tool**, not queue journey reconstruction or an
+authenticated history service. No agent phone, entry marker, runtime/epoch
+manifest, queue collector status/gap adapter or new HTTP/UI is enabled.
+
+### Queue operator commands
+
+With Node.js 24 and absolute paths to the dedicated history database and a stable
+copied full snapshot (example placeholders):
+
+```powershell
+node .\scripts\Manage-QueueHistory.ts import 'C:\proof\history.sqlite' customer-a pbx-a generation-1 'C:\proof\queue_log'
+node .\scripts\Manage-QueueHistory.ts sources 'C:\proof\history.sqlite' customer-a - - 100
+node .\scripts\Manage-QueueHistory.ts events 'C:\proof\history.sqlite' customer-a pbx-a generation-1 -1 100
+node .\scripts\Manage-QueueHistory.ts call 'C:\proof\history.sqlite' customer-a pbx-a generation-1 '1792895621.2' -1 100
+```
+
+Only `import` opens a writer; all read commands require an existing supported
+database and open read-only. Invalid arguments, missing/foreign source, malformed
+records, prefix discontinuity and storage failures fail nonzero. No silent empty
+fallback or automatic reset is used.
+
+Queue responses explicitly carry `kind:"queue"`; source envelopes carry
+`timeBasis:"unix"` plus customer/source/generation, consumed bytes, prefix hash and
+record count. `sources` returns `{kind,sources,next}`; pass `next.source` and
+`next.generation` in place of `- -`. Event/call reads return
+`{kind,source,events,nextAfterOffset}`; pass the returned byte-offset cursor in
+place of `-1` until null. Pages are **1-200 entries**, defaulting to 100 in the
+domain API; CLI page size is explicit.
+
+The `call` filter uses the queue log's second field, usually a caller channel
+uniqueid. It is **not** a SIP Call-ID or business journey. `NONE`, `REALTIME`,
+administrative events and identical IDs across customers/kinds remain evidence.
+Queue and CEL may use the same source/generation strings without sharing records,
+binding customers across kinds or implying a runtime/epoch relationship. Every
+read still requires its own customer/source/generation. A future manifest must
+establish cross-source runtime/epoch mapping explicitly; QF does not perform joins.
+
+### Queue format, limits and continuity
+
+Preserved fields are original Unix timestamp **text**, call identifier, queue,
+member, event and an ordered variable parameter array, including empty/trailing
+fields. Original UTF-8 bytes/line endings, byte offsets, record SHA-256 and UTC
+ingestion timestamp round-trip unchanged. LF and CRLF are supported; a partial
+final record, including a split UTF-8 code point or CRLF, remains `pendingBytes`
+until a later full snapshot completes it.
+
+This is not CSV: quotes are literal data, pipes delimit fields, and newline ends
+the record. There is no escape inference for delimiter-bearing caller data.
+Unknown syntactically valid event names and extra/absent parameters are retained
+without invented event semantics. Event names must be uppercase
+letters/digits/underscores, start with a letter and be at most 128 characters.
+The five fixed fields are nonempty and bounded to 1,024 characters. Timestamp text
+is 1-16 unsigned decimal digits with an optional 1-9 digit fractional part; it is
+not converted to a JavaScript date or used to infer business periods.
+
+Bounds are **8 MiB/full snapshot**, **64 KiB/record including line ending**,
+**50,000 new records/import**, **256 parameters/record**, and **200 entries/page**.
+Completed invalid UTF-8, BOM/control characters, malformed framing or exceeded
+bounds fail the entire transaction. No completed valid rows earlier in that
+failed import become visible, and its checkpoint does not advance.
+
+Imports verify the entire consumed byte prefix before appending. Exact replay
+after process exit/restart inserts zero; identical rows at different offsets stay
+separate. Changed/truncated prefixes or customer rebinding for a queue
+source/generation fail. Operator-recognised replacement requires a distinct
+generation; no automatic rotation, overlap deduplication across generations or
+gap-free recovery is claimed. Unlike CEL CR, QF has no durable queue health/gap
+workflow: **CEL collector health/gaps do not describe queue coverage**. Generation
+changes alone do not establish continuity, an epoch or missing-call intervals.
+
+Raw queue records may contain caller number/name and other sensitive parameters.
+Restrict filesystem/CLI access; this trusted operator tool is not tenant
+authentication, a safe export or tamper-proof storage. Hash/read validation
+detects inconsistent stored evidence, not deliberate database rewriting.
+Production retention/backup, remote delivery and large-file segmentation remain
+open.
+
+### History schema 3 and verification
+
+Any current trusted writer atomically migrates dedicated history schema 1/2 to
+**3**, preserving CEL source/event and collector/gap state while adding separate
+queue tables. Current CEL read commands support schemas 1/2/3; collector reads
+support 2/3; queue reads require 3 and otherwise instruct writer migration. Old
+binaries reject schema 3; there is no downgrade path. Diagnostic, agent,
+simulation and backup formats are unchanged.
+
+```powershell
+.\scripts\Test-QueueHistoryProof.ps1
+```
+
+The command runs typecheck, **38 focused queue/CEL/collector tests**, then the
+existing isolated two-customer harness in explicit `--queue` mode. It requires
+the locally available pinned image documented below, uses `--pull never
+--no-build`, creates a unique Compose project and never controls the shared
+deployment. It reuses the existing empty Local-channel queue fixture without
+changing any loaded route or invoking REFER tests.
+
+Recorded real run `run-hyu0OP` (project `asterisk-queue-hyu0op`) imported
+**three records / 157 bytes per customer** (QUEUESTART, ENTERQUEUE,
+EXITWITHTIMEOUT). Separate CLI replay inserted **zero** records; one-entry pages
+reproduced all bytes exactly. Each queue call identifier matched fresh scoped CEL
+CHAN_START/ANSWER/HANGUP/CHAN_END evidence; the two runtimes actually reused the
+same channel ID without crossing customer boundaries.
+
+After restarting only the owned PBXs, both queue prefixes and original stored
+records were unchanged. One new administrative QUEUESTART per customer appended:
+**four records / 195 bytes** each. Replay again inserted zero. A separate real
+CEL collector recovery regression (`run-QZjOc8`) also passes on schema 3.
+Focused tests additionally cover schema-2 compatibility/migration rollback,
+schema-1 migration via existing regressions, exact input/page limits, partial
+tails, malformed input, distinct-offset duplicates, concurrent importer processes,
+transaction failure, process death, corruption and cross-kind/customer isolation.
+
+Each run prints its ignored `.local-proof\queue-history\run-...\result.json`.
+The synthetic database and non-secret report are retained for inspection; owned
+containers/networks/volumes and generated credential/snapshot directories are
+removed on pass/failure, with cleanup errors explicitly failing the command.
+Independent checks found no owned Docker resources and only the database/report
+in the recorded run directory.
+
+The fixture calls Answer before waiting in an empty queue. Its timeout is **not
+human service, caller abandonment or a reconstructed inbound journey**. QF adds
+partial history evidence only; M1-06/07 and the other remaining broad gates are
+not marked complete. See the [finite QF contract](./MILESTONE-1.md#selected-next-increment-operator-queue-evidence-foundation).
+
 ## Journey reconstruction design (not implemented)
 
 The next history design is documented in the
@@ -30,10 +166,11 @@ deterministic projection revisions and metric exclusions. The current queue
 fixture answers at the PBX before waiting in an empty queue: that is not evidence
 of human service or caller abandonment.
 
-This increment is **documentation only**; its acceptance checks are not recorded
-passes. Recommended next is operator-only queue evidence ingestion, then
-separately scoped instrumentation/reconstruction and outcome acceptance. No
-runtime behaviour, phones, services, dependencies or REFER checks changed.
+The JD increment was **documentation only**; its acceptance checks are not
+recorded passes. The subsequent QF increment above implements operator-only raw
+queue ingestion. Instrumentation/reconstruction and outcome acceptance remain
+separately scoped future work. JD changed no runtime behaviour, phones, services,
+dependencies or REFER checks.
 
 ## Operator-run CEL collector recovery
 
@@ -126,12 +263,13 @@ This CLI and database remain trusted operator resources; their scope filters are
 not a tenant-login authorisation boundary. Paths and raw CEL can be sensitive.
 Restrict filesystem access and do not publish CLI output as a redacted export.
 
-CEL schema **2** adds collector and gap tables in the same dedicated database.
-A trusted writable open atomically migrates schema 1, preserving original events
-and checkpoints. Current history read commands support schema 1/2 read-only;
-collector reads require schema 2 and otherwise instruct migration with a writer.
-Old schema-1-only binaries reject the upgraded database. Diagnostic, agent and
-simulation schemas/backups are unchanged; production backup for CEL remains open.
+The CR increment introduced CEL schema **2** for collector and gap tables.
+QF now upgrades the same database to **3** as documented above. Current history
+read commands support schemas 1/2/3 read-only; collector reads require 2/3 and
+otherwise instruct migration with a writer. A trusted writable open migrates to
+the current schema, preserving original events/checkpoints/collector state.
+Old binaries reject the upgraded schema. Diagnostic, agent and simulation
+schemas/backups are unchanged; production backup for CEL remains open.
 
 ### Collector recovery verification
 

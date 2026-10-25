@@ -1,23 +1,7 @@
-import { open } from "node:fs/promises";
-import { isAbsolute } from "node:path";
-import { CelAttemptConflict, CelPrefixError, CEL_SNAPSHOT_LIMIT, type openCelHistory } from "./cel-history.ts";
+import { CelAttemptConflict, CelPrefixError, type openCelHistory } from "./cel-history.ts";
+import { readHistorySnapshot as readCelSnapshot } from "./history-evidence.ts";
 
-export async function readCelSnapshot(path: string) {
-  if (!isAbsolute(path)) throw new Error("CEL snapshot requires an absolute local path");
-  const file = await open(path, "r");
-  try {
-    if (!(await file.stat()).isFile()) throw new Error("CEL snapshot must be a regular local file");
-    const bytes = Buffer.alloc(CEL_SNAPSHOT_LIMIT + 1);
-    let length = 0;
-    while (length < bytes.length) {
-      const result = await file.read(bytes, length, bytes.length - length, null);
-      if (!result.bytesRead) break;
-      length += result.bytesRead;
-    }
-    if (length > CEL_SNAPSHOT_LIMIT) throw new Error("CEL snapshot exceeds 8 MiB");
-    return bytes.subarray(0, length);
-  } finally { await file.close(); }
-}
+export { readCelSnapshot };
 
 export async function collectCelOnce(
   store: ReturnType<typeof openCelHistory>, customer: string, source: string,

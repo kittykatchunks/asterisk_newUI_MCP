@@ -767,7 +767,7 @@ The subsequent M1-10 local conventional-route result is recorded below; the othe
 | M1-03 | Separate networks/volumes, cross-customer credentials/API denial. | Concurrent active call/media plus history/recording disclosure checks in one correlated acceptance run. |
 | M1-04 | Frozen synthetic REFER transaction/media matrix. | Actual agent mute, hold/resume, receiver-verified keypad and authorised endpoint transfer controls. |
 | M1-05 | Session/device exclusivity, release/expiry, provisioning/registration fixtures. | Live queue offers after endpoint move and historical attribution across the move; no phone activation is implied by reservations. |
-| M1-06 | Fresh CEL/queue/WAV records and restart checks; transfer correlations in fixtures. Subsequent HF foundation adds durable operator-only CEL import, exact replay/reopen and scoped channel evidence reads. | Durable application ingestion/history for all four outcomes with journey/leg/queue-visit accounting after restart; HF does not reconstruct journeys or queue visits. |
+| M1-06 | Fresh CEL/queue/WAV records and restart checks; transfer correlations in fixtures. HF adds durable CEL import/replay/scoped reads; QF adds separate raw queue import, zero replay duplicates and persisted entry/timeout after owned PBX restart. | Durable application ingestion/history for all four outcomes with journey/leg/queue-visit accounting after restart; HF/QF do not reconstruct journeys or queue visits. |
 | M1-07 | Durable source logs and isolated AMI outage tests; subsequent CR operator local-file recovery adds atomic checkpoints/status, exact replay, explicit stale/failure states and permanent unknown-coverage generation gaps. | Production/remote collector lifecycle, automatic segmented/rotated sources, complete history/queue integration and acceptance against full M1-07 wording; local copied-file health is not remote source freshness. |
 | M1-08 | Synthetic WAV payload/format checks and unchanged hashes across restart. | Journey-linked authorised playback and recording upload failure/recovery workflow. |
 | M1-09 | Revision/approval patterns for diagnostic reports and narrow provisioning. | Route/queue configuration publication, runtime verification and external-edit drift handling; report approval is not PBX publication. |
@@ -963,9 +963,10 @@ Final recorded run `run-xlF4Kd` (project `asterisk-collector-xlf4kd`) measured
 networks or volumes and only the database/report retained. Separate subsequent
 read-only commands verified stale status and persistent customer-scoped gaps.
 
-CEL schema 2 atomically adds collector/gap state; current read-only history tools
-still read schema 1/2, while collector operations require migration by a trusted
-writer. Other application stores and permissions are unchanged.
+The CR increment's CEL schema 2 atomically added collector/gap state; QF below
+subsequently upgrades to 3. Current read-only history tools read 1/2/3 and collector
+reads require 2/3, while writers migrate to the current schema. Other application
+stores and permissions are unchanged.
 This adds partial evidence toward M1-07, not full milestone acceptance. The 17
 remaining broad M1 gates remain incomplete; no phone, HTTP/UI, queue/journey
 reconstruction, remote collector deployment or REFER rerun was added.
@@ -1032,6 +1033,61 @@ are partial foundations. None currently proves all four history outcomes,
 queue/member service, full journey reconstruction or production collection.
 The 17 broad M1 gaps remain incomplete. No runtime files, dependencies, services
 or frozen REFER tests were changed or executed in this design increment.
+
+### Selected next increment: operator queue evidence foundation
+
+The user selected extending the dedicated history database, with separate queue
+source/event tables. QF is raw evidence ingestion, not reconstruction or queue
+collector deployment. Preserve CEL/collector interfaces and explicit kind scoping.
+
+| Check | Finite required evidence |
+|---|---|
+| QF-01 | Atomically migrate history schema 1/2 to 3 with separate queue tables; preserve CEL evidence/checkpoints and collector/gaps. Current CEL readers support schemas 1/2/3; queue reads require schema 3. Unsupported/foreign databases fail explicitly. |
+| QF-02 | Preserve exact UTF-8 LF/CRLF queue records, original Unix timestamp text, five fixed fields and variable/empty parameter array, source/customer/generation, offsets, hashes and ingestion timestamps. Unknown/admin events and NONE/REALTIME IDs remain raw evidence, not calls/outcomes. |
+| QF-03 | Bound full snapshots to 8 MiB, records to 64 KiB, new records/import to 50,000, parameters/record to 256 and source/event pages to 200 entries. No CSV quoting/escaping inference. Reject malformed completed input, UTF-8/BOM/control characters explicitly; unfinished tails remain pending. No event-specific semantic reconstruction in QF. |
+| QF-04 | New records and prefix checkpoint commit atomically; identical replay/restart inserts zero, identical rows at different offsets persist separately, competing importers cannot duplicate. Reject changed/truncated consumed prefixes and source/customer rebinding; explicit unused generations are operator decisions, not automatic rotation or gap-free recovery. |
+| QF-05 | Queue source/event/call-ID reads are customer/source/generation scoped and bounded; colliding queue/CEL IDs cannot join kinds, tenants or generations. Kind is always explicit in queue responses; runtime/epoch pairing remains unassigned, not inferred from matching names. |
+| QF-06 | Read-only operator CLI, stored evidence validation, failed writes/transaction rollback, invalid arguments, process death/restart, migration/failed-migration rollback and original CEL/collector regression tests pass with typecheck. |
+| QF-07 | Isolated two-customer real queue timeout fixture produces ENTERQUEUE/EXITWITHTIMEOUT and supporting CEL. Separate importer processes import/replay/reopen, verify exact bytes and scoped evidence after PBX restart. Retain non-secret results and synthetic database; clean owned services/generated files without touching shared deployment or REFER. |
+
+Stop after QF-01 through QF-07. No journey/visit projection, human-service claim,
+entry instrumentation, runtime/epoch manifest implementation, queue collector
+health/gap adapter, HTTP/UI or phone activation. Existing collector status applies
+to CEL only. Upgraded old binaries reject schema 3; no downgrade is supported.
+Queue parameters may contain sensitive caller data; this trusted operator tool
+is not a tenant authentication boundary or redacted export.
+
+#### Queue foundation evidence
+
+QF-01 through QF-07 pass for the operator-only raw evidence scope. Typecheck and
+38 focused tests pass, including 13 new queue tests plus all 25 CEL/collector
+regressions. Migration preserves schema-2 CEL evidence, checkpoints, collector
+state and gaps; failed queue migration rolls back without advancing schema or
+making partial tables visible. Legacy schema-1 CEL read/migration still passes.
+
+Real run `run-hyu0OP` (project `asterisk-queue-hyu0op`) generated an isolated
+empty Local-channel queue timeout per customer. Each imported three queue records
+(157 bytes): administrative QUEUESTART, ENTERQUEUE and EXITWITHTIMEOUT.
+Separate importer replay inserted zero; fresh read-only stores and one-entry
+pages reproduced exact original bytes. Queue call identifiers matched fresh
+scoped CEL start/answer/hangup/end records. Both runtimes reused the same channel
+ID; foreign-customer reads failed and CEL/queue kinds stayed separate.
+
+Only owned PBXs were restarted. Source prefixes and original stored records
+persisted unchanged; one new administrative QUEUESTART appended per customer,
+giving four queue records (195 bytes). Replayed restarted snapshots inserted
+zero duplicates. The real CEL collector recovery regression `run-QZjOc8` also
+passes on schema 3. Independent cleanup checks found no owned containers,
+networks or volumes, with only synthetic database/report retained.
+
+Reproduce with `.\scripts\Test-QueueHistoryProof.ps1`; the
+[README](./README.md#operator-only-queue-evidence-foundation) records CLI shapes,
+format/limit rules, migration compatibility and sensitive-data boundaries.
+No route, dependency, phone, web/permission surface or REFER matrix changed.
+This proves raw queue timeout evidence, not human service, caller abandonment or
+business journeys. JD runtime/epoch pairing, instrumentation, reconstruction and
+queue collector coverage remain unimplemented. M1-06/07 and the 17 remaining broad
+M1 gates are still incomplete.
 
 ## 6. Proposed implementation backlog
 

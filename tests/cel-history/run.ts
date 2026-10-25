@@ -6,15 +6,20 @@ import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { openCelHistory, type CelEvent } from "../../src/cel-history.ts";
+import type { QueueEvent } from "../../src/queue-history.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && args[0] !== "--recovery")) throw new Error("Only --recovery is supported");
+if (args.length > 1 || (args.length === 1 && args[0] !== "--recovery" && args[0] !== "--queue")) {
+  throw new Error("Only --recovery or --queue is supported");
+}
 const recovery = args[0] === "--recovery";
-const parent = join(root, ".local-proof", recovery ? "cel-collector" : "cel-history");
+const queueProof = args[0] === "--queue";
+const mode = recovery ? "cel-collector" : queueProof ? "queue-history" : "cel-history";
+const parent = join(root, ".local-proof", mode);
 await mkdir(parent, { recursive: true });
 const directory = await mkdtemp(join(parent, "run-"));
-const project = `asterisk-${recovery ? "collector" : "history"}-${basename(directory).slice(4).toLowerCase()}`;
+const project = `asterisk-${recovery ? "collector" : queueProof ? "queue" : "history"}-${basename(directory).slice(4).toLowerCase()}`;
 const database = join(directory, "history.sqlite");
 const compose = ["compose", "--project-name", project,
   "-f", join(root, "compose.yaml"), "-f", join(root, "compose.sip-proof.yaml"),
@@ -34,9 +39,10 @@ async function cli(args: string[], script = "Manage-CelHistory.ts") {
   return result.stdout.trim();
 }
 const collector = (args: string[]) => cli(args, "Manage-CelCollector.ts");
-async function freshSnapshot(customer: string) {
+async function freshSnapshot(customer: string, kind: "cel" | "queue" = "cel") {
+  const path = kind === "queue" ? "/var/log/asterisk/queue_log" : "/var/log/asterisk/cel-custom/Master.csv";
   const encoded = await docker(["exec", "-T", customer, "python3", "-B", "-c",
-    "import base64; from pathlib import Path; print(base64.b64encode(Path('/var/log/asterisk/cel-custom/Master.csv').read_bytes()).decode())"]);
+    `import base64; from pathlib import Path; print(base64.b64encode(Path('${path}').read_bytes()).decode())`]);
   return Buffer.from(encoded, "base64");
 }
 async function calls() {
@@ -54,7 +60,8 @@ let composeAttempted = false;
 const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
   scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
-    "operator-only CEL evidence; no business journey/outcome reconstruction",
+    queueProof ? "operator queue evidence with isolated empty Local-channel timeout and PBX restart; not human service or journey reconstruction" :
+      "operator-only CEL evidence; no business journey/outcome reconstruction",
   asteriskImage: "andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d" };
 try {
   const template = await readFile(join(root, "local", "sip", "endpoint.conf.template"), "utf8");
@@ -124,6 +131,96 @@ try {
       assert.equal(sources.sources[0].source, `pbx-${customer}`);
     }
   } finally { reopened.close(); }
+  if (queueProof) {
+    const queueEvidence: Record<string, unknown>[] = [];
+    report.queue = queueEvidence;
+    for (const customer of customers) {
+      await docker(["exec", "-T", customer, "asterisk", "-rx",
+        "channel originate Local/queue@proof/n application Wait 4"]);
+    }
+    for (const customer of customers) {
+      const deadline = performance.now() + 20000;
+      while (!/^0 active channels/m.test(await docker(["exec", "-T", customer, "asterisk", "-rx", "core show channels count"]))) {
+        if (performance.now() >= deadline) throw new Error("Queue fixture did not finish");
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    const snapshots: { customer: string; snapshot: Buffer; events: QueueEvent[] }[] = [];
+    for (const customer of customers) {
+      const source = `pbx-${customer}`;
+      const snapshot = await freshSnapshot(customer, "queue");
+      const input = join(directory, customer, "queue_log");
+      await writeFile(input, snapshot);
+      // Queue and CEL deliberately share source/generation strings; kinds remain independent.
+      const args = ["import", database, customer, source, project, input];
+      const imported = JSON.parse(await cli(args, "Manage-QueueHistory.ts"));
+      const replay = JSON.parse(await cli(args, "Manage-QueueHistory.ts"));
+      assert.equal(imported.kind, "queue");
+      assert.equal(imported.pendingBytes, 0);
+      assert.equal(replay.inserted, 0);
+      const cel = await freshSnapshot(customer);
+      const writer = openCelHistory(database);
+      try { writer.ingest({ customer, source, generation: project, timeBasis: "UTC" }, cel); }
+      finally { writer.close(); }
+      const store = openCelHistory(database, { readOnly: true });
+      try {
+        const query = { customer, source, generation: project };
+        const events: QueueEvent[] = [];
+        let afterOffset = -1;
+        do {
+          const page = store.queue.read({ ...query, afterOffset, limit: 1 });
+          events.push(...page.events);
+          if (page.nextAfterOffset === null) break;
+          afterOffset = page.nextAfterOffset;
+        } while (true);
+        assert.deepEqual(Buffer.from(events.map((event) => event.rawRecord).join("")), snapshot);
+        assert.equal(events.length, imported.records);
+        const entries = events.filter((event) => event.event === "ENTERQUEUE");
+        assert.equal(entries.length, 1);
+        const callId = entries[0].callId;
+        assert.equal(entries[0].queue, "proof-queue");
+        const call = store.queue.read({ ...query, callId });
+        assert.deepEqual(call.events.map((event) => event.event), ["ENTERQUEUE", "EXITWITHTIMEOUT"]);
+        const lifecycle = store.read({ ...query, uniqueid: callId }).events;
+        for (const name of ["CHAN_START", "ANSWER", "HANGUP", "CHAN_END"]) {
+          assert.equal(lifecycle.filter((event) => event.event === name).length, 1);
+        }
+        assert.throws(() => store.queue.read({ ...query,
+          customer: customer === "customer-a" ? "customer-b" : "customer-a" }), /not found/);
+        snapshots.push({ customer, snapshot, events });
+        queueEvidence.push({ customer, source, generation: project, bytes: snapshot.length,
+          imported: imported.inserted, replayInserted: replay.inserted, exactRawRoundTrip: true,
+          readPageLimit: 1, callId, callEvents: call.events.map((event) => event.event),
+          celEvents: lifecycle.map((event) => event.event), prefixSha256: imported.prefixSha256,
+          crossCustomerReadDenied: true });
+      } finally { store.close(); }
+    }
+    await docker(["restart", ...customers], 45000);
+    await docker(["up", "-d", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "90", ...customers], 120000);
+    for (const { customer, snapshot, events } of snapshots) {
+      const source = `pbx-${customer}`;
+      const restarted = await freshSnapshot(customer, "queue");
+      assert.deepEqual(restarted.subarray(0, snapshot.length), snapshot);
+      const input = join(directory, customer, "queue_log");
+      await writeFile(input, restarted);
+      const args = ["import", database, customer, source, project, input];
+      const appended = JSON.parse(await cli(args, "Manage-QueueHistory.ts"));
+      const replay = JSON.parse(await cli(args, "Manage-QueueHistory.ts"));
+      assert.equal(appended.pendingBytes, 0);
+      assert.equal(replay.inserted, 0);
+      const store = openCelHistory(database, { readOnly: true });
+      try {
+        const all = store.queue.read({ customer, source, generation: project });
+        assert.equal(all.nextAfterOffset, null);
+        assert.deepEqual(all.events.slice(0, events.length), events);
+        assert.deepEqual(Buffer.from(all.events.map((event) => event.rawRecord).join("")), restarted);
+        const entry = queueEvidence.find((entry) => entry.customer === customer)!;
+        Object.assign(entry, { restartPrefixPreserved: true, restartInserted: appended.inserted,
+          restartReplayInserted: replay.inserted, restartRecords: all.events.length, restartBytes: restarted.length });
+      } finally { store.close(); }
+      console.log(`PASS ${customer}: raw queue entry/timeout and CEL preserved; zero duplicate replay before/after PBX restart`);
+    }
+  }
   if (recovery) {
     const recoveryEvidence: Record<string, unknown>[] = [];
     report.recovery = recoveryEvidence;
@@ -226,5 +323,5 @@ try {
   }
   await writeFile(join(directory, "result.json"), JSON.stringify(report, null, 2) + "\n");
 }
-console.log(`CEL history proof result: ${join(directory, "result.json")}`);
+console.log(`History proof result: ${join(directory, "result.json")}`);
 if (failed) throw failed;

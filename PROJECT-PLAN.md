@@ -596,6 +596,41 @@ queue/journey history, retention/backup and authenticated presentation remain
 separate. Live phones remain disabled and REFER was not rerun.
 Stop after this finite verified increment.
 
+### Operator queue evidence foundation completion
+
+The user selected extending the dedicated history database with separate queue
+tables. QF-01 through QF-07 now provide bounded full-snapshot raw queue imports,
+atomic prefix checkpoints, source/event/call-ID pages and an operator-only CLI.
+Responses explicitly identify `kind:queue`; equal CEL/queue or cross-customer IDs
+do not cause joins. Original Unix timestamp text, LF/CRLF record bytes, empty/
+variable parameters, offsets, hashes and ingestion timestamps persist.
+Unknown/admin events remain raw evidence, not outcomes or inbound counts.
+
+History schema 3 atomically adds `queue_sources`/`queue_events` while preserving
+CEL APIs, evidence and collector/gaps. Current CEL readers accept 1/2/3 and
+collector readers 2/3; queue reads require 3. Writers migrate to 3; old binaries
+reject upgraded databases. Shared bounded-file/scope/hash helpers avoid separate
+CEL/queue policies without conflating their incompatible record formats.
+
+Typecheck and 38 focused queue/CEL/collector tests pass. Real run `run-hyu0OP`
+imports three queue records (157 bytes) per customer, correlates entry/timeout
+identifiers to scoped CEL and reproduces exact bytes through one-entry pages.
+Separate importer replay inserts zero. Owned PBX restart preserves original
+prefix/records and appends one administrative record, giving four records
+(195 bytes) per customer; replay still inserts zero. The real CEL collector
+recovery regression also passes on schema 3. Owned services/generated files are
+removed; only synthetic history databases/reports remain local.
+
+Reproduce with `.\scripts\Test-QueueHistoryProof.ps1`; see
+[QF acceptance evidence](./MILESTONE-1.md#selected-next-increment-operator-queue-evidence-foundation)
+and [operator usage/limits](./README.md#operator-only-queue-evidence-foundation).
+No dependencies, loaded routes, phones, web/permission surfaces or REFER checks
+changed. This is not completed JD reconstruction or M1-06/07 acceptance.
+Runtime/epoch manifest, queue collector health/gap workflow, entry/visit
+instrumentation, journey/leg/visit projection, human-service/outcome evidence and
+authenticated presentation remain separate. CEL health never implies queue
+freshness. Stop after this verified foundation.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:
@@ -725,9 +760,9 @@ The user selected a documentation-only increment and explicitly chose:
 1. **Trusted inbound-entry markers**, not inferred linked-ID roots.
 2. **Separate outcome facts**, not one overloaded answered/failed label.
 
-This design is the next implementation contract, not evidence that queue ingestion,
-journey reconstruction or live phones exist. The HF/CR implementations continue to
-store CEL channel evidence only. Use the finite
+This design is a staged implementation contract, not reconstruction acceptance.
+HF/CR store CEL channel evidence; the subsequent QF increment adds raw queue
+evidence without implementing this journey model or enabling live phones. Use the finite
 [JD acceptance matrix](./MILESTONE-1.md#journey-design-and-reconstruction-contract)
 before implementing derived reports.
 
@@ -960,8 +995,9 @@ time-zone bucketing must not collapse repeated local hours.
 #### Implementation order and design sources
 
 1. **QF: queue evidence foundation**: operator-only bounded raw ingestion,
-   durable checkpoints/replay and scoped reads; source kind/runtime pairing
-   manifest design, no journey totals.
+   durable checkpoints/replay and scoped reads. This foundation is now implemented
+   above with explicit source kind and no journey totals; runtime/epoch pairing
+   remains a future manifest contract.
 2. **JI: isolated instrumentation and reconstruction**: versioned trusted entry/
    visit markers in a new fixture, epoch manifest and deterministic graph with
    explicit ambiguity. Prove local/transfer/re-entry cases with synthetic peers,

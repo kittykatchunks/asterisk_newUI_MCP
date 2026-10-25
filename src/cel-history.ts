@@ -1,9 +1,11 @@
-import { createHash } from "node:crypto";
 import { isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { HISTORY_SNAPSHOT_LIMIT, HISTORY_RECORD_LIMIT, historySha256 as sha256,
+  historyIdentifier as identifier, historyInteger as integer, historyDigest as digest } from "./history-evidence.ts";
+import { createQueueHistory, createQueueSchema, validateQueueSchema } from "./queue-history.ts";
 
-export const CEL_SNAPSHOT_LIMIT = 8 * 1024 * 1024;
-const recordLimit = 64 * 1024;
+export const CEL_SNAPSHOT_LIMIT = HISTORY_SNAPSHOT_LIMIT;
+const recordLimit = HISTORY_RECORD_LIMIT;
 const applicationId = 0x43454c48;
 const names = ["event", "sourceTimestamp", "channel", "uniqueid", "linkedid", "context", "extension", "extra"] as const;
 export type CelFields = Record<typeof names[number], string>;
@@ -99,12 +101,6 @@ function transitionContext(operator: string, reason: string) {
     }
   }
 }
-const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
-function identifier(value: unknown): asserts value is string {
-  if (typeof value !== "string" || !/^[a-z0-9][a-z0-9._-]{0,95}$/.test(value)) {
-    throw new Error("CEL scope requires bounded lowercase customer/source/generation identifiers");
-  }
-}
 function sourceInput(value: CelSource) {
   identifier(value.customer); identifier(value.source); identifier(value.generation);
   if (typeof value.timeBasis !== "string" || value.timeBasis.length > 100 || !value.timeBasis.trim()) {
@@ -112,12 +108,6 @@ function sourceInput(value: CelSource) {
   }
   // Validate the operator declaration; source timestamps remain original text.
   new Intl.DateTimeFormat("en-GB", { timeZone: value.timeBasis });
-}
-function integer(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
-function digest(value: unknown): value is string {
-  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
 }
 function parseRecord(raw: Uint8Array): CelFields {
   if (raw.byteLength > recordLimit) throw new Error("CEL record exceeds 64 KiB");
@@ -224,10 +214,10 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
         ) STRICT;
         CREATE INDEX cel_channel ON cel_events(source, generation, uniqueid, offset);
         PRAGMA application_id = ${applicationId}; PRAGMA user_version = 1;`);
-      } else if ((version !== 1 && version !== 2) || identity !== applicationId) {
+      } else if ((version !== 1 && version !== 2 && version !== 3) || identity !== applicationId) {
         throw new Error("Not a supported CEL history database");
       }
-      if (!options.readOnly && version !== 2) {
+      if (!options.readOnly && version !== 2 && version !== 3) {
         db.exec(`CREATE TABLE cel_collectors (
           source TEXT PRIMARY KEY, customer TEXT NOT NULL, generation TEXT NOT NULL,
           time_basis TEXT NOT NULL, path TEXT NOT NULL, stale_after_ms INTEGER NOT NULL,
@@ -245,19 +235,22 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
       }
       db.prepare("SELECT source, generation, customer, time_basis, consumed_bytes, prefix_sha256 FROM cel_sources LIMIT 0");
       db.prepare("SELECT source, generation, offset, end_offset, uniqueid, raw, sha256, ingested_at FROM cel_events LIMIT 0");
-      if (!options.readOnly || version === 2) {
+      if (!options.readOnly || version === 2 || version === 3) {
         db.prepare(`SELECT source,customer,generation,time_basis,path,stale_after_ms,revision,updated_at,
           outcome,attempted_at,succeeded_at,failure,pending_bytes FROM cel_collectors LIMIT 0`);
         db.prepare(`SELECT id,customer,source,from_generation,to_generation,last_success_at,observed_at,
           operator,reason FROM cel_collection_gaps LIMIT 0`);
       }
+      if (!options.readOnly && version !== 3) createQueueSchema(db);
+      if (!options.readOnly || version === 3) validateQueueSchema(db);
       db.exec("COMMIT");
     } catch (error) { db.exec("ROLLBACK"); throw error; }
   } catch (error) { db.close(); throw error; }
   const find = db.prepare(`SELECT s.*, (SELECT count(*) FROM cel_events e
     WHERE e.source=s.source AND e.generation=s.generation) AS records
     FROM cel_sources s WHERE source=? AND generation=?`);
-  const hasCollectors = db.prepare("PRAGMA user_version").get()?.user_version === 2;
+  const schemaVersion = db.prepare("PRAGMA user_version").get()?.user_version;
+  const hasCollectors = schemaVersion === 2 || schemaVersion === 3;
   function getCollector(customer: string, source: string) {
     identifier(customer); identifier(source);
     if (!hasCollectors) throw new Error("CEL collector requires schema 2; migrate with a trusted writer");
@@ -324,6 +317,7 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
     return current;
   }
   return {
+    queue: createQueueHistory(db, schemaVersion === 3),
     ingest(source: CelSource, snapshot: Uint8Array) {
       return transaction(() => ingest(source, snapshot));
     },
