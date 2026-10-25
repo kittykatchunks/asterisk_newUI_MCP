@@ -231,10 +231,11 @@ class SipProofTests(unittest.TestCase):
         self.assertNotIn("secret", proof.sanitize("password=secret\nAuthorization: digest\nokay", "secret"))
 
     def test_mocked_orchestration_success_and_failures_cleanup(self):
-        for failure in (None, "limits", "preflight", "bridge-drift", "network", "contact", "contact-and-inventory",
+        for failure in (None, "queue-mode", "queue-observer", "limits", "preflight", "bridge-drift", "network", "contact", "contact-and-inventory",
                         "client", "stop", "ownership"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory) / "run"
+                queue_mode = failure in ("queue-mode", "queue-observer")
                 states, created, calls = {}, {}, []
                 image = "sha256:" + "a" * 64
                 netid = "c" * 64
@@ -291,7 +292,8 @@ class SipProofTests(unittest.TestCase):
                             Image=proof.CARRIER if role == "client" else image, HostConfig=host, Mounts=[],
                             Config=dict(User="1000:999" if role == "client" else "10001:10001",
                                         Entrypoint=["python3"] if role == "client" else proof.runtime.ENTRYPOINT,
-                                        Cmd=["-B", "/client/sip_candidate_client.py", "--host=pbx", "--control=/control"],
+                                        Cmd=(["-B", "/client/sip_candidate_client.py", "--host=pbx", "--control=/control"]
+                                             + (["--queue-timeout"] if "--queue-timeout" in args else [])),
                                         Labels={proof.LABEL: owner}),
                             State=dict(Running=False, ExitCode=0, OOMKilled=False, Status="created"))
                         removed.discard(identifier)
@@ -306,10 +308,10 @@ class SipProofTests(unittest.TestCase):
                         if args[-1] == created.get("client"):
                             (root / "control/python-ready.json").write_text(
                                 '{"pythonReady":false}' if failure == "preflight" else '{"pythonReady":true}')
-                            progress = dict(passed=True, registrationPassed=True, mediaPassed=True,
+                            progress = dict(passed=True, registrationPassed=True, mediaPassed=not queue_mode,
                                             clientAddress=clientip, pbxAddress=pbxip, clientPort=4000,
                                             rtp=dict(sentDistinctFrames=100, echoedDistinctFrames=100), phases=[])
-                            for phase in proof.PHASES:
+                            for phase in proof.QUEUE_PHASES if queue_mode else proof.PHASES:
                                 progress["phases"].append(dict(phase=phase))
                                 (root / f"control/{phase}.json").write_text(json.dumps(progress))
                             (root / "control/client-report.json").write_text(json.dumps(progress))
@@ -343,7 +345,7 @@ class SipProofTests(unittest.TestCase):
                         return " Aor: proof-client 1\nObjects found: 1\n"
                     if text == "pjsip show contacts":
                         ack = len(list((root / "control").glob("*.ack")))
-                        if "client" in created and 1 <= ack <= 3:
+                        if "client" in created and 1 <= ack <= (4 if queue_mode else 3):
                             return (" Contact: proof-client/sip:proof-client@" +
                                     ("8.8.8.8" if failure in ("contact", "contact-and-inventory") else clientip) +
                                     ":4000 hash NonQual nan\nObjects found: 1\n")
@@ -354,21 +356,30 @@ class SipProofTests(unittest.TestCase):
 
                 with patch.object(proof.desktop, "verify_image", return_value=(image, HERE / "image-payload-validation-nss.json")), \
                         patch.object(proof.desktop, "command", side_effect=fake_command), \
-                        patch.object(proof.desktop, "cli", side_effect=fake_cli):
-                    if failure is None:
-                        result = proof.proof(root)
+                        patch.object(proof.desktop, "cli", side_effect=fake_cli), \
+                        patch.object(proof.runtime_sip_queue, "observe",
+                                     side_effect=ValueError("queue observation failed") if failure == "queue-observer" else None,
+                                     return_value=dict(passed=True, mediaVerified=False)) as queue_observer:
+                    if failure in (None, "queue-mode"):
+                        result = proof.proof(root, queue_timeout=queue_mode)
                         self.assertTrue(result["passed"])
                         self.assertTrue(result["registrationPassed"])
-                        self.assertTrue(result["mediaPassed"])
+                        self.assertEqual(result["mediaPassed"], not queue_mode)
+                        if queue_mode:
+                            self.assertTrue(result["sipQueueTimeout"]["passed"])
+                            self.assertFalse(result["mediaTested"])
+                            queue_observer.assert_called_once()
+                        else:
+                            queue_observer.assert_not_called()
                         self.assertTrue(result["pythonPreflightPassed"])
                         self.assertEqual(result["initialBridge"], result["finalBridge"])
                     else:
                         with self.assertRaises((ValueError, RuntimeError)) as caught:
-                            proof.proof(root)
+                            proof.proof(root, queue_timeout=queue_mode)
                         if failure == "contact-and-inventory":
                             self.assertIn("Dynamic contact", str(caught.exception))
                 report = json.loads((root / "sip-proof-report.json").read_text())
-                self.assertEqual(report["passed"], failure is None)
+                self.assertEqual(report["passed"], failure in (None, "queue-mode"))
                 if failure != "ownership":
                     self.assertEqual(set(states), removed)
                     self.assertFalse((root / "control/secret").exists())

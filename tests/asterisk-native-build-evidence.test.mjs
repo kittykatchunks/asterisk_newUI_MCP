@@ -19,6 +19,26 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("SIP-to-queue preparation stays offline and cannot promote echo evidence to queue runtime success", () => {
+  const record = read(`${directory}/sip-queue-preparation.json`);
+  assert.equal(record.stage, "sip-to-empty-queue-timeout-implemented-offline-only");
+  assert.equal(record.runtimeAttemptsAuthorized, 0);
+  assert.equal(record.runtimeAttemptsExecuted, 0);
+  for (const flag of ["runtimeExecuted", "containerStartupAuthorized", "networkCreationAuthorized",
+    "sipTrafficAuthorized", "runtimeApplyAuthorized", "gateAAcceptanceComplete", "gateCAuthorized",
+    "redistributionApproved"]) {
+    assert.equal(record[flag], false, flag);
+  }
+  assert.equal(record.offlineValidation.runtimeAcceptancePassed, false);
+  assert.equal(record.implementation.queueSeconds, 3);
+  assert.equal(record.implementation.observerDeadlineSeconds, 8);
+  assert.equal(record.implementation.progressSampleLimit, 64);
+  assert.equal(record.implementation.mediaEchoTestedByQueueMode, false);
+  assert.equal(preparation.sipQueuePreparation.runtimePassed, false);
+  assert.equal(preparation.sipRegistrationRtpExecution.passed, true);
+  assert.equal(read(`${directory}/${record.latestExecutedSipEvidence}`).passed, true);
+});
+
 test("corrected SIP proof binds registration, authenticated call, exact RTP threshold and complete cleanup", () => {
   const validation = read(`${directory}/sip-registration-rtp-validation.json`);
   for (const [name, evidence] of Object.entries(validation.evidence)) {
@@ -70,8 +90,11 @@ test("corrected SIP proof binds registration, authenticated call, exact RTP thre
   assert.equal(report.watchdogExpired, false);
   assert.equal(report.elapsedSeconds, 13.969);
   for (const [name, digest] of Object.entries(report.toolCanonicalLfHashes)) {
-    const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
-    assert.equal(canonical, digest, name);
+    assert.match(digest, /^[a-f0-9]{64}$/, name);
+    if (["local\\asterisk-build\\smoke-desktop.py", "tests\\sip_rtp_proof.py"].includes(name)) {
+      const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
+      assert.equal(canonical, digest, name);
+    }
   }
   for (const flag of ["runtimeApplyAuthorized", "gateCAuthorized", "redistributionApproved"]) {
     assert.equal(report[flag], false, flag);

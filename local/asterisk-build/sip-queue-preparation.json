@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "stage": "sip-to-empty-queue-timeout-implemented-offline-only",
+  "runtimeExecuted": false,
+  "containerStartupAuthorized": false,
+  "networkCreationAuthorized": false,
+  "sipTrafficAuthorized": false,
+  "runtimeAttemptsAuthorized": 0,
+  "runtimeAttemptsExecuted": 0,
+  "latestExecutedSipEvidence": "sip-registration-rtp-validation.json",
+  "entrypoint": "sip-proof.py",
+  "additionalApprovalFlagRequired": "--approve-sip-queue-timeout",
+  "baseApprovalFlagAlsoRequired": "--approve-isolated-sip-rtp-proof",
+  "defaultBehavior": "Existing private echo proof remains the default; queue mode is explicit opt-in.",
+  "implementation": {
+    "host": "runtime_sip_queue.py",
+    "client": "../../tests/sip_candidate_client.py",
+    "tests": "../../tests/asterisk-sip-queue.test.py",
+    "context": "isolated-sip-proof",
+    "extension": "queue-timeout",
+    "queue": "proof-queue",
+    "queueSeconds": 3,
+    "resultHoldSeconds": 10,
+    "observerDeadlineSeconds": 8,
+    "progressSampleLimit": 64,
+    "mediaEchoTestedByQueueMode": false,
+    "realSipAgentTestedByQueueMode": false
+  },
+  "requiredFutureAcceptance": [
+    "Use the existing pinned image and isolated preflight/resource/cleanup checks only after separate execution approval.",
+    "Reject wrong-secret REGISTER and INVITE, authenticate registration, and verify the exact sole client contact.",
+    "Authenticate INVITE to queue-timeout, send ACK, and validate private PCMU SDP; no RTP echo or human media quality claim.",
+    "Observe exactly one PJSIP/proof-client channel in the private context, Queue application with exact arguments, one queued caller and zero members.",
+    "Observe the same SIP channel enter bounded result Wait after Queue; require TIMEOUT, QUEUEWAIT_MS from 3000 inclusive to 4000 exclusive, ANSWEREDTIME_MS=0 and ABANDONED=TRUE using the existing validator.",
+    "Verify the queue has zero callers at result observation; retain bounded progress even on failure.",
+    "Release the client only after host result verification; require client BYE/200 and zero remaining channels.",
+    "Authenticate explicit unregistration, verify zero contacts and restored exact queue-policy baseline, retain endpoint configuration.",
+    "Require preflight/client/PBX exit zero, unchanged warmed bridge/inventory, owned resource removal and generated credential deletion."
+  ],
+  "offlineValidation": {
+    "pythonTestsPassed": 70,
+    "sourceEvidenceTestsPassed": 35,
+    "runtimeAcceptancePassed": false,
+    "description": "Unit and mocked orchestration checks only; test success is not an executed SIP-to-queue result."
+  },
+  "runtimeApplyAuthorized": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}

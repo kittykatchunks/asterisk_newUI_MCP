@@ -1,6 +1,17 @@
 {
   "schemaVersion": 1,
   "stage": "gate-b-custom-image-isolated-sip-registration-pcmu-echo-passed",
+  "sipQueuePreparation": {
+    "stage": "offline-only-implemented-not-runtime-tested",
+    "preparation": "../asterisk-build/sip-queue-preparation.json",
+    "runtimeAttemptsAuthorized": 0,
+    "runtimeAttemptsExecuted": 0,
+    "runtimePassed": false,
+    "echoRemainsDefault": true,
+    "newNetworkOrContainerStarted": false,
+    "runtimeApplyAuthorized": false,
+    "gateCAuthorized": false
+  },
   "sipRegistrationRtpExecution": {
     "validation": "../asterisk-build/sip-registration-rtp-validation.json",
     "approvedAttemptsThisStep": 1,

@@ -5233,6 +5233,65 @@ SIP queue/member paths, load/performance, multi-PBX tenant isolation,
 Gate A completion, Gate C, redistribution/license closure or deployment.
 No further runtime execution is granted by this success.
 
+##### SIP-to-empty-queue timeout fixture: offline only
+
+The user selected **implementation and offline tests only**, explicitly not
+the offered runtime option. No Docker command, container/network startup,
+credential generation, image/dependency change or SIP/RTP traffic occurred.
+The latest executed custom-image result remains the passing SIP registration/
+PCMU echo proof above. [Preparation record](./local/asterisk-build/sip-queue-preparation.json)
+contains zero authorized/executed runtime attempts and no runtime acceptance.
+
+**Implemented:** [the existing orchestrator](./local/asterisk-build/sip-proof.py)
+retains echo by default. Queue mode requires the additional
+`--approve-sip-queue-timeout` flag as well as its existing base runtime approval
+flag; the presence of this code is not user authorization to run it.
+[The client](./tests/sip_candidate_client.py) uses the same registration,
+wrong-secret rejection, contact checks, SDP validation and ACK/BYE primitives
+but targets only `queue-timeout@isolated-sip-proof`. It pauses at a new
+`queue-started` checkpoint after ACK while host assertions observe Queue and
+its result, then sends BYE after acknowledgement and explicitly unregisters.
+Queue mode sends no echo payloads and cannot claim media-echo success.
+
+[Host fixture/assertions](./local/asterisk-build/runtime_sip_queue.py) create
+only `Answer -> Queue(proof-queue,r,,,3) -> Wait(10) -> Hangup` in the private
+context. There is no SIP member, outbound Dial or ordinary customer route.
+The host requires exactly one `PJSIP/proof-client-*` channel in the correct
+context/extension with exact application arguments, unchanged static policy,
+zero members and one queued caller. It must then observe that same channel
+in the result hold with zero queue callers and read channel variables once.
+The existing Local-proof validator is reused, not duplicated:
+`QUEUESTATUS=TIMEOUT`, **3000 <= QUEUEWAIT_MS < 4000**,
+`ANSWEREDTIME_MS=0`, `ABANDONED=TRUE`.
+
+Observation is bounded to eight seconds and 64 progress samples. Samples are
+retained in the host report even when observation fails. A missing queued
+observation, wrong/extra channel, changed policy, retained caller, invalid
+variables or timeout is an explicit failure, not a skipped success.
+After client BYE/200, the existing ten-second channel-drain check applies;
+unregistration must remove contacts, preserve endpoint configuration and
+restore the exact queue policy. Existing preflight, privilege/resource,
+bridge/inventory, zero-exit, watchdog and ownership-safe cleanup checks remain.
+The ten-second post-Queue hold is for CLI inspection, not queue/media latency.
+
+**Offline validation:** unit tests cover private fixture contents, channel/
+context/application guards, observed queued-to-result progression, missing
+observations, retained callers, policy/result mismatches, eight-second/sample
+budgets, preserved failure progress and exact 2999/3000/3999/4000-ms boundaries.
+Mocked client tests verify queue checkpoints, authenticated lifecycle reuse,
+BYE invocation and no RTP verifier calls. Mocked full orchestration covers
+queue success/failure and default echo compatibility; no live protocol test
+was run. Historical passing source hashes continue to describe the earlier
+executed revision, not this new offline queue-capable revision; immutable
+runtime-report hash validation remains in place.
+The final validation batch passed **70 offline Python tests and 35
+source/evidence tests**.
+
+**Next approval boundary:** one isolated SIP-to-queue runtime attempt can be
+proposed under the previous one-PBX/one-client internal-network limits, but
+none is authorized here. This preparation does not establish answering SIP
+agents, SIP queue media quality, real taxi calls, Gate A/Gate C or deployment.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

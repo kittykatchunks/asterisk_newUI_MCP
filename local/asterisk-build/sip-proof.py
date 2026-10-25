@@ -14,6 +14,7 @@ import time
 import uuid
 
 import runtime_image as runtime
+import runtime_sip_queue
 
 
 SPEC = importlib.util.spec_from_file_location("desktop", runtime.HERE / "smoke-desktop.py")
@@ -23,6 +24,8 @@ CARRIER = "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f33504
 LABEL = "org.asterisk.local.smoke-owner"
 TESTS = runtime.HERE.parents[1] / "tests"
 PHASES = ("wrong-register", "registered", "wrong-invite", "echo-complete", "unregistered")
+QUEUE_PHASES = ("wrong-register", "registered", "wrong-invite",
+                "queue-started", "queue-complete", "unregistered")
 CONFIG = """[global]
 type=global
 user_agent=Asterisk-Isolated-Candidate
@@ -80,7 +83,7 @@ def object_rows(output, kind, name):
         raise ValueError(f"Unexpected configured {kind} inventory")
 
 
-def check_limits(state, image, network, client=False):
+def check_limits(state, image, network, client=False, queue_timeout=False):
     host = state["HostConfig"]
     expected = dict(NetworkMode=network, ReadonlyRootfs=True, Privileged=False,
                     Memory=134217728 if client else 4294967296,
@@ -102,9 +105,11 @@ def check_limits(state, image, network, client=False):
     if core != [dict(Name="core", Hard=0, Soft=0)]:
         raise ValueError("Core dump restriction missing")
     if client:
+        expected_command = ["-B", "/client/sip_candidate_client.py", "--host=pbx", "--control=/control"]
+        if queue_timeout:
+            expected_command.append("--queue-timeout")
         if (state["Config"]["Entrypoint"] != ["python3"]
-                or state["Config"]["Cmd"] != [
-                    "-B", "/client/sip_candidate_client.py", "--host=pbx", "--control=/control"]):
+                or state["Config"]["Cmd"] != expected_command):
             raise ValueError("Carrier must run Python only")
     elif state["Config"]["Entrypoint"] != runtime.ENTRYPOINT:
         raise ValueError("PBX loader entrypoint mismatch")
@@ -118,7 +123,7 @@ def sanitize(text, secret):
         else line for line in text.splitlines()) + "\n"
 
 
-def proof(root):
+def proof(root, queue_timeout=False):
     image, payload_path = desktop.verify_image()
     carrier = json.loads(desktop.command(["image", "inspect", CARRIER])[0])[0]
     if carrier["Id"] != CARRIER or carrier["Os"] != "linux" or carrier["Architecture"] != "amd64":
@@ -137,11 +142,15 @@ def proof(root):
     (root / "etc/extensions.conf").write_text(
         "[general]\nstatic=yes\nwriteprotect=yes\n[isolated-sip-proof]\n"
         "exten => echo,1,Answer()\n same => n,Echo()\n same => n,Hangup()\n")
+    if queue_timeout:
+        runtime_sip_queue.prepare(root)
     owner = uuid.uuid4().hex
     network = "asterisk-sip-" + owner[:12]
     names = {"pbx": network + "-pbx", "client": network + "-client"}
     report = dict(
-        schemaVersion=1, stage="custom-image-isolated-sip-rtp-proof", passed=False,
+        schemaVersion=1, stage=("custom-image-isolated-sip-queue-timeout-proof" if queue_timeout
+                               else "custom-image-isolated-sip-rtp-proof"), passed=False,
+        sipQueueTimeoutRequested=queue_timeout,
         imageId=image, carrierImageId=CARRIER, bundleManifestSha256=runtime.MANIFEST_SHA256,
         payloadValidationSha256=runtime.digest(payload_path), owner=owner, networkName=network,
         diagnostics=[], cliObservations=[], phases=[], registrationPassed=False, mediaPassed=False,
@@ -156,6 +165,12 @@ def proof(root):
                          TESTS / "sip_candidate_client.py", TESTS / "sip_rtp_proof.py")},
         sanitizedConfiguration=CONFIG.replace("@SECRET@", "[ephemeral-secret-not-exported]"),
     )
+    if queue_timeout:
+        for filename in ("runtime_sip_queue.py", "runtime_local_call.py"):
+            key = "local\\asterisk-build\\" + filename
+            report["toolHashes"][key] = runtime.digest(runtime.HERE / filename)
+            report["toolCanonicalLfHashes"][key] = hashlib.sha256(
+                (runtime.HERE / filename).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
     lock = threading.RLock()
     expired = threading.Event()
     ids = {}
@@ -253,11 +268,13 @@ def proof(root):
             "--entrypoint=python3", CARRIER, "-B", "/client/sip_candidate_client.py",
             "--host=pbx", "--control=/control",
         ]
+        if queue_timeout:
+            client.append("--queue-timeout")
         with lock:
             ids["client"] = call(client)[0].strip()
         if not re.fullmatch(r"[a-f0-9]{64}", ids["client"]):
             raise ValueError("Invalid preflight client container ID")
-        check_limits(inspect(ids["client"]), CARRIER, "none", True)
+        check_limits(inspect(ids["client"]), CARRIER, "none", True, queue_timeout)
         call(["start", ids["client"]])
         ready_deadline = time.monotonic() + 15
         while not (control / "python-ready.json").exists():
@@ -297,7 +314,7 @@ def proof(root):
                 raise ValueError("Invalid owned container ID")
             state = inspect(ids[role])
             report.setdefault("limits", {})[role] = check_limits(
-                state, CARRIER if role == "client" else image, network, role == "client")
+                state, CARRIER if role == "client" else image, network, role == "client", queue_timeout)
         report["containerIds"] = dict(ids)
         call(["start", ids["pbx"]])
         if query("core waitfullybooted") != "Asterisk has fully booted.\n":
@@ -330,7 +347,7 @@ def proof(root):
         report["networkSettings"] = dict(internal=True, driver="bridge", publishedPorts=0, peers=peers)
         (control / "go").touch()
         report["sipAttempted"] = True
-        for phase in PHASES:
+        for phase in QUEUE_PHASES if queue_timeout else PHASES:
             path = control / f"{phase}.json"
             deadline = min(client_started + 60, time.monotonic() + 15)
             while not path.exists():
@@ -348,11 +365,15 @@ def proof(root):
             if (progress["clientAddress"] != peers["client"] or progress["pbxAddress"] != peers["pbx"]
                     or progress["phases"][-1]["phase"] != phase):
                 raise ValueError("Protocol peer/progress mismatch")
-            if phase in ("registered", "wrong-invite", "echo-complete"):
+            if phase in ("registered", "wrong-invite", "echo-complete", "queue-started", "queue-complete"):
                 observed = contacts(query("pjsip show contacts"), peers["client"], progress["clientPort"])
             else:
                 observed = contacts(query("pjsip show contacts"))
-            wait_no_channels()
+            if phase == "queue-started":
+                report["sipQueueProgress"] = []
+                report["sipQueueTimeout"] = runtime_sip_queue.observe(query, report["sipQueueProgress"])
+            else:
+                wait_no_channels()
             report["phases"].append(dict(client=progress["phases"][-1], contacts=observed))
             if phase == "registered":
                 report["contactRegistrationPassed"] = True
@@ -421,5 +442,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--approve-isolated-sip-rtp-proof", action="store_true", required=True)
     parser.add_argument("--work-dir", type=pathlib.Path, required=True)
+    parser.add_argument("--approve-sip-queue-timeout", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(proof(args.work_dir.resolve()), indent=2))
+    print(json.dumps(proof(args.work_dir.resolve(), args.approve_sip_queue_timeout), indent=2))

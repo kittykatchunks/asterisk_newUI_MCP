@@ -14,6 +14,8 @@ from sip_rtp_proof import Probe, authorization, require, verify_rtp_echo
 
 
 PHASES = ("wrong-register", "registered", "wrong-invite", "echo-complete", "unregistered")
+QUEUE_PHASES = ("wrong-register", "registered", "wrong-invite",
+                "queue-started", "queue-complete", "unregistered")
 
 
 def write_json(path, value):
@@ -67,17 +69,22 @@ class RegistrationProbe(Probe):
         return exchange(auth)
 
 
-def execute(host, control):
+def execute(host, control, queue_timeout=False):
     secret_path = control / "secret"
     password = secret_path.read_text()
     require(re.fullmatch(r"[a-f0-9]{64}", password) is not None, "Invalid private credential format")
-    report = dict(passed=False, phases=[], registrationPassed=False, mediaPassed=False)
+    report = dict(passed=False, phases=[], registrationPassed=False, mediaPassed=False,
+                  queueTimeoutRequested=queue_timeout)
+    phases = QUEUE_PHASES if queue_timeout else PHASES
     probe = RegistrationProbe(host)
+    if queue_timeout:
+        probe.uri = f"sip:queue-timeout@{host}"
+        probe.to_value = f"<{probe.uri}>"
     deadline = time.monotonic() + 60
     report.update(clientAddress=probe.ip, clientPort=probe.port, pbxAddress=probe.server[0])
 
     def checkpoint(phase, **details):
-        require(phase == PHASES[len(report["phases"])], "Unexpected client phase")
+        require(phase == phases[len(report["phases"])], "Unexpected client phase")
         report["phases"].append(dict(phase=phase, **details))
         write_json(control / f"{phase}.json", report)
         until = min(deadline, time.monotonic() + 10)
@@ -93,6 +100,9 @@ def execute(host, control):
         require(code == 200, "Authenticated REGISTER failed")
         checkpoint("registered", code=code, contactExpirySeconds=contact_expiry(headers))
         wrong = Probe(host)
+        if queue_timeout:
+            wrong.uri = probe.uri
+            wrong.to_value = probe.to_value
         try:
             code, _, _ = wrong.invite(secrets.token_hex(32))
             require(code in (401, 403), "Wrong-secret INVITE was not explicitly rejected")
@@ -104,6 +114,10 @@ def execute(host, control):
         port = validate_media(sdp, probe.server[0])
 
         def verify(sip, rtp, call_id, receive):
+            if queue_timeout:
+                checkpoint("queue-started", inviteCode=200, ackSent=True,
+                           codec="PCMU/8000", pbxMediaPort=port)
+                return None
             report["mediaAttempted"] = True
             write_json(control / "media-started.json", dict(mediaAttempted=True))
             count = verify_rtp_echo(sip, rtp, call_id, receive)
@@ -113,7 +127,8 @@ def execute(host, control):
             return count
 
         probe.echo(headers, sdp, verify)
-        checkpoint("echo-complete", inviteCode=200, byeCode=200)
+        checkpoint("queue-complete" if queue_timeout else "echo-complete",
+                   inviteCode=200, byeCode=200)
         code, _, _ = probe.register(host, password, 0)
         require(code == 200, "Authenticated unregistration failed")
         checkpoint("unregistered", code=code)
@@ -129,6 +144,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", required=True)
     parser.add_argument("--control", type=Path, required=True)
+    parser.add_argument("--queue-timeout", action="store_true")
     args = parser.parse_args()
     socket.setdefaulttimeout(5)
     write_json(args.control / "python-ready.json", dict(pythonReady=True))
@@ -138,4 +154,4 @@ if __name__ == "__main__":
             sys.exit(0)
         require(time.monotonic() < ready_deadline, "Network preflight deadline expired")
         time.sleep(0.05)
-    execute(args.host, args.control)
+    execute(args.host, args.control, args.queue_timeout)

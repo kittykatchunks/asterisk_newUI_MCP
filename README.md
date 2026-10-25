@@ -624,6 +624,14 @@ failed reports remain unchanged. This is isolated UDP/PCMU fixture evidence,
 not production quality, WebRTC/TLS/SRTP, Gate A/Gate C or deployment acceptance.
 See [hash-bound evidence](./local/asterisk-build/sip-registration-rtp-validation.json).
 
+**[SIP-to-empty-queue timeout is implemented offline only](./PROJECT-PLAN.md#sip-to-empty-queue-timeout-fixture-offline-only).**
+An explicit opt-in fixture joins the authenticated SIP caller to the existing
+private queue. It requires one observed queued PJSIP caller, exact three-second
+timeout variables, BYE, unregistration and zero residual channels/callers/contacts.
+No new containers, networks, credentials or SIP/RTP traffic were created for this
+preparation. The echo path remains default; a queue runtime attempt needs separate
+approval. This does not test an answering SIP agent or queue media quality.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

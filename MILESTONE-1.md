@@ -2661,6 +2661,20 @@ preserves prior failures unchanged and binds exact passing evidence. No
 production quality, encrypted transport, WebRTC, load, queue-over-SIP, Gate A/
 Gate C or deployment acceptance is implied. Further runtime needs approval.
 
+### SIP-to-empty-queue fixture implemented and offline-tested only
+
+An explicit queue mode now reuses authenticated SIP registration/ACK/BYE and
+the proven Local-queue result validator. It observes one SIP caller enter an
+empty queue, then requires TIMEOUT with 3000–3999 ms queue wait and zero
+answered time before cleanup/unregistration. Default echo behavior is retained.
+Progress is bounded and preserved on failures; final policy, zero channels/
+contacts, resource and owned-cleanup assertions remain mandatory.
+
+The user selected offline preparation: **no new container, network, credentials
+or SIP/RTP traffic**. [The handoff](./PROJECT-PLAN.md#sip-to-empty-queue-timeout-fixture-offline-only)
+describes unit/mocked coverage and zero runtime authority. No answering SIP
+agent or media quality is tested. A queue runtime attempt needs new approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
