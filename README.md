@@ -363,6 +363,15 @@ when CLI transport succeeds, avoiding dispatcher-added text.
 No patch/build/runtime work occurred; lifecycle safety and implementation/build
 approval remain open rather than becoming an implicit further scope expansion.
 
+The [consolidated delivery proposal](./PROJECT-PLAN.md#consolidated-proposal-protected-getter-implementation-and-build-gates)
+is now decision-ready: **A** approves the core lifetime/AO2/getter patch and
+native-test scope; **B** separately approves pinned dependencies and enforced
+build resources; **C** separately approves the owned runtime proof.
+The proposed opt-in lifetime lease would refuse even forced module unload
+while a protected reader is active, an explicit behavior change needing approval.
+**None of A/B/C is approved or executed.** Next is a decision on A, not another
+automatic research increment; declining it leaves exact publication blocked.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

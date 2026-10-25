@@ -2322,6 +2322,126 @@ getter, runtime test or AT/QO pass exists. QO-03, QO-07, exact loaded-policy
 verification, full CP and M1-09 remain open. Next is an explicit lifecycle/
 implementation scope decision, not automatic patch/build execution.
 
+##### Consolidated proposal: protected getter implementation and build gates
+
+The user selected **`consolidated-implementation-proposal`**. This is the
+single proposed delivery sequence for the getter, replacing further automatic
+source-review increments. It **authorizes preparation only**, not implementation,
+dependency installation, image build, PBX execution or changed acceptance.
+It uses the pinned-source findings above; no new source/runtime evidence was
+collected for this proposal.
+
+**Recommended lifecycle mechanism to design and implement first:** an opt-in
+**protected CLI execution lease**, owned by the core loader/CLI rather than by
+app_queue. This deliberately expands the proposed patch surface. It must be
+approved as a behavioral change, not hidden inside the queue handler.
+
+- Associate the new entry with its real module through normal registration,
+  plus explicit protected-entry metadata. Do not replace all ordinary running
+  references or change unrelated CLI commands by default.
+- Under the helpers read lock, locate the entry and obtain a protected module
+  lease **before releasing entry protection**. Admission uses one nonblocking
+  attempt on the loader's module-list/lifecycle mutex: check module running/
+  ready and admission-open state, then increment the protected-reader count
+  as one serialized operation against unload. Contention or closing state
+  denies dispatch explicitly. No loader callback, allocation, use-count
+  notification or queue access occurs while these admission locks are held.
+- This helpers-to-loader acquisition is try-only because unload can hold the
+  loader lock before acquiring helpers. Never wait in that reverse order.
+  Release admission locks before handler execution; the lease, not a held
+  loader lock, protects the code/container through the handler and subsequent
+  entry metadata/output handling.
+- Every teardown path must close admission and check protected readers under
+  that same loader synchronization **before any unload callback, subscription
+  cleanup, queue-container release or dlclose**. Active protected readers
+  cause unload refusal, not waiting/polling or reader cancellation.
+  The protected-reader check must also cover shutdown, refresh, recursive
+  unload and failed-start cleanup, not merely the public soft-unload command.
+- **Intentional opt-in behavior change requiring approval:** firm/hard unload
+  must not bypass active protected readers. Existing force semantics remain
+  for modules without protected readers. If retaining a hard-unload override
+  is required, this safety guarantee cannot be offered; stop and revise scope.
+  Later production/runtime proofs still do not authorize force-unload commands.
+- CLI dispatch must release the lease only **after its last access** to entry
+  metadata, usage text and `inuse`, including permission/shutdown/error exits.
+  Completion requires the same lifetime rule even though its getter branch
+  returns no suggestions. Release must be nonallocating and nonblocking, with
+  an atomic decrement paired with serialized admission/unload checks; no access
+  to module/entry state after the final release. Use-count notifications and
+  diagnostics must not create a new post-release lifetime dependency.
+- Protected unregistration checks/removes under the helpers write lock and
+  returns an explicit busy/error outcome, never stock's success-shaped skip.
+  No drain loop is introduced. Registration/startup failure cannot admit a
+  protected handler; readiness becomes visible only after successful startup.
+  Any unload failure must preserve a truthful admission/state invariant; do
+  not reopen admission automatically after partial cleanup.
+
+These are **required invariants for the first implementation stage**, not
+proven pseudocode. Exact lease types, metadata storage, atomic memory ordering,
+all loader exit paths and shutdown integration must be resolved in the patch
+review. Do not expose a public bypass, rely on `queues != NULL`, add a permanent
+module reference, or place a blocking loader lock in the queue critical section.
+If this cannot be implemented without broader lifecycle changes, stop before
+AO2/getter work and report the narrower blocker.
+
+**Concrete proposed source and repository boundary:**
+
+| Layer | Proposed files/surface | Required exit before proceeding |
+|---|---|---|
+| Core lifetime | Upstream `include/asterisk/cli.h`, `include/asterisk/module.h`, `main/cli.c`, `main/loader.c`; opt-in lease metadata/admission/release/unload denial and protected unregister. | Deterministic entry/lease/teardown tests establish the invariants above; ordinary CLI/module behavior remains unchanged except the approved protected-reader force veto. |
+| Bounded AO2 walk | Upstream `include/asterisk/astobj2.h`, `main/astobj2_hash.c`; direct-mutex hash-owner API. Private owner header only if a reviewed implementation actually needs it, not as caller struct access. | AT-01 through AT-07 and applicable AT-09 establish 64/128/64 bucket/physical-node/object ceilings, no references/allocation/destructor/cleanup scan and correct incomplete outcomes. |
+| Queue owner | Upstream `apps/app_queue.c`; one protected registered command and restricted fact-copy visitor. | AT-08 plus QO policy/name/inventory/error cases establish eight rows, at most 17 global/queue/member acquisition attempts, exact masks/timers, no realtime load and no partial observed output. |
+| Source delivery/tests | One repository-owned minimal patch series against commit `874768141f94bc03865cc746eee1c7669e3c46d5`, manifest and native test additions in the matching upstream test framework. Exact repository paths to be agreed at implementation approval; no vendored source tree or temporary downloads committed. | Patch applies to exact recorded bytes; changed surfaces and license/source obligations are explicit. No claim that a mocked loop proves the patched AO2/CLI implementation. |
+| Optional custom proof image | Separate opt-in builder/runtime recipe and test-only Compose override, leaving default stock image and old bindings untouched. | Complete dependency/base/archive closure, approved enforced resource budget, full ABI-compatible runtime, module-startup provenance and native tests pass before owned PBXs start. |
+| Host observation | Existing `src/configuration-inspector.ts`, related binding/review parsing and `tests/configuration-inspection/` only where required; new custom capability/binding version rather than reinterpretation of old stock evidence. | Strict 8 KiB JSON parser, explicit error/unavailable handling, exact image/start/build/API/mask/budget binding, malformed/partial/error-exit negatives and stock regressions. No executor, approval authority or verified pointer added. |
+
+**Execution order and approvals (all pending):**
+
+1. **Approval A: implementation scope**, explicitly including the four core
+   lifecycle files, opt-in force-unload veto, AO2/hash and app_queue changes,
+   patch packaging and native tests. Implement lifecycle first; review source
+   and lock/state invariants before adding the AO2/getter layers. Source-only
+   work is not a tested deliverable. If tests cannot run without a custom
+   build, retain that pending status; do not simulate a pass.
+2. **Approval B: dependencies and build resources**, after a concrete immutable
+   builder/runtime pair, package snapshot with exact versions/hashes, third-party
+   archive hashes, configure/menuselect/module closure, license manifest and
+   commands are presented. Existing 2 CPU/2 GiB/20 GiB/30-minute figures are
+   proposed stop limits, not approval or measured sufficiency. Establish how
+   every cap, including storage, is enforced before building; inability means
+   stop. No automatic package installer, unrecorded network fetch, registry
+   push or escalation.
+3. **Native validation**, inside that separately approved build environment:
+   run focused actual patched tests, then affected upstream regressions and
+   full runtime/module build. Retain command/result hashes and distinguish
+   test-hook instrumentation from release binary provenance.
+4. **Approval C: owned runtime proof**, after A/B exits: one unique opt-in
+   two-customer project with approved image/bindings, no published ports,
+   no reload/apply/call/ordinary-route/phone/REFER changes. Run QO-01 through
+   QO-10 and host regressions; adversarial lifecycle schedules belong in
+   instrumented native tests, not unapproved force operations on running PBXs.
+   Verify cleanup and preserve exact evidence before any acceptance update.
+
+**Required deterministic lifecycle tests (part of AT-09/QO-03, unexecuted):**
+pause execution at lookup-before-admission, admitted-before-handler,
+handler-before-output, output-before-entry-release and final lease decrement;
+attempt normal/firm/hard teardown in instrumented test fixtures and prove no
+cleanup/dlclose while leased. Reverse the order and prove closed admission never
+calls the handler. Include helpers/loader lock contention, permission/shutdown
+denial, completion, registration failure, protected unregister busy, refresh/
+recursive unload, startup cleanup, unload failure and all lease-release branches.
+Use barriers and exact counters, not timing sleeps or crash-free anecdotes.
+Slow/disconnected output must not free code/container early; it may keep the
+lease active and cause unload refusal. That is explicit behavior, not a promise
+that the host timeout cancels a server handler.
+
+**Decision-ready outcome:** the next useful action is approval or rejection of
+**A**, not another automatic research/design batch. B and C stay separately
+gated even if A is accepted. Declining the core behavioral expansion defers
+the exact-policy getter; it does not justify a stock-summary/disk/canary
+substitute. No stage is approved or executed by this proposal. All AT/QO
+checks, QO-03/QO-07, exact verification, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

@@ -2125,6 +2125,31 @@ No patch, installation, build, module command, PBX execution or AT/QO pass
 occurred. Documentation/source-hash/link/diff checks only; QO-03/QO-07,
 publication verification, full CP and M1-09 remain open.
 
+#### Consolidated getter delivery proposal: approvals pending
+
+The user selected **`consolidated-implementation-proposal`**: preparation only.
+The [single delivery proposal](./PROJECT-PLAN.md#consolidated-proposal-protected-getter-implementation-and-build-gates)
+now combines lifecycle, AO2, getter, native tests, custom-image and host
+observation work, rather than authorizing further automatic source reviews.
+
+Recommended lifecycle mechanism is an opt-in protected CLI lease: serialized
+try-only admission against teardown, coverage through final entry/output access,
+explicit protected-unregister failure and no cleanup/dlclose while leased.
+**Refusing even firm/hard unload while a protected reader is active is an
+intentional proposed behavior change**, requiring implementation approval.
+No generic claim about stock module unload safety is made.
+
+| Gate | Pending approval and exit |
+|---|---|
+| A: implementation | Explicit core CLI/loader expansion and force-veto agreement; pinned patch/native tests, then AO2/getter layers. Deterministic lifecycle schedules and actual implementation checks, not simulated passes. |
+| B: dependencies/build | Immutable complete input/module/license closure and enforceable approved resource caps before installation/build. Prior capacity sample and proposed caps are not authorization. |
+| C: owned runtime proof | Approved built image/provenance and native exits before unique two-customer QO tests; no apply/reload/calls/shared PBX changes. Verified cleanup and retained exact evidence. |
+
+All gates are **pending**, all AT/QO tests remain unexecuted, and source-only
+work cannot be reported as verified. Next is approval/rejection of A; B/C remain
+separate. No patch, dependency install, build or PBX command was performed for
+this proposal. Exact-policy verification, full CP and M1-09 remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
