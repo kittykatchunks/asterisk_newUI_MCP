@@ -437,6 +437,9 @@ The [mixed AO2 node update](./PROJECT-PLAN.md#gate-a-mixed-ao2-nodes-twenty-nine
 brings the inventory to **29 uncompiled/unexecuted native definitions**.
 It adds interleaved retained-empty/live chains at 127/128/129 physical nodes,
 explicit 63/64-live visits and exact fixture destructor/ref assertions.
+The [abort and recovery extension](./PROJECT-PLAN.md#gate-a-mixed-node-abort-and-recovery-inventory-unchanged-still-unexecuted)
+keeps that inventory unchanged while adding exact first/middle/final abort
+positions and successful walks after retained-empty nodes are released.
 **Twelve package tests pass**; exact application and all nine source postimages
 match. Those checks do not prove C compilation,
 native behavior, measured latency or lifecycle acceptance. Shutdown, recursive

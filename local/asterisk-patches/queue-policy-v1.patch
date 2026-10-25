@@ -2206,10 +2206,10 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..994bc4476bc97d44f7f9ea8327a86731
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..cd088f1d4a8637c922a5023e904a05263b71aedf
+index 0000000000000000000000000000000000000000..222f9db415d5d79aba95eb6612af8552e37596b0
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,1606 @@
+@@ -0,0 +1,1640 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -2731,6 +2731,7 @@ index 0000000000000000000000000000000000000000..cd088f1d4a8637c922a5023e904a0526
 +
 +AST_TEST_DEFINE(bounded_mixed_nodes)
 +{
++	const unsigned int abort_positions[] = { 1, 32, 63, 64 };
 +	struct ao2_iterator retained[65];
 +	struct ao2_container *container = NULL;
 +	struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
@@ -2744,7 +2745,7 @@ index 0000000000000000000000000000000000000000..cd088f1d4a8637c922a5023e904a0526
 +		info->name = "bounded_mixed_nodes";
 +		info->category = "/main/astobj2/bounded_queue_policy/";
 +		info->summary = "Interleaved retained-empty/live nodes cover 63 objects and 127/128/129 physical nodes";
-+		info->description = "Real one-bucket list collision chain; borrowed visits preserve refs and destructor counts.";
++		info->description = "Real collision chain covers abort positions and retained-node release recovery with exact refs/counts.";
 +		return AST_TEST_NOT_RUN;
 +	case TEST_EXECUTE:
 +		break;
@@ -2822,6 +2823,39 @@ index 0000000000000000000000000000000000000000..cd088f1d4a8637c922a5023e904a0526
 +					goto done;
 +				}
 +			}
++		}
++	}
++	for (i = 0; i < ARRAY_LEN(abort_positions); ++i) {
++		visit = (struct bounded_owned_visit) { .abort_at = abort_positions[i] };
++		if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++			!= AO2_BOUNDED_ABORTED || result.status != AO2_BOUNDED_ABORTED
++			|| result.buckets != 1 || result.nodes != 2 * abort_positions[i]
++			|| result.objects != abort_positions[i] || visit.seen != abort_positions[i]
++			|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64) {
++			goto done;
++		}
++	}
++	ao2_iterator_destroy(&retained[--initialized]);
++	visit = (struct bounded_owned_visit) { 0 };
++	if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++		!= AO2_BOUNDED_COMPLETE || result.status != AO2_BOUNDED_COMPLETE
++		|| result.buckets != 1 || result.nodes != 128 || result.objects != 64 || visit.seen != 64
++		|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64) {
++		goto done;
++	}
++	while (initialized) {
++		ao2_iterator_destroy(&retained[--initialized]);
++	}
++	for (i = 63; i <= 64; ++i) {
++		enum ao2_bounded_status expected = i == 63 ? AO2_BOUNDED_LIMIT : AO2_BOUNDED_COMPLETE;
++
++		limits.max_nodes = i;
++		visit = (struct bounded_owned_visit) { 0 };
++		if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++			!= expected || result.status != expected || result.buckets != 1
++			|| result.nodes != i || result.objects != i || visit.seen != i || visit.bad_reference
++			|| destroyed != 65 || ao2_container_count(container) != 64 || ao2_ref(container, 0) != 1) {
++			goto done;
 +		}
 +	}
 +	state = AST_TEST_PASS;

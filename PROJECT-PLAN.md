@@ -3487,6 +3487,48 @@ Both named scratch directories are removed after verification. No dependency
 install, native build/test, image build, module load or PBX operation occurred.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A mixed-node abort and recovery: inventory unchanged, still unexecuted
+
+The existing `bounded_mixed_nodes` definition now includes **seven additional
+walk assertions**, not seven new test definitions. The inventory stays at
+**29 uncompiled/unexecuted native definitions** on the same nine paths.
+Only the native controller postimage changes; all eight other source
+postimages remain byte-for-byte unchanged.
+
+On the actual 129-node mixed chain, the existing visitor aborts at live
+positions **1, 32, 63 and 64**. Each source assertion requires `ABORTED` in
+both the API return and result status, one bucket, the exact live count and
+**2, 64, 126 and 128 physical nodes**, respectively. These positions include
+every preceding retained-empty node. The final-live abort remains `ABORTED`,
+not `LIMIT` or `COMPLETE`, even though an unvisited trailing retained-empty
+node remains. Every case checks borrowed reference count one, unchanged
+65-object destructor total and unchanged 64-live container count.
+
+The fixture then releases only the last iterator holding the trailing empty
+node. A walk must recover from the preceding physical-node limit to
+`COMPLETE` with **128 nodes/64 live objects**, without relinking objects or
+changing budgets. Next it releases the other 64 retained-empty-node iterators.
+The same container must limit at **63 nodes/63 visits** with a 63-node budget,
+then complete at **64 nodes/64 visits** with a 64-node budget. Both return and
+result statuses, one bucket, unchanged live/destructor totals and now-sole
+container reference are checked. Released iterator slots are removed from
+the initialized count before common cleanup, preventing double destruction.
+Final container cleanup still requires all 129 allocated objects destroyed.
+
+This extends AT-04/AT-05/AT-06/AT-07 source assertions for early exits and
+retained-node removal recovery. It does not prove concurrent unlink/retirement,
+exact internal ref/allocator/lock work or debug-profile behavior. Fixture
+iterator destruction is intentionally outside the measured bounded walks.
+All native acceptance and AT/QO gates remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match. No core/header postimage
+changes need a new profile-off lexical comparison; no compilation is implied.
+Both named scratch directories are removed after verification. No dependency
+install, native build/test, image build, module load or PBX operation occurred.
+A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

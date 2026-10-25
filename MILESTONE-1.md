@@ -2393,6 +2393,16 @@ postimage changes. **Twelve package tests pass** and exact application/nine
 postimages match. Native work/ref instrumentation and all AT/QO acceptance
 remain pending; Gates B/C stay closed and no native/PBX execution occurs.
 
+The [mixed-node abort/recovery extension](./PROJECT-PLAN.md#gate-a-mixed-node-abort-and-recovery-inventory-unchanged-still-unexecuted)
+adds seven walk assertions inside the existing definition; inventory remains
+**29 uncompiled/unexecuted native definitions**. Aborts at live positions
+1/32/63/64 must charge 2/64/126/128 physical nodes. Releasing the trailing
+retained-empty node must restore 128-node completion; releasing the remaining
+retained nodes must leave exact 63-budget limit/64-budget completion with
+unchanged live/destructor totals. Only the controller postimage changes.
+**Twelve package tests pass** and exact application/nine postimages match.
+Native instrumentation/acceptance remain pending; Gates B/C stay closed.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
