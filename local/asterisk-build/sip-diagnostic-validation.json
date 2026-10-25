@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "stage": "second-approved-sip-attempt-diagnosed-contact-parser-header-count",
+  "passed": false,
+  "totalProtocolAttempts": 2,
+  "additionalAttemptsApprovedThisStep": 1,
+  "additionalAttemptsExecutedThisStep": 1,
+  "retryAuthorized": false,
+  "offlineValidation": {
+    "pythonTestsPassed": 62,
+    "sourceEvidenceTestsPassed": 33,
+    "postAttemptFixesContainerExecuted": false
+  },
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "carrierImageId": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "evidence": {
+    "sip-proof-attempt-2-report.json": {
+      "sha256": "18b41da509d0318927a4a04e8206ca20f0e8af6c3d81b3876a6d909edfc98261",
+      "description": "Byte-exact original failed diagnostic report including actual CLI output and bridge snapshots; CRLF transport bytes retained without Git normalization."
+    }
+  },
+  "outcomes": {
+    "pythonPreflightPassed": true,
+    "preflightNetworkMode": "none",
+    "preflightStoppedExitCode": 137,
+    "preflightOomKilled": false,
+    "preflightCleanExitVerified": false,
+    "maximumConcurrentPbxContainers": 1,
+    "maximumConcurrentClientContainers": 1,
+    "sequentialClientContainerLifetimes": 2,
+    "loadedModulesRunning": 41,
+    "internalNetworkVerified": true,
+    "publishedPorts": 0,
+    "wrongSecretRegisterCode": 401,
+    "correctSecretRegisterCode": 200,
+    "acceptedExpirySeconds": 59,
+    "capturedContactMatchesExpectedClient": true,
+    "originalHostContactAssertionPassed": false,
+    "registrationLifecycleProofPassed": false,
+    "unregistrationExecuted": false,
+    "inviteExecuted": false,
+    "rtpExecuted": false
+  },
+  "diagnosis": {
+    "attemptTwoRootCauseProven": true,
+    "rootCause": "The legacy Contact row regex uses a greedy whitespace group followed by a negative lookahead. For the actual multi-space header it backtracks, leaves whitespace before '<', and counts the column header as an extra contact. Captured PBX contact exactly matches the client address/port, and Objects found is 1.",
+    "offlineReproduction": "Regression runs legacy matching on exact captured output and observes two rows, then corrected parsing returns the sole exact expected contact and rejects wrong-port/object-count inputs.",
+    "attemptOneRootCauseProven": false,
+    "historicalBoundary": "Attempt 1 lacks the actual row and remains unproven; matching symptoms do not retroactively establish its exact cause. Neither failed runtime report is edited or promoted to passed."
+  },
+  "engineBaseline": {
+    "defaultBridgeIdChangedDuringPreflight": true,
+    "beforePreflightBridgeId": "ff9770c2e4cc0abac065bbcac3b0d7e720cc5e7012e49a82bdc301536d536097",
+    "postPreflightBridgeId": "d61f642291e8383d7f9a07d967656436ca32e8a6115f067be131845a2f931a5b",
+    "postPreflightInitialAndFinalBridgeSnapshotIdentical": true,
+    "snapshotFields": ["Name", "Id", "Created", "Driver", "Internal", "IPAM", "Options", "Containers"],
+    "postPreflightInitialAndFinalInventoryIdentical": true,
+    "oldBridgeConfigurationEquivalenceProven": false
+  },
+  "cleanup": {
+    "preflightClientRemoved": true,
+    "protocolClientRemoved": true,
+    "pbxRemoved": true,
+    "ownedNetworkRemoved": true,
+    "generatedCredentialFilesRemoved": true,
+    "existingFourContainersUnchanged": true,
+    "watchdogExpired": false,
+    "elapsedSeconds": 25.5,
+    "foreignResourcesRepaired": false
+  },
+  "offlineFollowUp": [
+    "Fix contact parsing by capturing a non-whitespace-starting value and excluding header values explicitly, with regression against exact runtime output.",
+    "Replace stopping the PID-1 Python preflight with a file-signalled zero exit. Attempt 2 recorded exit 137 without OOM after bounded Docker stop; no clean preflight exit is claimed for that execution.",
+    "Both follow-up changes were tested offline only; no third protocol attempt is authorized or executed. Original entrypoint and client snapshots matching executed hashes remain private."
+  ],
+  "runtimeApplyAuthorized": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}

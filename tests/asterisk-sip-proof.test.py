@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import pathlib
+import re
 import struct
 import subprocess
 import sys
@@ -189,6 +190,34 @@ class SipProofTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             proof.object_rows("No objects found.", "Endpoint", "proof-client")
 
+    def test_exact_attempt_two_contact_row_excludes_multispace_header(self):
+        report = json.loads((HERE / "sip-proof-attempt-2-report.json").read_text())
+        progress = report["lastClientProgress"]
+        raw = report["cliObservations"][-1]["output"]
+        legacy_rows = [line.strip() for line in raw.splitlines()
+                       if re.match(r"^\s*Contact:\s+(?!<)", line)]
+        self.assertEqual(len(legacy_rows), 2)
+        rows = proof.contacts(raw, progress["clientAddress"], progress["clientPort"])
+        self.assertEqual(len(rows), 1)
+        self.assertNotIn("<Aor/ContactUri", rows[0])
+        with self.assertRaises(ValueError):
+            proof.contacts(raw, progress["clientAddress"], progress["clientPort"] + 1)
+        with self.assertRaises(ValueError):
+            proof.contacts(raw.replace("Objects found: 1", "Objects found: 2"),
+                           progress["clientAddress"], progress["clientPort"])
+
+    def test_preflight_client_can_exit_cleanly_without_protocol(self):
+        with tempfile.TemporaryDirectory() as directory:
+            control = pathlib.Path(directory)
+            (control / "preflight-exit").touch()
+            result = subprocess.run(
+                [sys.executable, "-B", str(ROOT / "tests/sip_candidate_client.py"),
+                 "--host=not-resolved.invalid", "--control", directory],
+                capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads((control / "python-ready.json").read_text()), {"pythonReady": True})
+            self.assertFalse((control / "client-report.json").exists())
+
     def test_approval_and_client_report_size(self):
         result = subprocess.run([sys.executable, "-B", str(HERE / "sip-proof.py"),
                                  "--work-dir", "not-created"], capture_output=True, text=True)
@@ -202,7 +231,7 @@ class SipProofTests(unittest.TestCase):
         self.assertNotIn("secret", proof.sanitize("password=secret\nAuthorization: digest\nokay", "secret"))
 
     def test_mocked_orchestration_success_and_failures_cleanup(self):
-        for failure in (None, "limits", "network", "contact", "contact-and-inventory",
+        for failure in (None, "limits", "preflight", "bridge-drift", "network", "contact", "contact-and-inventory",
                         "client", "stop", "ownership"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory) / "run"
@@ -222,13 +251,16 @@ class SipProofTests(unittest.TestCase):
                     if args[0] == "ps":
                         if "--filter" in args:
                             return "\n".join(key for key in states if key not in removed), ""
-                        return "existing changed" if failure == "contact-and-inventory" and removed else "existing untouched", ""
+                        return "existing changed" if failure == "contact-and-inventory" and "b" * 64 in removed else "existing untouched", ""
                     if args[:2] == ["network", "ls"]:
                         return "old existing-network", ""
                     if args[:2] == ["network", "create"]:
                         network = args[-1]
                         return netid, ""
                     if args[:2] == ["network", "inspect"]:
+                        if args[-1] == "bridge":
+                            return json.dumps([dict(Name="bridge", Id="changed" if failure == "bridge-drift" and "b" * 64 in removed else "bridge-id", Created="before",
+                                                    Driver="bridge", Internal=False, IPAM={}, Options={}, Containers={})]), ""
                         members = {key: dict(IPv4Address=(pbxip if role == "pbx" else clientip) + "/16")
                                    for role, key in created.items() if key not in removed}
                         if failure == "network":
@@ -243,7 +275,7 @@ class SipProofTests(unittest.TestCase):
                         identifier = ("d" if role == "client" else "b") * 64
                         created[role] = identifier
                         owner = args[args.index("--label") + 1].split("=")[1]
-                        host = dict(NetworkMode=network, ReadonlyRootfs=True, Privileged=False,
+                        host = dict(NetworkMode=args[next(i for i, arg in enumerate(args) if arg.startswith("--network="))].split("=")[1], ReadonlyRootfs=True, Privileged=False,
                                     Memory=134217728 if role == "client" else 4294967296,
                                     MemorySwap=134217728 if role == "client" else 4294967296,
                                     NanoCpus=500000000 if role == "client" else 4000000000,
@@ -262,6 +294,7 @@ class SipProofTests(unittest.TestCase):
                                         Cmd=["-B", "/client/sip_candidate_client.py", "--host=pbx", "--control=/control"],
                                         Labels={proof.LABEL: owner}),
                             State=dict(Running=False, ExitCode=0, OOMKilled=False, Status="created"))
+                        removed.discard(identifier)
                         return identifier, ""
                     if args[0] == "inspect":
                         state = json.loads(json.dumps(states[args[-1]]))
@@ -271,6 +304,8 @@ class SipProofTests(unittest.TestCase):
                     if args[0] == "start":
                         states[args[-1]]["State"].update(Running=True, Status="running")
                         if args[-1] == created.get("client"):
+                            (root / "control/python-ready.json").write_text(
+                                '{"pythonReady":false}' if failure == "preflight" else '{"pythonReady":true}')
                             progress = dict(passed=True, registrationPassed=True, mediaPassed=True,
                                             clientAddress=clientip, pbxAddress=pbxip, clientPort=4000,
                                             rtp=dict(sentDistinctFrames=100, echoedDistinctFrames=100), phases=[])
@@ -325,6 +360,8 @@ class SipProofTests(unittest.TestCase):
                         self.assertTrue(result["passed"])
                         self.assertTrue(result["registrationPassed"])
                         self.assertTrue(result["mediaPassed"])
+                        self.assertTrue(result["pythonPreflightPassed"])
+                        self.assertEqual(result["initialBridge"], result["finalBridge"])
                     else:
                         with self.assertRaises((ValueError, RuntimeError)) as caught:
                             proof.proof(root)

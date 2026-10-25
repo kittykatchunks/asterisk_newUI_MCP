@@ -5,6 +5,7 @@ import json
 import re
 import secrets
 import socket
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -130,8 +131,11 @@ if __name__ == "__main__":
     parser.add_argument("--control", type=Path, required=True)
     args = parser.parse_args()
     socket.setdefaulttimeout(5)
-    ready_deadline = time.monotonic() + 10
+    write_json(args.control / "python-ready.json", dict(pythonReady=True))
+    ready_deadline = time.monotonic() + 60
     while not (args.control / "go").exists():
+        if (args.control / "preflight-exit").exists():
+            sys.exit(0)
         require(time.monotonic() < ready_deadline, "Network preflight deadline expired")
         time.sleep(0.05)
     execute(args.host, args.control)

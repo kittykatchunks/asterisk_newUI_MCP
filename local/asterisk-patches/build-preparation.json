@@ -1,6 +1,22 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-custom-image-isolated-sip-attempt-failed",
+  "stage": "gate-b-custom-image-sip-diagnostic-contact-parser-fixed-offline",
+  "sipDiagnosticExecution": {
+    "validation": "../asterisk-build/sip-diagnostic-validation.json",
+    "approvedAdditionalAttempts": 1,
+    "executedAdditionalAttempts": 1,
+    "totalProtocolAttempts": 2,
+    "runtimePassed": false,
+    "contactParserRootCauseProvenForAttemptTwo": true,
+    "contactParserFixedOffline": true,
+    "postPreflightBridgeAndInventoryUnchanged": true,
+    "ownedResourcesAndCredentialsRemoved": true,
+    "inviteExecuted": false,
+    "rtpExecuted": false,
+    "retryAuthorized": false,
+    "runtimeApplyAuthorized": false,
+    "gateCAuthorized": false
+  },
   "sipProofExecution": {
     "stage": "one-approved-attempt-failed-at-contact-verification",
     "validation": "../asterisk-build/sip-proof-validation.json",

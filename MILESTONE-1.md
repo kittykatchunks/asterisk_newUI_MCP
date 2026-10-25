@@ -2626,6 +2626,23 @@ as the ID-change explanation, not equivalence of old/new bridge settings.
 The [retained investigation](./local/asterisk-build/sip-bridge-investigation.json)
 adds no runtime attempt and does not resolve the missing contact assertion.
 
+### Second SIP diagnostic isolated the contact-parser bug
+
+One separately approved diagnostic attempt added a network-free Python/engine
+preflight followed by a warmed bridge/inventory baseline. All post-preflight
+bridge fields and existing-resource inventories matched after cleanup.
+Correct-secret REGISTER returned 200/59 seconds, and the retained sole contact
+matched the client IP/port. The failure is now proven for attempt 2: whitespace
+backtracking counted the CLI column header as another contact.
+
+The parser fix is tested against exact captured output **offline only**.
+An additional offline fix replaces preflight Docker-stop exit 137 (no OOM)
+with file-signalled zero exit; neither fix received a third container run.
+Attempt 2 stayed failed before INVITE/unregistration/RTP, with owned resources
+and credentials removed after 25.5 seconds. See the
+[diagnostic handoff](./PROJECT-PLAN.md#custom-image-sip-attempt-2-contact-parser-failure-diagnosed).
+Another runtime attempt requires approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

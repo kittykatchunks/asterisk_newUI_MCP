@@ -59,8 +59,8 @@ password=@SECRET@
 
 
 def contacts(output, address=None, port=None):
-    rows = [line.strip() for line in output.splitlines()
-            if re.match(r"^\s*Contact:\s+(?!<)", line)]
+    values = re.findall(r"^\s*Contact:\s+(\S[^\r\n]*)", output, re.MULTILINE)
+    rows = ["Contact: " + value for value in values if not value.startswith("<")]
     expected = 0 if address is None else 1
     if expected == 0:
         if output.strip() != "No objects found.":
@@ -183,8 +183,14 @@ def proof(root):
             time.sleep(0.1)
 
     def inventory():
-        return dict(containers=call(["ps", "-a", "--no-trunc", "--format", "{{.ID}} {{.Names}} {{.State}}"])[0].splitlines(),
-                    networks=call(["network", "ls", "--no-trunc", "--format", "{{.ID}} {{.Name}}"])[0].splitlines())
+        containers = call(["ps", "-a", "--no-trunc", "--format", "{{.ID}} {{.Names}} {{.State}}"])[0].splitlines()
+        return dict(containers=sorted(row for row in containers if row.split()[0] not in ids.values()),
+                    networks=sorted(call(["network", "ls", "--no-trunc", "--format", "{{.ID}} {{.Name}}"])[0].splitlines()))
+
+    def bridge_snapshot():
+        bridge = json.loads(call(["network", "inspect", "bridge"])[0])[0]
+        return {key: bridge[key] for key in (
+            "Name", "Id", "Created", "Driver", "Internal", "IPAM", "Options", "Containers")}
 
     def cleanup():
         nonlocal network_id
@@ -227,15 +233,9 @@ def proof(root):
     started = time.monotonic()
     timer.start()
     try:
-        report["initialInventory"] = inventory()
+        report["beforePreflightInventory"] = inventory()
         if sum(path.stat().st_size for path in root.rglob("*") if path.is_file()) > 256 * 1024 * 1024:
             raise ValueError("Incremental storage stop threshold exceeded")
-        with lock:
-            network_id = call(["network", "create", "--internal", "--driver=bridge",
-                               "--label", f"{LABEL}={owner}", network])[0].strip()
-        if not re.fullmatch(r"[a-f0-9]{64}", network_id):
-            raise ValueError("Invalid owned network ID")
-        report["networkId"] = network_id
         pbx = desktop.arguments(image, names["pbx"], owner, root)
         pbx[0] = "create"
         pbx.remove("--detach")
@@ -243,7 +243,7 @@ def proof(root):
         pbx.insert(-1, "--network-alias=pbx")
         client = [
             "create", "--pull=never", "--name", names["client"], "--label", f"{LABEL}={owner}",
-            "--restart=no", "--network=" + network, "--read-only", "--cap-drop=ALL",
+            "--restart=no", "--network=none", "--read-only", "--cap-drop=ALL",
             "--security-opt=no-new-privileges:true", "--pids-limit=32", "--cpus=0.5",
             "--memory=128m", "--memory-swap=128m", "--ulimit=core=0",
             "--log-driver=local", "--log-opt=max-size=2m", "--log-opt=max-file=1",
@@ -253,6 +253,43 @@ def proof(root):
             "--entrypoint=python3", CARRIER, "-B", "/client/sip_candidate_client.py",
             "--host=pbx", "--control=/control",
         ]
+        with lock:
+            ids["client"] = call(client)[0].strip()
+        if not re.fullmatch(r"[a-f0-9]{64}", ids["client"]):
+            raise ValueError("Invalid preflight client container ID")
+        check_limits(inspect(ids["client"]), CARRIER, "none", True)
+        call(["start", ids["client"]])
+        ready_deadline = time.monotonic() + 15
+        while not (control / "python-ready.json").exists():
+            if not inspect(ids["client"])["State"]["Running"] or time.monotonic() > ready_deadline:
+                raise ValueError("Python/engine preflight failed")
+            time.sleep(0.1)
+        if json.loads((control / "python-ready.json").read_text()) != dict(pythonReady=True):
+            raise ValueError("Invalid Python preflight response")
+        report["pythonPreflightPassed"] = True
+        report["preflightClientId"] = ids["client"]
+        (control / "preflight-exit").touch()
+        if call(["wait", ids["client"]], timeout=10)[0].strip() != "0":
+            raise ValueError("Preflight Python client did not exit zero")
+        preflight_state = inspect(ids["client"])["State"]
+        if preflight_state["Running"] or preflight_state["OOMKilled"]:
+            raise ValueError("Preflight Python client did not stop")
+        report["preflightClientStopped"] = dict(exitCode=preflight_state["ExitCode"], oomKilled=False)
+        call(["rm", ids["client"]])
+        del ids["client"]
+        (control / "python-ready.json").unlink()
+        (control / "preflight-exit").unlink()
+        report["initialInventory"] = inventory()
+        report["initialBridge"] = bridge_snapshot()
+        if report["initialInventory"]["containers"] != report["beforePreflightInventory"]["containers"]:
+            raise ValueError("Existing containers changed during engine preflight")
+        with lock:
+            network_id = call(["network", "create", "--internal", "--driver=bridge",
+                               "--label", f"{LABEL}={owner}", network])[0].strip()
+        if not re.fullmatch(r"[a-f0-9]{64}", network_id):
+            raise ValueError("Invalid owned network ID")
+        report["networkId"] = network_id
+        client[client.index("--network=none")] = "--network=" + network
         for role, arguments in (("pbx", pbx), ("client", client)):
             with lock:
                 ids[role] = call(arguments)[0].strip()
@@ -350,7 +387,10 @@ def proof(root):
         try:
             cleanup()
             report["finalInventory"] = inventory() if not expired.is_set() else None
-            if report["finalInventory"] != report.get("initialInventory"):
+            report["finalBridge"] = bridge_snapshot() if not expired.is_set() else None
+            if "initialBridge" in report and report["finalBridge"] != report["initialBridge"]:
+                raise ValueError("Default bridge configuration or attachments changed after preflight")
+            if "initialInventory" in report and report["finalInventory"] != report["initialInventory"]:
                 raise ValueError("Existing-resource inventory changed or watchdog expired")
         except Exception as error:
             report["cleanupFailure"] = sanitize(repr(error), secret).strip()

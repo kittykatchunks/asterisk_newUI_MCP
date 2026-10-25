@@ -19,6 +19,47 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("second SIP diagnostic proves header-count bug and stable warmed bridge without promoting runtime acceptance", () => {
+  const validation = read(`${directory}/sip-diagnostic-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const report = read(`${directory}/sip-proof-attempt-2-report.json`);
+  assert.equal(report.passed, false);
+  assert.equal(validation.passed, false);
+  assert.equal(validation.totalProtocolAttempts, 2);
+  assert.equal(validation.retryAuthorized, false);
+  assert.equal(report.imageId, validation.imageId);
+  assert.equal(report.loadedModules.length, 41);
+  assert.equal(report.pythonPreflightPassed, true);
+  assert.deepEqual(report.preflightClientStopped, { exitCode: 137, oomKilled: false });
+  assert.deepEqual(report.initialBridge, report.finalBridge);
+  assert.deepEqual(report.initialInventory, report.finalInventory);
+  assert.notDeepEqual(report.beforePreflightInventory.networks, report.initialInventory.networks);
+  assert.deepEqual(report.beforePreflightInventory.containers, report.initialInventory.containers);
+  assert.equal(report.lastClientProgress.phases[1].code, 200);
+  assert.equal(report.lastClientProgress.phases[1].contactExpirySeconds, 59);
+  const contact = report.cliObservations.at(-1).output;
+  assert(contact.includes(`proof-client/sip:proof-client@${report.lastClientProgress.clientAddress}:${report.lastClientProgress.clientPort} `));
+  assert.match(contact, /Objects found: 1/);
+  const legacyRows = contact.split("\n").filter((line) => /^\s*Contact:\s+(?!<)/.test(line));
+  assert.equal(legacyRows.length, 2);
+  assert.equal(validation.diagnosis.attemptTwoRootCauseProven, true);
+  assert.equal(validation.diagnosis.attemptOneRootCauseProven, false);
+  assert.equal(report.phases.length, 1);
+  assert.equal(report.mediaTested, false);
+  assert.equal(report.registrationPassed, false);
+  assert.equal(report.ownedResourcesRemoved, true);
+  assert.equal(report.credentialFilesRemoved, true);
+  assert.equal(report.watchdogExpired, false);
+  assert.equal(report.elapsedSeconds, 25.5);
+  assert.equal(report.cleanupFailure, undefined);
+  for (const flag of ["runtimeApplyAuthorized", "gateCAuthorized", "redistributionApproved"]) {
+    assert.equal(report[flag], false);
+    assert.equal(validation[flag], false);
+  }
+});
+
 test("read-only bridge follow-up binds engine wake timeline without granting retry or changing failed evidence", () => {
   const investigation = read(`${directory}/sip-bridge-investigation.json`);
   assert.equal(hash(`${directory}/sip-proof-attempt-1-report.json`), investigation.originalAttemptReportSha256);
@@ -89,8 +130,7 @@ test("failed SIP attempt preserves partial registration, unproven discrepancies 
   for (const flag of ["runtimeApplyAuthorized", "gateCAuthorized", "redistributionApproved"]) {
     assert.equal(report[flag], false, flag);
   }
-  for (const file of ["local/asterisk-build/smoke-desktop.py", "tests/sip_candidate_client.py",
-    "tests/sip_rtp_proof.py"]) {
+  for (const file of ["local/asterisk-build/smoke-desktop.py", "tests/sip_rtp_proof.py"]) {
     const canonical = createHash("sha256").update(bytes(file).toString().replaceAll("\r\n", "\n")).digest("hex");
     assert.equal(report.toolCanonicalLfHashes[file.replaceAll("/", "\\")], canonical, file);
   }

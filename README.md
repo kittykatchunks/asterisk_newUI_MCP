@@ -605,6 +605,14 @@ configuration equivalence remains unproven; no repair was attempted. No retry oc
 authorized. [Exact failed evidence](./local/asterisk-build/sip-proof-validation.json)
 preserves both failures; follow-up diagnostic changes were offline-tested only.
 
+**[A separately approved second diagnostic attempt identified the contact-parser bug](./PROJECT-PLAN.md#custom-image-sip-attempt-2-contact-parser-failure-diagnosed).**
+Its captured contact matches the client, but the legacy whitespace regex
+also counted the CLI column header. The parser is now fixed and regression-tested
+against that exact output **offline only**. Explicit Python/engine preflight
+also kept the post-preflight bridge snapshot and existing-resource inventory
+unchanged through cleanup. Attempt 2 remained failed; no INVITE/RTP or third
+attempt occurred. All owned resources and credentials were removed.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

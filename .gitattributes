@@ -9,3 +9,4 @@ local/asterisk-build/*.py text eol=lf
 local/asterisk-build/*.xml text eol=lf
 local/asterisk-build/*.Dockerfile text eol=lf
 local/asterisk-build/sip-proof-attempt-1-report.json -text whitespace=cr-at-eol
+local/asterisk-build/sip-proof-attempt-2-report.json -text whitespace=cr-at-eol

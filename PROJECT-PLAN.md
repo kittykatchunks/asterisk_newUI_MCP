@@ -5107,6 +5107,68 @@ Another diagnostic SIP attempt still requires approval and must retain the
 actual contact CLI output. This investigation alone grants no runtime retry,
 Gate C or deployment authority.
 
+##### Custom-image SIP attempt 2: contact parser failure diagnosed
+
+The user separately approved implementing/offline-testing explicit Python/
+engine preflight and **one further diagnostic attempt**, not automatic retries.
+The harness first started one owned Python carrier with network `none` and
+waited for a file-based readiness response, then stopped/removed it and
+captured a warmed-engine baseline. It recreated the client on the fresh
+internal network alongside the one custom-image PBX. There were two sequential
+client lifetimes, **at most one client and one PBX concurrently**, with the
+previous aggregate limits unchanged. The carrier did not run Asterisk.
+
+The preflight woke the idle engine: the default bridge ID changed from
+`ff9770c2e4cc0abac065bbcac3b0d7e720cc5e7012e49a82bdc301536d536097` to
+`d61f642291e8383d7f9a07d967656436ca32e8a6115f067be131845a2f931a5b`
+before the baseline. **After preflight, initial/final inventories matched
+exactly**, as did bridge name, ID, creation time, driver, internal flag,
+IPAM, options and attached-container map. This is not proof that the old
+pre-wake bridge configuration was equivalent.
+
+Runtime again verified 41 Running modules, absent test CLI, initial queue
+policy, internal-only two-container membership and no published ports.
+Wrong-secret REGISTER returned 401 with no contact; correct-secret REGISTER
+returned 200 with 59-second expiry. The diagnostic captured the sole actual
+contact, `proof-client/sip:proof-client@172.23.0.3:48219`, matching the client's
+reported address/port, with `Objects found: 1`.
+
+**Proven attempt-2 root cause:** the legacy row matcher
+`Contact:\s+(?!<)` backtracks its whitespace group on the multi-space column
+header, leaving whitespace before `<` and incorrectly counting that header
+as a second contact. Offline reproduction on the exact captured output
+returns two legacy rows; the fix captures a non-whitespace-starting value
+and explicitly excludes values beginning `<`. Tests now accept the exact
+single contact while rejecting wrong ports and object counts. Attempt 1's
+missing output still prevents retrospective proof of its exact root cause.
+
+**The runtime attempt remained failed.** No INVITE, unregistration or RTP
+was reached, and no third attempt was made. It ended after **25.5 seconds**,
+without watchdog expiry. Both client lifetimes, PBX, private network and
+generated credential files were removed; four existing containers remained
+stopped and named existing networks retained their post-preflight identities.
+
+The first network-free Python process required the bounded Docker stop's
+forced exit **137**, without OOM. This is recorded, not called graceful
+shutdown. An offline-only follow-up replaces it with file-signalled exit zero,
+tested with a local Python subprocess that never resolves a host or sends
+protocol traffic. Any later runtime preflight must require exit zero. Neither
+the parser fix nor new clean-exit path was executed in another container.
+
+[Diagnostic summary](./local/asterisk-build/sip-diagnostic-validation.json)
+hash-binds the byte-exact original attempt-2 report, including actual CLI
+observations and bridge snapshots. Matching executed orchestrator/client
+snapshots remain private; later source revisions must not be substituted for
+those execution hashes. Earlier reports/summaries remain historical.
+Final validation passed **62 offline Python tests and 33 source/evidence
+tests**, including the exact-row parser reproduction and local no-protocol
+preflight exit-zero test.
+
+Next runtime boundary remains explicit: a new approval would be needed to
+exercise the corrected parser and continue registration/unregistration,
+INVITE/BYE and synthetic PCMU echo. No deployment, Gate A/Gate C completion,
+production media quality or redistribution authority is granted.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
