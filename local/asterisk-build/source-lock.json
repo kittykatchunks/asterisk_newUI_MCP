@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "stage": "downloaded-inspected-not-compiled",
+  "maximumArchiveBytes": 67108864,
+  "maximumAsteriskExpandedBytes": 536870912,
+  "sources": [
+    {
+      "name": "asterisk",
+      "filename": "asterisk-874768141f94bc03865cc746eee1c7669e3c46d5.tar.gz",
+      "url": "https://codeload.github.com/asterisk/asterisk/tar.gz/874768141f94bc03865cc746eee1c7669e3c46d5",
+      "revision": "874768141f94bc03865cc746eee1c7669e3c46d5",
+      "bytes": 8907184,
+      "sha256": "991b89e3512924c61ce294d9e5ea816b54c1cfd8f723a2ab64de7a67baa3c6ea"
+    },
+    {
+      "name": "pjproject",
+      "filename": "pjproject-2.17.tar.bz2",
+      "url": "https://raw.githubusercontent.com/asterisk/third-party/4d3b9cfdf9fe4f68d3674191707415faceec0ec6/pjproject/2.17/pjproject-2.17.tar.bz2",
+      "revision": "4d3b9cfdf9fe4f68d3674191707415faceec0ec6",
+      "expectedUpstreamMd5": "baacc87418a95107657039269bc71538",
+      "bytes": 8975382,
+      "sha256": "04b2eb1f0f01aa0ad1945b167171843448a51aa6b7c3e806496d434f13a112b7"
+    }
+  ],
+  "asteriskSourceDirectory": "/home/asterisk-build/source-staging/asterisk/asterisk-874768141f94bc03865cc746eee1c7669e3c46d5",
+  "nativeCompiled": false
+}

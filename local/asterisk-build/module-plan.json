@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "stage": "source-inspected-not-configured",
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "verifiedPristinePaths": 9,
+  "requestedModules": [
+    "res_sorcery_config",
+    "res_sorcery_memory",
+    "res_sorcery_astdb",
+    "res_crypto",
+    "res_cdrel_custom",
+    "res_timing_timerfd",
+    "res_rtp_asterisk",
+    "res_srtp",
+    "res_http_websocket",
+    "res_pjproject",
+    "res_pjsip",
+    "res_pjsip_session",
+    "res_pjsip_pubsub",
+    "res_pjsip_sdp_rtp",
+    "res_pjsip_authenticator_digest",
+    "res_pjsip_endpoint_identifier_user",
+    "res_pjsip_registrar",
+    "res_pjsip_transport_websocket",
+    "chan_pjsip",
+    "codec_ulaw",
+    "codec_alaw",
+    "codec_resample",
+    "format_wav",
+    "bridge_simple",
+    "bridge_native_rtp",
+    "bridge_softmix",
+    "pbx_config",
+    "func_callerid",
+    "func_channel",
+    "func_strings",
+    "res_pjsip_header_funcs",
+    "app_stack",
+    "app_playtones",
+    "app_dial",
+    "app_echo",
+    "app_queue",
+    "app_mixmonitor",
+    "app_waitforsilence",
+    "res_clioriginate",
+    "cel_custom",
+    "app_celgenuserevent"
+  ],
+  "resolvedRuntimeModules": {
+    "app_celgenuserevent": {
+      "source": "apps/app_celgenuserevent.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "app_dial": {
+      "source": "apps/app_dial.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "app_echo": {
+      "source": "apps/app_echo.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "app_mixmonitor": {
+      "source": "apps/app_mixmonitor.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "app_playtones": {
+      "source": "apps/app_playtones.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "app_queue": {
+      "source": "apps/app_queue.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "app_stack": {
+      "source": "apps/app_stack.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "app_waitforsilence": {
+      "source": "apps/app_waitforsilence.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "bridge_native_rtp": {
+      "source": "bridges/bridge_native_rtp.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "bridge_simple": {
+      "source": "bridges/bridge_simple.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "bridge_softmix": {
+      "source": "bridges/bridge_softmix.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "cel_custom": {
+      "source": "cel/cel_custom.c",
+      "moduleDependencies": [
+        "res_cdrel_custom"
+      ],
+      "externalDependencies": []
+    },
+    "chan_pjsip": {
+      "source": "channels/chan_pjsip.c",
+      "moduleDependencies": [
+        "res_pjsip",
+        "res_pjsip_pubsub",
+        "res_pjsip_session"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "codec_alaw": {
+      "source": "codecs/codec_alaw.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "codec_resample": {
+      "source": "codecs/codec_resample.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "codec_ulaw": {
+      "source": "codecs/codec_ulaw.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "format_wav": {
+      "source": "formats/format_wav.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "func_callerid": {
+      "source": "funcs/func_callerid.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "func_channel": {
+      "source": "funcs/func_channel.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "func_strings": {
+      "source": "funcs/func_strings.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "pbx_config": {
+      "source": "pbx/pbx_config.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "res_cdrel_custom": {
+      "source": "res/res_cdrel_custom.c",
+      "moduleDependencies": [],
+      "externalDependencies": [
+        "sqlite3"
+      ]
+    },
+    "res_clioriginate": {
+      "source": "res/res_clioriginate.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "res_crypto": {
+      "source": "res/res_crypto.c",
+      "moduleDependencies": [],
+      "externalDependencies": [
+        "openssl"
+      ]
+    },
+    "res_http_websocket": {
+      "source": "res/res_http_websocket.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "res_pjproject": {
+      "source": "res/res_pjproject.c",
+      "moduleDependencies": [
+        "res_sorcery_config"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip": {
+      "source": "res/res_pjsip.c",
+      "moduleDependencies": [
+        "res_pjproject",
+        "res_sorcery_config",
+        "res_sorcery_memory",
+        "res_sorcery_astdb"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_authenticator_digest": {
+      "source": "res/res_pjsip_authenticator_digest.c",
+      "moduleDependencies": [
+        "res_pjsip"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_endpoint_identifier_user": {
+      "source": "res/res_pjsip_endpoint_identifier_user.c",
+      "moduleDependencies": [
+        "res_pjsip"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_header_funcs": {
+      "source": "res/res_pjsip_header_funcs.c",
+      "moduleDependencies": [
+        "res_pjsip",
+        "res_pjsip_session"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_pubsub": {
+      "source": "res/res_pjsip_pubsub.c",
+      "moduleDependencies": [
+        "res_pjsip"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_registrar": {
+      "source": "res/res_pjsip_registrar.c",
+      "moduleDependencies": [
+        "res_pjproject",
+        "res_pjsip"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_sdp_rtp": {
+      "source": "res/res_pjsip_sdp_rtp.c",
+      "moduleDependencies": [
+        "res_pjsip",
+        "res_pjsip_session"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_session": {
+      "source": "res/res_pjsip_session.c",
+      "moduleDependencies": [
+        "res_pjsip"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_pjsip_transport_websocket": {
+      "source": "res/res_pjsip_transport_websocket.c",
+      "moduleDependencies": [
+        "res_pjsip",
+        "res_http_websocket"
+      ],
+      "externalDependencies": [
+        "pjproject"
+      ]
+    },
+    "res_rtp_asterisk": {
+      "source": "res/res_rtp_asterisk.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "res_sorcery_astdb": {
+      "source": "res/res_sorcery_astdb.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "res_sorcery_config": {
+      "source": "res/res_sorcery_config.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "res_sorcery_memory": {
+      "source": "res/res_sorcery_memory.c",
+      "moduleDependencies": [],
+      "externalDependencies": []
+    },
+    "res_srtp": {
+      "source": "res/res_srtp.c",
+      "moduleDependencies": [],
+      "externalDependencies": [
+        "srtp"
+      ]
+    },
+    "res_timing_timerfd": {
+      "source": "res/res_timing_timerfd.c",
+      "moduleDependencies": [],
+      "externalDependencies": [
+        "timerfd"
+      ]
+    }
+  },
+  "testOnlyModules": [
+    "test_bounded_queue_policy",
+    "test_protected_cli_target"
+  ],
+  "testOnlyCompilerOption": "TEST_FRAMEWORK",
+  "menuselectDependencyCheckExecuted": false,
+  "nativeCompiled": false
+}

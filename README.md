@@ -434,7 +434,7 @@ Completion teardown waits for worker join when generator traversal still
 holds the registry read lock, even after lease release.
 
 The [mixed AO2 node update](./PROJECT-PLAN.md#gate-a-mixed-ao2-nodes-twenty-nine-definitions-still-unexecuted)
-brings the inventory to **29 uncompiled/unexecuted native definitions**.
+originally brought the source-only inventory to 29 native definitions.
 It adds interleaved retained-empty/live chains at 127/128/129 physical nodes,
 explicit 63/64-live visits and exact fixture destructor/ref assertions.
 The [abort and recovery extension](./PROJECT-PLAN.md#gate-a-mixed-node-abort-and-recovery-inventory-unchanged-still-unexecuted)
@@ -444,7 +444,7 @@ The [failure-path extension](./PROJECT-PLAN.md#gate-a-mixed-node-failure-paths-i
 adds object-budget rejection before traversal and invalid visitor returns at
 first/middle/final live objects, followed by unchanged-chain recovery.
 The [owner callback-work fixture](./PROJECT-PLAN.md#gate-a-owner-callback-work-thirty-definitions-still-unexecuted)
-brings the inventory to **30 uncompiled/unexecuted native definitions**.
+brings the inventory to **30 native definitions, now compiled but unexecuted**.
 Eight walks on a real sorted hash collision container require unchanged
 positively calibrated hash/sort/comparison counters and exact visitor counts.
 The [sparse-bucket extension](./PROJECT-PLAN.md#gate-a-sparse-bucket-accounting-inventory-unchanged-still-unexecuted)
@@ -463,11 +463,11 @@ native behavior, measured latency or lifecycle acceptance. Shutdown, recursive
 teardown, stalled/disconnected output, AO2 work/ref instrumentation and broader
 profile/regression evidence remain pending. All AT/QO gates remain open.
 
-Source-only Gate A work is authorized, but its verified exit remains blocked.
-Gate B requires a complete immutable build/dependency closure and approved,
-enforced resources before any native run. Gate C separately controls owned
-two-PBX proof. No custom parser/binding or runtime publication authority is
-enabled by these source definitions.
+Gate A's verified exit remains blocked. Gate B's dependency installation and
+both native compile profiles were explicitly approved and completed; native
+runtime/test execution still requires approval. Gate C separately controls
+owned two-PBX proof. No custom parser/binding or runtime publication authority
+is enabled by these source definitions.
 
 [The dedicated build environment is provisioned and verified](./PROJECT-PLAN.md#dedicated-wsl-environment-provisioned-and-verified).
 After approval to increase resources, a new digest-verified Ubuntu WSL
@@ -477,8 +477,19 @@ termination and small ext4 ENOSPC fixture passed. The distribution is stopped;
 existing distributions and shared WSL settings were not changed. Shared
 WSL/Windows overhead is outside the revised process limits. The
 [preparation record](./local/asterisk-patches/build-preparation.json) retains
-the evidence and pending compiler/dependency/profile closure. No build
-dependencies were installed, native code compiled or Asterisk started.
+the resource evidence.
+
+**[Both custom Asterisk profiles now compile](./PROJECT-PLAN.md#first-native-build-both-profiles-compiled-no-runtime-yet).**
+The [dependency lock](./local/asterisk-build/dependency-lock.json) records
+89 exact snapshot package changes and archive hashes. The
+[compile report](./local/asterisk-build/compile-report.json) records verified
+SHA256 hashes for 46 instrumented and 44 release ELF outputs, including core,
+the two required core support libraries, 41 runtime modules and (instrumented
+only) two test modules. Compiler-discovered boolean parentheses were corrected
+without relaxing developer-mode warnings. No Asterisk startup, module load
+or native test has run; this is compilation evidence, not runtime acceptance
+or a deployable/redistributable image. The source-package validator remains
+integrity-only; actual compilation evidence is recorded separately.
 
 ## Isolated PBX boot-epoch recovery proof
 

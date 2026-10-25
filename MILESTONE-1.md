@@ -2451,6 +2451,18 @@ unexecuted native definitions**. **Twelve package tests pass** and exact
 application/nine postimages match. Exact internal lock instrumentation and
 native acceptance remain pending; Gates B/C stay closed, with no native/PBX run.
 
+### First native compile completed
+
+Gate B's explicitly approved locked dependency installation and instrumented/
+release compilation now pass. The [build handoff](./PROJECT-PLAN.md#first-native-build-both-profiles-compiled-no-runtime-yet)
+and [compile report](./local/asterisk-build/compile-report.json) bind the exact
+source patch to 46 instrumented and 44 release SHA256-verified x86-64 ELF
+outputs. The inventory remains 30 definitions: now compiled, **not executed**.
+One GCC developer-mode warning in the getter was corrected with explicit
+boolean parentheses; no warning suppression or semantic change was used.
+No Asterisk startup, native test, existing-PBX operation or runtime image
+export occurred. Gate A acceptance and Gate C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

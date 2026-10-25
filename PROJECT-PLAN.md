@@ -3925,6 +3925,124 @@ exact package/source/runtime/profile closure and present actual installation
 and build commands for approval. Provisioning success is not native acceptance
 or permission to operate a PBX; Gate C remains closed.
 
+##### First native build: both profiles compiled, no runtime yet
+
+The user approved signed snapshot-index resolution, bounded source staging,
+then the explicit locked package installation and both native compile
+profiles. Native execution was expressly excluded from that approval.
+This is the first actual custom Asterisk compilation, not another source-only
+test-definition increment.
+
+The [package resolver](./local/asterisk-build/resolve-packages.sh) used isolated
+APT configuration/list/cache paths in the new WSL builder, Ubuntu snapshot
+`20261024T000000Z`, Ubuntu archive signature verification, and no system APT
+source changes. Expiry checks are disabled only for that immutable historical
+snapshot; signatures and archive hashes remain mandatory. Resolution changed
+no packages. Its [dependency lock](./local/asterisk-build/dependency-lock.json)
+pins 89 package changes and 104,325,594 archive bytes, with versions, URLs,
+SHA256 hashes and index-file hashes. This includes explicit upgrades of
+existing libc/OpenSSL/SQLite/XML/curl dependencies in the disposable builder.
+
+The approved [installer](./local/asterisk-build/install-locked-packages.py)
+requires the exact lock hash and unchanged installed baseline, streams each
+package with its locked length/SHA256, then installs exact package versions
+with `--no-download --no-remove --no-install-recommends`. All 89 installed
+versions verified. Installed baseline SHA256 is
+`5fe9798fef7f0231f2765cee933c300ef079318c78971dee9665fd57cb9b0aae`.
+Installation took 64.556 seconds; its guest log was 32,215 bytes. No packages
+were installed into Windows or an existing distribution.
+
+The [source staging helper](./local/asterisk-build/stage-sources.py) downloaded
+the commit-addressed Asterisk archive (8,907,184 bytes) and immutable-mirror
+PJPROJECT 2.17 archive (8,975,382 bytes), each bounded to 64 MiB.
+The [source lock](./local/asterisk-build/source-lock.json) pins their SHA256
+hashes and revisions. PJPROJECT additionally matches the MD5 recorded in
+the pinned Asterisk source; SHA256, not MD5 alone, binds subsequent builds.
+The Asterisk archive expands under a 512 MiB declared-size ceiling using
+Python's data extraction filter.
+
+The [source inspector](./local/asterisk-build/inspect-source.py) verified
+seven pristine hashes and two absent new files, found all 41 configured
+runtime modules, and followed hard module dependencies into the
+[module plan](./local/asterisk-build/module-plan.json). Configure and
+menuselect subsequently verified dependency availability. Jansson is the
+snapshot's system 2.14 package; PJPROJECT is the staged bundled 2.17 source.
+Bundled Jansson/libjwt, XML documentation and all sound packages are disabled.
+
+The [compile recipe](./local/asterisk-build/compile-profiles.py) creates fresh
+attempt/profile directories, applies the exact patch with zero fuzz, checks
+all nine postimages, configures separate prefixes, selects only required
+modules and verifies exact untruncated menuselect names. Instrumented mode
+uses `--enable-dev-mode` and `TEST_FRAMEWORK`; release excludes the test
+framework and both test modules. Both disable `BUILD_NATIVE`. Builds use
+`make -j4 all`, not runtime installation, sound fetching or service startup.
+
+Actual compilation ran as `asterisk-build` in a systemd transient service:
+`CPUQuota=400%`, `MemoryMax=4294967296`, `MemorySwapMax=0`, `TasksMax=256`,
+`RuntimeMaxSec=3600`, `KillMode=control-group`, `SendSIGKILL=yes`,
+`PrivateNetwork=yes`, `NoNewPrivileges=yes`. The package-install service
+used a separate 1,200-second deadline and network for approved package URLs.
+Shared WSL/Windows overhead remains outside these process limits.
+The [log wrapper](./local/asterisk-build/run-logged.py) caps each guest command
+log at exactly 16 MiB, terminates the command group on overflow and propagates
+failure. Four direct tests passed: success, exit-code propagation, exact
+32-byte overflow fixture and refusal to overwrite a log. No native binaries
+were exported to Windows; only JSON evidence was copied into the repository.
+
+Two failed attempts are retained honestly:
+
+1. A recipe check misread `--list-options` output, which truncates names at
+   30 characters. It now uses full-name `--list-category` output.
+2. GCC rejected `(!row.callers != row.caller_list_empty)` with
+   `-Werror=logical-not-parentheses`. The source now uses
+   `((!row.callers) != row.caller_list_empty)`, preserving the boolean
+   comparison. No warning was suppressed. The getter postimage, Git blob
+   header and patch checksum were regenerated; the other eight postimages
+   remain unchanged. A package regression assertion protects the expression.
+
+The successful third attempt took **171.851 seconds**, log 100,417 bytes.
+Patch SHA256 is
+`ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0`.
+The [compile report](./local/asterisk-build/compile-report.json) records:
+
+| Profile | Core | Core support libraries | Runtime modules | Test modules | Total verified ELF outputs |
+| --- | --- | --- | --- | --- | --- |
+| Instrumented | 1 | 2 | 41 | 2 | 46 |
+| Release | 1 | 2 | 41 | 0 | 44 |
+
+Both profiles require `libasteriskpj.so` and `libasteriskssl.so`; these are
+included in the report, not mistaken for unexpected runtime modules.
+Independent reads rechecked all 90 output hashes and ELF64/x86-64 headers,
+the exact `.so` sets, and `ast_test_register` being defined only in the
+instrumented core. A first evidence check omitted the two core support
+libraries; the report/recipe were corrected and the full check passed.
+Compile report SHA256 is
+`5c0de49e485aadd29215419210917f0fa1dda3681077d40321fb77c6b5e8f881`.
+
+Outputs remain in the guest under
+`/home/asterisk-build/native-build-attempt-3/{instrumented,release}` (about
+1,003 MiB combined). Source staging and earlier failed attempts remain for
+reproduction/failure evidence; the newly owned distribution was stopped.
+The [execution record](./local/asterisk-patches/build-preparation.json)
+distinguishes compilation success from unexecuted native tests.
+The source-candidate manifest/validator deliberately remain integrity-only
+and cannot promote their own output to compilation/runtime success; consult
+the separate hash-bound compile report for actual native evidence.
+
+**No Asterisk binary was launched, module loaded, native test run or existing
+PBX operated.** All 30 test definitions are now compiled but unexecuted.
+This does not complete AT/QO acceptance, runtime shared-library verification,
+regression coverage or a deployable/redistributable release image. Retain
+source/license/copyright material and satisfy dependency source obligations
+before any redistribution; no image/export was produced here.
+
+Next obtain explicit approval for a disposable instrumented runtime:
+autoload off, no SIP/AMI/ARI/public ports, explicit controller loading,
+separate target excluded from autoload, serialized inventory, external
+watchdog, bounded logs and owned-resource cleanup. Run native tests and
+investigate real failures before claiming Gate A exit. Shutdown/output/
+recursive teardown/AO2 instrumentation obligations and Gate C remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

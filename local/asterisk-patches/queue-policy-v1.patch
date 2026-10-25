@@ -1,5 +1,5 @@
 diff --git a/apps/app_queue.c b/apps/app_queue.c
-index 73719a9d92f6acce41236abb1c0e6553e2e9b173..79b6d148b2139fc71a2daf8d67d22eb396db62f4 100644
+index 73719a9d92f6acce41236abb1c0e6553e2e9b173..1af0a7838fbdf084aed3bf2d970b3dabfd3c6a96 100644
 --- a/apps/app_queue.c
 +++ b/apps/app_queue.c
 @@ -107,6 +107,7 @@
@@ -121,7 +121,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..79b6d148b2139fc71a2daf8d67d22eb3
 +		|| row.join_mask > 255 || row.leave_mask > 255
 +		|| row.members < 0 || row.members > 65535
 +		|| row.callers < 0 || row.callers > 65535
-+		|| (!row.callers != row.caller_list_empty)) {
++		|| ((!row.callers) != row.caller_list_empty)) {
 +		sample->error = "unsupported-state";
 +		goto queue_done;
 +	}

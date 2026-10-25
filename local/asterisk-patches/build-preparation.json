@@ -1,14 +1,75 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-environment-verified-build-closure-pending",
-  "buildAuthorized": false,
-  "dependenciesInstalled": false,
-  "nativeCompiled": false,
+  "stage": "gate-b-both-profiles-compiled-native-tests-pending",
+  "buildAuthorized": true,
+  "dependenciesInstalled": true,
+  "nativeCompiled": true,
   "nativeTestsExecuted": false,
   "pbxExecuted": false,
-  "sourceCandidateCommit": "f51968c24910363fceb6b5e912e0bcc1feafe8e7",
+  "sourceCandidateBaseCommit": "f51968c24910363fceb6b5e912e0bcc1feafe8e7",
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
-  "patchSha256": "9ef837cbe49a2060b8a713999ad12a12c294b49593736f17bb54ca7b68605b66",
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "buildExecution": {
+    "authorization": "User accepted the default option approving exact locked package installation and both native compile profiles; no Asterisk runtime or native tests included.",
+    "dependencyLock": "../asterisk-build/dependency-lock.json",
+    "dependencyLockSha256": "b2b1c3dbe3e38df962b52eddcf24297b1c8b39a0b7cd0678ddeed46db7231928",
+    "packageChanges": 89,
+    "packageArchiveBytes": 104325594,
+    "installedPackageBaselineSha256": "5fe9798fef7f0231f2765cee933c300ef079318c78971dee9665fd57cb9b0aae",
+    "packageInstallLogBytes": 32215,
+    "packageInstallRuntimeSeconds": 64.556,
+    "packageInstallMemoryPeakReported": "363.0M",
+    "sourceLock": "../asterisk-build/source-lock.json",
+    "modulePlan": "../asterisk-build/module-plan.json",
+    "requiredRuntimeModules": 41,
+    "profiles": [
+      "instrumented",
+      "release"
+    ],
+    "networkDisabledDuringCompilation": true,
+    "unprivilegedCompilation": true,
+    "compileReport": "../asterisk-build/compile-report.json",
+    "compileReportSha256": "5c0de49e485aadd29215419210917f0fa1dda3681077d40321fb77c6b5e8f881",
+    "compileRuntimeSeconds": 171.851,
+    "compileLogBytes": 100417,
+    "instrumentedOutputsVerified": 46,
+    "releaseOutputsVerified": 44,
+    "coreSupportLibraries": [
+      "libasteriskpj.so",
+      "libasteriskssl.so"
+    ],
+    "allOutputSha256AndElfArchitectureVerified": true,
+    "testFrameworkSymbolInstrumentedOnly": true,
+    "ownedDistributionStoppedAfterBuild": true,
+    "nativeExecutionAuthorized": false,
+    "runtimeImageProduced": false,
+    "maximumLogBytesPerCommand": 16777216,
+    "logWrapperTestsPassed": [
+      "success",
+      "child-failure-exit-propagation",
+      "exact-overflow-threshold",
+      "refuse-existing-log"
+    ],
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": "recipe-selection-check-failed",
+        "cause": "Menuselect --list-options truncates module names at 30 characters; corrected to full-name --list-category output.",
+        "logBytes": 30497
+      },
+      {
+        "attempt": 2,
+        "result": "instrumented-c-compile-failed",
+        "cause": "GCC -Werror=logical-not-parentheses in app_queue.c; added explicit parentheses without changing comparison semantics and regenerated source hashes.",
+        "logBytes": 36070
+      },
+      {
+        "attempt": 3,
+        "result": "both-profiles-compiled-and-outputs-verified",
+        "directoryInGuest": "/home/asterisk-build/native-build-attempt-3"
+      }
+    ]
+  },
   "originalBudget": {
     "cpus": 2,
     "memoryBytes": 2147483648,
@@ -182,11 +243,11 @@
     "cleanupPolicy": "On failure stop only the newly owned distribution and report its exact name and paths; destructive unregister/disk deletion requires explicit approval and ownership verification."
   },
   "unresolvedPrerequisites": [
-    "Apply the verified build-service resource properties to the eventual compiler/test commands with the proposed 60-minute watchdog; short probes do not prove the workload fits.",
-    "Complete the pinned WSL base with exact compiler dependencies and select a matching release-runtime deliverable; cached stock and diagnostic images are not a matching compiler/dependency closure.",
-    "Resolve exact package snapshot, versions, archive checksums, third-party sources and license/source obligations.",
-    "Pin configure, menuselect, complete runtime module/dependency closure and separate instrumented-test/release profiles.",
-    "Finish bounded log/artifact handling for the revised 60-minute build; the provisioning logs were small but no streaming host-log cap was exercised.",
-    "Present the complete build manifest and exact no-unrecorded-fetch commands for explicit Gate B approval."
+    "Obtain explicit approval for isolated Asterisk startup, module loading and serialized native-test execution; this compile approval did not include native runtime.",
+    "Prepare disposable runtime configuration with autoload disabled, explicit controller load and the protected target excluded from startup; do not operate existing PBXs.",
+    "Run the native inventory under external watchdog and verified resource limits, capture exact results and investigate failures; compilation is not native acceptance.",
+    "Complete regression, shutdown/output/lifecycle/AO2 instrumentation obligations and Gate A acceptance evidence.",
+    "Prepare matching release runtime packaging with full shared-library closure, license/copyright/source obligations and separate approval before any export or redistribution.",
+    "Keep Gate C closed until independently approved; no stock/custom ABI mixing or runtime publication authority is enabled."
   ]
 }

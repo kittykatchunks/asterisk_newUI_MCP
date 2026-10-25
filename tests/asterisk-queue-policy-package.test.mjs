@@ -66,6 +66,7 @@ test("getter source uses checked output instead of a result from void ast_cli", 
     .map((line) => line.slice(1)).join("\n");
   assert.match(addedSource, /return policy_snapshot_respond\(a->fd, &sample, namespace_json\);/);
   assert.match(addedSource, /return ast_carefulwrite\(fd, output, written, 100\) < 0 \? CLI_FAILURE : CLI_SUCCESS;/);
+  assert.match(addedSource, /\(\(!row\.callers\) != row\.caller_list_empty\)/);
   assert.doesNotMatch(addedSource, /\bast_cli\s*\(/);
 });
 
