@@ -1,0 +1,23 @@
+services:
+  customer-a:
+    volumes:
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-a:/run/proof:ro
+      - ./tests:/tests:ro
+  customer-b:
+    volumes:
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-b:/run/proof:ro
+      - ./tests:/tests:ro
+  sip-test-a:
+    entrypoint: ["python3", "-B", "/tests/management_outage_proof.py"]
+    command: ["--host", "customer-a"]
+    volumes:
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-a:/run/proof:ro
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-b:/run/foreign:ro
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-a:/run/outage
+  sip-test-b:
+    entrypoint: ["python3", "-B", "/tests/management_outage_proof.py"]
+    command: ["--host", "customer-b"]
+    volumes:
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-b:/run/proof:ro
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-a:/run/foreign:ro
+      - ${OUTAGE_PROOF_DIRECTORY:?Owned outage directory required}/customer-b:/run/outage

@@ -755,8 +755,10 @@ be enforced without presenting an abruptly truncated capture as complete.
 Review date: 25 October 2026. This is a mapping of existing proof code and recorded
 results to the exact M1 criteria, not a new acceptance run. Earlier paragraphs
 describe historical increments; the completed AW and BS/SW checklists do not make
-the live calling milestone complete. None of M1-01 through M1-18 currently has a
-recorded complete end-to-end acceptance pass against its full wording.
+the live calling milestone complete. At this review, none of M1-01 through M1-18
+had a recorded complete end-to-end acceptance pass against its full wording.
+The subsequent M1-10 local conventional-route result is recorded below; the other
+17 gates remain incomplete.
 
 | Gate | Existing partial evidence | Missing evidence / implementation |
 |---|---|---|
@@ -769,7 +771,7 @@ recorded complete end-to-end acceptance pass against its full wording.
 | M1-07 | Durable source logs and isolated AMI status outage tests. | History collector checkpoints/replay, deduplication and explicit stale/unrecoverable-gap reporting; AMI health is not history replay. |
 | M1-08 | Synthetic WAV payload/format checks and unchanged hashes across restart. | Journey-linked authorised playback and recording upload failure/recovery workflow. |
 | M1-09 | Revision/approval patterns for diagnostic reports and narrow provisioning. | Route/queue configuration publication, runtime verification and external-edit drift handling; report approval is not PBX publication. |
-| M1-10 | PBX and management are separate processes; short echo fixtures exist. | Measured 60-second media continuity after actual management stop plus new conventional calls during the outage. Selected next. |
+| M1-10 | Subsequent isolated real outage proof passes MO-01 through MO-06 below: 60-second media continuity and new authenticated echo calls with management stopped. | Local conventional echo-route scope only; no queue/agent, public trunk or production failover claim. |
 | M1-11 | Operator-run customer/incident capture, duration-limit path. | Authenticated interactive start/stop and agreed ten-minute/100-MiB hard-limit evidence; sampled soft threshold does not satisfy a hard quota. |
 | M1-12 | Correlated packet/CEL reports, provenance and inert review preview. | Complete authenticated selected-call raw SIP/SDP and leg view with missing/truncated/dropped evidence represented explicitly. |
 | M1-13 | Encrypted browser media/signalling fixture; packet proof explicitly UDP-only. | Evidence display distinguishing encrypted network payload from authorised application signalling without disabling encryption. |
@@ -810,6 +812,40 @@ Stop after MO-01 through MO-06 or an explicit blocker. The 60-second duration is
 the existing M1-10 requirement; per-window media thresholds above are selected
 proof checks, not production quality-of-service objectives. Success closes only
 M1-10's local conventional-route scope; all other M1 gaps remain separate.
+
+### Management-outage continuity evidence
+
+MO-01 through MO-06 are complete for the selected local conventional-route scope.
+Reproduce with `.\scripts\Test-ManagementOutageProof.ps1`; run the five focused
+threshold/parser/correlation tests with
+`python -B -m unittest discover -s tests -p test_management_outage.py`.
+The real command includes typecheck and uses a unique Compose project without
+touching shared services. Full prerequisites and retained report details are in
+the [README](./README.md#isolated-management-outage-continuity-proof).
+
+Final recorded run: `run-2KzA6j`, project `asterisk-outage-2kza6j`.
+
+| Check | Recorded evidence |
+|---|---|
+| MO-01 | Actual management page returned 200 and session route 401. Owned PID 7572 exited with code 0; 562 HTTP connection-refusal checks covered the outage, with no restart. |
+| MO-02 | Both original authenticated dialogs were active concurrently before shutdown; customer-a/b baseline echoes were 106/99 distinct payloads. |
+| MO-03 | Controller measured 61.080 seconds down; each customer observed 60.502 monotonic seconds and all 60 one-second windows passed. Each sent/echoed 2,698/2,698 distinct frames, with minimum 44/44 per window. Maximum receive gaps were 0.023204 seconds (a) and 0.023191 seconds (b). |
+| MO-04 | A distinct new Call-ID per customer completed while original calls continued and management stayed down. Both default media checks returned 100/100 distinct echoes; all original/new BYEs returned 200. |
+| MO-05 | Both dialogs per customer correlated exactly through the named `PROOF_SIP_DIALOG` event and decoded JSON Call-ID to distinct fresh channel identities with one each of CHAN_START, ANSWER, HANGUP and CHAN_END. |
+| MO-06 | Typecheck and five focused tests pass; two complete real runs pass after correcting the initial CEL event-label assertion. The final non-secret report includes per-window media and CEL evidence. Independent checks found no owned management PID, containers, networks or volumes; generated credentials/database were removed and only the run report remained. |
+
+The initial real run failed only at the harness's incorrect generic CEL event-name
+assertion after its media stage; it was not counted as an acceptance pass. Exact
+named-event/JSON correlation now has positive and negative regression coverage.
+Completed customer media measurements survive later CEL assertion failures.
+Cleanup attempts remaining owned resources after a cleanup error and marks the
+run failed rather than reporting success.
+
+This closes only M1-10's selected local conventional echo-route proof. It does not
+enable agent phones or establish queue delivery, identity outage resilience,
+trunk behaviour, HA/failover or production QoS. All other 17 gates retain their
+listed gaps. The frozen REFER matrix was not expanded or rerun. Stop here before
+selecting another finite increment.
 
 ## 6. Proposed implementation backlog
 

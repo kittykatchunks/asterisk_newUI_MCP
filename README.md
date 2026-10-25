@@ -15,6 +15,64 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Isolated management-outage continuity proof
+
+The finite MO-01 through MO-06 proof passes for **M1-10's local conventional
+echo-route scope**. It runs two isolated Asterisk instances, starts the actual
+management HTTP application, establishes one authenticated UDP/PCMU call per
+customer, then stops only its own management PID. Both original calls must retain
+echoed media for 60 monotonic seconds while a new call per customer also succeeds.
+Management must refuse HTTP connections throughout; it is not restarted to finish
+the calls.
+
+With Node.js 24, the repository's installed dependencies, Python 3 and Docker
+Compose available, run:
+
+```powershell
+python -B -m unittest discover -s tests -p test_management_outage.py
+.\scripts\Test-ManagementOutageProof.ps1
+```
+
+The PowerShell command typechecks first. It requires the existing pinned Asterisk
+image locally (it uses `--pull never --no-build`):
+`andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d`.
+Allow about two minutes. Every run uses a unique Compose project, generated
+credentials, dedicated networks/volumes and a dynamic loopback HTTP port; it does
+not control the ordinary launcher or shared proof deployment.
+
+Recorded final run `run-2KzA6j`: typecheck and five focused Python tests passed;
+the real proof measured 61.080 seconds of management unavailability, with 562
+connection-refusal checks. Per-customer observations:
+
+| Customer | Media observation | Windows | Sent / distinct echoes | Minimum sent / echoed per window | Maximum receive gap | New call echoes |
+|---|---|---|---|---|---|---|
+| customer-a | 60.502 seconds | 60 | 2,698 / 2,698 | 44 / 44 | 0.023204 seconds | 100 / 100 |
+| customer-b | 60.502 seconds | 60 | 2,698 / 2,698 | 44 / 44 | 0.023191 seconds | 100 / 100 |
+
+Each one-second window requires at least 40 sent frames and 70% distinct,
+byte-identical echoes; no receive gap may exceed one second. Duplicate echoes
+cannot inflate counts or hide a receive gap. All four calls completed clean BYEs
+and exact Call-ID correlations to fresh CEL start/answer/hangup/end records.
+Fresh calls use the existing default short media verifier, preserving that path
+alongside the new continuous observer. The first real attempt failed at an
+incorrect CEL event-name assertion after the media stage; exact named-event/JSON
+correlation was corrected and regression-tested before two complete passing runs.
+
+Each run prints its ignored `.local-proof\management-outage\run-...\result.json`
+path. The report retains non-secret measurements, per-window counts, CEL
+correlations and explicit failures; completed customer media results are retained
+even if subsequent CEL checking fails. Cleanup attempts every owned resource even
+if another cleanup step fails, reports cleanup errors and fails the command.
+On the recorded pass, independent inspection confirmed the owned management PID,
+containers, networks, volumes and generated credentials were gone; only the result
+report remained in its run directory.
+
+This is synthetic authenticated echo calling, **not** queue/agent delivery,
+browser-phone activation, identity-provider outage, public trunk availability,
+HA/failover or production QoS. The other 17 broad M1 gates remain incomplete.
+No REFER matrix was rerun. See the
+[M1 acceptance evidence](./MILESTONE-1.md#management-outage-continuity-evidence).
+
 ## Deterministic synthetic booking harness
 
 `openBookingSimulation` in [src/booking-simulation.ts](./src/booking-simulation.ts)

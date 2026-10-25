@@ -183,7 +183,7 @@ class Probe:
             self.sip.send(self.request("ACK", to_value=headers["to"][0]))
         return result
 
-    def echo(self, headers, sdp):
+    def echo(self, headers, sdp, verify=verify_rtp_echo):
         self.to_value = headers["to"][0]
         contact = re.search(r"<([^>]+)>", headers["contact"][0])
         require(contact is not None, "Missing dialog Contact")
@@ -202,13 +202,15 @@ class Probe:
                 self.sip.send(self.request("ACK", uri=target))
 
         try:
-            received = verify_rtp_echo(self.sip, self.rtp, self.call_id, receive_sip)
-            print(f"PASS authenticated call, PCMU negotiation, and {received}/100 distinct RTP frames echoed")
+            received = verify(self.sip, self.rtp, self.call_id, receive_sip)
+            if verify is verify_rtp_echo:
+                print(f"PASS authenticated call, PCMU negotiation, and {received}/100 distinct RTP frames echoed")
         finally:
             self.cseq += 1
             self.branch = "z9hG4bK" + uuid.uuid4().hex
             code, _, _ = self.final_response(self.request("BYE", uri=target), "BYE")
             require(code == 200, f"BYE failed: {code}")
+        return received
 
 
 def main():

@@ -503,6 +503,32 @@ The recommended/default selected next target is the isolated
 [M1-10 management-outage continuity proof](./MILESTONE-1.md#selected-next-increment-management-outage-continuity),
 with six finite MO checks. Live voice/agent-phone activation remains unauthorised.
 
+### Management-outage continuity completion
+
+The selected MO-01 through MO-06 increment now passes for **M1-10's local
+conventional echo-route scope**. The isolated proof runs the actual management
+HTTP application and two authenticated synthetic calls, stops its owned
+management PID, verifies HTTP refusal, measures at least 60 seconds of ongoing
+media per customer, and completes a new call per customer during the outage.
+Fresh CEL records correlate both dialogs/customer and all four BYEs complete.
+
+Typecheck, five focused Python tests and two complete real outage runs pass after
+fixing the initial harness-only CEL event-name assertion. Final run `run-2KzA6j`
+recorded 61.080 seconds of controller-observed outage, 562 HTTP-refusal checks,
+60.502 seconds of media per customer, 60 passing one-second windows each,
+2,698/2,698 distinct echoed frames each and 100/100 echoes on each fresh call.
+Maximum receive gaps were below 0.024 seconds for both customers. Owned processes,
+containers, networks, volumes and generated credentials were removed; the ignored
+non-secret report remains available locally.
+
+Reproduce with `.\scripts\Test-ManagementOutageProof.ps1`; see the
+[acceptance evidence and limits](./MILESTONE-1.md#management-outage-continuity-evidence)
+and [prerequisites](./README.md#isolated-management-outage-continuity-proof).
+No dependencies were added or REFER checks rerun. The other 17 M1 gates remain
+incomplete. This does not authorise live voice/agent-phone activation or establish
+queue delivery, public-trunk availability, HA or production QoS. Stop after this
+verified increment rather than automatically expanding into those work packages.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:

@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["tests/webrtc/client.ts", "src/**/*.ts", "src/**/*.js", "scripts/*.ts", "tests/*.test.ts", "tests/identity/**/*.ts"]
+  "include": ["tests/webrtc/client.ts", "src/**/*.ts", "src/**/*.js", "scripts/*.ts", "tests/*.test.ts", "tests/identity/**/*.ts", "tests/management-outage/**/*.ts"]
 }
