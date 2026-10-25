@@ -2432,6 +2432,16 @@ destructor assertions remain intact. Only the controller postimage changes.
 **Twelve package tests pass** and exact application/nine postimages match.
 All native/AT/QO acceptance and Gates B/C remain open; no native/PBX execution.
 
+The [distributed hard-ceiling extension](./PROJECT-PLAN.md#gate-a-distributed-hard-ceilings-inventory-unchanged-still-unexecuted)
+adds nine walks on a real 64-bucket container with one live object per bucket;
+the callback definition now contains 33 schedules, while inventory remains
+**30 uncompiled/unexecuted definitions**. A 63-bucket budget rejects before
+traversal; a 63-node budget charges 64 buckets but only 63 nodes/visits.
+Complete/abort/invalid-return walks retain exact counts and calibrated
+callback/ref/destructor assertions. Only the controller postimage changes.
+**Twelve package tests pass** and exact application/nine postimages match.
+All native/AT/QO acceptance and Gates B/C remain open; no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

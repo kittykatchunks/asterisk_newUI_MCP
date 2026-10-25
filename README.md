@@ -450,6 +450,9 @@ positively calibrated hash/sort/comparison counters and exact visitor counts.
 The [sparse-bucket extension](./PROJECT-PLAN.md#gate-a-sparse-bucket-accounting-inventory-unchanged-still-unexecuted)
 runs that matrix at first/middle/final collision buckets: 24 source schedules
 require exact leading-empty-bucket accounting, with the inventory unchanged.
+The [distributed hard-ceiling extension](./PROJECT-PLAN.md#gate-a-distributed-hard-ceilings-inventory-unchanged-still-unexecuted)
+adds one object per bucket at 64 buckets/64 objects and a 63-bucket preflight
+rejection, bringing the same definition to 33 source walk schedules.
 **Twelve package tests pass**; exact application and all nine source postimages
 match. Those checks do not prove C compilation,
 native behavior, measured latency or lifecycle acceptance. Shutdown, recursive

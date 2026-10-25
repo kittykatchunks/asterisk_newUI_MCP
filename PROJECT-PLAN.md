@@ -3650,6 +3650,51 @@ No dependency install, native compile/test, image build, module load or PBX
 operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
 M1-09 remain open.
 
+##### Gate A distributed hard ceilings: inventory unchanged, still unexecuted
+
+The existing `bounded_callback_work` definition now adds a fourth real
+container layout: **64 distinct live objects, one in each of 64 buckets**.
+The fixture hash returns each object's key rather than a shared collision
+bucket for this layout. The inventory remains **30 uncompiled/unexecuted
+native definitions**, now with **33 walk schedules** inside this definition:
+the preceding 24 sparse-collision walks and nine distributed walks.
+Only the controller postimage changes within the same nine approved paths.
+
+The distributed fixture retains positive ordinary find/hash/sort/comparison
+calibration, reverse-key construction and exact destructor/reference checks.
+It first requires a **63-bucket budget** to return/result `LIMIT` before
+traversal, with zero bucket/node/object/visitor counts. The regular eight-case
+matrix then runs with the allowed 64-bucket budget:
+
+| Schedule | Expected status | Buckets | Nodes/live visits |
+|---|---|---|---|
+| Full/recovery walk | Complete | 64 | 64 |
+| Node budget 63 | Limit | 64 | 63 |
+| Object budget 63 | Limit before traversal | 0 | 0 |
+| Abort at live 1/32/64 | Aborted | 1/32/64 | 1/32/64 |
+| Invalid return at live 32 | Internal | 32 | 32 |
+
+The node-budget case deliberately expects **64 buckets but 63 nodes**:
+the owner enters the final bucket, then refuses its first physical node
+before dereferencing it. Charging only the visited objects' buckets would
+under-report that traversal. Full walks hit the bucket and live-object hard
+ceilings simultaneously. Every schedule requires callback counters unchanged
+from their nonzero baselines, borrowed reference count one, unchanged 64-live
+container count, sole container reference and zero destructors until cleanup.
+The failure diagnostic identifies whether the layout was distributed.
+
+These are additional AT-03/AT-05/AT-06/AT-07 source assertions, not native
+execution, exhaustive work/ref instrumentation or concurrency/profile proof.
+All AT/QO acceptance gates remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match; the other eight postimages
+are unchanged. Both named scratch directories are removed after verification.
+No dependency install, native compile/test, image build, module load or PBX
+operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
+M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
