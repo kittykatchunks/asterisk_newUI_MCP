@@ -21,6 +21,10 @@ export function configurationSlug(value: unknown): asserts value is string {
 export function configurationScope(value: ConfigurationScope) {
   configurationSlug(value.customer); configurationSlug(value.runtime);
 }
+export function configurationNamespace(scope: ConfigurationScope) {
+  configurationScope(scope);
+  return `cp-${configurationHash(JSON.stringify([scope.customer, scope.runtime])).slice(0, 24)}`;
+}
 export function configurationModel(value: unknown): ConfigurationModel {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new ConfigurationValidationError("object-required", "$", "Configuration model must be an object");
@@ -71,7 +75,7 @@ export function compileConfiguration(scope: ConfigurationScope, input: unknown, 
   if (!Number.isSafeInteger(revision) || revision < 1) throw new Error("Invalid configuration revision");
   const model = configurationModel(input);
   const canonical = JSON.stringify(model), modelSha256 = configurationHash(canonical);
-  const namespace = `cp-${configurationHash(JSON.stringify([scope.customer, scope.runtime])).slice(0, 24)}`;
+  const namespace = configurationNamespace(scope);
   const context = `${namespace}-${model.routeId}`, queue = `${namespace}-${model.queueId}`;
   const routeRevision = `cp-v1-${revision}-${modelSha256.slice(0, 16)}`;
   const dialplan = `[${context}]\nexten => entry,1,Set(HISTORY_JOURNEY=\${UUID()})\n` +

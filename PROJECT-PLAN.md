@@ -1004,7 +1004,7 @@ Recommended sequence:
    independently verified absent; only synthetic SQLite/report files remain.
    **Full M1-06/07 remain open**, including all business outcomes after restart,
    production boot attestation and remote delivery/rotation/retention.
-3. **Limited publication: offline foundation implemented; runtime deferred.**
+3. **Limited publication: offline foundation and empty-baseline inspector implemented.**
    One isolated synthetic inbound route to one empty queue with timeout/hangup;
    no member/endpoint/credential changes. Same authorized operator may explicitly
    approve the exact immutable draft; apply is a separate deliberate trusted
@@ -1014,8 +1014,9 @@ Recommended sequence:
    runtime verification and conditional verified recovery. CP-01 through CP-10
    remain unverified as full checks. The strict compiler, immutable scoped
    drafts/validation/approval and durable offline operation fencing now have
-   CF-01 through CF-15 tests. No runtime binding or executor exists; expected
-   base is limited to zero without asserting inspected empty ownership.
+   CF-01 through CF-15 tests. The separate owned binding/read-only inspector
+   passes CI-01 through CI-10 on two fresh pinned PBXs. No executor exists;
+   base remains zero and offline approvals do not acquire runtime authority.
 4. **Explicitly gate browser-agent activation**, then intended queue/media/
    controls/roaming/error acceptance. Existing reservations do not enable phones.
 5. **Complete recording/engineering/export and combined restore** using agreed
@@ -1120,8 +1121,9 @@ does not reverse calls, bookings, or messages already completed.
 
 Selected after BE on **25 October 2026**, initially as a documentation-only
 contract. The subsequently authorized offline model/compiler and dedicated
-draft/approval/operation store are implemented below. No web permission/API,
-runtime binding, executor or runtime application is implemented. M1-09 remains open.
+draft/approval/operation store, then owned empty-baseline binding/read-only
+inspector, are implemented below. No web permission/API, executor or runtime
+publication is implemented. M1-09 remains open.
 
 The user selected:
 
@@ -1285,15 +1287,18 @@ remains **unverified as full checks**. Implementation order:
 
 1. **Offline foundation implemented:** strict model/compiler and dedicated durable
    revision/approval/operation store, CF-01 through CF-15; no runtime executor.
-2. Provisioned owned-project binding and read-only disk/loaded-state inspector.
+2. **Empty-baseline binding/read-only inspector implemented:** CI-01 through CI-10
+   on two uniquely owned pinned PBXs; no nonempty published-state inspector.
 3. Scoped operator apply/recovery and pinned two-customer quiescent canaries;
    failure injection verifies every external-effect boundary.
 4. Only after exact CLI acceptance, separately decide browser permission/audit
    policy, member/endpoint changes and any production worker.
 
 The original design increment stopped after documenting the contract; the
-following increment implemented only item 1. No apply/reload, runtime permission,
-new member, ordinary routing change, phone activation or REFER rerun was performed.
+following increments implemented item 1 and the bounded empty-baseline part of
+item 2. No apply/reload, runtime permission, new member, ordinary routing change,
+phone activation or REFER rerun was performed. The inspector proof boots/restarts
+only uniquely owned fixtures and uses pre-boot collision fault configuration.
 Runtime surfaces and durable recovery must be verified end-to-end before calling
 M1-09 complete.
 
@@ -1312,8 +1317,8 @@ M1-09 complete.
   tuple; route and queue suffixes are logical IDs. Artifact provenance includes
   compiler generation, scoped draft revision and a model-digest prefix. The
   complete scoped draft hash binds full model, output, compiler, base and
-  attribution, avoiding a circular output/revision digest. Collision checks are
-  deferred to the future inspector; hash derivation alone does not establish
+  attribution, avoiding a circular output/revision digest. The separate inspector
+  checks empty-baseline collisions; hash derivation alone does not establish
   namespace ownership. Output remains in memory/database, never runtime files.
 - Dedicated SQLite identity/schema, DELETE/FULL durability, scoped immutable
   revisions, one validation and approval receipt per revision, exact draft and
@@ -1335,15 +1340,79 @@ Expected base accepts **zero only**, meaning no verified publication exists in
 this offline store, not an inspected empty PBX. Labels identify logical offline
 scope; they are not provisioned project bindings. Validation's additive diff is
 explicitly `empty-uninspected`, not a computed disk/runtime diff. There is no
-last-verified pointer, external-effect step API, runtime inspection or executor,
+last-verified pointer, external-effect step API, runtime-bound approval or executor,
 canary, rollback, automatic resume, new permission, browser surface or dependency.
 Rejected input returns structured errors rather than persisting a draft with a
 `validation-failed` lifecycle; the richer runtime lifecycle remains deferred.
 
-The [README workflow](./README.md#limited-publication-offline-foundation-only)
-documents CLI input/output. Only offline parts of CP-01/02/03/07/09/10 are covered.
-CP-04/05/06/08 and all full CP checks remain unverified. Next is item 2:
-separately scoped binding and read-only inspection, with no implied apply authority.
+The [README workflow](./README.md#limited-publication-offline-foundation-and-read-only-inspection)
+documents CLI input/output. CF tests cover offline parts of CP-01/02/03/07/09/10.
+The following CI proof adds bounded empty-baseline portions, not full CP passes.
+
+#### Implemented owned empty-baseline inspection
+
+[Inspector/binding](./src/configuration-inspector.ts),
+[read-only CLI](./scripts/Inspect-Configuration.ts),
+[nine offline tests](./tests/configuration-inspector.test.ts) and the
+[owned runtime proof](./tests/configuration-inspection/run.ts) now implement:
+
+- An explicitly trusted bootstrap binding, canonical/checksummed/exclusive on
+  local disk, to one customer/runtime/namespace, unique proof project/service,
+  exact container and image IDs, pinned repository digest, process start
+  observation, fixed read-only mount and all 22 exact config/dependency hashes.
+  Managed fragments must be empty. Baseline include hooks and UUID module load
+  are installed only in generated fixture copies before first boot.
+- Bootstrap compares the expected disk and known loaded inventory before
+  persisting a binding. Model labels do not confer authority; the inspection
+  command accepts only that binding plus matching scope. It cannot choose
+  Docker commands or config paths from a model, mutate offline approvals, adopt
+  discovered unmanaged objects or move a verified publication pointer.
+- Fixed read-only Docker inspection and bounded Python file/CLI probes. File
+  and directory no-follow/regular-file guards, 64 files, 64 KiB per file, 1 MiB
+  aggregate bytes, 256 KiB per CLI output and 2,000 dialplan priorities bound
+  the read. Unknown/truncated dialplan output, including empty unsupported
+  contexts, cannot become evidence of absence.
+- Parse and compare every known loaded dialplan context/extension/priority/
+  application/argument/source filename. Compare exact queue display, UUID module
+  and cold quiescent channel/call counts. Report managed/dependency disk drift
+  separately from loaded dialplan/queue drift. Reports contain digests/object
+  names, not secret configuration. Identity and disk checks around the sample
+  detect observed process/file changes, not every concurrent transient edit.
+- Read-only CLI exits 0 for `empty-baseline-observed`, 2 for `blocked`, 1 for
+  `unavailable`; all reports keep `executorEnabled:false` and
+  `publicationVerified:false`. PBX outage/restart, foreign scope/project/image/
+  container/mount, malformed bindings and failed/unsafe reads never reuse a
+  successful observation or auto-rebind.
+
+`run-OymB5Y` / `asterisk-inspection-oymb5y` passes typecheck, 77 focused tests
+and CI-01 through CI-10. The deliberate negative fixture cold-boots one compiler
+route/queue, restores both files to empty **without reload**, and proves that
+matching disk cannot hide one loaded reserved context and queue. The previous
+binding rejects that boot; even a later clean boot does not replace it. B stays
+independently responsive. This is fault-fixture bootstrap, not publication or
+rollback; no calls/reloads occur. Owned containers/networks/volumes, generated
+config/credential copies and Compose override are removed and independently
+checked absent. Repository baseline bytes are unchanged; only result/binding
+metadata is retained.
+
+Limits remain explicit: this inspector supports **only a cold empty managed
+baseline**, not a verified nonempty revision. It samples rather than atomically
+locks runtime state; Docker labels, local actor references and start tokens are
+not authenticated customer identity or production boot attestation. Queue
+display does not establish all loaded policy fields (timeout/joinempty/etc.).
+Symlink no-follow guards exist, but the CI runtime batch specifically measures
+nonregular-directory rejection, not every filesystem race or symlink variant.
+The offline approvals still do not bind an owned-project/binding hash or
+preflight observation; do not wire these into apply without designing that exact
+tuple. CP-04/05/09/10 gain only bounded partial evidence; all full CP checks
+remain unverified. No staging, scoped reload, canary, verified pointer,
+conditional recovery/rollback or web surface is implemented.
+
+Next is a separately authorized executor/verification/recovery increment. It
+must first resolve exact loaded queue-policy inspection and revision/binding/
+preflight approval fencing, then prove scoped reload behavior and every
+external-effect boundary. A green empty-baseline report alone is never apply
+readiness or authority.
 
 ## 8. AI assistance, MCP, reports, and wallboards
 

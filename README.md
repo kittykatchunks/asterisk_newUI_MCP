@@ -38,7 +38,7 @@ Limited route/queue publication, explicitly gated browser-agent calling,
 recording/engineering/export and combined restore remain separate work.
 Live phones remain disabled, ordinary routing unchanged and REFER frozen.
 
-## Limited publication: offline foundation only
+## Limited publication: offline foundation and read-only inspection
 
 The selected publication slice is:
 **one isolated synthetic route to one empty queue**, explicit approval permitted
@@ -100,20 +100,85 @@ rather than deleting uncertainty to bypass it.
 
 Expected base must be **zero**: no publication has been verified. Zero is not
 evidence that a PBX namespace is empty. Customer/runtime labels select offline
-store scope only, not a provisioned project or authorization. There is no runtime
-binding, collision/drift inspection, include installation, staging, apply,
-reload, canary, verified pointer or rollback API. Runtime apply authorization
-remains explicitly false, including in approval receipts.
+store scope only, not a provisioned project or authorization. The separate
+read-only binding/inspector below does not upgrade these offline approvals or
+claims into runtime authority. There is no staging, apply/reload, canary,
+verified pointer or rollback API. Runtime apply authorization remains explicitly
+false, including in approval receipts.
 
 Run the 15 [CF offline acceptance tests](./tests/configuration-foundation.test.ts)
 with `node --test tests\configuration-foundation.test.ts`; they include competing
 real processes, death inside/after the real claim transaction, receipt-write
 failure, restart/read-only/corruption and real CLI workflows.
 [CP-01 through CP-10](./MILESTONE-1.md#selected-cp-design-limited-routequeue-publication)
-remain **unverified as full checks**. This foundation supplies only offline
-parts; no runtime publication was executed. M1-09 and all other full open gates
-remain unchanged. Next is the separately scoped provisioned binding and
-read-only disk/loaded-runtime inspector, before any executor.
+remain **unverified as full checks**. The foundation and inspector supply only
+bounded portions; no runtime publication was executed. M1-09 and all other full
+open gates remain unchanged.
+
+### Read-only owned configuration inspection
+
+The [inspector](./src/configuration-inspector.ts) supports **only the initial
+empty managed namespace** of a fresh owned proof fixture. Trusted bootstrap
+assigns an exclusive canonical checksummed binding containing customer/runtime,
+namespace, owned project/service, exact container and image IDs, pinned repository
+digest prerequisite, Docker start time/PID-1 start ticks, read-only configuration
+mount source, 22 dependency/managed-file hashes and operator/reason/time. It
+does not adopt arbitrary matching disk or loaded objects.
+
+The [operator CLI](./scripts/Inspect-Configuration.ts) accepts only the existing
+binding and expected scope, never commands, configuration paths or model text:
+
+```powershell
+node .\scripts\Inspect-Configuration.ts C:\absolute\owned\customer-a.binding.json customer-a customer-a-proof
+```
+
+- Exit **0** / `empty-baseline-observed`: the sampled bound empty baseline
+  matches, not permission/readiness to apply or a verified publication.
+- Exit **2** / `blocked`: separate managed/dependency disk or loaded-inventory
+  differences, non-quiescence, module drift or disk changes across the sample.
+- Exit **1** / `unavailable`: wrong scope/identity/mount/image, stopped/restarted
+  runtime, unsafe/nonregular files, unsupported output, invalid binding or failed
+  read. No cached success, automatic rebinding, repair or startup action.
+
+Read-only probes inspect Docker identity/image provenance, hash the fixed
+configuration directory with bounded/no-follow regular-file reads, and query
+loaded dialplan, queue inventory, UUID module and channel/call counts. Full
+known dialplan applications/arguments/priorities and source filenames are
+compared, not just embedded revisions. File hashes are sampled twice; container
+identity and PBX process token are rechecked. Reports expose digests and bounded
+object names, not configuration contents or credentials.
+
+Run the owned two-customer proof:
+
+```powershell
+.\scripts\Test-ConfigurationInspection.ps1
+```
+
+It runs typecheck, **77 focused tests** (9 new inspector tests plus the existing
+68-test foundation/regression set), then **CI-01 through CI-10** on a unique
+project using the already available pinned image with `--pull never --no-build`.
+It proves scope/mount denial, disk-only versus loaded-only drift, unsupported
+file-type failure, outage, restart invalidation and explicit cleanup. For the
+loaded-only negative case, test fragments are installed **before an owned cold
+boot**, then restored on disk without reload; one reserved context and queue
+remain visible and blocked. This is fault-fixture bootstrap, not approved apply.
+No call, originate, reload or shared PBX operation is performed.
+
+Recorded run `run-OymB5Y` / `asterisk-inspection-oymb5y` passes all ten checks
+(also reproduced by `run-0akUcU` and `run-XOjdcL`);
+owned containers/networks/volumes and generated credential/configuration copies
+are absent. Only synthetic binding metadata and the result report remain.
+Those retained bindings intentionally fail inspection after cleanup; do not
+retarget or rewrite them to bypass identity/restart checks.
+
+Limits: sampled reads are **not an atomic runtime snapshot or boot attestation**.
+`queue show` proves the observed inventory/strategy/empty member/caller display,
+not all loaded queue policies such as timeout/joinempty. No nonempty published
+state, live apply, reload safety, canary, rollback or runtime-bound approval
+contract is implemented. Binding files and their checksums are trusted-local
+provisioning, not tamper-resistant customer authentication. Next is a separate
+scope decision for the executor/verification/recovery contract; there is no
+automatic progression to runtime effects.
 
 ## Isolated PBX boot-epoch recovery proof
 

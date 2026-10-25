@@ -1570,7 +1570,7 @@ permissions but no history-specific grant. Do not repurpose those grants silentl
 |---|---|---|---|
 | 1 | Read-only authenticated history-evidence workspace | Subsequently authorized: explicit customer `history:read` members only, no support grants, references-only exposure. Reuses session/audit/customer boundaries, not CLI authority. | HR-01 through HR-10 below pass in the bounded local scope. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
 | 2 | Integrated restart/interruption/replay proof | Subsequently selected: LR local process slice, then separately authorized BE isolated PBX boot-epoch slice. Exact ten-check contracts below. | LR-01 through LR-10 and BE-01 through BE-10 pass in their bounded scopes. Full M1-06/07 outcomes, continuous remote delivery and production boot attestation remain open. |
-| 3 | Limited route/queue publication foundation | Offline compiler, durable scoped drafts/approval and operation fencing; CF-01 through CF-15. One isolated route/empty queue; explicit same-author approval; trusted operator CLI, no web apply authority. | Full CP-01 through CP-10 remain unverified. No runtime binding, inspector or executor; base zero is not empty-runtime evidence. Exact loaded-state/canary and recovery proof still required. No broad editor or web Docker socket. |
+| 3 | Limited route/queue publication foundation | Offline compiler/drafts/approval/fencing (CF-01 through CF-15), plus owned empty-baseline binding/read-only inspector (CI-01 through CI-10). No web apply authority. | Full CP-01 through CP-10 remain unverified. No executor or nonempty published-state verification; base zero alone is not empty-runtime evidence. Exact loaded queue policy, canary and recovery proof still required. No broad editor or web Docker socket. |
 | 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
 | 5 | Recording, engineering/export and combined restore | Requires explicit storage/retention/access/capture-limit contracts and links to durable identities. Can be separately planned where independent. | Close exact M1-08/11-17 requirements through executed scoped workflows, not report/hash proxies. |
 
@@ -1765,7 +1765,7 @@ selected design is recorded below, without implementation authority.
 
 #### Selected CP design: limited route/queue publication
 
-**25 October 2026: design selected; offline foundation subsequently implemented.** User decisions:
+**25 October 2026: design selected; offline foundation and empty-baseline inspector subsequently implemented.** User decisions:
 `route-empty-queue`, `same-author-explicit`, `operator-cli`.
 One isolated synthetic route points to one empty queue with bounded timeout and
 hangup. Existing ordinary routes, endpoint/member/credential management, live
@@ -1818,18 +1818,61 @@ documentation only. The following offline implementation adds
 These cover **offline portions only** of CP-01/02/03/07/09/10, not complete CP
 passes. Base zero means no verified revision, not an inspected empty namespace;
 validation diff is additive against `empty-uninspected`. Offline scope labels
-are not provisioned runtime bindings. There is no disk/loaded collision or drift
+are not provisioned runtime bindings. That offline increment added no disk/loaded
 inspection, include hook, staging, apply/reload, canary, last-verified pointer,
 recovery or rollback. No PBX started/reloaded, existing route changed, permission
-or dependency added, phone enabled or REFER test rerun.
+or dependency added, phone enabled or REFER test rerun in that increment.
 
 Recorded validation: `npm run typecheck` and **68 focused tests pass**:
 15 new CF tests plus 53 existing provisioning-store, history-manifest and
 history-projection regressions. No failures, skips or cancelled tests. Test-owned
 child processes and temporary stores are cleaned; no runtime proof is claimed.
 
-Next scope decision is the owned binding and read-only disk/loaded inspector
-before any executor. If exact loaded-state facts
+#### Selected CI batch: owned read-only empty-baseline inspection
+
+The next authorized increment implements the
+[owned binding/read-only inspector](./src/configuration-inspector.ts),
+[operator CLI](./scripts/Inspect-Configuration.ts),
+[CIU-01 through CIU-09 offline tests](./tests/configuration-inspector.test.ts)
+and [CI-01 through CI-10 runtime proof](./tests/configuration-inspection/run.ts).
+Trusted bootstrap creates binding files only after the exact expected empty
+disk and known loaded baseline are observed. Local attribution/checksums are
+not authenticated customer permissions or tamper-resistant runtime attestation.
+The separate inspector does not upgrade offline draft approvals or claims.
+
+| Check | Measured result |
+|---|---|
+| CI-01 | Two unique owned pinned PBXs: exact known 18-priority/2-context unmanaged dialplan, empty managed disk files, no reserved loaded context/queue, cold quiescence and UUID module. All 22 bootstrap hashes and identity prerequisites match before binding persistence. |
+| CI-02 | Actual operator CLI reads persistent canonical/checksummed bindings for both scopes without changing them; result explicitly says no executor or verified publication. |
+| CI-03 | Foreign scope, swapped other-customer container and altered mount source fail closed. Offline CIU checks additionally cover wrong image/project/service, ports, writable/shadow mounts and malformed/arbitrary-command bindings. |
+| CI-04 | Disk-only managed-file drift blocks; actual CLI exits 2, loaded baseline remains distinct and B is unaffected. Inspector never repairs it. |
+| CI-05 | Changed dependency, missing managed file and extra dependency file block independently. A directory in the bounded file inventory makes inspection unavailable, not success. Explicit test restoration recovers the empty observation. |
+| CI-06 | Owned A stop yields unavailable, including actual CLI exit 1 and no success-shaped result; B remains independently responsive. |
+| CI-07 | Fault fixture loads one compiler route/queue **at cold bootstrap**, then restores both files to empty without reload. New inspection candidate sees matching disk but one reserved loaded context/queue and blocks both loaded inventories. B stays unchanged. No binding is persisted for that collision. |
+| CI-08 | Old binding rejects the changed boot and remains byte-for-byte unchanged. A subsequent clean cold boot can be observed only as a separate test candidate; no automatic rebind, resume or verified publication. |
+| CI-09 | All generated bootstrap bytes match their original hashes again, by explicit test restoration, not inspector repair. Persistent bindings remain unchanged. No inspector config mutation, call, reload or credential disclosure. |
+| CI-10 | Owned containers/networks/volumes independently absent; generated config/credential copies and Compose override removed. Repository baseline unchanged. Only two synthetic binding metadata files and the result report retained. |
+
+Recorded run **`run-OymB5Y`**, project **`asterisk-inspection-oymb5y`**, passes
+all ten runtime checks and the wrapper's typecheck plus **77 focused tests**
+(9 CIU, 15 CF, 53 existing store/manifest/projection regressions). Reproduce with
+`.\scripts\Test-ConfigurationInspection.ps1`; pinned local image only,
+`--pull never --no-build`. No dependency, production permission, phone, ordinary
+route/shared PBX mutation or REFER rerun.
+
+Inspection status is sampled `empty-baseline-observed`, `blocked` or `unavailable`,
+never `verified`/apply readiness. No-follow/regular-file guards and bounded reads
+exist; this batch does not prove every symlink/filesystem race. Exact dialplan
+inventory is compared, but `queue show` does **not** reveal every loaded queue
+policy (timeout/joinempty/etc.). Empty-baseline include loading at bootstrap does
+not prove scoped reload or safe publication. There is no nonempty published-state
+inspector, runtime-bound approval tuple, staging, executor, canary, last-verified
+pointer, conditional recovery/rollback or automatic rebind.
+
+CI adds **partial empty-baseline evidence** for CP-04/05/09/10; all full CP checks
+remain unverified. Next requires a separate executor/verification/recovery scope
+decision, first resolving exact loaded policy and binding/approval fencing.
+If exact loaded-state facts
 or safe scoped application cannot be verified on the pinned runtime, implementation
 must stop/narrow the contract rather than substitute a green file hash.
 M1-09 remains open; the 17 full M1 gates are unchanged.
