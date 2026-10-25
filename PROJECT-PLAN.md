@@ -4116,6 +4116,65 @@ are unchanged. No deployment, image export, registry push or Gate C two-PBX
 proof occurred. Future runtime changes must remain within explicitly approved
 disposable scope; do not turn a passing fixture batch into production approval.
 
+##### Release profile loaded-state smoke passed
+
+The user explicitly approved isolated release smoke and fixture-only reload.
+The [runner](./local/asterisk-build/smoke-release.py) verifies the 44 release
+outputs against the unchanged compile report, resolves their dynamic-loader
+dependencies in the builder, and hashes all 29 distinct resolved shared-library
+paths. Custom support libraries must resolve from the release tree, never the
+instrumented or stock core. This is a builder-host dependency observation,
+not proof of a standalone packaged runtime or resolution of every module's
+core-provided symbol at `dlopen` time.
+
+The disposable unprivileged process used only `app_queue.so`, autoload off,
+no SIP drivers, disabled manager/HTTP, private networking and the established
+4-CPU/4-GiB/zero-swap/256-task limits. An external five-minute watchdog and
+bounded 16 MiB command/2 MiB console logs applied. The release test command
+was absent. Private fixture queues included the namespace-selected queue,
+`proof-queue`, and an unrelated queue which must not appear in the response.
+Every response was exactly one bounded JSON line with the full expected
+schema, sorted rows, masks, member/caller counts and policy values:
+
+| Observation | Disk timeout/strategy | Observed loaded timeout/strategy |
+| --- | --- | --- |
+| Initial load | 11 / ringall | 11 / ringall |
+| Disk edit without reload | 23 / linear | 11 / ringall |
+| Fixture parameters reload | 23 / linear | 23 / linear |
+| Disk restoration without reload | 11 / ringall | 23 / linear |
+| Fixture restoration reload | 11 / ringall | 11 / ringall |
+
+Two initial runner assumptions failed explicitly, without a false pass:
+`ldd` calls dependency-free shared objects "statically linked"; that output
+is now accepted only when `readelf` confirms no `NEEDED` entries. Separately,
+the private-network remote CLI emits an EID warning before command output.
+Rather than stripping warning lines or weakening JSON validation, this fixture
+uses the Unix control protocol (`cli quit after` plus NUL), verifies the
+greeting contains the owned server PID, and enforces a ten-second absolute
+deadline and 8,192-byte response ceiling. This is test-only transport, not an
+enabled custom host parser or publication executor. Server console warnings
+remain in retained logs.
+
+Attempts 3 and 4 passed. The published final run took 1.792 seconds, with a
+566-byte command log and 1,873-byte console log. The process exited with code
+zero. Independent verification rehashed all library files, checked the exact
+five-stage transition and no remaining process/socket/PID file from any
+attempt. The newly owned distribution was stopped; existing PBXs/settings
+were not modified. The [release report](./local/asterisk-build/release-smoke-report.json)
+SHA256 is `4d91fb167186b06780b2d29a7f1eac1cdab57b33f85b1a9b96abc5ea6f72d379`,
+bound to the existing patch and compile-report hashes.
+
+The [persisted-evidence regression suite](./tests/asterisk-native-build-evidence.test.mjs)
+checks report/lock/source hash bindings, exact output/test inventory,
+release policy transitions and unchanged deployment-authority flags.
+All 17 combined source-package/evidence tests pass. These host-side evidence
+checks do not rerun native tests or substitute for the recorded runtime smoke.
+
+Only the queue module was actually loaded: full 41-module startup, SIP/media,
+runtime-image construction, dependency/source-license redistribution closure,
+remaining lifecycle/output/AO2 acceptance and Gate C are not claimed.
+The 30-definition native batch and source patch remain unchanged.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

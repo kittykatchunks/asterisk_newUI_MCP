@@ -2477,6 +2477,16 @@ and owned-process cleanup were independently verified. The builder is stopped.
 The earlier compiled-but-unexecuted status is superseded for these definitions;
 broader lifecycle/output/AO2 acceptance obligations and Gate C remain open.
 
+### Release loaded-state smoke passed
+
+The explicitly approved disposable release smoke now passes twice. Its
+[report](./local/asterisk-build/release-smoke-report.json) verifies 44 release
+output hashes, 29 resolved shared-library paths/hashes in the builder, absent
+test CLI, queue-only startup and five exact loaded-policy observations across
+disk edits, reloads and restoration. The final process exited cleanly and the
+owned builder is stopped. This does not prove standalone packaging, full
+runtime-module startup, SIP/media or Gate C.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

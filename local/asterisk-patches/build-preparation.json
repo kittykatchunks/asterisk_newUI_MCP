@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-both-profiles-compiled-thirty-native-definitions-passed",
+  "stage": "gate-b-native-batch-and-release-loaded-state-smoke-passed",
   "buildAuthorized": true,
   "dependenciesInstalled": true,
   "nativeCompiled": true,
@@ -104,6 +104,33 @@
     "runtimeImageProduced": false,
     "gateAAcceptanceComplete": false,
     "gateCAuthorized": false
+  },
+  "releaseSmoke": {
+    "authorization": "User approved isolated release smoke and fixture-only reload; no existing PBX, image export or Gate C.",
+    "runner": "../asterisk-build/smoke-release.py",
+    "report": "../asterisk-build/release-smoke-report.json",
+    "reportSha256": "4d91fb167186b06780b2d29a7f1eac1cdab57b33f85b1a9b96abc5ea6f72d379",
+    "passed": true,
+    "successfulAttempts": [3, 4],
+    "publishedAttempt": 4,
+    "verifiedReleaseOutputs": 44,
+    "resolvedLibraries": 29,
+    "observations": 5,
+    "testCommandAbsent": true,
+    "onlyQueueModuleLoaded": true,
+    "networkIsolated": true,
+    "externalWatchdogSeconds": 300,
+    "runtimeSeconds": 1.792,
+    "commandLogBytes": 566,
+    "consoleLogBytes": 1873,
+    "allOwnedProcessesStopped": true,
+    "ownedDistributionStopped": true,
+    "initialRunnerFailures": [
+      "ldd reports statically linked for some dependency-free shared objects; now accepted only when readelf confirms no NEEDED entries.",
+      "Private-network remote CLI startup emits an EID warning before JSON; runner now uses the local Unix control protocol with exact owned-PID greeting and bounded response framing, without discarding output."
+    ],
+    "runtimeApplyAuthorized": false,
+    "runtimeImageProduced": false
   },
   "originalBudget": {
     "cpus": 2,

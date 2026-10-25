@@ -500,6 +500,15 @@ evidence. No existing PBX was operated; the dedicated builder is stopped.
 This does not close broader shutdown/output/recursive teardown/AO2 acceptance
 gaps or authorize Gate C.
 
+**[Release loaded-state smoke also passes](./PROJECT-PLAN.md#release-profile-loaded-state-smoke-passed).**
+All 44 release outputs resolve their shared libraries in the builder, and
+the disposable release core exposes no test command. Five exact getter
+observations prove that disk edits/restoration alone do not change the loaded
+queue policy; only explicit fixture reloads change it. See the
+[release smoke report](./local/asterisk-build/release-smoke-report.json).
+Only `app_queue` loaded; this is not a full 41-module startup, SIP/call proof,
+standalone runtime image, or production deployment approval.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
