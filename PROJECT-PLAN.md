@@ -497,8 +497,11 @@ explicitly rather than orphaning records through silent regeneration.
 No dependencies were added; no services are left running. The frozen REFER matrix
 was neither expanded nor rerun. External dispatch semantics, live voice and
 simulation-store production backup/recovery remain unproven. Stop here rather than
-growing the checklist; the next bounded scope requires a separate decision between
-voice-integration planning and an unfinished Milestone 1 gate.
+growing the checklist. The subsequent user-selected Milestone 1 evidence-gap review
+is recorded in [MILESTONE-1.md](./MILESTONE-1.md#evidence-gap-review-after-the-synthetic-booking-workspace).
+The recommended/default selected next target is the isolated
+[M1-10 management-outage continuity proof](./MILESTONE-1.md#selected-next-increment-management-outage-continuity),
+with six finite MO checks. Live voice/agent-phone activation remains unauthorised.
 
 ## 6. Interface and roaming agents
 

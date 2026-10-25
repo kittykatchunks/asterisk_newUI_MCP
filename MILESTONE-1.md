@@ -750,6 +750,67 @@ The capture limits and five-minute readiness threshold are proposed initial defa
 Agree or revise them before using them as release gates. Packet-size limits must
 be enforced without presenting an abruptly truncated capture as complete.
 
+### Evidence-gap review after the synthetic booking workspace
+
+Review date: 25 October 2026. This is a mapping of existing proof code and recorded
+results to the exact M1 criteria, not a new acceptance run. Earlier paragraphs
+describe historical increments; the completed AW and BS/SW checklists do not make
+the live calling milestone complete. None of M1-01 through M1-18 currently has a
+recorded complete end-to-end acceptance pass against its full wording.
+
+| Gate | Existing partial evidence | Missing evidence / implementation |
+|---|---|---|
+| M1-01 | Pinned two-runtime Compose health checks and bounded startup scripts. | Agreed five-minute full-service readiness gate and measured complete startup, not just PBX health. |
+| M1-02 | Authenticated UDP echo and separate WSS/encrypted browser media fixture. | Ten consecutive calls per customer through the intended queue and agent, not an echo destination. |
+| M1-03 | Separate networks/volumes, cross-customer credentials/API denial. | Concurrent active call/media plus history/recording disclosure checks in one correlated acceptance run. |
+| M1-04 | Frozen synthetic REFER transaction/media matrix. | Actual agent mute, hold/resume, receiver-verified keypad and authorised endpoint transfer controls. |
+| M1-05 | Session/device exclusivity, release/expiry, provisioning/registration fixtures. | Live queue offers after endpoint move and historical attribution across the move; no phone activation is implied by reservations. |
+| M1-06 | Fresh CEL/queue/WAV records and restart checks; transfer correlations in fixtures. | Durable application ingestion/history for all four outcomes with journey/leg/queue-visit accounting after restart. |
+| M1-07 | Durable source logs and isolated AMI status outage tests. | History collector checkpoints/replay, deduplication and explicit stale/unrecoverable-gap reporting; AMI health is not history replay. |
+| M1-08 | Synthetic WAV payload/format checks and unchanged hashes across restart. | Journey-linked authorised playback and recording upload failure/recovery workflow. |
+| M1-09 | Revision/approval patterns for diagnostic reports and narrow provisioning. | Route/queue configuration publication, runtime verification and external-edit drift handling; report approval is not PBX publication. |
+| M1-10 | PBX and management are separate processes; short echo fixtures exist. | Measured 60-second media continuity after actual management stop plus new conventional calls during the outage. Selected next. |
+| M1-11 | Operator-run customer/incident capture, duration-limit path. | Authenticated interactive start/stop and agreed ten-minute/100-MiB hard-limit evidence; sampled soft threshold does not satisfy a hard quota. |
+| M1-12 | Correlated packet/CEL reports, provenance and inert review preview. | Complete authenticated selected-call raw SIP/SDP and leg view with missing/truncated/dropped evidence represented explicitly. |
+| M1-13 | Encrypted browser media/signalling fixture; packet proof explicitly UDP-only. | Evidence display distinguishing encrypted network payload from authorised application signalling without disabling encryption. |
+| M1-14 | Frozen busy/no-answer transfer fixtures with recorded limitations. | Selected unavailable/unanswered incident exports through the intended evidence workflow; no automatic extension of REFER research. |
+| M1-15 | Redacted generated reports, hashes and permission-controlled approval/viewing. | Incident conclusions, complete evidence/capture-limit export contract and executed disclosure checks for that export. |
+| M1-16 | Automated incident/report/session/agent/simulation customer and owner denial. | Call, recording, export and capture-operation boundaries as those surfaces are implemented; absent surfaces are not passed tests. |
+| M1-17 | PBX restart persistence; diagnostic/agent SQLite backup and separate restore. | Separate-environment restore of PBX configuration, call metadata and a playable recording together; database-only restore is insufficient. |
+| M1-18 | Session/backend/assignment/reservation failures are distinguished. | Live console microphone denial, SIP registration failure and backend disconnection with no false phone readiness. |
+
+Prioritise a finite independence proof (M1-10) before choosing either the larger
+history/collector implementation (M1-06/07) or gated live-phone activation
+(M1-02/04/05/18). This ordering does not waive the other gates or enable voice AI.
+
+### Selected next increment: management-outage continuity
+
+Implement an operator-run, isolated local proof of **M1-10**. It must stop only the
+management process owned by the proof, not a user's running launcher, identity
+service or PBX. Use a uniquely named Compose project with dedicated credentials,
+networks and volumes; never restart or rewrite the ordinary shared proof deployment.
+Keep Docker control in the test owner, not the application, and remove owned
+containers/networks/volumes when finished. No new dependency or service is required.
+
+The conventional route is the existing authenticated synthetic UDP/PCMU `echo`
+route in the loaded dialplan. It is not queue/agent delivery, live browser calling,
+public trunk behaviour or a production outage/failover claim. Both customers must
+be exercised concurrently without revisiting REFER.
+
+| Check | Finite required evidence |
+|---|---|
+| MO-01 | Actual application HTTP server serves its normal page/session route before interruption; capture its owned PID and verify exit plus HTTP unavailability after stopping it. An invented boolean/mock outage is insufficient. |
+| MO-02 | Establish one authenticated call per customer and prove echoed synthetic media before stopping management. Keep the same dialog active across stop. |
+| MO-03 | After management exit is confirmed, observe at least 60 monotonic seconds per active call. For every one-second send window, require at least 40 sent frames and at least 70% byte-identical distinct payloads echoed; fail any receive gap over one second during observation. Report actual counts/duration/gap, not just answered state. |
+| MO-04 | While management remains down and original dialogs continue, establish a fresh conventional call per customer and require the existing at-least-70-of-100 distinct RTP echo threshold. Verify different Call-IDs and clean teardown. |
+| MO-05 | Correlate original and new dialogs to fresh customer-local CEL start/answer/hangup/end records using the existing dialplan Call-ID event. Prove management stayed unavailable throughout and was not restarted to complete calls. |
+| MO-06 | Typecheck and focused harness validation pass; execute the real two-customer outage proof, retain non-secret results and exact limitations, clean up owned resources on pass/failure and document reproduction. Leave failures explicitly unverified. |
+
+Stop after MO-01 through MO-06 or an explicit blocker. The 60-second duration is
+the existing M1-10 requirement; per-window media thresholds above are selected
+proof checks, not production quality-of-service objectives. Success closes only
+M1-10's local conventional-route scope; all other M1 gaps remain separate.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
