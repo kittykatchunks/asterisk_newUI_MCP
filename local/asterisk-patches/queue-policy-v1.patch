@@ -1,5 +1,5 @@
 diff --git a/apps/app_queue.c b/apps/app_queue.c
-index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105c3c5f025 100644
+index 73719a9d92f6acce41236abb1c0e6553e2e9b173..31198859f9d21144b70e1fce767a474950b85b45 100644
 --- a/apps/app_queue.c
 +++ b/apps/app_queue.c
 @@ -107,6 +107,7 @@
@@ -10,7 +10,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105
  
  /*!
   * \par Please read before modifying this file.
-@@ -12073,7 +12074,796 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
+@@ -12073,7 +12074,956 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
  	return 0;
  }
  
@@ -143,17 +143,81 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105
 +	return strcmp(a->name, b->name);
 +}
 +
++static char *policy_snapshot_respond(int fd, struct policy_snapshot *sample,
++	const char *namespace_json)
++{
++	char output[8192];
++	size_t used;
++	unsigned int i;
++	int written;
++
++	if (sample->error) {
++		written = snprintf(output, sizeof(output), "{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++			"\"maskMapping\":\"asterisk-22-empty-v1\",\"namespace\":%s,"
++			"\"status\":\"error\",\"code\":\"%s\"}\n", namespace_json, sample->error);
++		goto output_ready;
++	}
++	qsort(sample->rows, sample->count, sizeof(sample->rows[0]), policy_snapshot_compare);
++	written = snprintf(output, sizeof(output),
++		"{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++		"\"maskMapping\":\"asterisk-22-empty-v1\",\"status\":\"observed\","
++		"\"namespace\":%s,\"consistency\":\"bounded-per-object-sample\",\"objects\":[",
++		namespace_json);
++	if (written < 0 || (size_t) written >= sizeof(output)) {
++		goto output_error;
++	}
++	used = written;
++	for (i = 0; i < sample->count; ++i) {
++		const struct policy_snapshot_row *row = &sample->rows[i];
++		const char *strategy = NULL;
++		unsigned int index;
++
++		for (index = 0; index < ARRAY_LEN(strategies); ++index) {
++			if (strategies[index].strategy == row->strategy) {
++				strategy = strategies[index].name;
++				break;
++			}
++		}
++		if (!strategy) {
++			goto output_error;
++		}
++		written = snprintf(output + used, sizeof(output) - used,
++			"%s{\"name\":\"%s\",\"origin\":\"static\",\"strategy\":\"%s\","
++			"\"memberTimeoutSeconds\":%d,\"joinEmptyMask\":%u,\"leaveWhenEmptyMask\":%u,"
++			"\"memberCount\":%d,\"callerCount\":%d,\"callerListEmpty\":%s}",
++			i ? "," : "", row->name, strategy, row->timeout, row->join_mask,
++			row->leave_mask, row->members, row->callers, row->caller_list_empty ? "true" : "false");
++		if (written < 0 || (size_t) written >= sizeof(output) - used) {
++			goto output_error;
++		}
++		used += written;
++	}
++	if (sizeof(output) - used < 4) {
++		goto output_error;
++	}
++	memcpy(output + used, "]}\n", 4);
++	written = used + 3;
++	goto output_ready;
++output_error:
++	written = snprintf(output, sizeof(output), "{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++		"\"maskMapping\":\"asterisk-22-empty-v1\",\"namespace\":%s,"
++		"\"status\":\"error\",\"code\":\"internal\"}\n", namespace_json);
++output_ready:
++	if (written < 0 || (size_t) written >= sizeof(output)) {
++		ast_log(LOG_ERROR, "Could not format bounded queue policy response\n");
++		return CLI_FAILURE;
++	}
++	return ast_carefulwrite(fd, output, written, 100) < 0 ? CLI_FAILURE : CLI_SUCCESS;
++}
++
 +static char *handle_queue_policy_snapshot(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 +{
 +	const struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
 +	struct ao2_bounded_result result;
 +	struct policy_snapshot sample = { 0 };
-+	char output[8192];
 +	const char *namespace_json = "null";
 +	char quoted_namespace[30];
-+	size_t used;
 +	unsigned int i;
-+	int written;
 +
 +	switch (cmd) {
 +	case CLI_INIT:
@@ -204,60 +268,156 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105
 +		sample.error = "internal";
 +	}
 +respond:
-+	if (sample.error) {
-+		return ast_cli(a->fd, "{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
-+			"\"maskMapping\":\"asterisk-22-empty-v1\",\"namespace\":%s,"
-+			"\"status\":\"error\",\"code\":\"%s\"}\n", namespace_json, sample.error) < 0
-+			? CLI_FAILURE : CLI_SUCCESS;
-+	}
-+	qsort(sample.rows, sample.count, sizeof(sample.rows[0]), policy_snapshot_compare);
-+	written = snprintf(output, sizeof(output),
-+		"{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
-+		"\"maskMapping\":\"asterisk-22-empty-v1\",\"status\":\"observed\","
-+		"\"namespace\":%s,\"consistency\":\"bounded-per-object-sample\",\"objects\":[",
-+		namespace_json);
-+	if (written < 0 || (size_t) written >= sizeof(output)) {
-+		goto output_error;
-+	}
-+	used = written;
-+	for (i = 0; i < sample.count; ++i) {
-+		const struct policy_snapshot_row *row = &sample.rows[i];
-+		const char *strategy = NULL;
-+		unsigned int index;
-+
-+		for (index = 0; index < ARRAY_LEN(strategies); ++index) {
-+			if (strategies[index].strategy == row->strategy) {
-+				strategy = strategies[index].name;
-+				break;
-+			}
-+		}
-+		if (!strategy) {
-+			goto output_error;
-+		}
-+		written = snprintf(output + used, sizeof(output) - used,
-+			"%s{\"name\":\"%s\",\"origin\":\"static\",\"strategy\":\"%s\","
-+			"\"memberTimeoutSeconds\":%d,\"joinEmptyMask\":%u,\"leaveWhenEmptyMask\":%u,"
-+			"\"memberCount\":%d,\"callerCount\":%d,\"callerListEmpty\":%s}",
-+			i ? "," : "", row->name, strategy, row->timeout, row->join_mask,
-+			row->leave_mask, row->members, row->callers, row->caller_list_empty ? "true" : "false");
-+		if (written < 0 || (size_t) written >= sizeof(output) - used) {
-+			goto output_error;
-+		}
-+		used += written;
-+	}
-+	if (sizeof(output) - used < 4) {
-+		goto output_error;
-+	}
-+	memcpy(output + used, "]}\n", 4);
-+	return ast_cli(a->fd, "%s", output) < 0 ? CLI_FAILURE : CLI_SUCCESS;
-+output_error:
-+	return ast_cli(a->fd, "{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
-+		"\"maskMapping\":\"asterisk-22-empty-v1\",\"namespace\":%s,"
-+		"\"status\":\"error\",\"code\":\"internal\"}\n", namespace_json) < 0
-+		? CLI_FAILURE : CLI_SUCCESS;
++	return policy_snapshot_respond(a->fd, &sample, namespace_json);
 +}
 +
 +#ifdef TEST_FRAMEWORK
++static int policy_test_response(struct ast_test *test, struct policy_snapshot *sample,
++	const char *expected)
++{
++	int descriptors[2];
++	char output[8192];
++	size_t used = 0, length = strlen(expected);
++	ssize_t bytes = 0;
++	char *response;
++
++	if (ast_pipe_nonblock(descriptors)) {
++		ast_test_status_update(test, "Could not create nonblocking response capture\n");
++		return 1;
++	}
++	response = policy_snapshot_respond(descriptors[1], sample, "\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\"");
++	close(descriptors[1]);
++	while (used < sizeof(output) && (bytes = read(descriptors[0], output + used,
++		sizeof(output) - used)) > 0) {
++		used += bytes;
++	}
++	close(descriptors[0]);
++	if (response != CLI_SUCCESS || bytes < 0 || used != length || memcmp(output, expected, length)) {
++		ast_test_status_update(test, "Policy response mismatched expected %zu bytes (got %zu)\n",
++			length, used);
++		return 1;
++	}
++	return 0;
++}
++
++AST_TEST_DEFINE(policy_snapshot_protocol)
++{
++	const char prefix[] = "{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++		"\"maskMapping\":\"asterisk-22-empty-v1\",\"status\":\"observed\","
++		"\"namespace\":\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\","
++		"\"consistency\":\"bounded-per-object-sample\",\"objects\":[";
++	const char *strategy_names[] = {
++		"ringall", "leastrecent", "fewestcalls", "random",
++		"rrmemory", "linear", "wrandom", "rrordered",
++	};
++	const char *error_codes[] = { "invalid-request", "busy", "limit", "unsupported-state", "internal" };
++	struct policy_snapshot sample = { 0 };
++	char expected[4096];
++	size_t used;
++	unsigned int i;
++	int written;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "policy_snapshot_protocol";
++		info->category = "/apps/app_queue/policy_snapshot/";
++		info->summary = "Exact empty/full/sorted JSON and no observed rows after sampling errors";
++		info->description = "Private formatter fixtures cover all eight strategy spellings and error codes.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	written = snprintf(expected, sizeof(expected), "%s]}\n", prefix);
++	if (written < 0 || (size_t) written >= sizeof(expected)
++		|| policy_test_response(test, &sample, expected)) {
++		return AST_TEST_FAIL;
++	}
++	sample.count = ARRAY_LEN(sample.rows);
++	used = strlen(prefix);
++	memcpy(expected, prefix, used);
++	for (i = 0; i < sample.count; ++i) {
++		struct policy_snapshot_row *row = &sample.rows[sample.count - 1 - i];
++
++		snprintf(row->name, sizeof(row->name), "cp-aaaaaaaaaaaaaaaaaaaaaaaa-a%u", i);
++		row->strategy = i;
++		row->timeout = i ? 86400 : 0;
++		row->join_mask = i ? 255 : 0;
++		row->leave_mask = i ? 35 : 0;
++		row->members = i ? 65535 : 0;
++		row->callers = i ? 65535 : 0;
++		row->caller_list_empty = !i;
++		written = snprintf(expected + used, sizeof(expected) - used,
++			"%s{\"name\":\"cp-aaaaaaaaaaaaaaaaaaaaaaaa-a%u\",\"origin\":\"static\","
++			"\"strategy\":\"%s\",\"memberTimeoutSeconds\":%d,\"joinEmptyMask\":%u,"
++			"\"leaveWhenEmptyMask\":%u,\"memberCount\":%d,\"callerCount\":%d,"
++			"\"callerListEmpty\":%s}", i ? "," : "", i, strategy_names[i],
++			i ? 86400 : 0, i ? 255U : 0U, i ? 35U : 0U,
++			i ? 65535 : 0, i ? 65535 : 0, i ? "false" : "true");
++		if (written < 0 || (size_t) written >= sizeof(expected) - used) {
++			ast_test_status_update(test, "Expected JSON fixture overflowed\n");
++			return AST_TEST_FAIL;
++		}
++		used += written;
++	}
++	if (sizeof(expected) - used < 4) {
++		return AST_TEST_FAIL;
++	}
++	memcpy(expected + used, "]}\n", 4);
++	if (policy_test_response(test, &sample, expected)) {
++		return AST_TEST_FAIL;
++	}
++	for (i = 0; i < ARRAY_LEN(error_codes); ++i) {
++		sample.error = error_codes[i];
++		written = snprintf(expected, sizeof(expected),
++			"{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++			"\"maskMapping\":\"asterisk-22-empty-v1\","
++			"\"namespace\":\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\","
++			"\"status\":\"error\",\"code\":\"%s\"}\n", error_codes[i]);
++		if (written < 0 || (size_t) written >= sizeof(expected)
++			|| policy_test_response(test, &sample, expected)) {
++			return AST_TEST_FAIL;
++		}
++	}
++	sample.error = NULL;
++	sample.rows[sample.count - 1].strategy = -1;
++	written = snprintf(expected, sizeof(expected),
++		"{\"schemaVersion\":1,\"reader\":\"app-queue-policy-v1\","
++		"\"maskMapping\":\"asterisk-22-empty-v1\","
++		"\"namespace\":\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\","
++		"\"status\":\"error\",\"code\":\"internal\"}\n");
++	if (written < 0 || (size_t) written >= sizeof(expected)
++		|| policy_test_response(test, &sample, expected)) {
++		return AST_TEST_FAIL;
++	}
++	return AST_TEST_PASS;
++}
++
++AST_TEST_DEFINE(policy_snapshot_output_failure)
++{
++	const char *errors[] = { NULL, "busy" };
++	struct policy_snapshot sample = { 0 };
++	unsigned int i;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "policy_snapshot_output_failure";
++		info->category = "/apps/app_queue/policy_snapshot/";
++		info->summary = "Actual output failure cannot return CLI transport success";
++		info->description = "Invalid descriptor denies success for observed and error envelopes.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	for (i = 0; i < ARRAY_LEN(errors); ++i) {
++		sample.error = errors[i];
++		if (policy_snapshot_respond(-1, &sample, "\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\"") != CLI_FAILURE) {
++			ast_test_status_update(test, "Invalid output descriptor reported transport success\n");
++			return AST_TEST_FAIL;
++		}
++	}
++	return AST_TEST_PASS;
++}
++
 +static struct call_queue *policy_test_queue(void)
 +{
 +	struct call_queue *q = ao2_alloc(sizeof(*q), NULL);
@@ -719,7 +879,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105
 +		ssize_t bytes = 0;
 +		char *response;
 +
-+		if (pipe(descriptors)) {
++		if (ast_pipe_nonblock(descriptors)) {
 +			ast_test_status_update(test, "Could not create bounded output fixture\n");
 +			return AST_TEST_FAIL;
 +		}
@@ -807,7 +967,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105
  	AST_CLI_DEFINE(queue_show, "Show status of a specified queue"),
  	AST_CLI_DEFINE(handle_queue_rule_show, "Show the rules defined in queuerules.conf"),
  	AST_CLI_DEFINE(handle_queue_add_member, "Add a channel to a specified queue"),
-@@ -12091,6 +12881,11 @@ static struct stasis_forward *topic_forwarder;
+@@ -12091,6 +13041,13 @@ static struct stasis_forward *topic_forwarder;
  
  static int unload_module(void)
  {
@@ -816,10 +976,12 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105
 +	AST_TEST_UNREGISTER(policy_snapshot_values);
 +	AST_TEST_UNREGISTER(policy_snapshot_invalid_request);
 +	AST_TEST_UNREGISTER(policy_snapshot_contention);
++	AST_TEST_UNREGISTER(policy_snapshot_protocol);
++	AST_TEST_UNREGISTER(policy_snapshot_output_failure);
  	stasis_message_router_unsubscribe_and_join(agent_router);
  	agent_router = NULL;
  
-@@ -12317,6 +13112,11 @@ static int load_module(void)
+@@ -12317,6 +13274,13 @@ static int load_module(void)
  		unload_module();
  		return AST_MODULE_LOAD_DECLINE;
  	}
@@ -828,6 +990,8 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105
 +	AST_TEST_REGISTER(policy_snapshot_values);
 +	AST_TEST_REGISTER(policy_snapshot_invalid_request);
 +	AST_TEST_REGISTER(policy_snapshot_contention);
++	AST_TEST_REGISTER(policy_snapshot_protocol);
++	AST_TEST_REGISTER(policy_snapshot_output_failure);
  	return AST_MODULE_LOAD_SUCCESS;
  }
  

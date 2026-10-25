@@ -57,6 +57,18 @@ test("unexpected arguments fail explicitly", () => {
   });
 });
 
+test("getter source uses checked output instead of a result from void ast_cli", () => {
+  const appQueueDiff = sourcePatch.toString("utf8").split(/^diff --git /m)
+    .find((section) => section.startsWith("a/apps/app_queue.c b/apps/app_queue.c\n"));
+  assert.ok(appQueueDiff, "Missing app_queue source diff");
+  const addedSource = appQueueDiff.split("\n")
+    .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+    .map((line) => line.slice(1)).join("\n");
+  assert.match(addedSource, /return policy_snapshot_respond\(a->fd, &sample, namespace_json\);/);
+  assert.match(addedSource, /return ast_carefulwrite\(fd, output, written, 100\) < 0 \? CLI_FAILURE : CLI_SUCCESS;/);
+  assert.doesNotMatch(addedSource, /\bast_cli\s*\(/);
+});
+
 test("altered patch bytes fail checksum verification", () => {
   withFixture(({ run, patch }) => {
     writeFileSync(patch, Buffer.concat([sourcePatch, Buffer.from("\n")]));

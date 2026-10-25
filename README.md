@@ -397,12 +397,17 @@ added cross-thread contention, budget/unsupported-type matrices and ownership/
 abort checks. The [queue coverage update](./PROJECT-PLAN.md#gate-a-queue-coverage-eleven-native-definitions-still-unexecuted)
 added selection/name/row limits, effective value/count boundaries and exact
 malformed-request error bytes. The subsequent [subordinate-lock update](./PROJECT-PLAN.md#gate-a-subordinate-locks-twelve-native-definitions-still-unexecuted)
-brings the inventory to **twelve unexecuted native tests**, defining real
+defined real
 cross-thread queue/member contention, lock-release probes and recovery with
-zero/one prior row. Queue fixtures remain private and unlinked. **Ten package
-tests pass**; the validator also checks the native-test inventory against added
-definitions and registration pairs. Exact application/postimages are verified;
-production queue code is unchanged outside test fixtures/registration.
+zero/one prior row. The [protocol/checked-output update](./PROJECT-PLAN.md#gate-a-protocol-and-checked-output-fourteen-definitions-still-unexecuted)
+fixes the prior getter's invalid comparison of void `ast_cli` output: a private
+bounded formatter now uses checked `ast_carefulwrite` output with the stock
+100-ms setting, subject to its nonblocking-descriptor assumptions.
+The inventory is now **fourteen uncompiled/unexecuted native definitions**,
+including exact sorted/empty/full/error JSON and output-failure fixtures.
+**Eleven package tests pass**; the validator checks definitions/registration
+pairs and exact application/postimages were rechecked. Queue fixtures stay
+private and unlinked; request/traversal/locking logic is unchanged.
 This does not establish C compilation, native correctness or AT/QO acceptance;
 Gates B/C remain closed.
 

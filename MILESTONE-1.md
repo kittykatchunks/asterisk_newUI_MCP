@@ -2208,6 +2208,22 @@ production implementation is unchanged outside test fixtures/registration.
 This does not pass native contention acceptance or open Gates B/C. Remaining
 protocol/lifecycle/profile coverage, native execution and all AT/QO stay open.
 
+The next [protocol/checked-output increment](./PROJECT-PLAN.md#gate-a-protocol-and-checked-output-fourteen-definitions-still-unexecuted)
+fixes an actual candidate defect: pinned `ast_cli` returns void, so the prior
+getter's return-value comparisons were invalid C. The private formatter now
+constructs complete bounded JSON and uses `ast_carefulwrite` with the stock
+100-ms setting. Nonblocking-descriptor assumptions still apply; no hard
+transport deadline or atomic-write claim is added. This is a production
+correction/extraction, not tests-only work.
+Two new native definitions cover exact empty/full/sorted/error JSON, all eight
+canonical strategies, no observed document on buffered format failure and
+invalid-descriptor transport failure. **Fourteen native definitions remain
+uncompiled/unexecuted; eleven package tests pass**, including a narrow source
+guard against the void-API misuse. Exact application/postimages match;
+request/traversal/locking logic and all other source-file postimages are
+unchanged. Actual native compilation/protocol/lifecycle/profile acceptance
+and Gates B/C remain pending.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

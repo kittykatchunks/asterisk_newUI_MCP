@@ -2644,6 +2644,64 @@ removed after checks. No dependency install, native build/test, image build or
 PBX execution occurred. A's verified exit, Gates B/C, AT/QO acceptance, exact
 publication, full CP and M1-09 remain open.
 
+##### Gate A protocol and checked output: fourteen definitions, still unexecuted
+
+Protocol source work found a real defect in the prior candidate: the pinned
+`include/asterisk/cli.h` declares `ast_cli` as **void**, and `main/cli.c` confirms
+that it discards `ast_carefulwrite`'s return value. The getter's previous
+`ast_cli(...) < 0` expressions were therefore invalid C, not a working checked
+transport. Prior package/application checks did not establish C compilation
+and did not catch this API misuse. No earlier native-success claim is made.
+
+The getter now delegates response formatting to the private
+`policy_snapshot_respond` helper. It preserves the existing wire fields,
+sorting, fixed 8192-byte buffer and all-or-error construction, then emits the
+completed bytes through existing `ast_carefulwrite(fd, output, written, 100)`.
+Negative return means CLI failure; a fully written logical-error envelope
+still means CLI transport success. Format failure is logged and fails instead
+of reporting successful output. This is an intentional production-source
+correction and extraction, **not** another tests-only change. Request
+validation, borrowed traversal, namespace/result mapping and lock policy are
+unchanged.
+
+The checked writer uses the same 100-ms setting as pinned `ast_cli`, avoiding
+its thread-local dynamic formatting buffer for this getter. Pinned
+`include/asterisk/utils.h` and `main/utils.c` require a nonblocking descriptor
+for the timeout assumptions. This is not a new wall-clock guarantee for
+blocking descriptors or a single kernel write/atomic delivery guarantee.
+Partial transport failure can leave truncated bytes and returns CLI failure;
+the dispatcher may then add ordinary failure text. Only fully emitted
+responses are subject to the single-line JSON contract. No descriptor flags,
+global CLI API or other commands are changed.
+
+| Added native definition | Assertions to execute later, not results |
+|---|---|
+| `policy_snapshot_protocol` | Exact empty observed envelope; eight reverse-ordered input rows sort canonically and emit all eight strategy names (including canonical `rrmemory`, not its alias), timeout/mask/member/caller boundary values and both booleans. Every error code with retained rows emits only its exact error envelope. An unmapped strategy discovered after buffering valid rows emits only `internal`, never a partial observed document. |
+| `policy_snapshot_output_failure` | Invalid output descriptor returns CLI failure for both observed and logical-error envelopes, not transport success. |
+
+The manifest now lists **fourteen native definitions**, uncompiled/unexecuted.
+Private formatter fixtures do not access global queues or the CLI registry.
+Both new capture fixtures and the existing malformed-handler fixture use
+`ast_pipe_nonblock` to satisfy the checked writer's descriptor precondition.
+These tests do not cover live dispatch, actual traversal-to-response mapping,
+slow/disconnected-reader/partial-write schedules, all format-failure injection,
+member-count ceilings or remaining lifecycle/profile/instrumentation cases.
+An externally timed disposable native test process is still required.
+
+**Eleven package tests pass**, including a narrow lexical source regression
+guard that the getter calls the shared responder, uses checked output and
+does not treat void `ast_cli` as a value. That guard is not a C compiler or
+general API/type checker. JavaScript syntax, whitespace and new documentation
+links pass. Seven exact preimages/application dry run and an independent
+application's eight postimages match. Exact source comparisons preserve the
+visitor, pre-response handler logic and production tail outside native-test
+registration; all seven other postimages are unchanged.
+
+Both named scratch directories, including the two read-only upstream API
+review files, are removed after checks. No dependencies, native build/test,
+image build or PBX execution occurred. A's verified exit, Gates B/C, AT/QO,
+exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
