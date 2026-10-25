@@ -444,7 +444,7 @@ The [failure-path extension](./PROJECT-PLAN.md#gate-a-mixed-node-failure-paths-i
 adds object-budget rejection before traversal and invalid visitor returns at
 first/middle/final live objects, followed by unchanged-chain recovery.
 The [owner callback-work fixture](./PROJECT-PLAN.md#gate-a-owner-callback-work-thirty-definitions-still-unexecuted)
-brings the inventory to **30 native definitions, now compiled but unexecuted**.
+brings the inventory to **30 native definitions, now compiled and passing**.
 Eight walks on a real sorted hash collision container require unchanged
 positively calibrated hash/sort/comparison counters and exact visitor counts.
 The [sparse-bucket extension](./PROJECT-PLAN.md#gate-a-sparse-bucket-accounting-inventory-unchanged-still-unexecuted)
@@ -463,9 +463,9 @@ native behavior, measured latency or lifecycle acceptance. Shutdown, recursive
 teardown, stalled/disconnected output, AO2 work/ref instrumentation and broader
 profile/regression evidence remain pending. All AT/QO gates remain open.
 
-Gate A's verified exit remains blocked. Gate B's dependency installation and
-both native compile profiles were explicitly approved and completed; native
-runtime/test execution still requires approval. Gate C separately controls
+Gate A's verified exit remains blocked. Gate B's dependency installation,
+both native compile profiles and the 30-definition disposable native batch
+were explicitly approved and completed. Gate C separately controls
 owned two-PBX proof. No custom parser/binding or runtime publication authority
 is enabled by these source definitions.
 
@@ -486,10 +486,19 @@ The [dependency lock](./local/asterisk-build/dependency-lock.json) records
 SHA256 hashes for 46 instrumented and 44 release ELF outputs, including core,
 the two required core support libraries, 41 runtime modules and (instrumented
 only) two test modules. Compiler-discovered boolean parentheses were corrected
-without relaxing developer-mode warnings. No Asterisk startup, module load
-or native test has run; this is compilation evidence, not runtime acceptance
-or a deployable/redistributable image. The source-package validator remains
+without relaxing developer-mode warnings. This is compilation evidence, not
+a deployable/redistributable image. The source-package validator remains
 integrity-only; actual compilation evidence is recorded separately.
+
+**[All 30 native definitions now pass](./PROJECT-PLAN.md#first-native-test-batch-thirty-of-thirty-pass).**
+The serialized batch took 31.066 seconds, with a fresh isolated Asterisk
+process per definition. Exact names/results and cleanup were independently
+checked against every original XML report. The
+[native report](./local/asterisk-build/native-test-report.json) and
+[aggregate XML](./local/asterisk-build/native-test-results.xml) preserve this
+evidence. No existing PBX was operated; the dedicated builder is stopped.
+This does not close broader shutdown/output/recursive teardown/AO2 acceptance
+gaps or authorize Gate C.
 
 ## Isolated PBX boot-epoch recovery proof
 

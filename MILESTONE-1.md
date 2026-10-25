@@ -2463,6 +2463,20 @@ boolean parentheses; no warning suppression or semantic change was used.
 No Asterisk startup, native test, existing-PBX operation or runtime image
 export occurred. Gate A acceptance and Gate C remain open.
 
+### First native runtime batch passed
+
+Following explicit runtime approval, all **30 of 30 native definitions pass**
+in fresh per-definition disposable Asterisk processes. See the
+[native handoff](./PROJECT-PLAN.md#first-native-test-batch-thirty-of-thirty-pass),
+[result record](./local/asterisk-build/native-test-report.json) and
+[aggregate XML](./local/asterisk-build/native-test-results.xml).
+The 31.066-second serialized batch used the hash-verified instrumented build,
+autoload off, only queue/controller startup modules, no SIP drivers and a
+private network namespace. All original XML hashes, exact executed inventory
+and owned-process cleanup were independently verified. The builder is stopped.
+The earlier compiled-but-unexecuted status is superseded for these definitions;
+broader lifecycle/output/AO2 acceptance obligations and Gate C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

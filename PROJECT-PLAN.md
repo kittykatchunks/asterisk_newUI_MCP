@@ -4043,6 +4043,79 @@ watchdog, bounded logs and owned-resource cleanup. Run native tests and
 investigate real failures before claiming Gate A exit. Shutdown/output/
 recursive teardown/AO2 instrumentation obligations and Gate C remain open.
 
+##### First native test batch: thirty of thirty pass
+
+The user explicitly approved disposable startup and all 30 serialized native
+definitions. The [runner](./local/asterisk-build/run-native-tests.py) verified
+every instrumented output against the compile report before execution and
+derived exact category/name mappings from the compiled source, requiring
+an exact match to the source manifest inventory.
+
+Batch 1 completed successfully: **30 passed, zero failed**, 31.066 seconds.
+The [native report](./local/asterisk-build/native-test-report.json) binds
+the result to patch SHA256
+`ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0`
+and compile-report SHA256
+`5c0de49e485aadd29215419210917f0fa1dda3681077d40321fb77c6b5e8f881`.
+The native report SHA256 is
+`63bbaa625d4664e9930eef8e02e90ffe9f7aee2ef67d7bbed48023dd43e2086e`.
+The [aggregate XML](./local/asterisk-build/native-test-results.xml) contains
+exactly the 30 executed test cases copied from the original XML reports,
+with no skipped/failure/error elements; its SHA256 is
+`a2658fd4847b31fd15014f77d7238bfa4d527728524f2d62985be0dc5c55451a`.
+
+Each definition ran in a **fresh Asterisk process** with private configuration,
+data/AstDB/spool/log/run directories. Startup `modules.conf` used autoload off,
+`require=app_queue.so` and `require=test_bounded_queue_policy.so`; all other
+modules stayed unloaded unless a fixture explicitly loaded its disposable
+target. The runner checked the target was absent at startup for every test.
+No SIP channel driver was loaded; manager/HTTP were disabled and no existing
+PBX configuration or process was adopted.
+
+The service ran as the unprivileged build user with 4 CPU-equivalents,
+4 GiB memory, zero process swap, 256 tasks, private networking,
+no-new-privileges, core dumps disabled and a 1,800-second external watchdog.
+Each execute CLI command had a 120-second timeout. Console output had a
+2 MiB per-process cap; all 30 console logs totalled 76,412 bytes. The bounded
+batch log was 1,326 bytes. A short runtime-control CLI timeout is separate
+from each test deadline. None expired in this run.
+
+After each execute, the runner generated XML and required exactly one case
+with the requested name, marking actual XML failure elements as failures.
+An independent read then verified all 30 original XML hashes, exact unique
+inventory/order, no failure/error/skipped elements, no preloaded target,
+and console size caps. After shutdown it checked no control sockets/PID files
+or owned Asterisk processes remained. Only the newly owned WSL distribution
+was stopped. Original per-definition logs/XML remain inside the guest under
+`/home/asterisk-build/native-test-attempt-1`; JSON/XML evidence, not binaries
+or runtime secrets, was copied to the repository.
+
+Minimal fixture startup emits explicit missing-configuration warnings for
+ccss/CDR/CEL/features/indications/ACL/UDPTL; logs retain these. These warnings
+did not make tests pass by omission: each required module and named test
+executed, and every XML case passed. However this is **not** production
+configuration acceptance. Expected protected-reader unload-refusal warnings
+also occur during the lifecycle fixtures and remain in console evidence.
+No timing or resource peak from this short fixture batch should be represented
+as production traffic capacity or complete whole-WSL-VM memory accounting.
+
+This is the first real execution of the 30 definitions; it supersedes their
+earlier uncompiled/unexecuted historical statuses. Source-package validation
+still reports only integrity and deliberately cannot claim native execution;
+the separate hash-bound native report is the execution authority.
+The source manifest and compile report retain their original stage-local
+flags rather than being rewritten to imply those earlier checks ran tests.
+
+**Gate A verified exit is still not claimed.** Outstanding acceptance includes
+shutdown/real exit ordering, recursive dependencies/teardown and startup/
+reload failures, slow/disconnected/partial-output schedules, full AO2 internal
+node/ref/allocator/lock/mutation/no-I/O instrumentation and retirement
+concurrency, plus release-profile/full-regression and matching runtime
+packaging. The stock inspector/custom parser/binding/publication authority
+are unchanged. No deployment, image export, registry push or Gate C two-PBX
+proof occurred. Future runtime changes must remain within explicitly approved
+disposable scope; do not turn a passing fixture batch into production approval.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

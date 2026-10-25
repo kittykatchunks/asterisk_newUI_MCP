@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-both-profiles-compiled-native-tests-pending",
+  "stage": "gate-b-both-profiles-compiled-thirty-native-definitions-passed",
   "buildAuthorized": true,
   "dependenciesInstalled": true,
   "nativeCompiled": true,
-  "nativeTestsExecuted": false,
-  "pbxExecuted": false,
+  "nativeTestsExecuted": true,
+  "pbxExecuted": true,
+  "existingPbxOperated": false,
   "sourceCandidateBaseCommit": "f51968c24910363fceb6b5e912e0bcc1feafe8e7",
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
@@ -41,7 +42,7 @@
     "allOutputSha256AndElfArchitectureVerified": true,
     "testFrameworkSymbolInstrumentedOnly": true,
     "ownedDistributionStoppedAfterBuild": true,
-    "nativeExecutionAuthorized": false,
+    "nativeExecutionAuthorized": true,
     "runtimeImageProduced": false,
     "maximumLogBytesPerCommand": 16777216,
     "logWrapperTestsPassed": [
@@ -69,6 +70,40 @@
         "directoryInGuest": "/home/asterisk-build/native-build-attempt-3"
       }
     ]
+  },
+  "nativeExecution": {
+    "authorization": "User explicitly approved disposable startup and all 30 serialized native definitions; no Gate C or runtime publication.",
+    "runner": "../asterisk-build/run-native-tests.py",
+    "report": "../asterisk-build/native-test-report.json",
+    "reportSha256": "63bbaa625d4664e9930eef8e02e90ffe9f7aee2ef67d7bbed48023dd43e2086e",
+    "aggregateXml": "../asterisk-build/native-test-results.xml",
+    "aggregateXmlSha256": "a2658fd4847b31fd15014f77d7238bfa4d527728524f2d62985be0dc5c55451a",
+    "passed": 30,
+    "failed": 0,
+    "attempt": 1,
+    "freshProcessPerDefinition": true,
+    "autoloadEnabled": false,
+    "startupModules": [
+      "app_queue.so",
+      "test_bounded_queue_policy.so"
+    ],
+    "targetExcludedFromStartupVerified": true,
+    "privateNetwork": true,
+    "noNewPrivileges": true,
+    "coreDumpLimitBytes": 0,
+    "testCommandWatchdogSeconds": 120,
+    "batchWatchdogSeconds": 1800,
+    "runtimeSeconds": 31.066,
+    "batchLogBytes": 1326,
+    "consoleLogBytesTotal": 76412,
+    "maximumConsoleLogBytesPerProcess": 2097152,
+    "allXmlResultsIndependentlyVerified": true,
+    "noOwnedAsteriskProcessesSocketsOrPidFilesRemain": true,
+    "ownedDistributionStopped": true,
+    "minimalConfigStartupWarningsRetained": true,
+    "runtimeImageProduced": false,
+    "gateAAcceptanceComplete": false,
+    "gateCAuthorized": false
   },
   "originalBudget": {
     "cpus": 2,
@@ -243,10 +278,8 @@
     "cleanupPolicy": "On failure stop only the newly owned distribution and report its exact name and paths; destructive unregister/disk deletion requires explicit approval and ownership verification."
   },
   "unresolvedPrerequisites": [
-    "Obtain explicit approval for isolated Asterisk startup, module loading and serialized native-test execution; this compile approval did not include native runtime.",
-    "Prepare disposable runtime configuration with autoload disabled, explicit controller load and the protected target excluded from startup; do not operate existing PBXs.",
-    "Run the native inventory under external watchdog and verified resource limits, capture exact results and investigate failures; compilation is not native acceptance.",
-    "Complete regression, shutdown/output/lifecycle/AO2 instrumentation obligations and Gate A acceptance evidence.",
+    "Complete regression, shutdown/output/recursive lifecycle/AO2 instrumentation obligations and Gate A acceptance evidence; the current 30-definition runtime batch passes but does not close broader acceptance gaps.",
+    "Separate minimal fixture configuration startup warnings from production runtime configuration acceptance; the fixtures intentionally do not supply full production configuration.",
     "Prepare matching release runtime packaging with full shared-library closure, license/copyright/source obligations and separate approval before any export or redistribution.",
     "Keep Gate C closed until independently approved; no stock/custom ABI mixing or runtime publication authority is enabled."
   ]

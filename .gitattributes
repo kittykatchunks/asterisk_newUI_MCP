@@ -6,3 +6,4 @@ local/asterisk-patches/*.patch text eol=lf whitespace=-blank-at-eol,-space-befor
 local/asterisk-patches/*.json text eol=lf
 local/asterisk-build/*.json text eol=lf
 local/asterisk-build/*.py text eol=lf
+local/asterisk-build/*.xml text eol=lf
