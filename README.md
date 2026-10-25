@@ -436,8 +436,14 @@ The [instrumented completion update](./PROJECT-PLAN.md#gate-a-instrumented-compl
 now brings the inventory to **23 uncompiled/unexecuted native definitions**,
 adding eight completion/count schedules. Completion teardown waits for worker
 join even after lease release because generator traversal retains the registry
-read lock. This is not native lifecycle acceptance: teardown-first, shutdown
-and further instrumentation remain pending. Pinned build closure and enforced resources
+read lock. The [teardown-first closing update](./PROJECT-PLAN.md#gate-a-teardown-first-closing-twenty-four-definitions-still-unexecuted)
+now brings the inventory to **24 uncompiled/unexecuted native definitions**.
+It specifies failed-soft-teardown denial for dispatch and both completion
+outcomes, exact zero leases/callbacks, successful cleanup and fresh-load
+recovery. This is not a concurrent lookup/teardown proof or native lifecycle
+acceptance; shutdown and further instrumentation remain pending.
+**Twelve package tests pass** and exact application/nine postimages match.
+Pinned build closure and enforced resources
 still require Gate B approval before any native run; Gate C separately controls
 owned PBX proof.
 

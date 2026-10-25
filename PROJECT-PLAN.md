@@ -3106,6 +3106,58 @@ install, native compile/test, image build or PBX execution occurred. A's
 verified exit, Gates B/C, AT/QO, exact publication, full CP and M1-09 remain
 open.
 
+##### Gate A teardown-first closing: twenty-four definitions, still unexecuted
+
+Within the approved separate-target/test-profile boundary,
+`protected_target_closing` adds a serialized teardown-first source fixture.
+The inventory is **24 uncompiled/unexecuted native definitions**, still on
+the same nine source paths. No production admission/unload semantics change.
+
+The disposable target gains a one-shot `refuse-unload` fixture command. The
+controller arms it before observation, then soft-unloads with no active lease.
+The actual target unload callback returns failure before unregistering its CLI
+entry. The pinned loader leaves the module running and registered but retains
+`cli_closing = 1`. The source test requires that unload to fail and the module
+to remain present, then attempts one real dispatch and two real completions
+(the words that would otherwise return allocated text or null).
+
+A new core-owned `TEST_FRAMEWORK` event records denial only after obtaining the
+loader lock and observing a running, nondeclined, closing target, including its
+actual reader count. This distinguishes closing-state refusal from an absent
+command, loader-lock contention or ordinary null completion. The controller
+requires exactly three closing denials, zero acquisitions/callbacks/returns/
+entry-cleanups/releases, zero readers and no pause. It then soft-unloads the
+target successfully, requiring two total unload callbacks including the earlier
+refusal. A final reused released-dispatch schedule requires a fresh load to
+admit, release and unload normally; it does not reopen the retained failed-
+unload instance.
+
+The denial checks are synchronous in the separate controller; its completion
+event marks controller work done, not a concurrent worker. Its observer is
+resumed before requests so an erroneous acquisition cannot pause the controller
+on the release barrier; exact event counts still fail that regression. Existing
+dispatch/completion schedules now also require no closing-denial event.
+Unexpected target/session cleanup fails explicitly and requires discarding the
+test process. The target remains excluded from autoload, and native runs still
+require a separately approved serialized disposable process and external
+watchdog/resource caps.
+
+This covers **source assertions for teardown finishing unsuccessfully before
+admission**, not lookup-before-admission races, teardown overlapping lookup,
+loader-lock contention, shutdown/permission denial, general unload failures,
+refresh/recursive teardown, slow output or full startup/profile acceptance.
+All AT/QO gates remain open until the necessary native evidence exists.
+
+**Twelve package tests pass**, as do JavaScript syntax, whitespace and added
+documentation links. Seven exact preimages/application dry run and all nine
+independently applied postimages match. Only the guarded module-header/loader
+observer and two native fixtures change; the other five postimages are
+unchanged. Lexical `TEST_FRAMEWORK`-off header/loader parity with the preceding
+candidate passes, not C preprocessing, compilation or runtime transparency.
+The two named source scratch directories are removed after verification.
+No dependency install, native build/test, image build or PBX execution occurred.
+A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

@@ -2316,6 +2316,17 @@ only guarded CLI hooks and native fixtures change. Missing teardown-first,
 loader/shutdown/profile schedules and all native acceptance remain pending.
 A's verified exit, AT/QO and Gates B/C remain open.
 
+The [teardown-first closing source](./PROJECT-PLAN.md#gate-a-teardown-first-closing-twenty-four-definitions-still-unexecuted)
+brings the inventory to **24 uncompiled/unexecuted native definitions**.
+A one-shot target unload refusal leaves the command registered but admission
+closed; one dispatch and two completions must produce exactly three observed
+closing denials, zero leases/callbacks and zero readers. Successful cleanup and
+a fresh-load admission/release/unload schedule follow. This is sequential
+failed-teardown-before-admission coverage, not a lookup/teardown race proof.
+**Twelve package tests pass**; exact application/nine postimages match and
+test-profile-off header/loader lexical parity passes, not native acceptance.
+A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
