@@ -1,5 +1,5 @@
 diff --git a/apps/app_queue.c b/apps/app_queue.c
-index 73719a9d92f6acce41236abb1c0e6553e2e9b173..3fe049e2ec78289fae6e8b4b84253c48b48f2ecf 100644
+index 73719a9d92f6acce41236abb1c0e6553e2e9b173..ec102375998af7246f3b2317532a87c65b2d5124 100644
 --- a/apps/app_queue.c
 +++ b/apps/app_queue.c
 @@ -107,6 +107,7 @@
@@ -10,7 +10,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..3fe049e2ec78289fae6e8b4b84253c48
  
  /*!
   * \par Please read before modifying this file.
-@@ -12073,7 +12074,1198 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
+@@ -12073,7 +12074,1363 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
  	return 0;
  }
  
@@ -446,6 +446,171 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..3fe049e2ec78289fae6e8b4b84253c48
 +		ast_string_field_free_memory(q);
 +		ao2_ref(q, -1);
 +	}
++}
++
++AST_TEST_DEFINE(policy_snapshot_queue_lock_kind)
++{
++	const unsigned int options[] = { AO2_ALLOC_OPT_LOCK_RWLOCK, AO2_ALLOC_OPT_LOCK_NOLOCK };
++	struct call_queue *q = NULL, *prefix = NULL;
++	struct policy_snapshot sample, before;
++	unsigned int i;
++	int with_prefix;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "policy_snapshot_queue_lock_kind";
++		info->category = "/apps/app_queue/policy_snapshot/";
++		info->summary = "Unsupported queue lock kinds reject before member-container access";
++		info->description = "Real RW/no-lock AO2 queue fixtures with null members and zero/one prior row.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	prefix = policy_test_queue();
++	if (!prefix) {
++		goto done;
++	}
++	ast_string_field_set(prefix, name, "proof-queue");
++	for (i = 0; i < ARRAY_LEN(options); ++i) {
++		q = ao2_alloc_options(sizeof(*q), NULL, options[i]);
++		if (!q) {
++			goto done;
++		}
++		if (ast_string_field_init(q, 128)) {
++			ao2_cleanup(q);
++			q = NULL;
++			goto done;
++		}
++		ast_string_field_set(q, name, "cp-aaaaaaaaaaaaaaaaaaaaaaaa-target");
++		for (with_prefix = 0; with_prefix <= 1; ++with_prefix) {
++			sample = (struct policy_snapshot) { .namespace = "cp-aaaaaaaaaaaaaaaaaaaaaaaa" };
++			if (with_prefix && (policy_snapshot_visit(prefix, &sample) || sample.error
++				|| sample.count != 1)) {
++				goto done;
++			}
++			before = sample;
++			if (!policy_snapshot_visit(q, &sample) || !sample.error
++				|| strcmp(sample.error, "unsupported-state") || sample.count != before.count
++				|| memcmp(sample.rows, before.rows, sizeof(sample.rows))
++				|| q->members || ao2_ref(q, 0) != 1) {
++				goto done;
++			}
++		}
++		policy_test_queue_free(q);
++		q = NULL;
++	}
++	state = AST_TEST_PASS;
++done:
++	policy_test_queue_free(q);
++	policy_test_queue_free(prefix);
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Unsupported queue lock-kind rejection failed\n");
++	}
++	return state;
++}
++
++struct policy_test_member {
++	unsigned int *destroyed;
++};
++
++static void policy_test_member_destroy(void *object)
++{
++	struct policy_test_member *member = object;
++
++	++*member->destroyed;
++}
++
++AST_TEST_DEFINE(policy_snapshot_member_boundary)
++{
++	struct call_queue *q = NULL, *prefix = NULL;
++	struct policy_test_member *extra = NULL;
++	struct policy_snapshot sample, before;
++	unsigned int created = 0, destroyed = 0, i;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "policy_snapshot_member_boundary";
++		info->category = "/apps/app_queue/policy_snapshot/";
++		info->summary = "Actual member count 65535 accepts, 65536 rejects and unlink restores acceptance";
++		info->description = "65536 distinct private AO2 objects; no member devices or fabricated container counts.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	q = policy_test_queue();
++	prefix = policy_test_queue();
++	if (!q || !prefix) {
++		goto done;
++	}
++	ast_string_field_set(q, name, "cp-aaaaaaaaaaaaaaaaaaaaaaaa-target");
++	ast_string_field_set(prefix, name, "proof-queue");
++	for (i = 0; i < 65535; ++i) {
++		struct policy_test_member *member = ao2_alloc(sizeof(*member), policy_test_member_destroy);
++		int linked;
++
++		if (!member) {
++			goto done;
++		}
++		member->destroyed = &destroyed;
++		++created;
++		linked = ao2_link(q->members, member);
++		ao2_cleanup(member);
++		if (!linked) {
++			goto done;
++		}
++	}
++	sample = (struct policy_snapshot) { .namespace = "cp-aaaaaaaaaaaaaaaaaaaaaaaa" };
++	if (policy_snapshot_visit(prefix, &sample) || sample.count != 1 || sample.error) {
++		goto done;
++	}
++	before = sample;
++	if (policy_snapshot_visit(q, &sample) || sample.count != 2 || sample.error
++		|| sample.rows[1].members != 65535 || sample.rows[1].callers
++		|| ao2_container_count(q->members) != 65535 || destroyed
++		|| memcmp(sample.rows, before.rows, sizeof(sample.rows[0]))) {
++		goto done;
++	}
++	extra = ao2_alloc(sizeof(*extra), policy_test_member_destroy);
++	if (!extra) {
++		goto done;
++	}
++	extra->destroyed = &destroyed;
++	++created;
++	if (!ao2_link(q->members, extra)) {
++		goto done;
++	}
++	sample = before;
++	if (!policy_snapshot_visit(q, &sample) || !sample.error
++		|| strcmp(sample.error, "unsupported-state") || sample.count != before.count
++		|| memcmp(sample.rows, before.rows, sizeof(sample.rows))
++		|| ao2_container_count(q->members) != 65536 || destroyed) {
++		goto done;
++	}
++	ao2_unlink(q->members, extra);
++	ao2_cleanup(extra);
++	extra = NULL;
++	sample = before;
++	if (ao2_container_count(q->members) != 65535 || destroyed != 1
++		|| policy_snapshot_visit(q, &sample) || sample.error || sample.count != 2
++		|| sample.rows[1].members != 65535
++		|| memcmp(sample.rows, before.rows, sizeof(sample.rows[0]))) {
++		goto done;
++	}
++	state = AST_TEST_PASS;
++done:
++	ao2_cleanup(extra);
++	policy_test_queue_free(q);
++	policy_test_queue_free(prefix);
++	if (destroyed != created) {
++		state = AST_TEST_FAIL;
++	}
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Member count boundary/recovery/cleanup failed (%u/%u destroyed)\n",
++			destroyed, created);
++	}
++	return state;
 +}
 +
 +AST_TEST_DEFINE(policy_snapshot_traversal)
@@ -1209,7 +1374,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..3fe049e2ec78289fae6e8b4b84253c48
  	AST_CLI_DEFINE(queue_show, "Show status of a specified queue"),
  	AST_CLI_DEFINE(handle_queue_rule_show, "Show the rules defined in queuerules.conf"),
  	AST_CLI_DEFINE(handle_queue_add_member, "Add a channel to a specified queue"),
-@@ -12091,6 +13283,15 @@ static struct stasis_forward *topic_forwarder;
+@@ -12091,6 +13448,17 @@ static struct stasis_forward *topic_forwarder;
  
  static int unload_module(void)
  {
@@ -1222,10 +1387,12 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..3fe049e2ec78289fae6e8b4b84253c48
 +	AST_TEST_UNREGISTER(policy_snapshot_output_failure);
 +	AST_TEST_UNREGISTER(policy_snapshot_rejected_state);
 +	AST_TEST_UNREGISTER(policy_snapshot_traversal);
++	AST_TEST_UNREGISTER(policy_snapshot_queue_lock_kind);
++	AST_TEST_UNREGISTER(policy_snapshot_member_boundary);
  	stasis_message_router_unsubscribe_and_join(agent_router);
  	agent_router = NULL;
  
-@@ -12317,6 +13518,15 @@ static int load_module(void)
+@@ -12317,6 +13685,17 @@ static int load_module(void)
  		unload_module();
  		return AST_MODULE_LOAD_DECLINE;
  	}
@@ -1238,6 +1405,8 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..3fe049e2ec78289fae6e8b4b84253c48
 +	AST_TEST_REGISTER(policy_snapshot_output_failure);
 +	AST_TEST_REGISTER(policy_snapshot_rejected_state);
 +	AST_TEST_REGISTER(policy_snapshot_traversal);
++	AST_TEST_REGISTER(policy_snapshot_queue_lock_kind);
++	AST_TEST_REGISTER(policy_snapshot_member_boundary);
  	return AST_MODULE_LOAD_SUCCESS;
  }
  

@@ -2840,6 +2840,41 @@ scratch directories are removed after checks. No dependencies, native build/
 test, image build or PBX execution occurred. A's verified exit, Gates B/C,
 AT/QO, exact publication, full CP and M1-09 remain open.
 
+##### Gate A owner boundaries: twenty definitions, still unexecuted
+
+Two further A-only native source definitions bring the manifest inventory to
+**twenty uncompiled/unexecuted tests**:
+
+| Definition | Assertions to execute later, not results |
+|---|---|
+| `policy_snapshot_queue_lock_kind` | Actual RW/no-lock AO2 queue objects with valid selected names reject as `unsupported-state`, with zero/one previous row byte-preserved and fixture reference count unchanged. Their member pointer stays null. This does not instrument whether an attempted lock or member-field read occurred. |
+| `policy_snapshot_member_boundary` | Builds an actual private member list of 65,535 distinct AO2 objects and checks accepted count, zero callers and preserved prefix. Object 65,536 produces `unsupported-state` without appending or changing rows. Unlinking just that object restores acceptance at 65,535. Destructor counters remain zero during reads, become one after unlink/release and equal all created objects after fixture cleanup. |
+
+No atomic count or private container layout is fabricated. The member objects
+are small synthetic ownership fixtures, not real queue members: they register
+no devices, channels or backend activity. All queue objects remain unlinked
+globally. Allocation/link failures explicitly fail the test and clean up
+already-created objects; fixture-owned references keep destructor-counter
+storage alive until cleanup finishes.
+
+The member-boundary definition intentionally requires up to **65,536 objects
+and container nodes** when eventually executed, rather than substituting a
+smaller proxy threshold. That allocation, teardown and any debug/ref logging
+must be included in the separately approved native process resource/time
+budget. No measured memory/time or native correctness result is claimed here.
+These definitions do not cover every instrumentation/ref/profile path or
+replace the outstanding global-handler, exact lease-drain, startup/shutdown
+and regression acceptance work.
+
+**Eleven package tests pass**, with JavaScript syntax, whitespace and added
+documentation link checks. Seven exact preimages/application dry run pass;
+independent source-only application matches all eight postimages. Comparison
+with the prior candidate confirms changes only in queue `TEST_FRAMEWORK`
+fixtures/registration; all seven other postimages are unchanged. Both named
+scratch directories are removed after checks. No dependency install, native
+build/test, image build or PBX execution occurred. A's verified exit, Gates
+B/C, AT/QO, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

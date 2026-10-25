@@ -2258,6 +2258,18 @@ production code is unchanged outside fixtures/registration. Global-handler
 mapping/dispatch, concurrent runtime and remaining lifecycle/profile acceptance
 remain unproven. A's verified exit, AT/QO and Gates B/C remain open.
 
+The next [owner-boundary increment](./PROJECT-PLAN.md#gate-a-owner-boundaries-twenty-definitions-still-unexecuted)
+brings the inventory to **twenty uncompiled/unexecuted native definitions**.
+Actual RW/no-lock queue fixtures reject without changing previous rows.
+A real private member container accepts 65,535 objects, rejects 65,536,
+recovers after unlinking one and accounts for destruction during cleanup.
+The large fixture's allocation/teardown/debug cost needs a separately approved
+native budget; no measured resource or native pass is claimed.
+**Eleven package tests pass**; exact application/eight postimages match and
+production code remains unchanged outside test fixtures/registration.
+A's verified exit, global-handler/lease/lifecycle/profile acceptance, AT/QO
+and Gates B/C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
