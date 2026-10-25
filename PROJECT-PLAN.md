@@ -672,8 +672,66 @@ Reproduce with `.\scripts\Test-HistoryMarkersProof.ps1`; see
 and [operator usage](./README.md#operator-only-runtimeepoch-manifests-and-marker-observations).
 Temporary isolated config enables UUID and Queue application tracking; ordinary
 routes/REFER fixtures, live phones, HTTP/permissions and dependencies are
-unchanged. Stop here. Next, separately agree a finite projection contract before
-implementing any journey/leg/visit graph or totals. M1-06/07 remain incomplete.
+unchanged. The subsequent JP contract below separately authorizes only the first
+conservative marked-caller projection; totals remain out of scope.
+M1-06/07 remain incomplete.
+
+### Conservative marked-caller projection completion
+
+The user selected the first bounded projection and accepted durable conservative
+revisions. JP-01 through JP-07 build one customer/runtime/epoch from a consistent
+schema-4 history snapshot and publish immutable documents atomically in a
+separate dedicated schema-1 projection database. Raw history remains unchanged.
+Algorithm `marked-caller-v1` records raw checkpoint/time-basis vectors, manifest
+hashes and collector/gap observations. Stable root/visit keys use a separate
+identity namespace and explicit scoped UUIDs, not revision IDs or linkedid.
+
+Validated entry markers attribute only the exact marked caller channel.
+Equivalent repeated markers retain provenance without multiplying entities;
+contradictory roots, reused channel identities and visit IDs remain conflicts.
+Queue entry/timeout association requires one marked visit and one candidate
+ENTERQUEUE; repeated/ambiguous candidates stay unresolved. Only pinned entry/
+timeout event shapes are supported. Unsupported/invalid/unassigned records
+retain issue references. No Local, bridge, consultation or transfer leg is joined.
+
+Caller answer, caller-channel end and queue timeout remain separate observed
+facts. None proves human service, caller abandonment, journey completion or a
+business count. Quality is always incomplete/unverified, queue coverage absent
+and service unclassified. Existing CEL gaps remain possibly applicable or
+association-unknown regardless of timestamps or subsequent healthy recovery.
+The operator reader compares current committed input hashes and exposes separate
+local collector-health observations, not remote-PBX freshness.
+
+Projection publication serializes before reading inputs; exact latest replay
+reuses a revision and late input preserves stable entity keys in a new revision.
+Failed builds leave the last good revision intact. Bounds limit source/manifest/
+record counts, raw bytes, output references/document and revision pages.
+No input truncation, empty-success fallback or partial publication is allowed.
+
+Typecheck and 62 focused tests pass, including deterministic rebuild, duplicate/
+conflicting markers, repeated visits, same-generation epoch splits, cross-scope
+collisions, exact input limits, bounded ambiguity fanout, preserved recovery
+gaps, immutable replay/late revisions, storage failure/corruption, concurrent
+operators and a real SQLite read snapshot during a second writer's append.
+Final isolated run `run-99RbJ4` (`asterisk-history-99rbj4`) preserves 19 CEL
+records/3,020 bytes and three queue records/157 bytes per customer. Separate
+CLI processes publish revisions 1/2; each contains one synthetic marked caller
+with eight caller-channel references, separate answer/end observations and one
+unambiguous queue-timeout visit with two queue references. Unmarked Local/echo
+legs and administrative records remain explicit issues, not extra roots.
+Replay reuses revisions/hashes; reopen matches entity keys/documents, local
+freshness reports input match and foreign scopes fail. Offline prior-revision
+inspection reports freshness not checked rather than hiding the last good data.
+Owned resources, credentials and temporary configs are removed; only synthetic
+raw/projection databases and the report remain local.
+Reproduce with `.\scripts\Test-HistoryProjectionProof.ps1`; see
+[JP acceptance evidence](./MILESTONE-1.md#selected-next-increment-conservative-operator-journey-projection)
+and [operator usage/limits](./README.md#conservative-operator-journey-projections).
+
+No dependencies, ordinary routes, live phones, web/permission surfaces or frozen
+REFER fixtures change. This is only a bounded reconstruction subset, not the
+full JD graph, four-outcome acceptance, totals or M1-06/07 completion. Stop here
+before selecting the next finite increment.
 
 ## 6. Interface and roaming agents
 
@@ -798,6 +856,11 @@ asset; configuration revision.
 Test transfers, Local channels, repeated queue visits, and AI handovers.
 
 ### Journey reconstruction design v1 (not implemented)
+
+The full JD acceptance contract below remains unimplemented. QF/MM/JP now provide
+raw queue evidence, immutable manifests, isolated markers and conservative
+marked-caller/queue-timeout observations only; the remaining propagation,
+relationships, outcome/metric and presentation design is not a recorded pass.
 
 The user selected a documentation-only increment and explicitly chose:
 
@@ -1045,7 +1108,8 @@ time-zone bucketing must not collapse repeated local hours.
 2. **JI: isolated instrumentation and reconstruction**: versioned trusted entry/
    visit markers in a new fixture, epoch manifest and deterministic graph with
    explicit ambiguity. MM now completes only immutable manifests and isolated
-   marker observations; graph/propagation remain unimplemented.
+   marker observations. JP implements only conservative marked-caller/visit
+   projection revisions; broader graph/propagation remain unimplemented.
    Prove local/transfer/re-entry cases with synthetic peers,
    without enabling the real agent phone or changing frozen REFER fixtures.
 3. **JR: four-outcome acceptance and recovery**: queue/member fixtures, projection

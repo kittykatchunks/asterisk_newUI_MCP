@@ -93,6 +93,7 @@ export function createQueueHistory(db: DatabaseSync, enabled: boolean) {
       FROM queue_sources s WHERE source=? AND generation=?`).get(source, generation);
   }
   function transaction<T>(write: boolean, action: () => T): T {
+    if (!write && db.isTransaction) return action();
     db.exec(write ? "BEGIN IMMEDIATE" : "BEGIN");
     try { const result = action(); db.exec("COMMIT"); return result; }
     catch (error) { db.exec("ROLLBACK"); throw error; }

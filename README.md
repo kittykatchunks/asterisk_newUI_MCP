@@ -15,6 +15,147 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Conservative operator journey projections
+
+JP-01 through JP-07 implement only the first bounded reconstruction subset:
+**explicitly marked caller channels and unambiguous queue-entry/timeout
+observations**. The [builder](./src/history-projection.ts) reads schema-4 history
+in a consistent SQLite snapshot. The separate
+[projection store](./src/history-projection-store.ts) appends immutable derived
+revisions in its own dedicated schema-1 database (FULL synchronous, DELETE
+journal). Raw history remains schema 4 and is never migrated or modified by
+projection commands. No dependencies, live phones, ordinary routes, REFER tests,
+HTTP/UI or permissions are added.
+
+### Projection commands and publication
+
+With Node.js 24, existing imported/mapped raw history and **distinct absolute
+paths** (example scope placeholders):
+
+```powershell
+node .\scripts\Manage-HistoryProjection.ts rebuild 'C:\proof\history.sqlite' 'C:\proof\projections.sqlite' customer-a runtime-a boot-1
+node .\scripts\Manage-HistoryProjection.ts read 'C:\proof\history.sqlite' 'C:\proof\projections.sqlite' customer-a runtime-a boot-1 latest
+node .\scripts\Manage-HistoryProjection.ts read 'C:\proof\history.sqlite' 'C:\proof\projections.sqlite' customer-a runtime-a boot-1 1
+node .\scripts\Manage-HistoryProjection.ts stored 'C:\proof\history.sqlite' 'C:\proof\projections.sqlite' customer-a runtime-a boot-1 1
+node .\scripts\Manage-HistoryProjection.ts revisions 'C:\proof\history.sqlite' 'C:\proof\projections.sqlite' customer-a runtime-a boot-1 0 100
+```
+
+Only `rebuild` opens a projection writer; history is always read-only.
+Reads require an existing projection database. Explicitly register the selected
+runtime/epoch manifests first; missing/foreign scope, corrupted inputs, invalid
+commands, unsupported database identity and storage failures fail nonzero.
+There is no empty-success fallback or automatic source reassignment.
+Raw history, projections, diagnostic, simulation and agent stores are not
+interchangeable. Filesystem/CLI access is a trusted operator boundary, not tenant
+authentication or an approved sensitive-data export.
+
+Each revision returns ID, scope, publication time, algorithm
+`marked-caller-v1`, input SHA-256, projection SHA-256 and the document.
+`revisions` returns metadata with `nextAfterId`; pass that cursor until null.
+Revision IDs are database-wide, not per-customer counters.
+An identical latest input/output reuses its revision (`reused:true`); late input
+creates a new immutable revision, preserving earlier documents. A writer lock
+is acquired **before** the history snapshot, so a queued rebuilder cannot publish
+a previously computed stale graph over a newer revision. Publication/failed
+rebuilds are atomic; failures preserve the last good revision.
+
+The versioned input vector includes all bounded customer CEL/queue checkpoints
+(kind/source/generation/time basis/bytes/hash/record count), customer manifest
+IDs/hashes and durable CEL collector/gap observations. Unrelated changes within
+that customer's input vector can conservatively invalidate a revision. There
+is no remote-PBX freshness claim. Exact original raw bytes remain in history;
+the projection stores source-qualified record offsets/hashes, not copied caller
+numbers/names, recordings or inferred timestamps.
+
+`read` compares that revision with a newly captured local input vector and
+returns `freshness.state:inputs-match|inputs-changed`, check time and current
+input hash. It also returns current coverage observations and separately
+sampled collector health with revision/age. Those health observations have
+their own check time and do not replace the immutable revision's provenance.
+A changed or failed input check never silently reports fresh. Publication time
+is not source event time. Older revisions may be read explicitly; their
+freshness is checked against the same current local inputs.
+If raw history is unavailable/corrupt or a current input check exceeds bounds,
+`read` fails explicitly. Use `stored` to inspect the last good or a specific
+immutable revision with **`freshness.state:not-checked`**; it never opens raw
+history. `revisions` likewise reads the projection database only. These explicit
+offline operations keep prior evidence accessible without a success-shaped
+freshness fallback.
+
+### Conservative facts and ambiguity
+
+- Journey keys hash an independent `history-entity-v1` namespace plus
+  customer/runtime/epoch and explicit journey UUID. Visit keys use the same
+  scope and visit UUID; algorithm/publication revisions do not enter entity keys.
+  Synthetic/external entry kinds remain explicit, never mixed into a total.
+- Only validated entry markers create root observations. Equivalent repeated
+  markers retain every record reference without creating extra roots/visits.
+  Contradictory roots, multiple roots on a caller channel or reused channel IDs
+  across selected source generations are conflicting, not merged.
+- Attach **only the explicitly marked caller uniqueid in its exact CEL
+  source/generation**. Shared linkedid, Local halves, bridges, consultation,
+  proximity, endpoint names and timestamps never create additional legs or joins.
+  Invalid/untrusted markers, unassigned records and unattributed evidence remain
+  explicit issues. Unsupported caller CEL events retain their references.
+- Visits require a validated marker on that root's caller channel, after entry,
+  with matching route revision and no observed earlier channel end. ENTERQUEUE
+  is associated only with exactly one candidate visit and one queue entry for
+  that scoped caller/queue. Re-entry or competing stream/entry candidates stay
+  unresolved; there is **no nearest-timestamp pairing**.
+- Only pinned ENTERQUEUE (`caller-url|caller-id|position`) and
+  EXITWITHTIMEOUT (`position|original-position|wait`) shapes are recognized,
+  with member `NONE`. No caller fields/durations are interpreted.
+  A sole correctly ordered timeout in the same queue stream becomes
+  `timeout-observed`. Unsupported/invalid evidence or competing terminals
+  remain unresolved/conflicting. QUEUESTART stays administrative evidence.
+- Caller PBX ANSWER and caller CHAN_END each report
+  `observed|not-observed|conflicting`; absence is not proof of no answer or a
+  completed journey. Root state `marked-caller-observed` is an observation,
+  **not a confirmed business journey count**. Visit states are `unresolved`,
+  `conflicting`, `entry-observed` or `timeout-observed`.
+
+Quality always says **completeness unverified**, **service not classified** and
+**queue coverage not collected**. CEL collector gaps are preserved as
+`possibly-applicable` when that source participates in selected manifests,
+otherwise `association-unknown`. No timestamp filter can erase them. A healthy
+CEL collection after recovery does not clear gaps or establish queue coverage;
+absence of a configured collector is not healthy evidence.
+No human-service, caller-abandonment, transferred/answered business outcome,
+journey-completion, durations, rates or totals are implemented.
+
+Bounds per rebuild: **20 source generations per kind**, **200 customer
+manifests**, **100 selected ranges**, **2,000 total customer raw records**,
+**8 MiB raw input**, **20,000 output evidence references**, and **8 MiB serialized
+document**. At most 20 configured CEL sources and 200 gaps/source are included.
+Revision pages contain 1-200 metadata entries. Ambiguity fanout exceeding limits
+fails before publication; no truncation or partial success is used.
+This is a bounded engineering tool, not production history scale, retention,
+backup/restore, a tamper-proof ledger or an authenticated history service.
+
+### Projection verification
+
+```powershell
+.\scripts\Test-HistoryProjectionProof.ps1
+```
+
+The command runs typecheck, **62 focused tests** (16 projection plus 46 existing
+history/manifest/collector regressions) and the isolated two-customer marker
+harness in `--projection` mode. It uses the pinned locally available image,
+`--pull never --no-build`, unique owned Compose resources and temporary
+configuration only. The proof checks raw-byte/replay/marker contracts before
+publishing projections, then reopens both databases and reads via fresh CLIs.
+Final run `run-99RbJ4` (`asterisk-history-99rbj4`) retained 19 CEL records/3,020
+bytes and three queue records/157 bytes per customer. Each scoped revision
+contains one synthetic marked caller (eight CEL references), separate observed
+answer/channel end and one unambiguous queue-timeout visit (two queue references).
+Replay reused revision IDs/hashes, reopen preserved stable keys and local input
+freshness matched. Other legs/admin evidence remain explicit issues; quality
+stays unverified with no service classification or totals.
+Independent cleanup checks found only synthetic raw/projection databases and
+report in the owned output directory, with no owned Docker resources,
+credentials or temporary configs. Recorded evidence and cleanup are in the
+[JP acceptance results](./MILESTONE-1.md#selected-next-increment-conservative-operator-journey-projection).
+
 ## Operator-only runtime/epoch manifests and marker observations
 
 MM-01 through MM-07 add explicit immutable source-range assignments to the
@@ -136,8 +277,9 @@ the assignments/markers. Owned containers/networks/volumes, generated credential
 and temporary configuration are removed; only ignored synthetic databases/reports
 remain locally. Existing authenticated echo/isolation probes pass as part of the
 harness; no REFER checks run. The empty queue timeout is not caller abandonment
-or human service. Projection/reconstruction, queue collector health/gaps,
-corrections, remote delivery, retention and authenticated presentation remain open.
+or human service. JP above adds only conservative marked-caller/visit projections.
+Broader reconstruction, queue collector health/gaps, corrections, remote delivery,
+retention and authenticated presentation remain open.
 
 ## Operator-only queue evidence foundation
 
@@ -277,7 +419,7 @@ human service, caller abandonment or a reconstructed inbound journey**. QF adds
 partial history evidence only; M1-06/07 and the other remaining broad gates are
 not marked complete. See the [finite QF contract](./MILESTONE-1.md#selected-next-increment-operator-queue-evidence-foundation).
 
-## Journey reconstruction design (not implemented)
+## Journey reconstruction design (full contract not implemented)
 
 The next history design is documented in the
 [project plan](./PROJECT-PLAN.md#journey-reconstruction-design-v1-not-implemented),
@@ -293,9 +435,11 @@ fixture answers at the PBX before waiting in an empty queue: that is not evidenc
 of human service or caller abandonment.
 
 The JD increment was **documentation only**; its acceptance checks are not
-recorded passes. The subsequent QF increment above implements operator-only raw
-queue ingestion. Instrumentation/reconstruction and outcome acceptance remain
-separately scoped future work. JD changed no runtime behaviour, phones, services,
+recorded passes. Subsequent QF/MM/JP increments above implement raw queue evidence,
+immutable manifest assertions, isolated markers and a conservative
+marked-caller/queue-timeout projection subset. Broader leg/visit reconstruction,
+transfer propagation, outcome acceptance and presentation remain separately
+scoped future work. JD changed no runtime behaviour, phones, services,
 dependencies or REFER checks.
 
 ## Operator-run CEL collector recovery

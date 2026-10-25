@@ -320,6 +320,23 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
     return current;
   }
   return {
+    readSnapshot<T>(action: () => T): T {
+      if (db.isTransaction) throw new Error("History snapshot cannot be nested");
+      db.exec("BEGIN");
+      try {
+        const result = action();
+        if (result instanceof Promise) throw new Error("History snapshots require a synchronous callback");
+        db.exec("COMMIT");
+        return result;
+      } catch (error) { db.exec("ROLLBACK"); throw error; }
+    },
+    collectorSources(customer: string) {
+      identifier(customer);
+      if (!hasCollectors) throw new Error("CEL collectors require schema 2");
+      const rows = db.prepare("SELECT source FROM cel_collectors WHERE customer=? ORDER BY source LIMIT 21").all(customer);
+      if (rows.length > 20) throw new Error("Projection collector source limit exceeded (20)");
+      return rows.map((row) => { identifier(row.source); getCollector(customer, row.source); return row.source; });
+    },
     queue: createQueueHistory(db, schemaVersion === 3 || schemaVersion === 4),
     manifests: createHistoryManifests(db, schemaVersion === 4, options.readOnly === true),
     ingest(source: CelSource, snapshot: Uint8Array) {
@@ -376,7 +393,8 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
     },
     collectorStatus(customer: string, source: string, now = Date.now()) {
       timestamp(now);
-      db.exec("BEGIN");
+      const ownsTransaction = !db.isTransaction;
+      if (ownsTransaction) db.exec("BEGIN");
       try {
         const current = getCollector(customer, source);
         const ageMs = current.succeededAt === null ? null : now - current.succeededAt;
@@ -393,9 +411,9 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
         const result = { ...current, status, ageMs, gapCount, coverage: gapCount > 0 ? "unknown-gap-recorded" : "unverified",
           checkpoint: checkpoint(row) };
         if (result.checkpoint.customer !== customer || result.checkpoint.timeBasis !== current.timeBasis) throw new Error("CEL collector scope mismatch");
-        db.exec("COMMIT");
+        if (ownsTransaction) db.exec("COMMIT");
         return result;
-      } catch (error) { db.exec("ROLLBACK"); throw error; }
+      } catch (error) { if (ownsTransaction) db.exec("ROLLBACK"); throw error; }
     },
     transitionCollector(customer: string, source: string, generation: string, operator: string, reason: string, now = Date.now()) {
       identifier(generation); timestamp(now);
@@ -458,7 +476,8 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
           (after !== -1 && !integer(after)) || (query.uniqueid !== undefined &&
             (typeof query.uniqueid !== "string" || !query.uniqueid || query.uniqueid.length > 1024 ||
               /[\x00-\x1f\x7f]/.test(query.uniqueid)))) throw new Error("Invalid CEL history page/channel query");
-      db.exec("BEGIN");
+      const ownsTransaction = !db.isTransaction;
+      if (ownsTransaction) db.exec("BEGIN");
       try {
         const row = find.get(query.source, query.generation);
         if (!row || row.customer !== query.customer) throw new Error("CEL source not found for customer");
@@ -481,9 +500,9 @@ export function openCelHistory(path: string, options: { readOnly?: boolean } = {
           return { ...fields, offset: event.offset, endOffset: event.end_offset, sha256: event.sha256,
             rawRecord: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(event.raw), ingestedAt: event.ingested_at };
         });
-        db.exec("COMMIT");
+        if (ownsTransaction) db.exec("COMMIT");
         return { source, events, nextAfterOffset: hasMore ? events.at(-1)!.offset : null };
-      } catch (error) { db.exec("ROLLBACK"); throw error; }
+      } catch (error) { if (ownsTransaction) db.exec("ROLLBACK"); throw error; }
     },
     close() { db.close(); },
   };

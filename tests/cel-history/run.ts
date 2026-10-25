@@ -8,16 +8,19 @@ import { promisify } from "node:util";
 import { openCelHistory, type CelEvent } from "../../src/cel-history.ts";
 import type { QueueEvent } from "../../src/queue-history.ts";
 import { proveHistoryMarkers } from "./markers.ts";
+import { proveHistoryProjection } from "./projection.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers"].includes(args[0]))) {
-  throw new Error("Only --recovery, --queue or --markers is supported");
+if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection"].includes(args[0]))) {
+  throw new Error("Only --recovery, --queue, --markers or --projection is supported");
 }
 const recovery = args[0] === "--recovery";
 const queueProof = args[0] === "--queue";
-const markerProof = args[0] === "--markers";
-const mode = recovery ? "cel-collector" : queueProof ? "queue-history" : markerProof ? "history-markers" : "cel-history";
+const projectionProof = args[0] === "--projection";
+const markerProof = args[0] === "--markers" || projectionProof;
+const mode = recovery ? "cel-collector" : queueProof ? "queue-history" :
+  projectionProof ? "history-projection" : markerProof ? "history-markers" : "cel-history";
 const parent = join(root, ".local-proof", mode);
 await mkdir(parent, { recursive: true });
 const directory = await mkdtemp(join(parent, "run-"));
@@ -64,6 +67,7 @@ const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
   scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
     queueProof ? "operator queue evidence with isolated empty Local-channel timeout and PBX restart; not human service or journey reconstruction" :
+    projectionProof ? "conservative operator marked-caller/visit projection revisions; isolated synthetic entry and queue timeout only; no totals, service or transfer classification" :
     markerProof ? "operator runtime/epoch manifest assertions and isolated synthetic entry/queue-visit observations; not journey reconstruction or production trust attestation" :
       "operator-only CEL evidence; no business journey/outcome reconstruction",
   asteriskImage: "andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d" };
@@ -150,6 +154,11 @@ try {
     const markers: Record<string, unknown>[] = [];
     report.markers = markers;
     await proveHistoryMarkers(database, directory, project, docker, freshSnapshot, cli, markers);
+    if (projectionProof) {
+      const projections: Record<string, unknown>[] = [];
+      report.projections = projections;
+      await proveHistoryProjection(database, join(directory, "projections.sqlite"), project, cli, projections);
+    }
   }
   if (queueProof) {
     const queueEvidence: Record<string, unknown>[] = [];

@@ -183,7 +183,8 @@ export function createHistoryManifests(db: DatabaseSync, enabled: boolean, readO
     resolve(customer: string, kind: "cel" | "queue", source: string, generation: string, offset: number) {
       available(); identifier(customer); identifier(source); identifier(generation);
       if (!integer(offset)) throw new Error("Invalid evidence offset");
-      db.exec("BEGIN");
+      const ownsTransaction = !db.isTransaction;
+      if (ownsTransaction) db.exec("BEGIN");
       try {
         const checkpoint = sourceRow(customer, kind, source, generation);
         const event = db.prepare(`SELECT end_offset,raw,sha256 FROM ${kind === "cel" ? "cel_events" : "queue_events"} WHERE source=? AND generation=? AND offset=?`)
@@ -209,9 +210,9 @@ export function createHistoryManifests(db: DatabaseSync, enabled: boolean, readO
           assignment = { manifestId: manifest.id, manifestSha256: manifest.sha256, runtime: manifest.runtime,
             epoch: manifest.epoch, routes: manifest.routes, range, evidenceSha256: row.evidence_sha256 };
         }
-        db.exec("COMMIT");
+        if (ownsTransaction) db.exec("COMMIT");
         return { customer, kind, source, generation, offset, assignment, status: assignment ? "assigned" : "unassigned" };
-      } catch (error) { db.exec("ROLLBACK"); throw error; }
+      } catch (error) { if (ownsTransaction) db.exec("ROLLBACK"); throw error; }
     },
   };
 }

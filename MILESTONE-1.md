@@ -1147,6 +1147,79 @@ dependency changes. No root/leg merging, counts, queue coverage, human-service
 or four-outcome acceptance is claimed. All 17 remaining broad M1 gates are
 still incomplete; stop after this finite increment.
 
+### Selected next increment: conservative operator journey projection
+
+The user selected a bounded first projection and accepted the recommended
+durable/conservative policy. Raw history stays schema 4. Derived, immutable
+revisions use a separate dedicated operator database, never the diagnostic store.
+
+| Check | Finite required evidence |
+|---|---|
+| JP-01 | Build one customer/runtime/epoch from a consistent synchronous SQLite history read snapshot. Versioned input vector includes raw source checkpoints, manifest hashes and collector/gap observations. Fail explicitly on missing scope, corrupt inputs or bounds; never publish partial/empty fallback. |
+| JP-02 | Stable journey keys require validated entry markers; attach only that explicitly marked caller channel. Duplicate equivalent markers retain evidence without multiplying roots. Contradictory roots, multiple roots on one channel or ambiguous source-generation identity remain conflicting/unresolved. No linkedid/Local/bridge/transfer joins. |
+| JP-03 | Stable visit keys require validated visit markers on the same marked caller channel after entry. Associate ENTERQUEUE only for exactly one marked visit and one candidate entry in the same runtime/epoch/caller/queue. Re-entry or cross-stream candidates stay ambiguous, never nearest-timestamp matched. |
+| JP-04 | Report PBX ANSWER and caller CHAN_END separately. Support only observed ENTERQUEUE and pinned EXITWITHTIMEOUT shapes; retain unsupported/invalid/contradictory queue evidence as unresolved/conflicting. No human-service, abandonment, journey completion, durations, outcomes, rates or business totals. |
+| JP-05 | Atomic immutable publication retains prior revisions and evidence provenance. Exact latest input/output replay reuses a revision; late input creates a new revision without changing entity IDs. Failed/competing rebuilds cannot overwrite newer input or hide the last good revision. Scoped read-only readers expose input-match freshness, publication time and explicit coverage uncertainty. |
+| JP-06 | Bound sources/manifests/records/output and page revisions. Tests prove deterministic rebuild, ambiguity/conflicts, raw append, unassigned evidence, source gaps, atomic rollback, corruption, concurrency, snapshot consistency, customer/runtime isolation and CLI persistence. |
+| JP-07 | Extend only the isolated two-customer marker proof to publish/reopen projections, verify separate answer/channel-end/queue-timeout facts and exact replay/stable IDs, then clean owned resources. Existing routes, phones and frozen REFER matrix remain untouched. |
+
+Collector health is local-file evidence only; no queue collector exists.
+Gaps retain possibly-applicable/association-unknown status without timestamp
+exclusion. These projections are observations, not confirmed journey counts or
+completed JD/M1-06/07 acceptance. Stop after JP-01 through JP-07.
+
+**Result: JP-01 through JP-07 complete for the bounded operator scope.**
+Typecheck and **62 focused tests** pass: 16 projection tests plus all 46 prior
+CEL/queue/manifest/collector regressions. Tests exercise equivalent and
+contradictory markers, multiple roots, pre-entry/post-end visits, repeated/
+duplicate queue candidates, malformed/unsupported terminals, lifecycle
+contradictions, synthetic/external kind preservation, same-generation epoch
+splits and cross-customer/runtime collisions. Input and output fanout bounds fail
+explicitly; exact 20-source and 2,000-record boundaries pass.
+
+Consistent snapshot tests append raw evidence/checkpoint through a second SQLite
+connection while the reader retains its original view (WAL only in that owned
+test fixture; normal history retains DELETE journal). Publication tests cover
+atomic SQL failure, corrupt history/projections, immutable earlier revisions,
+stable late-input entity keys, concurrent operator processes and idempotent
+rebuild. Freshness reports changed committed input; explicit offline `stored`
+reads retain access to earlier revisions when raw history is unavailable,
+without claiming a successful freshness check. Collector recovery to healthy
+preserves unknown gaps and never becomes queue coverage.
+
+Real final run **`run-99RbJ4`**, project **`asterisk-history-99rbj4`**, passes
+the existing isolated echo/customer-boundary and marker/raw-replay checks before
+projection publication. Each customer retains **19 CEL records / 3,020 bytes**
+and **three queue records / 157 bytes**. Separate operator CLI processes publish
+projection revisions 1/2 for the two distinct customer/runtime/epoch scopes.
+Each has exactly one synthetic marked-caller root and one unambiguous visit
+under this finite fixture contract: **eight caller-channel CEL references**,
+PBX answer observed, caller CHAN_END observed, and queue timeout observed with
+**two queue references**. Other Local/echo legs and administrative queue evidence
+remain explicitly unattributed/administrative, not extra roots.
+
+Rebuild replay reuses each revision/hash, fresh read-only reopen matches the
+deterministic document and entity keys, input freshness reports `inputs-match`,
+and foreign scoped reads fail. Quality remains completeness `unverified`,
+service `not-classified`, queue coverage `not-collected`; no business totals
+or whole-journey outcome is produced.
+Independent checks found no owned containers/networks/volumes, credentials or
+temporary configs. Only synthetic raw/projection databases and report remain
+locally. Offline inspection of the retained revision also passes with explicit
+`not-checked` freshness and a nonexistent raw-history path.
+
+Reproduce with `.\scripts\Test-HistoryProjectionProof.ps1`; see
+[operator commands and limits](./README.md#conservative-operator-journey-projections).
+The bounded builder supports 20 source generations per kind, 200 customer
+manifests, 100 selected ranges, 2,000 raw records / 8 MiB total raw input,
+20,000 output evidence references and an 8 MiB document. At most 20 configured
+CEL sources / 200 gaps per source are included; revision pages are 1-200.
+Exceeding a bound fails without publishing/truncating a graph.
+Raw history stays schema 4; only derived storage has a separate schema-1 identity.
+Ordinary routes, phones, frozen REFER fixtures, dependencies and HTTP/permission
+surfaces are unchanged. This does not complete broad JD reconstruction, queue
+coverage, human-service/four-outcome acceptance or any additional M1 gate.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
