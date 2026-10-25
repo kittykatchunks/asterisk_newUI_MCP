@@ -3434,6 +3434,59 @@ No dependency install, native build/test, image build, module load or PBX
 operation occurs. All AT/QO gates, A's verified exit, Gates B/C, exact
 publication, full CP and M1-09 remain open.
 
+##### Gate A mixed AO2 nodes: twenty-nine definitions, still unexecuted
+
+The next bounded source task identified in the preceding handoff is now
+defined as `bounded_mixed_nodes`. The same nine-path package contains **29
+uncompiled/unexecuted native definitions**. Only the existing native controller
+fixture changes; all eight other source postimages are unchanged.
+
+The fixture uses a real mutex-protected one-bucket AO2 list, default tail
+insertion, and the existing owned-object destructor/borrowed-visitor helpers.
+For each retained-empty node it links an object, advances a fresh iterator
+until that exact object is returned, unlinks it and releases both object
+references while retaining the iterator's physical node. It then appends a
+live object. Scanned temporary live-object references are released during
+fixture construction. No private layout, forged object count, caller pointer
+mutation or production traversal change is introduced.
+
+This creates an interleaved empty/live collision chain with these exact
+source assertions:
+
+| Physical chain | Node budget | Expected traversal | Live visits |
+|---|---|---|---|
+| 64 retained-empty + 63 live = 127 nodes | 128 | Complete; one bucket, 127 nodes | 63 |
+| 64 retained-empty + 64 live = 128 nodes | 127 | Limit; one bucket, 127 nodes; last live node not visited | 63 |
+| Same 128-node chain | 128 | Complete; one bucket, 128 nodes | 64 |
+| 65 retained-empty + 64 live = 129 nodes | 128 | Limit; one bucket, 128 nodes, despite every live object having been visited | 64 |
+
+The final case explicitly rejects a live-count shortcut: reaching all 64 live
+objects does not justify completion when physical traversal has not reached
+the end. Every measured walk uses the real bounded owner API. The visitor
+requires each borrowed live object to have reference count one. Container
+counts, exact visited-object counts and unchanged destructor totals are
+checked around each walk. Final cleanup destroys every initialized iterator
+before releasing the container and requires all 129 allocated object
+destructors exactly once on the complete fixture path. Allocation/link failures
+also drain initialized storage and compare total allocations/destructions.
+Iterator-held container references are intentional fixture ownership, not a
+claim that the container has a sole reference during traversal.
+
+These assertions address the previously missing explicit 63-live and mixed
+retained/live source cases in AT-04/AT-05/AT-07. They do not establish native
+node-dereference/allocator/comparator/hash/lock/ref-work instrumentation,
+retirement concurrency or debug-profile behavior. Fixture construction and
+teardown may scan; they are not inside the production bounded walk or covered
+by its budget. All native acceptance/AT/QO gates remain open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match. No core/header source changes
+need a new profile-off lexical comparison; this is not native compilation.
+Both named scratch directories are removed after verification. No dependency
+install, native build/test, image build, module load or PBX operation occurred.
+A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

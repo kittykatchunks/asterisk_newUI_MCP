@@ -425,7 +425,7 @@ This does not establish C compilation, native correctness or AT/QO acceptance;
 Gates B/C remain closed.
 
 The [current acceptance handoff](./PROJECT-PLAN.md#gate-a-current-acceptance-handoff-twenty-eight-definitions-no-native-exit)
-reconciles the **28 uncompiled/unexecuted native definitions** against the
+reconciles the preceding 28-definition source candidate against the
 earlier AT/QO matrix. A separate disposable target and test-profile-only core
 barriers/counters specify dispatch/completion lease drain, failed-teardown
 closing denial, lookup-before-admission ordering, foreign-thread loader
@@ -433,8 +433,12 @@ contention, real permission denial and nonrecursive refresh recovery.
 Completion teardown waits for worker join when generator traversal still
 holds the registry read lock, even after lease release.
 
-**Twelve package tests passed** for source candidate `72c5ef0`; exact application
-and all nine source postimages matched. Those checks do not prove C compilation,
+The [mixed AO2 node update](./PROJECT-PLAN.md#gate-a-mixed-ao2-nodes-twenty-nine-definitions-still-unexecuted)
+brings the inventory to **29 uncompiled/unexecuted native definitions**.
+It adds interleaved retained-empty/live chains at 127/128/129 physical nodes,
+explicit 63/64-live visits and exact fixture destructor/ref assertions.
+**Twelve package tests pass**; exact application and all nine source postimages
+match. Those checks do not prove C compilation,
 native behavior, measured latency or lifecycle acceptance. Shutdown, recursive
 teardown, stalled/disconnected output, AO2 work/ref instrumentation and broader
 profile/regression evidence remain pending. All AT/QO gates remain open.

@@ -2206,10 +2206,10 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..994bc4476bc97d44f7f9ea8327a86731
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..cf9773bf337f4f528de08dfd06203a7b25d1a030
+index 0000000000000000000000000000000000000000..cd088f1d4a8637c922a5023e904a05263b71aedf
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,1494 @@
+@@ -0,0 +1,1606 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -2727,6 +2727,116 @@ index 0000000000000000000000000000000000000000..cf9773bf337f4f528de08dfd06203a7b
 +	}
 +	++visit->seen;
 +	return visit->abort_at && visit->seen == visit->abort_at;
++}
++
++AST_TEST_DEFINE(bounded_mixed_nodes)
++{
++	struct ao2_iterator retained[65];
++	struct ao2_container *container = NULL;
++	struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
++	struct ao2_bounded_result result;
++	struct bounded_owned_visit visit;
++	unsigned int initialized = 0, allocated = 0, destroyed = 0, i;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "bounded_mixed_nodes";
++		info->category = "/main/astobj2/bounded_queue_policy/";
++		info->summary = "Interleaved retained-empty/live nodes cover 63 objects and 127/128/129 physical nodes";
++		info->description = "Real one-bucket list collision chain; borrowed visits preserve refs and destructor counts.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	container = ao2_container_alloc_list(AO2_ALLOC_OPT_LOCK_MUTEX, 0, NULL, NULL);
++	if (!container) {
++		goto done;
++	}
++	for (i = 0; i < ARRAY_LEN(retained); ++i) {
++		struct bounded_owned_object *object = ao2_alloc(sizeof(*object), bounded_owned_destroy);
++		void *borrowed;
++
++		if (!object) {
++			goto done;
++		}
++		object->destroyed = &destroyed;
++		++allocated;
++		if (!ao2_link(container, object)) {
++			ao2_ref(object, -1);
++			goto done;
++		}
++		retained[i] = ao2_iterator_init(container, 0);
++		++initialized;
++		while ((borrowed = ao2_iterator_next(&retained[i]))) {
++			if (borrowed == object) {
++				break;
++			}
++			ao2_ref(borrowed, -1);
++		}
++		if (!borrowed) {
++			ao2_ref(object, -1);
++			goto done;
++		}
++		ao2_unlink(container, object);
++		ao2_ref(borrowed, -1);
++		ao2_ref(object, -1);
++		if (destroyed != i + 1 || ao2_container_count(container) != i) {
++			goto done;
++		}
++		if (i >= 63) {
++			visit = (struct bounded_owned_visit) { 0 };
++			if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++				!= (i == 63 ? AO2_BOUNDED_COMPLETE : AO2_BOUNDED_LIMIT)
++				|| result.buckets != 1 || result.nodes != (i == 63 ? 127 : 128)
++				|| result.objects != i || visit.seen != i || visit.bad_reference
++				|| destroyed != i + 1 || ao2_container_count(container) != i) {
++				goto done;
++			}
++		}
++		if (i == 64) {
++			break;
++		}
++		object = ao2_alloc(sizeof(*object), bounded_owned_destroy);
++		if (!object) {
++			goto done;
++		}
++		object->destroyed = &destroyed;
++		++allocated;
++		if (!ao2_link(container, object)) {
++			ao2_ref(object, -1);
++			goto done;
++		}
++		ao2_ref(object, -1);
++		if (i == 63) {
++			unsigned int budget;
++
++			for (budget = 127; budget <= 128; ++budget) {
++				limits.max_nodes = budget;
++				visit = (struct bounded_owned_visit) { 0 };
++				if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++					!= (budget == 127 ? AO2_BOUNDED_LIMIT : AO2_BOUNDED_COMPLETE)
++					|| result.buckets != 1 || result.nodes != budget
++					|| result.objects != budget - 64 || visit.seen != budget - 64
++					|| visit.bad_reference || destroyed != 64 || ao2_container_count(container) != 64) {
++					goto done;
++				}
++			}
++		}
++	}
++	state = AST_TEST_PASS;
++done:
++	for (i = 0; i < initialized; ++i) {
++		ao2_iterator_destroy(&retained[i]);
++	}
++	ao2_cleanup(container);
++	if (destroyed != allocated) {
++		state = AST_TEST_FAIL;
++	}
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Mixed physical-node/live-object boundary or ownership invariant failed\n");
++	}
++	return state;
 +}
 +
 +AST_TEST_DEFINE(bounded_ownership)
@@ -3679,6 +3789,7 @@ index 0000000000000000000000000000000000000000..cf9773bf337f4f528de08dfd06203a7b
 +	AST_TEST_UNREGISTER(bounded_matrix);
 +	AST_TEST_UNREGISTER(bounded_contention);
 +	AST_TEST_UNREGISTER(bounded_ownership);
++	AST_TEST_UNREGISTER(bounded_mixed_nodes);
 +	return 0;
 +}
 +
@@ -3700,6 +3811,7 @@ index 0000000000000000000000000000000000000000..cf9773bf337f4f528de08dfd06203a7b
 +	AST_TEST_REGISTER(bounded_matrix);
 +	AST_TEST_REGISTER(bounded_contention);
 +	AST_TEST_REGISTER(bounded_ownership);
++	AST_TEST_REGISTER(bounded_mixed_nodes);
 +	return AST_MODULE_LOAD_SUCCESS;
 +}
 +

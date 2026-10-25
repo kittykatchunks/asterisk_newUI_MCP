@@ -2382,6 +2382,17 @@ needs immutable dependency/profile closure, enforceable resources and explicit
 Gate B approval; Gate C separately gates owned runtime proof. This
 documentation-only handoff runs no native tests or PBXs.
 
+The [mixed AO2 node source](./PROJECT-PLAN.md#gate-a-mixed-ao2-nodes-twenty-nine-definitions-still-unexecuted)
+implements that bounded source priority and brings the inventory to **29
+uncompiled/unexecuted native definitions**. A real one-bucket list interleaves
+retained-empty/live nodes: 127 nodes/63 live completes; a 127-node budget on
+128 nodes limits at 63 visits; 128 nodes/64 live completes; 129 nodes limits
+at 128 even after all 64 live objects were visited. Exact borrowed refs,
+container counts and fixture destructors are asserted. Only the controller
+postimage changes. **Twelve package tests pass** and exact application/nine
+postimages match. Native work/ref instrumentation and all AT/QO acceptance
+remain pending; Gates B/C stay closed and no native/PBX execution occurs.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
