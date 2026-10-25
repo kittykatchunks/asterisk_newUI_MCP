@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Interactive, [switch]$StageCapturedReports, [switch]$WithAgents)
+param([switch]$Interactive, [switch]$StageCapturedReports, [switch]$WithAgents, [switch]$WithSimulation)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -11,9 +11,12 @@ $lock = [IO.File]::Open((Join-Path $directory 'fixture.lock'), [IO.FileMode]::Op
 try {
     if ($StageCapturedReports -and -not $Interactive) { throw 'Captured-report staging requires interactive mode.' }
     if ($WithAgents -and -not $Interactive) { throw 'Agent mode requires interactive mode.' }
+    if ($WithSimulation -and -not $Interactive) { throw 'Simulation mode requires interactive mode.' }
+    $preserveSubjects = $WithAgents -or $WithSimulation -or
+        (Test-Path -LiteralPath (Join-Path $root '.local-proof\engineering\booking-simulation.sqlite') -PathType Leaf)
     $retainedSubjects = @{}
-    if ($WithAgents) {
-        $retainedSubjects = & (Join-Path $PSScriptRoot 'Read-ProofAgentSubjects.ps1') -Root $root
+    if ($preserveSubjects) {
+        $retainedSubjects = & (Join-Path $PSScriptRoot 'Read-ProofAgentSubjects.ps1') -Root $root -IdentityOnly:(-not $WithAgents)
     }
     $existing = & docker compose -f $compose ps -a --format json
     if ($LASTEXITCODE -ne 0) { throw 'Could not check identity fixture ownership.' }
@@ -31,7 +34,7 @@ try {
     $users = @()
     $testAccounts = @()
     foreach ($account in $accounts) {
-        $id = if ($WithAgents) { $retainedSubjects[$account.username] } else { [guid]::NewGuid().ToString() }
+        $id = if ($preserveSubjects) { $retainedSubjects[$account.username] } else { [guid]::NewGuid().ToString() }
         $password = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
         $users += @{
             id = $id; username = $account.username; enabled = $true
@@ -116,6 +119,7 @@ try {
                 $arguments = @('.\scripts\Start-LocalEngineering.ts')
                 if ($StageCapturedReports) { $arguments += '--stage-captured-reports' }
                 if ($WithAgents) { $arguments += '--with-agents' }
+                if ($WithSimulation) { $arguments += '--with-simulation' }
                 & node @arguments
                 if ($LASTEXITCODE -ne 0) { throw 'Interactive engineering application failed.' }
             } else {

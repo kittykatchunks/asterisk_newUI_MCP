@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -96,14 +96,15 @@ async function setup() {
       undefined, undefined, sessionConfig, undefined, undefined, undefined, undefined, enabled ? store : undefined);
     let api = build();
     holder.on("request", (request, response) => api.emit("request", request, response));
-    const login = async (subject = "alice", customer = "customer-a"): Promise<Login> => {
-      const start = await fetch(`${origin}/auth/login?customer=${customer}&workspace=agent`, { redirect: "manual" });
+    const login = async (subject = "alice", customer = "customer-a", workspace = "agent"): Promise<Login> => {
+      const start = await fetch(`${origin}/auth/login?customer=${customer}&workspace=${workspace}`, { redirect: "manual" });
       const location = new URL(start.headers.get("location")!);
       nonce = location.searchParams.get("nonce")!;
       const completed = await fetch(`${origin}/auth/callback?state=${location.searchParams.get("state")}&code=${subject}`, {
         redirect: "manual", headers: { Cookie: start.headers.get("set-cookie")!.split(";")[0] },
       });
       assert.equal(completed.status, 302);
+      assert.equal(completed.headers.get("location"), workspace === "simulation" ? `/simulation/${customer}` : `/agent/${customer}`);
       const cookie = completed.headers.getSetCookie().find((value) => value.startsWith("asterisk-test-session="))!.split(";")[0];
       const info = await (await fetch(origin + "/auth/session", { headers: { Cookie: cookie } })).json();
       return { cookie, csrf: info.csrf };
@@ -174,6 +175,18 @@ test("SW-01/02/03: session, two explicit grants, CSRF and persistent owner scope
       assert.equal((await c.call(await c.login(subject))).status, 403);
     }
     const alice = await c.login();
+    assert.equal((await c.call(alice, "conversations", undefined, { headers: { "X-CSRF-Token": "" } })).status, 403,
+      "An old tab must not read through a different session cookie");
+    const absoluteTarget = await new Promise<number | undefined>((resolve, reject) => {
+      const request = httpRequest(c.origin, {
+        path: `${c.origin}/api/customers/customer-a/booking-simulation/conversations`,
+        headers: { Cookie: alice.cookie },
+      }, (response) => { response.resume(); response.once("end", () => resolve(response.statusCode)); });
+      request.once("error", reject); request.end();
+    });
+    assert.equal(absoluteTarget, 403, "Absolute-form request targets must enforce the same read-session binding");
+    const rotated = await c.login();
+    assert.equal((await c.call(alice, "conversations", undefined, { headers: { Cookie: rotated.cookie } })).status, 403);
     const invalidHeaders: Record<string, string>[] = [
       { "X-CSRF-Token": "" }, { Origin: "https://foreign.example" },
       { "Sec-Fetch-Site": "cross-site" }, { Authorization: `Bearer ${await c.sign("alice")}` },
@@ -198,8 +211,19 @@ test("SW-01/02/03: session, two explicit grants, CSRF and persistent owner scope
       }
     }
     assert.equal(c.effects(), 0);
+    const enabledPage = await fetch(c.origin + "/simulation/customer-a");
+    assert.equal(enabledPage.status, 200);
+    assert.match(enabledPage.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+    assert.match(await enabledPage.text(), /SIMULATION ONLY/);
+    const simulationLogin = await c.login("alice", "customer-a", "simulation");
+    const navigation = await fetch(c.origin + "/agent/customer-a", { headers: { Cookie: simulationLogin.cookie } });
+    assert.match(await navigation.text(), /id="simulation-link"/);
+    const deniedNavigation = await fetch(c.origin + "/agent/customer-a", { headers: { Cookie: (await c.login("agent-only")).cookie } });
+    assert.ok(!(await deniedNavigation.text()).includes('id="simulation-link"'));
     c.disable();
     assert.equal((await c.call(await c.login())).status, 503);
+    assert.equal((await fetch(c.origin + "/simulation/customer-a")).status, 503);
+    assert.equal((await fetch(c.origin + "/auth/login?customer=customer-a&workspace=simulation")).status, 503);
     assert.equal(c.errors.length, 0);
   });
 });

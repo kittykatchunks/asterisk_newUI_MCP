@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synthetic booking workspace</title>
+<main>
+  <h1>Booking simulation</h1>
+  <p><strong>SIMULATION ONLY — no taxi will be booked.</strong> No calls, microphone, real dispatch, fares, ETA or vehicle allocation.</p>
+  <p>Selected customer: <strong id="selected-customer"></strong>. Selection does not grant permission.</p>
+  <p id="session-status" role="status">Checking application session...</p>
+  <a id="sign-in" hidden>Sign in</a>
+  <button id="retry-session" hidden>Retry session connection</button>
+  <button id="sign-out" hidden>Sign out</button>
+  <p id="result-status" role="status"></p>
+  <section id="workspace" aria-label="Synthetic booking workflow" hidden>
+    <h2>Your synthetic exercises</h2>
+    <p>No automatic creation or reconciliation. Use Refresh own exercises after a lost creation reply. Resume an existing operation rather than creating a replacement.</p>
+    <p>A new exercise is a separate synthetic request, never a way to retry an uncertain booking.</p>
+    <button id="refresh-list">Refresh own exercises</button>
+    <button id="new-conversation">Start new synthetic exercise</button>
+    <ul id="conversations"></ul>
+    <section aria-label="Selected operation">
+      <h2>Selected conversation and operation</h2>
+      <p id="selection">Nothing selected. Start a synthetic exercise or explicitly resume your own work.</p>
+      <button id="read-operation" hidden>Read current operation</button>
+      <pre id="operation"></pre>
+      <fieldset id="details">
+        <legend>Fixed synthetic details only</legend>
+        <label for="pickup">Pickup</label><select id="pickup"></select>
+        <label for="destination">Destination</label><select id="destination"></select>
+        <label for="passenger">Passenger</label>
+          <select id="passenger"><option>Synthetic Alice</option><option>Synthetic Bob</option></select>
+        <label for="contact">Contact</label>
+          <select id="contact"><option>test-contact-alice</option><option>test-contact-bob</option></select>
+        <label for="passengers">Passengers</label>
+          <select id="passengers"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
+        <button id="create-draft">Create synthetic draft</button>
+        <button id="save-draft" hidden>Save changes (clears confirmation)</button>
+      </fieldset>
+      <button id="review" hidden>Review summary</button>
+      <button id="confirm" hidden>Confirm displayed revision</button>
+      <fieldset id="submission" hidden>
+        <legend>Separate simulated submission</legend>
+        <label for="scenario">Test scenario</label>
+          <select id="scenario">
+            <option value="accept">Simulate acceptance</option>
+            <option value="reject">Simulate rejection</option>
+            <option value="lose-reply">Simulate acceptance then lost reply</option>
+            <option value="unresolved">Simulate unresolved outcome</option>
+          </select>
+        <button id="submit">Submit confirmed simulation</button>
+      </fieldset>
+      <button id="reconcile" hidden>Reconcile existing operation</button>
+      <fieldset id="handover-controls" hidden>
+        <legend>Context only — no transfer or cancellation</legend>
+        <label for="handover-reason">Handover reason</label>
+          <select id="handover-reason">
+            <option value="human_requested">Human requested</option>
+            <option value="unsupported_request">Unsupported request</option>
+            <option value="caller_disconnected">Caller disconnected</option>
+          </select>
+        <button id="handover">Show simulated handover</button>
+      </fieldset>
+      <pre id="handover-context"></pre>
+    </section>
+  </section>
+</main>
+<script type="module" src="/simulation/workspace.js"></script>
+</html>

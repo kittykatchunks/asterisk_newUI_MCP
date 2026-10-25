@@ -99,9 +99,9 @@ on caller-supplied scope. See the
 
 ### Authenticated simulation API foundation
 
-The simulation workspace is being implemented in bounded increments. Its backend
-foundation exists; there is **no simulation browser page, navigation link, dedicated
-login return or local-launcher switch yet**. Normal local engineering startup still
+The simulation workspace now includes a browser page, eligible agent navigation,
+fixed simulation login return and explicit local-launcher opt-in, described below.
+Normal local engineering startup still
 does not open a simulation database or grant simulation permission. Calling and
 real dispatch remain disabled.
 
@@ -118,7 +118,9 @@ customer and provisioned membership in **both** `agent:access` and
 `booking:simulate`. Neither token roles nor diagnostic support grants supply these
 permissions. The adapter derives issuer/subject from verified server context and
 does not expose the trusted customer-only harness methods. Session mutations use
-the existing exact-origin/CSRF protections; bearer-only use is denied. Reads do not
+the existing exact-origin/CSRF protections; bearer-only use is denied. Simulation
+reads also require the page's `X-CSRF-Token` to bind them to its bootstrap session:
+an old page cannot list/read through a newly rotated cookie. Reads do not
 mutate or reconcile. All responses are non-cacheable and carry a request reference;
 simulation responses are explicitly labelled, including unavailable/error results.
 
@@ -174,8 +176,97 @@ Recorded result: typecheck and 60 tests passed, including six new ownership/HTTP
 tests, permission-specific checks and audit migration/backup coverage. The suite
 uses temporary databases and loopback synthetic identity servers, cleaned up on
 completion. It does not run the real Keycloak launcher proof or any REFER checks.
-The full SW checklist remains open; see
-[partial foundation evidence](./PROJECT-PLAN.md#executed-workspace-foundation-evidence).
+This was the initial API-only evidence; the completed browser/launcher increment
+and its broader verification follow.
+
+### Synthetic booking browser workspace
+
+The finite SW-01 through SW-12 scope is implemented and verified for a local
+synthetic exercise. Start the explicitly opted-in launcher:
+
+```powershell
+.\scripts\Start-LocalEngineering.ps1 -WithSimulation
+```
+
+Prerequisites are Node.js 24, the existing dependencies/Playwright browser, Docker
+with the pinned local identity image available, free local proof ports, and existing
+synthetic identity fixture accounts. If these accounts have never been generated,
+run `.\scripts\Test-IdentityProof.ps1` once first. Do not use live identities or
+credentials. The launcher retains the exact existing Alice/Bob subjects while
+rotating synthetic passwords/client secrets. Missing or invalid accounts fail
+explicitly rather than silently assigning ownership to new subjects.
+When a simulation database already exists, later launches/proof runs also retain
+these subjects even if simulation is not enabled; retention never grants permission.
+
+Open `http://127.0.0.1:18766/simulation/customer-a` and sign in as synthetic Alice
+using the ignored local fixture credentials. Login returns only to the fixed
+customer-scoped simulation path, not an arbitrary URL. The public page shell has no
+customer data; its session-bound API must verify both permissions before loading
+own exercises. Eligible agent pages also show an **Open booking simulation (no
+real bookings)** link. Synthetic Bob remains denied, including direct navigation.
+
+`-WithSimulation` explicitly grants Alice `agent:access` and `booking:simulate` and
+opens `.local-proof\engineering\booking-simulation.sqlite`. It does **not** require
+an agent assignment database, reserve a device or enable phone controls. Add the
+existing `-WithAgents` switch only if separately testing reservations; its existing
+operator-provisioned assignment preflight still applies. No opt-in is remembered as
+a default grant, even when the database remains on disk.
+
+The page provides only fixed synthetic passenger/contact/location choices and
+passenger counts. Its persistent **SIMULATION ONLY — no taxi will be booked**
+notice applies to every exercise:
+
+1. Explicitly start a synthetic exercise or resume your own durable conversation.
+   Landing/reload lists IDs/states but creates nothing and does not read an
+   operation until you choose Resume.
+2. Create/edit a draft, review its canonical summary, then explicitly confirm the
+   displayed revision. Unsaved edits disable review/confirmation/submission;
+   saving clears confirmation. Server-side revision checks also fence stale tabs.
+3. Separately choose one of four labelled test scenarios and submit. Accepted is
+   only simulated acceptance, never allocation/ETA/fare or a real booking.
+4. Use Read current operation and explicit Reconcile for pending/unknown results.
+   A lost response blocks further mutations until explicit recovery; it never
+   becomes rejection or an automatic retry. Lost conversation/draft creation
+   replies are recoverable through Refresh own exercises without recreating them.
+5. Show saved handover context for human request, unsupported request or caller
+   disconnect. This does not transfer/cancel anything and preserves unknown state.
+   A second operation in the same conversation is offered only after settlement.
+6. Logout immediately clears displayed details and aborts pending work before
+   waiting for the server receipt. Failed logout is explicit; reload to check and
+   retry. Expiry/denial also clears details, and late replies cannot restore them.
+   A later login can resume the same identity's work; logout never cancels it.
+
+There is no polling, background reconciliation, microphone request, SIP/WebSocket
+activation or browser storage of credentials/details. Starting a new exercise is
+explicitly a separate synthetic request, not a duplicate-retry escape hatch.
+Errors retain request references and require an explicit read/list recovery rather
+than claiming success. This is a plain HTML/JS proof, not a visual-design or
+comprehensive accessibility audit.
+
+Reproduce all focused checks:
+
+```powershell
+npm run typecheck
+node --test .\tests\booking-workspace.test.ts .\tests\booking-simulation.test.ts .\tests\booking-simulation-ownership.test.ts .\tests\booking-simulation-http.test.ts .\tests\access.test.ts .\tests\application-session.test.ts .\tests\agent-console.test.ts .\tests\agent-profile.test.ts .\tests\agent-device-http.test.ts .\tests\agent-device-lease.test.ts .\tests\local-agent-launcher.test.ts .\tests\diagnostic-store.test.ts
+.\scripts\Test-IdentityProof.ps1
+```
+
+Recorded results: typecheck and **75 focused tests passed**, including five browser
+workflow tests with keyboard/status/traffic checks and injected transport loss,
+pending replies, conflicts, unavailability, malformed data, denial, expiry and
+failed logout. The real Keycloak runner also passed identity, application-session
+and launcher proofs. Its simulation extension verifies fixed login return, eligible
+navigation, Bob denial, no assignment/device prerequisite, default-off restart and
+one unknown result recovered to acceptance after restart with exactly one simulator
+effect. Temporary databases/servers and the runner-owned identity deployment are
+cleaned up; interactive startup runs until you type `stop` then Enter or press
+Ctrl+C and preserves its local databases.
+
+The SW increment is complete only for the synthetic browser contract. No real
+Autocab/YAML integration, voice AI, call activation, external dispatch failure
+semantics, production booking authority or simulation-store backup/restore proof
+is claimed. REFER remained frozen and was not rerun. See the
+[executed workspace evidence](./PROJECT-PLAN.md#executed-simulation-workspace-evidence).
 
 ## Local runtime proof
 

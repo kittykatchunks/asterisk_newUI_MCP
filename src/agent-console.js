@@ -52,6 +52,7 @@ function end(message) {
   document.removeEventListener("visibilitychange", checkDeadline);
   window.removeEventListener("pageshow", checkDeadline);
   lifetime.abort();
+  document.getElementById("simulation-link")?.remove();
   clearProfile();
   lease = undefined;
   assigned = false;

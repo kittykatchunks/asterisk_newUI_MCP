@@ -41,7 +41,7 @@ function cookie(request: IncomingMessage,name: string): string|undefined {
   return values.length===1? values[0].slice(name.length+1):undefined;
 }
 
-export function createApplicationSessions(input: ApplicationSessionConfig) {
+export function createApplicationSessions(input: ApplicationSessionConfig, simulationEnabled = false) {
   const config={ ...input };
   const origin=new URL(config.origin);
   const testHttp=config.allowLoopbackHttpForTests===true;
@@ -68,7 +68,7 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
   const callback=`${config.origin}/auth/callback`;
   const sessions=new Map<string,Session>();
   let exchanging=0;
-  const pending=new Map<string,{ verifier: string; nonce: string; binding: string; customer: string; workspace: "reviews" | "agent"; expiresAt: number }>();
+  const pending=new Map<string,{ verifier: string; nonce: string; binding: string; customer: string; workspace: "reviews" | "agent" | "simulation"; expiresAt: number }>();
   const jwks=createRemoteJWKSet(new URL(config.jwksUrl),{ timeoutDuration: 2000 });
   const cleanup=() => {
     const now=Date.now();
@@ -142,7 +142,11 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
       if(!session) return { csrfDenied: false };
       if(request.headers.authorization) return { csrfDenied: true,subject: session.subject };
       const mutation=!["GET","HEAD","OPTIONS"].includes(request.method??"");
-      return { authorization: `Bearer ${session.token}`,subject: session.subject,csrfDenied: mutation&&!csrfValid(request,session) };
+      const path=new URL(request.url??"/",config.origin).pathname;
+      const simulationRead=/^\/api\/customers\/[^/]+\/booking-simulation(?:\/|$)/.test(path)&&!mutation;
+      return { authorization: `Bearer ${session.token}`,subject: session.subject,
+        csrfDenied: mutation&&!csrfValid(request,session)||(simulationRead&&
+          (request.headers["x-csrf-token"]!==session.csrf||request.headers["sec-fetch-site"]==="cross-site")) };
     },
     async handle(request: IncomingMessage,response: ServerResponse,requestId: string,
       audit: (event: AccessAudit) => Promise<void>): Promise<boolean> {
@@ -164,7 +168,8 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
         const customer=url.searchParams.get("customer")??"";
         if(!/^[a-z0-9][a-z0-9-]{0,63}$/.test(customer)) { send(400,"invalid_login_customer"); return true; }
         const workspace=url.searchParams.get("workspace")??"reviews";
-        if(workspace!=="reviews" && workspace!=="agent") { send(400,"invalid_login_workspace"); return true; }
+        if(workspace!=="reviews" && workspace!=="agent" && workspace!=="simulation") { send(400,"invalid_login_workspace"); return true; }
+        if(workspace==="simulation"&&!simulationEnabled) { send(503,"booking_simulation_disabled"); return true; }
         if(request.headers["sec-fetch-site"]==="cross-site") { send(403,"cross_site_login_denied"); return true; }
         if(pending.size>=1000) { send(503,"login_capacity_unavailable"); return true; }
         const state=random();
@@ -240,7 +245,8 @@ export function createApplicationSessions(input: ApplicationSessionConfig) {
             `${loginName}=; Max-Age=0${options}`,
             `${sessionName}=${sessionId}; Max-Age=${Math.ceil((expiresAt-Date.now())/1000)}${options}`,
           ]);
-          response.writeHead(302,{ Location: login.workspace==="agent" ? `/agent/${login.customer}` : `/engineering/reviews/${login.customer}` }).end();
+          response.writeHead(302,{ Location: login.workspace==="simulation" ? `/simulation/${login.customer}` :
+            login.workspace==="agent" ? `/agent/${login.customer}` : `/engineering/reviews/${login.customer}` }).end();
           return true;
         } finally { exchanging--; }
       }

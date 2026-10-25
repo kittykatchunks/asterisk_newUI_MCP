@@ -11,6 +11,7 @@ import type { AmiConnection } from "./pbx-status.ts";
 import { openAgentStore } from "./agent-store.ts";
 import { openAgentDeviceLeaseStore } from "./agent-device-lease.ts";
 import type { CustomerPermission } from "./access.ts";
+import { openBookingSimulation } from "./booking-simulation.ts";
 
 export async function loadLocalPbxStatus(root: string, endpoints = false) {
   let text: string;
@@ -106,7 +107,7 @@ export async function loadCapturedIncidents(root: string): Promise<ApprovedIncid
   }));
 }
 
-export async function startLocalEngineering(root: string, stageCapturedReports = false, withAgents = false) {
+export async function startLocalEngineering(root: string, stageCapturedReports = false, withAgents = false, withSimulation = false) {
   const { accounts, client } = await configuration(root);
   const pbx = await loadLocalPbxStatus(root);
   const endpoints = await loadLocalPbxStatus(root, true);
@@ -131,8 +132,10 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
   const store = openDiagnosticStore(databasePath);
   let agents: ReturnType<typeof openAgentStore> | undefined;
   let deviceLeases: ReturnType<typeof openAgentDeviceLeaseStore> | undefined;
+  let simulation: ReturnType<typeof openBookingSimulation> | undefined;
   let server: ReturnType<typeof createDiagnosticApi> | undefined;
   try {
+    if (withSimulation) simulation = openBookingSimulation(join(directory, "booking-simulation.sqlite"));
     if (withAgents) {
       agents = openAgentStore(join(directory, "agents.sqlite"), { readOnly: true });
       const alice = accounts.find((account) => account.username === "alice")!;
@@ -162,7 +165,8 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
       memberships: accounts.map((account) => {
         const permissions: CustomerPermission[] = account.username === "alice" ?
           ["diagnostics:read", "diagnostics:report", "diagnostics:review"] : ["diagnostics:read"];
-        if (withAgents && account.username === "alice") permissions.push("agent:access");
+        if ((withAgents || withSimulation) && account.username === "alice") permissions.push("agent:access");
+        if (withSimulation && account.username === "alice") permissions.push("booking:simulate");
         return { issuer, subject: account.subject, customer: account.customer, permissions };
       }), supportGrants: [],
     }, store.audit, (error, requestId) => {
@@ -173,7 +177,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
       tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
       clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
       allowLoopbackHttpForTests: true,
-    }, pbx, endpoints, agents, deviceLeases);
+    }, pbx, endpoints, agents, deviceLeases, simulation);
     const active = server;
     await new Promise<void>((resolve, reject) => {
       const failed = (error: Error) => reject(error);
@@ -185,13 +189,14 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
     });
     let stopped: Promise<void> | undefined;
     return {
-      origin, databasePath, staged, withAgents,
+      origin, databasePath, staged, withAgents, withSimulation,
       stop() {
         stopped ??= new Promise<void>((resolve, reject) => {
           active.close((error) => {
             store.close();
             agents?.close();
             deviceLeases?.close();
+            simulation?.close();
             if (error) reject(error); else resolve();
           });
           active.closeAllConnections();
@@ -207,6 +212,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
     store.close();
     agents?.close();
     deviceLeases?.close();
+    simulation?.close();
     throw error;
   }
 }

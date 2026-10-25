@@ -45,7 +45,7 @@ export function createDiagnosticApi(
   if (bookingSimulation && !sessionConfig) throw new Error("Booking simulation requires application sessions");
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
       sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
-  const sessions = sessionConfig ? createApplicationSessions(sessionConfig) : undefined;
+  const sessions = sessionConfig ? createApplicationSessions(sessionConfig, bookingSimulation !== undefined) : undefined;
   const identityIssuer = config.issuer;
   const verify = createAccessVerifier(config);
   return createServer(async (request, response) => {
@@ -79,11 +79,34 @@ export function createDiagnosticApi(
       const workspace = /^\/engineering\/reviews\/[a-z0-9][a-z0-9-]{0,63}$/.test(path);
       const agentWorkspace = /^\/agent\/[a-z0-9][a-z0-9-]{0,63}$/.test(path);
       const agentAsset = path === "/agent/console.js";
-      if (agentWorkspace || agentAsset) {
+      const simulationWorkspace = /^\/simulation\/customer-[ab]$/.test(path);
+      const simulationAsset = path === "/simulation/workspace.js";
+      if (agentWorkspace || agentAsset || simulationWorkspace || simulationAsset) {
         if (request.method !== "GET") { response.setHeader("Allow", "GET"); send(405, "method_not_allowed"); return; }
         if (!sessions) { send(503, "application_session_unavailable"); return; }
-        const content = await readFile(new URL(agentAsset ? "./agent-console.js" : "./agent-console.html", import.meta.url), "utf8");
-        response.setHeader("Content-Type", agentAsset ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
+        if ((simulationWorkspace || simulationAsset) && !bookingSimulation) { send(503, "booking_simulation_disabled"); return; }
+        let content = await readFile(new URL(simulationAsset ? "./booking-workspace.js" :
+          simulationWorkspace ? "./booking-workspace.html" : agentAsset ? "./agent-console.js" : "./agent-console.html", import.meta.url), "utf8");
+        if (agentWorkspace && bookingSimulation) {
+          const identity = sessions.identity(request);
+          if (identity && path === `/agent/${identity.customer}`) {
+            const authorization = sessions.authorization(request).authorization;
+            const agent = await verify(authorization, identity.customer, "agent:access");
+            const simulation = await verify(authorization, identity.customer, "booking:simulate");
+            const live = sessions.identity(request);
+            if (agent.allowed && simulation.allowed && agent.subject === identity.subject &&
+                simulation.subject === identity.subject && live?.sessionId === identity.sessionId) {
+              await audit({ requestId, timestamp: new Date().toISOString(), customer: identity.customer,
+                subject: identity.subject, operation: "booking-simulation", status: 200,
+                outcome: "simulation_navigation_view_requested" });
+              if (sessions.identity(request)?.sessionId === identity.sessionId) {
+                content = content.replace("<!-- simulation-navigation -->",
+                  `<a id="simulation-link" href="/simulation/${identity.customer}">Open booking simulation (no real bookings)</a>`);
+              }
+            }
+          }
+        }
+        response.setHeader("Content-Type", agentAsset || simulationAsset ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
         response.setHeader("Content-Security-Policy",
           "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
         response.setHeader("X-Frame-Options", "DENY");

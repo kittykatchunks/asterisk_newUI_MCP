@@ -321,7 +321,7 @@ do not automatically extend the frozen REFER matrix.
 ### Selected next increment: authenticated simulation workspace
 
 The user selected a simulation workspace, starting with this permission/isolation
-contract and finite checklist. This is a specification, not executed UI evidence.
+contract and finite checklist. Executed foundation and browser evidence follow.
 Keep the completed BS harness as the domain foundation; do not activate voice,
 SIP, microphone access, real dispatch, MCP, background reconciliation or scheduling.
 
@@ -408,8 +408,8 @@ do not add a framework, service or vendor dependency.
 
 #### Finite workspace acceptance checklist
 
-The SW checklist is **not yet complete**. Backend foundation evidence is recorded
-below; browser/launcher and real-identity checks remain pending. The completed BS
+The SW checklist is **complete for the bounded synthetic browser contract**;
+executed foundation and browser/launcher/real-identity evidence is recorded below. The completed BS
 checks remain required regression coverage, not evidence for this new surface.
 
 | ID | Required evidence |
@@ -433,10 +433,12 @@ readiness. Voice integration remains a separately authorised next decision.
 
 #### Executed workspace foundation evidence
 
-The first implementation increment adds explicit `booking:simulate` membership
+The first implementation increment added explicit `booking:simulate` membership
 validation, persistent issuer/subject/customer-owned conversations and a narrow
-session-only HTTP adapter. It does not yet supply a browser page, eligible agent
-navigation, simulation login/return workspace or local-launcher opt-in. Existing
+session-only HTTP adapter. At that point it did not supply a browser page, eligible
+agent navigation, simulation login/return workspace or local-launcher opt-in. The
+table below records that initial 60-test checkpoint; the gaps noted there are
+closed by the subsequent executed workspace evidence below. Default
 startup remains disabled for simulation; embedded-server callers must explicitly
 supply a dedicated simulation store and application-session configuration.
 See [API contract and reproduction](./README.md#authenticated-simulation-api-foundation).
@@ -461,9 +463,42 @@ format 2. Tests clean temporary databases and loopback identity servers. No
 dependencies, live vendor calls, phone capabilities or services left running were
 introduced; the frozen REFER suite was not expanded or rerun.
 
-Next bounded increment: wire explicit local-launcher opt-in and simulation
-login/navigation, then implement the synthetic browser interactions and execute
-the remaining SW evidence. Do not mark the whole workspace complete from API tests.
+#### Executed simulation workspace evidence
+
+The follow-on implements the synthetic browser workflow, fixed `simulation` login
+workspace, eligible agent navigation and explicit `-WithSimulation` launcher opt-in.
+It does not require agent assignments/device reservations or turn on calling.
+Simulation reads additionally require the page's bootstrap CSRF token, so old pages
+cannot read through a different newly rotated session cookie.
+See [setup, workflow and reproduction](./README.md#synthetic-booking-browser-workspace).
+
+| Check | Executed evidence |
+|---|---|
+| SW-01 | Focused access/HTTP tests and real Keycloak launcher proof verify fixed simulation login return, eligible agent navigation, explicit opt-in, disabled default restart and Bob denial. Agent-only, diagnostics-only and support grants remain insufficient. Identity preflight preserves exact subjects without requiring an assignment database. |
+| SW-02 | Existing session/API checks pass alongside new read-token/rotated-cookie denial. Real application-session/launcher proofs pass with the new login route. Logout held at the audit boundary still fences mutation; browser expiry and denied requests clear controls/data. |
+| SW-03 | Foundation owner-isolation/migration/reopen tests pass unchanged. Real launcher restart retains the same subject's conversation and recovers its operation; no legacy harness ownership is inferred. |
+| SW-04 | Browser tests assert the persistent simulation notice, select-only inputs, no microphone/WebSocket traffic and an explicit request allowlist. Strict HTTP body/scope/synthetic validation and byte boundaries continue to pass. |
+| SW-05 | Browser keyboard sequence proves separate review/confirm/submit and confirmation invalidation after editing. Unsaved changes block dispatch. API's held-submit/newer-confirmed-revision race test proves no stale-tab effect. |
+| SW-06 | Browser checks cover accepted/rejected/unknown states with truthful references, disabled pending actions, and all four scenarios. HTTP/domain replay/concurrency checks retain one effect; unknown/submitting never offers a same-conversation replacement. |
+| SW-07 | Browser fault injection discards replies after conversation/draft creation or submission; explicit own-list/read recovery does not recreate/resubmit. Real Keycloak server restart recovers one unknown result to acceptance with exactly one simulator effect. Unresolved stays unknown; missing-receipt domain checks still pass. |
+| SW-08 | Browser handover displays saved details, correlation, confirmed revision and rejected/unknown state for unsupported/disconnected reasons. Structured domain handover and unsupported input rejection remain covered; no transfer/cancellation occurs. |
+| SW-09 | Browser tests clear details before waiting for logout, report failed logout, fence a held reply after logout/expiry, and clear denied data. Reload lists without mutation and requires explicit operation resume; no polling or local/session storage is used. |
+| SW-10 | Browser conflict/unavailable/malformed/transport errors display explicit recovery guidance and request references where supplied. Audit failure/corruption/after-effect tests remain passing; audit intent is not represented as completed booking outcome. |
+| SW-11 | Five browser tests exercise keyboard activation, labelled selects, semantic status/alerts, pending/conflict/unavailable states, inert malformed content and a request allowlist. This is not a comprehensive accessibility or visual-design audit. |
+| SW-12 | Typecheck and 75 focused tests pass, including all BS checks and affected identity/session/agent/storage regressions. The complete existing real Keycloak identity/application-session/launcher runner passes with simulation coverage; it removes its owned container/network afterward. |
+
+The finite SW-01 through SW-12 increment is complete for local synthetic exercises,
+not production booking readiness, real dispatch or Milestone 1. Local fixture
+passwords/client secrets rotate, but subject IDs are retained while simulation
+ownership storage exists (or agent/simulation mode is explicitly selected), without
+granting either opt-in by default. Missing/invalid retained identities fail
+explicitly rather than orphaning records through silent regeneration.
+
+No dependencies were added; no services are left running. The frozen REFER matrix
+was neither expanded nor rerun. External dispatch semantics, live voice and
+simulation-store production backup/recovery remain unproven. Stop here rather than
+growing the checklist; the next bounded scope requires a separate decision between
+voice-integration planning and an unfinished Milestone 1 gate.
 
 ## 6. Interface and roaming agents
 

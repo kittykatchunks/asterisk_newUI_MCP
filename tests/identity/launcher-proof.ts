@@ -37,6 +37,10 @@ let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   app = await startLocalEngineering(directory, true);
   assert.equal(app.withAgents, false);
+  assert.equal(app.withSimulation, false);
+  await assert.rejects(access(join(directory, ".local-proof", "engineering", "booking-simulation.sqlite")),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
+  assert.equal((await fetch(app.origin + "/simulation/customer-a")).status, 503);
   assert.equal(app.staged, 2);
   assert.equal((await fetch(app.origin + "/auth/session")).status, 401);
   await assert.rejects(startLocalEngineering(directory), (error: unknown) =>
@@ -89,6 +93,77 @@ try {
   app = undefined;
   const agentPath = join(directory, ".local-proof", "engineering", "agents.sqlite");
   const leasePath = join(directory, ".local-proof", "engineering", "device-leases.sqlite");
+  app = await startLocalEngineering(directory, false, false, true);
+  assert.equal(app.withSimulation, true);
+  assert.equal(app.withAgents, false, "Simulation must not require assignment/device-reservation activation");
+  const simulationContext = await browser.newContext();
+  let simulatedOperation = "";
+  try {
+    const page = await simulationContext.newPage();
+    await page.goto(app.origin + "/simulation/customer-a");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(alice.username);
+    await page.locator("#password").fill(alice.password);
+    await page.locator("#kc-login").click();
+    await page.waitForURL(app.origin + "/simulation/customer-a");
+    await page.locator("#selection").filter({ hasText: "Own exercises loaded" }).waitFor();
+    await page.getByRole("button", { name: "Start new synthetic exercise", exact: true }).click();
+    await page.getByRole("button", { name: "Create synthetic draft", exact: true }).click();
+    await page.getByRole("button", { name: "Review summary", exact: true }).click();
+    await page.getByRole("button", { name: "Confirm displayed revision", exact: true }).click();
+    await page.getByLabel("Test scenario", { exact: true }).selectOption("lose-reply");
+    const submitted = page.waitForResponse((response) => response.url().endsWith("/submit"));
+    await page.getByRole("button", { name: "Submit confirmed simulation", exact: true }).click();
+    simulatedOperation = (await (await submitted).json()).result.id;
+    await page.locator("#operation").filter({ hasText: "State: outcome unknown" }).waitFor();
+    await page.goto(app.origin + "/agent/customer-a");
+    await page.getByRole("link", { name: "Open booking simulation (no real bookings)", exact: true }).click();
+    await page.locator("#selection").filter({ hasText: "Own exercises loaded" }).waitFor();
+    await page.getByRole("button", { name: /^Resume .*outcome unknown/ }).click();
+    await page.locator("#selection").filter({ hasText: simulatedOperation }).waitFor();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await page.locator("#session-status").filter({ hasText: "Signed out" }).waitFor();
+    assert.equal(await page.locator("#operation").textContent(), "");
+  } finally { await simulationContext.close(); }
+  await assert.rejects(access(agentPath), (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
+  await assert.rejects(access(leasePath), (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
+  await app.stop();
+  app = await startLocalEngineering(directory, false, false, true);
+  const resumedContext = await browser.newContext();
+  try {
+    const page = await resumedContext.newPage();
+    await page.goto(app.origin + "/simulation/customer-a");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(alice.username);
+    await page.locator("#password").fill(alice.password);
+    await page.locator("#kc-login").click();
+    await page.getByRole("button", { name: /^Resume .*outcome unknown/ }).click();
+    await page.locator("#selection").filter({ hasText: simulatedOperation }).waitFor();
+    await page.getByRole("button", { name: "Reconcile existing operation", exact: true }).click();
+    await page.locator("#operation").filter({ hasText: "State: accepted" }).waitFor();
+    assert.match(await page.locator("#operation").textContent() ?? "", new RegExp(`SIM-${simulatedOperation}`));
+  } finally { await resumedContext.close(); }
+  const simulationDenied = await browser.newContext();
+  try {
+    const bob = accounts.find((account) => account.username === "bob")!;
+    const page = await simulationDenied.newPage();
+    await page.goto(app.origin + "/simulation/customer-b");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(bob.username);
+    await page.locator("#password").fill(bob.password);
+    await page.locator("#kc-login").click();
+    await page.locator("#session-status").filter({ hasText: "Simulation access denied" }).waitFor();
+    assert.equal(await page.locator("#workspace").isHidden(), true);
+    await page.goto(app.origin + "/agent/customer-b");
+    assert.equal(await page.locator("#simulation-link").count(), 0);
+  } finally { await simulationDenied.close(); }
+  const simulationReader = new DatabaseSync(join(directory, ".local-proof", "engineering", "booking-simulation.sqlite"), { readOnly: true });
+  try {
+    assert.equal(simulationReader.prepare("SELECT count(*) AS total FROM simulated_dispatch").get()?.total, 1);
+    assert.equal(simulationReader.prepare("SELECT subject FROM simulated_conversations").get()?.subject, alice.subject);
+  } finally { simulationReader.close(); }
+  await app.stop();
+  app = undefined;
   await assert.rejects(startLocalEngineering(directory, false, true), /unable to open database/);
   await assert.rejects(access(agentPath), (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
   await assert.rejects(access(leasePath), (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT");
@@ -159,6 +234,8 @@ try {
   await app.stop();
   app = await startLocalEngineering(directory);
   assert.equal(app.withAgents, false, "Agent opt-in must not persist as a default permission grant");
+  assert.equal(app.withSimulation, false, "Simulation opt-in must not persist as default authority");
+  assert.equal((await fetch(app.origin + "/simulation/customer-a")).status, 503);
   await app.stop();
   app = undefined;
   const released = createServer();
@@ -215,7 +292,7 @@ try {
   } finally {
     if (child.exitCode === null && child.signalCode === null) { child.kill(); await exited; }
   }
-  console.log("PASS launcher: review persistence, explicit agent opt-in with existing assignment, Bob denial, lease restart conflict, safe defaults and graceful CLI shutdown");
+  console.log("PASS launcher: review persistence, explicit agent and independent simulation opt-ins, fixed simulation login/navigation, Bob denial, one recoverable simulated effect across restart, lease restart conflict, safe defaults and graceful CLI shutdown");
 } finally {
   if (browser) await browser.close();
   if (app) await app.stop();
