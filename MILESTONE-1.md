@@ -2732,6 +2732,22 @@ defines future acceptance and explicit opt-in flags. No unanswered SIP runtime
 pass is claimed. A later execution needs separate approval; Gate A/Gate C,
 media quality, real phone interoperability and deployment remain unproven.
 
+### First registered SIP no-answer/CANCEL runtime proof passed
+
+One separately approved attempt passed unchanged: two registrations, queued
+caller/ringing agent, matched CANCEL/200 and INVITE/487/ACK, then original
+caller **TIMEOUT with 3000 ms queued / 0 ms answered**. The queue recorded
+C:0/A:1 and no completed member calls. Caller BYE, member removal, dual
+unregistration and exact empty-policy restoration passed.
+
+Preflight/client/PBX exited zero; owned resources and all three credential
+files were removed. Warmed bridge/inventory matched and the existing four
+containers remained stopped. Overall 22.343 seconds is not media latency.
+Final regression passes **91 offline Python and 40 source/evidence tests**.
+The [runtime handoff](./PROJECT-PLAN.md#synthetic-sip-unanswered-queue-runtime-passed)
+binds exact evidence and limits. No RTP quality, real phone, human service,
+Gate A/Gate C or deployment claim is made. Further runtime needs new approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

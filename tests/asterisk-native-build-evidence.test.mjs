@@ -19,6 +19,103 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("unanswered SIP runtime binds ringing, correlated cancellation, zero-answer timeout and cleanup", () => {
+  const validation = read(`${directory}/sip-unanswered-queue-validation.json`);
+  const report = read(`${directory}/sip-unanswered-queue-smoke-report.json`);
+  const outcome = report.sipQueueUnanswered;
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  assert.equal(validation.passed, true);
+  assert.equal(validation.authorizedUnansweredSipAttempts, 1);
+  assert.equal(validation.executedUnansweredSipAttempts, 1);
+  assert.equal(validation.executedRevision, "bb3a3dfe470b057ec7d2b77be312bf0cc907db9c");
+  assert.equal(report.passed, true);
+  assert.equal(report.sipQueueUnansweredRequested, true);
+  assert.equal(report.sipQueueAnswerRequested, false);
+  assert.equal(report.sipQueueTimeoutRequested, false);
+  assert.equal(report.imageId, validation.imageId);
+  assert.equal(report.carrierImageId, validation.carrierImageId);
+  assert.equal(report.bundleManifestSha256, validation.bundleManifestSha256);
+  assert.deepEqual(report.loadedModules, read(`${directory}/desktop-image-smoke-report.json`).loadedModules);
+  assert.equal(report.loadedModules.length, 41);
+  assert.equal(report.testCommandAbsent, true);
+  assert.equal(outcome.passed, true);
+  assert.equal(outcome.configuredTimeoutPriority, "app");
+  assert.equal(outcome.memberAddedPolicy.memberCount, 1);
+  assert.equal(outcome.ringingObservation.policy.callerCount, 1);
+  assert.equal(outcome.ringingObservation.policy.memberCount, 1);
+  const ringing = outcome.ringingObservation.channels;
+  assert.equal(ringing.length, 2);
+  const caller = ringing.find((row) => row.name.startsWith("PJSIP/proof-client-"));
+  assert.equal(caller.state, "Up");
+  assert.equal(caller.application, "Queue");
+  assert.equal(caller.data, "proof-queue,r,,,3");
+  assert(ringing.some((row) => row.name.startsWith("PJSIP/proof-agent-") && row.state === "Ringing"));
+  assert.deepEqual(outcome.cancellation, {
+    phase: "agent-cancelled", cancelCode: 200, inviteFinalCode: 487,
+    transactionAckSeen: true, agentAnswered: false,
+  });
+  assert.deepEqual(outcome.resultVariables, {
+    QUEUESTATUS: "TIMEOUT", QUEUEWAIT_MS: "3000", ANSWEREDTIME_MS: "0", ABANDONED: "TRUE",
+  });
+  const result = outcome.resultProgress.at(-1);
+  assert.equal(result.channels.length, 1);
+  assert.equal(result.channels[0].name, caller.name);
+  assert.equal(result.channels[0].state, "Up");
+  assert.equal(result.channels[0].application, "Wait");
+  assert.equal(result.policy.callerCount, 0);
+  assert.match(outcome.resultChannelDetails, /Bridge ID: \(Not bridged\)/);
+  assert.match(outcome.completedQueueOutput, /\bC:0\b/);
+  assert.match(outcome.completedQueueOutput, /\bA:1\b/);
+  assert.match(outcome.completedQueueOutput, /PJSIP\/proof-agent.*has taken no calls/);
+  assert.equal(outcome.memberRemoved, true);
+  assert.deepEqual(outcome.initialPolicy, outcome.finalPolicy);
+  assert.equal(outcome.finalPolicy.memberCount, 0);
+  assert.equal(outcome.finalPolicy.callerCount, 0);
+  assert.equal(report.registrationPassed, true);
+  assert.equal(report.clientReport.passed, true);
+  assert.equal(report.clientReport.unansweredQueueRequested, true);
+  assert.equal(report.clientReport.answeredQueueRequested, false);
+  assert.notEqual(report.clientReport.clientPort, report.clientReport.agentPort);
+  assert.deepEqual(report.phases.map((phase) => phase.client.phase), [
+    "registered-both", "agent-ringing", "agent-cancelled", "call-complete", "unregistered-both",
+  ]);
+  assert.deepEqual(report.phases[0].client.contactExpirySeconds, [59, 59]);
+  for (const phase of report.phases.slice(0, 4)) {
+    assert.deepEqual([...phase.contacts].sort(), [
+      `proof-agent/sip:proof-agent@${report.clientReport.clientAddress}:${report.clientReport.agentPort}`,
+      `proof-client/sip:proof-client@${report.clientReport.clientAddress}:${report.clientReport.clientPort}`,
+    ].sort());
+  }
+  assert.equal(report.phases[3].client.callerByeCode, 200);
+  assert.deepEqual(report.phases[4].contacts, []);
+  assert.equal(report.phases[4].client.code, 200);
+  assert.deepEqual(report.preflightClientStopped, { exitCode: 0, oomKilled: false });
+  assert.deepEqual(report.processExitCodes, { pbx: 0, client: 0 });
+  assert.deepEqual(report.initialInventory, report.finalInventory);
+  assert.equal(report.finalInventory.containers.length, 4);
+  assert(report.finalInventory.containers.every((row) => row.endsWith(" exited")));
+  assert.deepEqual(report.initialBridge, report.finalBridge);
+  assert.equal(report.ownedResourcesRemoved, true);
+  assert.equal(report.credentialFilesRemoved, true);
+  assert.equal(report.watchdogExpired, false);
+  assert.equal(report.elapsedSeconds, 22.343);
+  assert.equal(report.mediaTested, false);
+  assert.equal(report.mediaPassed, false);
+  for (const [name, digest] of Object.entries(report.toolCanonicalLfHashes)) {
+    const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
+    assert.equal(canonical, digest, name);
+  }
+  for (const flag of ["mediaTested", "humanAnsweringTested", "existingPbxOperated",
+    "imageRebuilt", "dependenciesInstalled", "runtimeApplyAuthorized",
+    "gateAAcceptanceComplete", "gateCAuthorized", "redistributionApproved",
+    "licenseClosureComplete", "furtherRuntimeAuthorized"]) {
+    assert.equal(validation[flag], false, flag);
+  }
+  assert.equal(preparation.sipUnansweredExecution.passed, true);
+});
+
 test("registered SIP no-answer preparation remains offline and requires explicit isolated opt-in", () => {
   const record = read(`${directory}/sip-unanswered-preparation.json`);
   assert.equal(record.stage, "synthetic-sip-unanswered-queue-implemented-offline-only");

@@ -1,0 +1,529 @@
+{
+  "schemaVersion": 1,
+  "stage": "custom-image-isolated-sip-queue-unanswered-proof",
+  "passed": true,
+  "sipQueueTimeoutRequested": false,
+  "sipQueueAnswerRequested": false,
+  "sipQueueUnansweredRequested": true,
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "carrierImageId": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "payloadValidationSha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3",
+  "owner": "54bae77013244bcba7672de229e33a4c",
+  "networkName": "asterisk-sip-54bae7701324",
+  "diagnostics": [],
+  "cliObservations": [
+    {
+      "command": "pjsip show endpoints",
+      "output": "\n Endpoint:  <Endpoint/CID.....................................>  <State.....>  <Channels.>\n    I/OAuth:  <AuthId/UserName...........................................................>\n        Aor:  <Aor............................................>  <MaxContact>\n      Contact:  <Aor/ContactUri..........................> <Hash....> <Status> <RTT(ms)..>\n  Transport:  <TransportId........>  <Type>  <cos>  <tos>  <BindAddress..................>\n    Channel:  <ChannelId......................................>  <State.....>  <Time.....>\n        Exten: <DialedExten...........>  CLCID: <ConnectedLineCID.......>\n==========================================================================================\n\n Endpoint:  proof-agent                                          Unavailable   0 of inf\n     InAuth:  proof-agent-auth/proof-agent\n        Aor:  proof-agent                                        1\n  Transport:  transport-udp             udp      0      0  0.0.0.0:5060\n\n Endpoint:  proof-client                                         Unavailable   0 of inf\n     InAuth:  proof-client-auth/proof-client\n        Aor:  proof-client                                       1\n  Transport:  transport-udp             udp      0      0  0.0.0.0:5060\n\n\nObjects found: 2\n\n"
+    },
+    {
+      "command": "pjsip show transports",
+      "output": "\nTransport:  <TransportId........>  <Type>  <cos>  <tos>  <BindAddress....................>\n==========================================================================================\n\nTransport:  transport-udp             udp      0      0  0.0.0.0:5060\n\nObjects found: 1\n\n"
+    },
+    {
+      "command": "pjsip show aors",
+      "output": "\n      Aor:  <Aor..............................................>  <MaxContact>\n    Contact:  <Aor/ContactUri............................> <Hash....> <Status> <RTT(ms)..>\n==========================================================================================\n\n      Aor:  proof-agent                                          1\n\n      Aor:  proof-client                                         1\n\n\nObjects found: 2\n\n"
+    },
+    {
+      "command": "pjsip show contacts",
+      "output": "No objects found.\n\n"
+    },
+    {
+      "command": "pjsip show contacts",
+      "output": "\n  Contact:  <Aor/ContactUri..............................> <Hash....> <Status> <RTT(ms)..>\n==========================================================================================\n\n  Contact:  proof-agent/sip:proof-agent@172.23.0.3:54124   44d33ef385 NonQual         nan\n  Contact:  proof-client/sip:proof-client@172.23.0.3:42171 0d5aadd0b0 NonQual         nan\n\nObjects found: 2\n\n"
+    },
+    {
+      "command": "pjsip show contacts",
+      "output": "\n  Contact:  <Aor/ContactUri..............................> <Hash....> <Status> <RTT(ms)..>\n==========================================================================================\n\n  Contact:  proof-agent/sip:proof-agent@172.23.0.3:54124   44d33ef385 NonQual         nan\n  Contact:  proof-client/sip:proof-client@172.23.0.3:42171 0d5aadd0b0 NonQual         nan\n\nObjects found: 2\n\n"
+    },
+    {
+      "command": "pjsip show contacts",
+      "output": "\n  Contact:  <Aor/ContactUri..............................> <Hash....> <Status> <RTT(ms)..>\n==========================================================================================\n\n  Contact:  proof-agent/sip:proof-agent@172.23.0.3:54124   44d33ef385 NonQual         nan\n  Contact:  proof-client/sip:proof-client@172.23.0.3:42171 0d5aadd0b0 NonQual         nan\n\nObjects found: 2\n\n"
+    },
+    {
+      "command": "pjsip show contacts",
+      "output": "\n  Contact:  <Aor/ContactUri..............................> <Hash....> <Status> <RTT(ms)..>\n==========================================================================================\n\n  Contact:  proof-agent/sip:proof-agent@172.23.0.3:54124   44d33ef385 NonQual         nan\n  Contact:  proof-client/sip:proof-client@172.23.0.3:42171 0d5aadd0b0 NonQual         nan\n\nObjects found: 2\n\n"
+    },
+    {
+      "command": "pjsip show contacts",
+      "output": "No objects found.\n\n"
+    },
+    {
+      "command": "pjsip show endpoints",
+      "output": "\n Endpoint:  <Endpoint/CID.....................................>  <State.....>  <Channels.>\n    I/OAuth:  <AuthId/UserName...........................................................>\n        Aor:  <Aor............................................>  <MaxContact>\n      Contact:  <Aor/ContactUri..........................> <Hash....> <Status> <RTT(ms)..>\n  Transport:  <TransportId........>  <Type>  <cos>  <tos>  <BindAddress..................>\n    Channel:  <ChannelId......................................>  <State.....>  <Time.....>\n        Exten: <DialedExten...........>  CLCID: <ConnectedLineCID.......>\n==========================================================================================\n\n Endpoint:  proof-agent                                          Unavailable   0 of inf\n     InAuth:  proof-agent-auth/proof-agent\n        Aor:  proof-agent                                        1\n  Transport:  transport-udp             udp      0      0  0.0.0.0:5060\n\n Endpoint:  proof-client                                         Unavailable   0 of inf\n     InAuth:  proof-client-auth/proof-client\n        Aor:  proof-client                                       1\n  Transport:  transport-udp             udp      0      0  0.0.0.0:5060\n\n\nObjects found: 2\n\n"
+    }
+  ],
+  "phases": [
+    {
+      "client": {
+        "phase": "registered-both",
+        "contactExpirySeconds": [
+          59,
+          59
+        ]
+      },
+      "contacts": [
+        "proof-agent/sip:proof-agent@172.23.0.3:54124",
+        "proof-client/sip:proof-client@172.23.0.3:42171"
+      ]
+    },
+    {
+      "client": {
+        "phase": "agent-ringing",
+        "inviteSeen": true
+      },
+      "contacts": [
+        "proof-agent/sip:proof-agent@172.23.0.3:54124",
+        "proof-client/sip:proof-client@172.23.0.3:42171"
+      ]
+    },
+    {
+      "client": {
+        "phase": "agent-cancelled",
+        "cancelCode": 200,
+        "inviteFinalCode": 487,
+        "transactionAckSeen": true,
+        "agentAnswered": false
+      },
+      "contacts": [
+        "proof-agent/sip:proof-agent@172.23.0.3:54124",
+        "proof-client/sip:proof-client@172.23.0.3:42171"
+      ]
+    },
+    {
+      "client": {
+        "phase": "call-complete",
+        "callerByeCode": 200
+      },
+      "contacts": [
+        "proof-agent/sip:proof-agent@172.23.0.3:54124",
+        "proof-client/sip:proof-client@172.23.0.3:42171"
+      ]
+    },
+    {
+      "client": {
+        "phase": "unregistered-both",
+        "code": 200
+      },
+      "contacts": []
+    }
+  ],
+  "registrationPassed": true,
+  "mediaPassed": false,
+  "sipTested": true,
+  "mediaTested": false,
+  "existingPbxOperated": false,
+  "runtimeApplyAuthorized": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false,
+  "toolHashes": {
+    "local\\asterisk-build\\sip-proof.py": "46d7da96462ccc878f339c7065cfabebc71ba2783447b601e3b4dd01f68cd9a6",
+    "local\\asterisk-build\\smoke-desktop.py": "928bcaa91d7aa0de85b2a6bb0062ec6adbf688535da310ddefc5158d5cf4edc6",
+    "tests\\sip_candidate_client.py": "cf09ba7f12e68e3ad454ca617982cf1967053631f639b758b7193ee0880c790c",
+    "tests\\sip_rtp_proof.py": "25c519e6d4bb4656dc8a63afdfdaa88638b2023a614083e7a0b1e3e0852fc186",
+    "local\\asterisk-build\\runtime_sip_answer.py": "6efe28001361750fc2714081281bb658d4c22a14fdb5bc3577e841af17e723cc",
+    "local\\asterisk-build\\runtime_answer_call.py": "bc16bf4eb540766f7f0f8740a12317024f33dcbc05cea2088641fd3b3a927f7f",
+    "tests\\sip_queue_answer_client.py": "a1f972973a6533792a44b05c30dcd0d055886c75e5910a7a24b4b43d31c1f2df",
+    "local\\asterisk-build\\runtime_sip_unanswered.py": "7784ccc2c846222b50838ada15e14d5df84a142a19df014c26124a6ea04b57cf",
+    "local\\asterisk-build\\runtime_local_call.py": "619c2a80d0b78815055eb2fba42a21da88b6f4ac1aebefaee90bb030a668e25b",
+    "local\\asterisk-build\\runtime_unanswered_call.py": "b96677c0679cad8d377d85dba13f2d3ce88e7bf97c75848cdaabbd5164f3959e"
+  },
+  "toolCanonicalLfHashes": {
+    "local\\asterisk-build\\sip-proof.py": "691c41125d65962ae8c65de1109bdac3ca67efeaf6d01c53f167032bdafd6773",
+    "local\\asterisk-build\\smoke-desktop.py": "69a53b84d5c3088d90916240aef81e48f12d103fa745e54092af471ce08c486e",
+    "tests\\sip_candidate_client.py": "84389155eafdf311b6aac57cc3dacb0e39a0670b1169560b01f9968aaea2c74f",
+    "tests\\sip_rtp_proof.py": "71ef627790943ed082ed88752aa96032ba9161a2733ef415aee92ecf9ab53ab9",
+    "local\\asterisk-build\\runtime_sip_answer.py": "2e474523c27c128417bab036053161b3f4707278e3ad3fa53bfabb84806b8674",
+    "local\\asterisk-build\\runtime_answer_call.py": "2182586d1831335466167d72008c7a3c658bab6882f683b7ed92a9e161997152",
+    "tests\\sip_queue_answer_client.py": "11e0f93c9d240fa9959e00940f32653e7157d7d6e082c9b35534fddd85d31eae",
+    "local\\asterisk-build\\runtime_sip_unanswered.py": "3de86589474b54d934976a019f3ed980ddc54549915532d2726d7daaffe3281f",
+    "local\\asterisk-build\\runtime_local_call.py": "39f4faca377a3b31f974991919e0932ea42c7940b8f5e4c47534e0a1a75b8e52",
+    "local\\asterisk-build\\runtime_unanswered_call.py": "67119cafefeb8461eda4d68f4f5fd8bcf35bb25feeff69b95b9cca34f354e67b"
+  },
+  "sanitizedConfiguration": "[global]\ntype=global\nuser_agent=Asterisk-Isolated-Candidate\n[transport-udp]\ntype=transport\nprotocol=udp\nbind=0.0.0.0:5060\n[proof-client]\ntype=endpoint\ntransport=transport-udp\ncontext=isolated-sip-proof\ndisallow=all\nallow=ulaw\nauth=proof-client-auth\naors=proof-client\ndirect_media=no\ndtmf_mode=none\nrtp_symmetric=yes\nforce_rport=yes\nrewrite_contact=yes\n[proof-client]\ntype=aor\nmax_contacts=1\nminimum_expiration=1\nmaximum_expiration=60\ndefault_expiration=60\nqualify_frequency=0\n[proof-client-auth]\ntype=auth\nauth_type=userpass\nusername=proof-client\npassword=[ephemeral-secret-not-exported]\n[proof-agent]\ntype=endpoint\ntransport=transport-udp\ncontext=isolated-sip-proof\ndisallow=all\nallow=ulaw\nauth=proof-agent-auth\naors=proof-agent\ndirect_media=no\ndtmf_mode=none\nrtp_symmetric=yes\nforce_rport=yes\nrewrite_contact=yes\n[proof-agent]\ntype=aor\nmax_contacts=1\nminimum_expiration=1\nmaximum_expiration=60\ndefault_expiration=60\nqualify_frequency=0\n[proof-agent-auth]\ntype=auth\nauth_type=userpass\nusername=proof-agent\npassword=[ephemeral-agent-secret-not-exported]\n",
+  "beforePreflightInventory": {
+    "containers": [
+      "09df44de4703800295dfd49d3ec3c7d48b36bca19103ce79f85d32e9a8a0616d phantom exited",
+      "1f30325d2a83fb095fc213dc6a55298c0cca361702959818ddb5d41774a7a2d7 asterisk-local-proof-customer-a-1 exited",
+      "50d93dc9b15a0826a7faa653ca03c9c9ecda2a6c3db9245b4bb55b8d28c9676c asterisk-local-proof-sip-test-a-1 exited",
+      "a56a2884873e8685253d0f66994d8f872187a1c5287b65a5583755a58b610569 asterisk-local-proof-customer-b-1 exited"
+    ],
+    "networks": [
+      "069f6385d5ec1c430712a427edab54d671849e812b3b2935661dde8ef15390f2 asterisk-local-proof_webrtc-b",
+      "07d41b3d60c066e67e5d27d5e51b0a6a7eadfe28e4a3433c4e6c9bc866893ad3 asterisk-local-proof_customer-b",
+      "2ef46a16a6ac3960ba6c0cc6976a768e7d820cca475a1a9f30f28d989742ff4b host",
+      "3858a104bf18b3f8c9387564f58d55cb08533feae9c26a09bd99f63aee9e965c asteriskcalllogging_default",
+      "659cd49beb51ba9c8cd6a700492a3e5e86d4a009c4ed1451096b0de648861e5e bridge",
+      "86a3f73698b2c9549cadaf230d6ff7a94f580f57365e529271155d6490f9dd6f asterisk-local-proof_customer-a",
+      "eee3999fe19301e068da374a55fd7352f0ae16ed1b88cc105f80067aac3bc5b0 none",
+      "f2afe53aba5693f84ad37979c480ec98679b5816c6dedc96cf0ec74b8efff8c1 asterisk-local-proof_webrtc-a"
+    ]
+  },
+  "pythonPreflightPassed": true,
+  "preflightClientId": "a9b09c89f7c76c70b1f62373cabec81a5f97e76daea651af9d1145a3350de64b",
+  "preflightClientStopped": {
+    "exitCode": 0,
+    "oomKilled": false
+  },
+  "initialInventory": {
+    "containers": [
+      "09df44de4703800295dfd49d3ec3c7d48b36bca19103ce79f85d32e9a8a0616d phantom exited",
+      "1f30325d2a83fb095fc213dc6a55298c0cca361702959818ddb5d41774a7a2d7 asterisk-local-proof-customer-a-1 exited",
+      "50d93dc9b15a0826a7faa653ca03c9c9ecda2a6c3db9245b4bb55b8d28c9676c asterisk-local-proof-sip-test-a-1 exited",
+      "a56a2884873e8685253d0f66994d8f872187a1c5287b65a5583755a58b610569 asterisk-local-proof-customer-b-1 exited"
+    ],
+    "networks": [
+      "069f6385d5ec1c430712a427edab54d671849e812b3b2935661dde8ef15390f2 asterisk-local-proof_webrtc-b",
+      "07d41b3d60c066e67e5d27d5e51b0a6a7eadfe28e4a3433c4e6c9bc866893ad3 asterisk-local-proof_customer-b",
+      "17a2ff0c1a7dc89a235d180abd40b743476b8cd780d8210d714c100d8db2685a bridge",
+      "2ef46a16a6ac3960ba6c0cc6976a768e7d820cca475a1a9f30f28d989742ff4b host",
+      "3858a104bf18b3f8c9387564f58d55cb08533feae9c26a09bd99f63aee9e965c asteriskcalllogging_default",
+      "86a3f73698b2c9549cadaf230d6ff7a94f580f57365e529271155d6490f9dd6f asterisk-local-proof_customer-a",
+      "eee3999fe19301e068da374a55fd7352f0ae16ed1b88cc105f80067aac3bc5b0 none",
+      "f2afe53aba5693f84ad37979c480ec98679b5816c6dedc96cf0ec74b8efff8c1 asterisk-local-proof_webrtc-a"
+    ]
+  },
+  "initialBridge": {
+    "Name": "bridge",
+    "Id": "17a2ff0c1a7dc89a235d180abd40b743476b8cd780d8210d714c100d8db2685a",
+    "Created": "2026-10-25T17:03:13.076793254Z",
+    "Driver": "bridge",
+    "Internal": false,
+    "IPAM": {
+      "Driver": "default",
+      "Options": null,
+      "Config": [
+        {
+          "Subnet": "172.17.0.0/16",
+          "Gateway": "172.17.0.1"
+        }
+      ]
+    },
+    "Options": {
+      "com.docker.network.bridge.default_bridge": "true",
+      "com.docker.network.bridge.enable_icc": "true",
+      "com.docker.network.bridge.enable_ip_masquerade": "true",
+      "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+      "com.docker.network.bridge.name": "docker0",
+      "com.docker.network.driver.mtu": "1500"
+    },
+    "Containers": {}
+  },
+  "networkId": "374e9da3341a9ab6ba72fa53ee61b03d228e5c2b9db106cf2e76082d3a6fb7d0",
+  "limits": {
+    "pbx": {
+      "NetworkMode": "asterisk-sip-54bae7701324",
+      "ReadonlyRootfs": true,
+      "Privileged": false,
+      "Memory": 4294967296,
+      "MemorySwap": 4294967296,
+      "NanoCpus": 4000000000,
+      "PidsLimit": 256
+    },
+    "client": {
+      "NetworkMode": "asterisk-sip-54bae7701324",
+      "ReadonlyRootfs": true,
+      "Privileged": false,
+      "Memory": 134217728,
+      "MemorySwap": 134217728,
+      "NanoCpus": 500000000,
+      "PidsLimit": 32
+    }
+  },
+  "containerIds": {
+    "pbx": "bf469324fc314c9609078d9ea63c9b36e9e10b9d5cbe72b39e729868aa67b5df",
+    "client": "a5ee12531b72bc99ef51f30fb109f32d834ef809050d01e3662cbfeeacac5661"
+  },
+  "loadedModules": [
+    "app_celgenuserevent.so",
+    "app_dial.so",
+    "app_echo.so",
+    "app_mixmonitor.so",
+    "app_playtones.so",
+    "app_queue.so",
+    "app_stack.so",
+    "app_waitforsilence.so",
+    "bridge_native_rtp.so",
+    "bridge_simple.so",
+    "bridge_softmix.so",
+    "cel_custom.so",
+    "chan_pjsip.so",
+    "codec_alaw.so",
+    "codec_resample.so",
+    "codec_ulaw.so",
+    "format_wav.so",
+    "func_callerid.so",
+    "func_channel.so",
+    "func_strings.so",
+    "pbx_config.so",
+    "res_cdrel_custom.so",
+    "res_clioriginate.so",
+    "res_crypto.so",
+    "res_http_websocket.so",
+    "res_pjproject.so",
+    "res_pjsip.so",
+    "res_pjsip_authenticator_digest.so",
+    "res_pjsip_endpoint_identifier_user.so",
+    "res_pjsip_header_funcs.so",
+    "res_pjsip_pubsub.so",
+    "res_pjsip_registrar.so",
+    "res_pjsip_sdp_rtp.so",
+    "res_pjsip_session.so",
+    "res_pjsip_transport_websocket.so",
+    "res_rtp_asterisk.so",
+    "res_sorcery_astdb.so",
+    "res_sorcery_config.so",
+    "res_sorcery_memory.so",
+    "res_srtp.so",
+    "res_timing_timerfd.so"
+  ],
+  "testCommandAbsent": true,
+  "networkSettings": {
+    "internal": true,
+    "driver": "bridge",
+    "publishedPorts": 0,
+    "peers": {
+      "pbx": "172.23.0.2",
+      "client": "172.23.0.3"
+    }
+  },
+  "sipAttempted": true,
+  "lastClientProgress": {
+    "passed": false,
+    "registrationPassed": false,
+    "mediaPassed": false,
+    "answeredQueueRequested": false,
+    "unansweredQueueRequested": true,
+    "phases": [
+      {
+        "phase": "registered-both",
+        "contactExpirySeconds": [
+          59,
+          59
+        ]
+      },
+      {
+        "phase": "agent-ringing",
+        "inviteSeen": true
+      },
+      {
+        "phase": "agent-cancelled",
+        "cancelCode": 200,
+        "inviteFinalCode": 487,
+        "transactionAckSeen": true,
+        "agentAnswered": false
+      },
+      {
+        "phase": "call-complete",
+        "callerByeCode": 200
+      },
+      {
+        "phase": "unregistered-both",
+        "code": 200
+      }
+    ],
+    "clientAddress": "172.23.0.3",
+    "clientPort": 42171,
+    "agentPort": 54124,
+    "pbxAddress": "172.23.0.2"
+  },
+  "sipQueueUnanswered": {
+    "initialPolicy": {
+      "name": "proof-queue",
+      "origin": "static",
+      "strategy": "ringall",
+      "memberTimeoutSeconds": 7,
+      "joinEmptyMask": 0,
+      "leaveWhenEmptyMask": 0,
+      "memberCount": 0,
+      "callerCount": 0,
+      "callerListEmpty": true
+    },
+    "memberAddedPolicy": {
+      "name": "proof-queue",
+      "origin": "static",
+      "strategy": "ringall",
+      "memberTimeoutSeconds": 7,
+      "joinEmptyMask": 0,
+      "leaveWhenEmptyMask": 0,
+      "memberCount": 1,
+      "callerCount": 0,
+      "callerListEmpty": true
+    },
+    "configuredTimeoutPriority": "app",
+    "ringingObservation": {
+      "channels": [
+        {
+          "name": "PJSIP/proof-client-00000000",
+          "state": "Up",
+          "application": "Queue",
+          "data": "proof-queue,r,,,3"
+        },
+        {
+          "name": "PJSIP/proof-agent-00000001",
+          "state": "Ringing",
+          "application": "AppQueue",
+          "data": "(Outgoing Line)"
+        }
+      ],
+      "policy": {
+        "name": "proof-queue",
+        "origin": "static",
+        "strategy": "ringall",
+        "memberTimeoutSeconds": 7,
+        "joinEmptyMask": 0,
+        "leaveWhenEmptyMask": 0,
+        "memberCount": 1,
+        "callerCount": 1,
+        "callerListEmpty": false
+      }
+    },
+    "resultProgress": [
+      {
+        "channels": [
+          {
+            "name": "PJSIP/proof-client-00000000",
+            "state": "Up",
+            "application": "Wait",
+            "data": "10"
+          }
+        ],
+        "policy": {
+          "name": "proof-queue",
+          "origin": "static",
+          "strategy": "ringall",
+          "memberTimeoutSeconds": 7,
+          "joinEmptyMask": 0,
+          "leaveWhenEmptyMask": 0,
+          "memberCount": 1,
+          "callerCount": 0,
+          "callerListEmpty": true
+        }
+      }
+    ],
+    "resultChannelDetails": " -- General --\n           Name: PJSIP/proof-client-00000000\n           Type: PJSIP\n       UniqueID: 1792947800.0\n       LinkedID: 1792947800.0\n      Caller ID: (N/A)\n Caller ID Name: (N/A)\nConnected Line ID: (N/A)\nConnected Line ID Name: (N/A)\nEff. Connected Line ID: (N/A)\nEff. Connected Line ID Name: (N/A)\n    DNID Digits: queue-unanswered\n       Language: en\n          State: Up (6)\n  NativeFormats: (ulaw)\n    WriteFormat: ulaw\n     ReadFormat: ulaw\n WriteTranscode: No \n  ReadTranscode: No \n Time to Hangup: 0\n   Elapsed Time: 0h0m4s\n      Bridge ID: (Not bridged)\n --   PBX   --\n        Context: isolated-sip-proof\n      Extension: queue-unanswered\n       Priority: 3\n     Call Group: 0\n   Pickup Group: 0\n    Application: Wait\n           Data: 10\n Call Identifier: [C-00000001]\n      Variables:\nQUEUESTATUS=TIMEOUT\nQUEUEPOSITION=1\nANSWEREDTIME_MS=0\nANSWEREDTIME=0\nDIALEDTIME_MS=3503\nDIALEDTIME=3\nQUEUEWAIT_MS=3000\nQUEUEWAIT=3\nABANDONED=TRUE\nSIPDOMAIN=pbx\n -- Streams --\nName: audio-0\n    Type: audio\n    State: sendrecv\n    Group: -1\n    Formats: (ulaw)\n    Metadata:\n",
+    "resultVariables": {
+      "QUEUESTATUS": "TIMEOUT",
+      "QUEUEWAIT_MS": "3000",
+      "ANSWEREDTIME_MS": "0",
+      "ABANDONED": "TRUE"
+    },
+    "cancellation": {
+      "phase": "agent-cancelled",
+      "cancelCode": 200,
+      "inviteFinalCode": 487,
+      "transactionAckSeen": true,
+      "agentAnswered": false
+    },
+    "finalPolicy": {
+      "name": "proof-queue",
+      "origin": "static",
+      "strategy": "ringall",
+      "memberTimeoutSeconds": 7,
+      "joinEmptyMask": 0,
+      "leaveWhenEmptyMask": 0,
+      "memberCount": 0,
+      "callerCount": 0,
+      "callerListEmpty": true
+    },
+    "memberRemoved": true,
+    "completedQueueOutput": "proof-queue has 0 calls (max unlimited) in 'ringall' strategy (0s holdtime, 0s talktime), W:0, C:0, A:1, SL:0.0%, SL2:0.0% within 0s\n   Members: \n      PJSIP/proof-agent (ringinuse enabled) (dynamic) (Not in use) has taken no calls yet (login was 6 secs ago)\n   No Callers\n\n",
+    "passed": true,
+    "mediaVerified": false,
+    "humanAnsweringTested": false
+  },
+  "clientReport": {
+    "passed": true,
+    "registrationPassed": true,
+    "mediaPassed": false,
+    "answeredQueueRequested": false,
+    "unansweredQueueRequested": true,
+    "phases": [
+      {
+        "phase": "registered-both",
+        "contactExpirySeconds": [
+          59,
+          59
+        ]
+      },
+      {
+        "phase": "agent-ringing",
+        "inviteSeen": true
+      },
+      {
+        "phase": "agent-cancelled",
+        "cancelCode": 200,
+        "inviteFinalCode": 487,
+        "transactionAckSeen": true,
+        "agentAnswered": false
+      },
+      {
+        "phase": "call-complete",
+        "callerByeCode": 200
+      },
+      {
+        "phase": "unregistered-both",
+        "code": 200
+      }
+    ],
+    "clientAddress": "172.23.0.3",
+    "clientPort": 42171,
+    "agentPort": 54124,
+    "pbxAddress": "172.23.0.2"
+  },
+  "processExitCodes": {
+    "pbx": 0,
+    "client": 0
+  },
+  "ownedContainersRemoved": true,
+  "ownedResourcesRemoved": true,
+  "finalInventory": {
+    "containers": [
+      "09df44de4703800295dfd49d3ec3c7d48b36bca19103ce79f85d32e9a8a0616d phantom exited",
+      "1f30325d2a83fb095fc213dc6a55298c0cca361702959818ddb5d41774a7a2d7 asterisk-local-proof-customer-a-1 exited",
+      "50d93dc9b15a0826a7faa653ca03c9c9ecda2a6c3db9245b4bb55b8d28c9676c asterisk-local-proof-sip-test-a-1 exited",
+      "a56a2884873e8685253d0f66994d8f872187a1c5287b65a5583755a58b610569 asterisk-local-proof-customer-b-1 exited"
+    ],
+    "networks": [
+      "069f6385d5ec1c430712a427edab54d671849e812b3b2935661dde8ef15390f2 asterisk-local-proof_webrtc-b",
+      "07d41b3d60c066e67e5d27d5e51b0a6a7eadfe28e4a3433c4e6c9bc866893ad3 asterisk-local-proof_customer-b",
+      "17a2ff0c1a7dc89a235d180abd40b743476b8cd780d8210d714c100d8db2685a bridge",
+      "2ef46a16a6ac3960ba6c0cc6976a768e7d820cca475a1a9f30f28d989742ff4b host",
+      "3858a104bf18b3f8c9387564f58d55cb08533feae9c26a09bd99f63aee9e965c asteriskcalllogging_default",
+      "86a3f73698b2c9549cadaf230d6ff7a94f580f57365e529271155d6490f9dd6f asterisk-local-proof_customer-a",
+      "eee3999fe19301e068da374a55fd7352f0ae16ed1b88cc105f80067aac3bc5b0 none",
+      "f2afe53aba5693f84ad37979c480ec98679b5816c6dedc96cf0ec74b8efff8c1 asterisk-local-proof_webrtc-a"
+    ]
+  },
+  "finalBridge": {
+    "Name": "bridge",
+    "Id": "17a2ff0c1a7dc89a235d180abd40b743476b8cd780d8210d714c100d8db2685a",
+    "Created": "2026-10-25T17:03:13.076793254Z",
+    "Driver": "bridge",
+    "Internal": false,
+    "IPAM": {
+      "Driver": "default",
+      "Options": null,
+      "Config": [
+        {
+          "Subnet": "172.17.0.0/16",
+          "Gateway": "172.17.0.1"
+        }
+      ]
+    },
+    "Options": {
+      "com.docker.network.bridge.default_bridge": "true",
+      "com.docker.network.bridge.enable_icc": "true",
+      "com.docker.network.bridge.enable_ip_masquerade": "true",
+      "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+      "com.docker.network.bridge.name": "docker0",
+      "com.docker.network.driver.mtu": "1500"
+    },
+    "Containers": {}
+  },
+  "credentialFilesRemoved": true,
+  "watchdogExpired": false,
+  "elapsedSeconds": 22.343,
+  "incrementalStorageBytes": 36025
+}

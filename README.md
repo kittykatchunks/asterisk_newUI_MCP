@@ -666,6 +666,15 @@ No runtime attempt, container/network creation or SIP traffic was authorized
 or executed for this preparation. See the
 [offline preparation record](./local/asterisk-build/sip-unanswered-preparation.json).
 
+**[The first registered SIP no-answer/CANCEL runtime attempt now passes](./PROJECT-PLAN.md#synthetic-sip-unanswered-queue-runtime-passed).**
+The agent rang without answering, completed matched CANCEL/200 and
+INVITE/487/ACK, and the original caller recorded **TIMEOUT, 3000 ms queued,
+0 ms answered**. Queue C:0/A:1, member removal, dual unregistration, zero exits,
+owned-resource/credential cleanup and unchanged warmed bridge/inventory passed.
+This is synthetic signalling/queue-lifecycle evidence, not media quality or
+real phone interoperability. No retry or further runtime is authorized.
+See [exact passing evidence](./local/asterisk-build/sip-unanswered-queue-validation.json).
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

@@ -5539,6 +5539,66 @@ mocked orchestration success/failure. Prior answered/default regressions remain
 included. Historical raw report hashes remain checked without incorrectly
 requiring old executed-tool hashes to match newer offline source revisions.
 
+##### Synthetic SIP unanswered-queue: runtime passed
+
+After offline preparation the user explicitly selected **one isolated
+no-answer/CANCEL runtime attempt, without automatic retry**. The committed
+harness at `bb3a3dfe470b057ec7d2b77be312bf0cc907db9c` passed unchanged
+on its first attempt. Prechecks passed 91 offline Python and 39 source/evidence
+tests; persisted evidence adds one check for a final total of **40**.
+
+**Observed lifecycle**
+
+- Network-free Python preflight exited zero. The host then captured warmed
+  bridge/inventory baselines and verified custom PBX startup, all 41 required
+  modules Running, no test CLI and exact initial queue policy.
+- Distinct synthetic caller/agent credentials authenticated two registrations.
+  Exactly two expected dynamic contacts, distinct client ports and accepted
+  **59-second** contact lifetimes were observed; both endpoint/AOR
+  configurations remained present.
+- The private queue contained only dynamic member `PJSIP/proof-agent`.
+  The host observed the caller Up in `Queue(proof-queue,r,,,3)`, the agent
+  Ringing, one queued caller and one member. Private configuration used
+  `timeoutpriority=app`; the member's ordinary timeout remained seven seconds.
+- The never-answering agent received correlated CANCEL, sent **200** for
+  CANCEL and **487** for the original INVITE, and verified a matching
+  non-2xx transaction **ACK**. No agent answer or established agent BYE
+  dialog occurred. This is the bounded client's verified transaction
+  evidence, not a packet capture or general SIP conformance suite.
+- The same caller alone remained Up in `Wait(10)`, unbridged, with no queued
+  callers. One variable capture recorded **QUEUESTATUS=TIMEOUT,
+  QUEUEWAIT_MS=3000, ANSWEREDTIME_MS=0, ABANDONED=TRUE**.
+- Caller BYE returned **200**, channels drained to zero, queue output showed
+  **C:0/A:1**, and the member had taken no calls. Member removal restored the
+  exact initial empty policy. Both unregistrations returned **200**, leaving
+  zero contacts while retaining two endpoint configurations.
+- Preflight/client/PBX all exited **zero**, without OOM or watchdog expiry.
+  All owned containers/network and all three generated credential files were
+  removed. Independent post-run checks verified source/report hashes, exits,
+  unchanged warmed bridge/inventory and credential absence. The existing
+  four containers remained stopped.
+
+One custom PBX plus one Python-only carrier ran concurrently at most; two
+synthetic identities shared that client process. Existing limits remained
+4.5 CPU-equivalents, 4 GiB + 128 MiB RAM, no additional swap, 288 tasks,
+internal-only networking, zero published ports and owned cleanup. No image
+build/pull, installation or operation of existing customer PBXs occurred.
+
+Overall **22.343 seconds** includes preflight, protocol/CLI checkpoints and
+cleanup; it is not answer/media latency. The actual measured queue wait was
+3000 ms. No RTP payload/audio-quality assertion was made.
+
+[Validation summary](./local/asterisk-build/sip-unanswered-queue-validation.json)
+hash-binds the [byte-exact report](./local/asterisk-build/sip-unanswered-queue-smoke-report.json).
+Earlier preparation and execution evidence remain unchanged historical records.
+Final validation passes **91 offline Python and 40 source/evidence tests**.
+
+**Boundary:** synthetic registered SIP no-answer queue cancellation and teardown
+on one isolated custom PBX only. This does not prove human service, real phone
+interoperability, RTP quality, external trunks, load, encrypted transport,
+WebRTC, multi-PBX isolation, Gate A/Gate C, license closure or deployment.
+No retry or further runtime execution is authorized.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
