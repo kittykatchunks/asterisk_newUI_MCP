@@ -1,0 +1,597 @@
+{
+  "schemaVersion": 1,
+  "stage": "synthetic-local-queue-timeout-passed",
+  "authorization": "User selected local-call-proof: prepare and execute one disposable no-network synthetic Local-channel empty-queue timeout proof.",
+  "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+  "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+  "sourceSmokeReportSha256": "cddd849a2ce032b83d3eb28a441432296e2346b4c3953d88068ac43c2cf8194a",
+  "sourceSmokeReportPrivatePath": "C:\\Users\\james\\AppData\\Local\\AsteriskNativeBuild\\local-call-smoke-1\\desktop-smoke-report.json",
+  "reportDerivation": "Functional result extracted from successful raw smoke; channel result variables independently checked. Explicit synthetic-call/SIP/media flags replace inherited startup-only combined callsOrMediaTested=false flag in raw report.",
+  "syntheticLocalCall": {
+    "passed": true,
+    "channelNames": [
+      "Local/start@isolated-local-queue-proof-00000000;1",
+      "Local/start@isolated-local-queue-proof-00000000;2"
+    ],
+    "initialPolicy": {
+      "name": "proof-queue",
+      "origin": "static",
+      "strategy": "ringall",
+      "memberTimeoutSeconds": 7,
+      "joinEmptyMask": 0,
+      "leaveWhenEmptyMask": 0,
+      "memberCount": 0,
+      "callerCount": 0,
+      "callerListEmpty": true
+    },
+    "queuedObservation": {
+      "elapsedSeconds": 3.5,
+      "policy": {
+        "name": "proof-queue",
+        "origin": "static",
+        "strategy": "ringall",
+        "memberTimeoutSeconds": 7,
+        "joinEmptyMask": 0,
+        "leaveWhenEmptyMask": 0,
+        "memberCount": 0,
+        "callerCount": 1,
+        "callerListEmpty": false
+      }
+    },
+    "queueStatus": "TIMEOUT",
+    "resultChannelDetails": " -- General --\n           Name: Local/start@isolated-local-queue-proof-00000000;2\n           Type: Local\n       UniqueID: 1792944195.1\n       LinkedID: 1792944195.0\n      Caller ID: (N/A)\n Caller ID Name: (N/A)\nConnected Line ID: (N/A)\nConnected Line ID Name: (N/A)\nEff. Connected Line ID: (N/A)\nEff. Connected Line ID Name: (N/A)\n    DNID Digits: (N/A)\n       Language: en\n          State: Up (6)\n  NativeFormats: (slin)\n    WriteFormat: slin\n     ReadFormat: slin\n WriteTranscode: No \n  ReadTranscode: No \n Time to Hangup: 0\n   Elapsed Time: 0h0m9s\n      Bridge ID: (Not bridged)\n --   PBX   --\n        Context: isolated-local-queue-proof\n      Extension: start\n       Priority: 3\n     Call Group: 0\n   Pickup Group: 0\n    Application: Wait\n           Data: 5\n Call Identifier: [C-00000001]\n      Variables:\nQUEUESTATUS=TIMEOUT\nQUEUEPOSITION=1\nANSWEREDTIME_MS=0\nANSWEREDTIME=0\nDIALEDTIME_MS=3504\nDIALEDTIME=3\nQUEUEWAIT_MS=3000\nQUEUEWAIT=3\nABANDONED=TRUE\n -- Streams --\nName: audio-0\n    Type: audio\n    State: sendrecv\n    Group: -1\n    Formats: (slin)\n    Metadata:\n",
+    "finalPolicy": {
+      "name": "proof-queue",
+      "origin": "static",
+      "strategy": "ringall",
+      "memberTimeoutSeconds": 7,
+      "joinEmptyMask": 0,
+      "leaveWhenEmptyMask": 0,
+      "memberCount": 0,
+      "callerCount": 0,
+      "callerListEmpty": true
+    },
+    "finalActiveChannels": 0,
+    "elapsedSeconds": 8.985,
+    "queueTimeoutSeconds": 3,
+    "resultHoldSeconds": 5,
+    "sipTested": false,
+    "mediaTested": false,
+    "humanAnsweringTested": false
+  },
+  "resultVariablesIndependentlyVerified": {
+    "QUEUESTATUS": "TIMEOUT",
+    "QUEUEWAIT_MS": "3000",
+    "ANSWEREDTIME_MS": "0",
+    "ABANDONED": "TRUE"
+  },
+  "loadedModules": [
+    "app_celgenuserevent.so",
+    "app_dial.so",
+    "app_echo.so",
+    "app_mixmonitor.so",
+    "app_playtones.so",
+    "app_queue.so",
+    "app_stack.so",
+    "app_waitforsilence.so",
+    "bridge_native_rtp.so",
+    "bridge_simple.so",
+    "bridge_softmix.so",
+    "cel_custom.so",
+    "chan_pjsip.so",
+    "codec_alaw.so",
+    "codec_resample.so",
+    "codec_ulaw.so",
+    "format_wav.so",
+    "func_callerid.so",
+    "func_channel.so",
+    "func_strings.so",
+    "pbx_config.so",
+    "res_cdrel_custom.so",
+    "res_clioriginate.so",
+    "res_crypto.so",
+    "res_http_websocket.so",
+    "res_pjproject.so",
+    "res_pjsip.so",
+    "res_pjsip_authenticator_digest.so",
+    "res_pjsip_endpoint_identifier_user.so",
+    "res_pjsip_header_funcs.so",
+    "res_pjsip_pubsub.so",
+    "res_pjsip_registrar.so",
+    "res_pjsip_sdp_rtp.so",
+    "res_pjsip_session.so",
+    "res_pjsip_transport_websocket.so",
+    "res_rtp_asterisk.so",
+    "res_sorcery_astdb.so",
+    "res_sorcery_config.so",
+    "res_sorcery_memory.so",
+    "res_srtp.so",
+    "res_timing_timerfd.so"
+  ],
+  "startupPolicyObservations": [
+    {
+      "stage": "initial-loaded",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "disk-edited-without-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "after-fixture-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "linear",
+            "memberTimeoutSeconds": 23,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "disk-restored-without-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "linear",
+            "memberTimeoutSeconds": 23,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "after-fixture-restore-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    }
+  ],
+  "pjsipEmptyObjectChecks": {
+    "endpoints": "No objects found.",
+    "transports": "No objects found."
+  },
+  "testCommandAbsent": true,
+  "isolationSettings": {
+    "NetworkMode": "none",
+    "ReadonlyRootfs": true,
+    "Privileged": false,
+    "Memory": 4294967296,
+    "MemorySwap": 4294967296,
+    "NanoCpus": 4000000000,
+    "PidsLimit": 256,
+    "capDrop": [
+      "ALL"
+    ],
+    "securityOpt": [
+      "no-new-privileges:true"
+    ],
+    "portBindings": {}
+  },
+  "diagnostics": [
+    {
+      "command": "core waitfullybooted",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "module show",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "pjsip show endpoints",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "pjsip show transports",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show help test execute",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue reload parameters cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue reload parameters cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "channel originate Local/start@isolated-local-queue-proof/n application Wait 20",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channel Local/start@isolated-local-queue-proof-00000000;2",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channel Local/start@isolated-local-queue-proof-00000000;2",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channel Local/start@isolated-local-queue-proof-00000000;2",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channel Local/start@isolated-local-queue-proof-00000000;2",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channel Local/start@isolated-local-queue-proof-00000000;2",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channel Local/start@isolated-local-queue-proof-00000000;2",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channel Local/start@isolated-local-queue-proof-00000000;2",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core show channels concise",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    }
+  ],
+  "containerId": "2de8844249df379f45788545e3cd036141ee87843b6556ff5feb07f9ef40f177",
+  "containerName": "asterisk-desktop-smoke-f4c9efd05b85",
+  "ownedContainerRemoved": true,
+  "processExitCode": 0,
+  "watchdogExpired": false,
+  "syntheticCallsTested": true,
+  "sipTested": false,
+  "mediaTested": false,
+  "humanAnsweringTested": false,
+  "existingPbxOperated": false,
+  "existingContainersChanged": false,
+  "imageRebuilt": false,
+  "registryPushed": false,
+  "runtimeApplyAuthorized": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "evidence": {
+    "image-startup-validation.json": {
+      "sha256": "4639b0b9c9750f4bd97a1014ad9565812e23264e88d2dd0fbc0dd06c882e9c94"
+    },
+    "image-payload-validation-nss.json": {
+      "sha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+    }
+  }
+}

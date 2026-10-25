@@ -561,6 +561,15 @@ The [current image validation](./local/asterisk-build/image-startup-validation.j
 binds the new native, image-content and container reports. The builder is
 stopped. No calls, media, redistribution, deployment or Gate C are claimed.
 
+**[The custom image now executes a synthetic Local-channel queue timeout](./PROJECT-PLAN.md#custom-image-synthetic-local-channel-queue-timeout-passed).**
+A separately approved private call entered an empty queue, exposed one waiting
+caller, returned `QUEUESTATUS=TIMEOUT` with **3,000 ms queue wait / zero answered
+time**, then left zero callers and zero active channels. Both Local legs were
+observed; the disposable container exited zero and was removed. See the
+[functional validation](./local/asterisk-build/synthetic-local-call-validation.json).
+No image rebuild, SIP registration, external call, audio/media or human service
+was tested. Existing containers and Gate C remain untouched.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

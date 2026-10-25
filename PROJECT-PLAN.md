@@ -4593,6 +4593,80 @@ It does not close remaining Gate A lifecycle/output/AO2 acceptance or authorize
 Gate C, production deployment, live SIP/media, redistribution or complete
 source/license closure. Those remain separate scopes.
 
+##### Custom image synthetic Local-channel queue timeout passed
+
+The user selected **local-call-proof**, explicitly approving preparation and
+execution of one no-network synthetic Local-channel test in the verified
+custom image. No image rebuild, existing-container changes, SIP endpoints,
+published ports, external calls, media or separately gated two-PBX proof were
+included. The dedicated builder was not restarted.
+
+The [functional helper](./local/asterisk-build/runtime_local_call.py) extends
+the [Desktop smoke harness](./local/asterisk-build/smoke-desktop.py) behind
+`--approve-synthetic-local-call` (in addition to the existing image-smoke
+approval). With no flag, startup-only behavior remains unchanged. The
+private `isolated-local-queue-proof` context contains only `Answer`,
+`Queue(proof-queue,r,,,3)`, `Wait(5)` and `Hangup`. Ringback avoids requiring
+music-on-hold sound files. No dialplan shell/AGI/external destination is added.
+The fixture originates `Local/start@isolated-local-queue-proof/n` with a
+bounded `Wait 20` application; `/n` preserves both Local legs for inspection.
+The five-second result hold exists only to inspect channel variables after
+Queue returns, not to add queue waiting time.
+
+Before origination, the helper requires zero channels and an empty proof
+queue. During the call it accepts only private Local channels, observes both
+legs and checks the policy envelope/static fields against the native baseline.
+The proof queue must expose exactly one caller with a nonempty caller list;
+the other selected queue remains unchanged. The result leg must be in `Wait`
+with exactly one `QUEUESTATUS=TIMEOUT`, `ANSWEREDTIME_MS=0`, `ABANDONED=TRUE`
+and measured `QUEUEWAIT_MS` in the requested 3-second interval
+**[3000, 4000) ms**. Cleanup requires zero channels, zero callers, an empty
+caller list and unchanged loaded policy before a 25-second call deadline.
+No success-shaped result is returned when queue entry was not observed.
+
+The first and only executed attempt passed: both Local legs observed,
+one queued caller, **QUEUEWAIT_MS=3000**, zero answered time, `TIMEOUT`,
+then no callers/channels. Overall observation duration was **8.985 seconds**,
+including the deliberate five-second result hold and CLI polling. That
+duration is not claimed as queue timeout or latency. The earlier five
+loaded-policy transitions and 41-module/no-PJSIP-object startup checks also
+passed within the same process. Docker SIGTERM shutdown exited zero without
+OOM or watchdog expiry; the exact owned container was removed.
+
+The [functional validation](./local/asterisk-build/synthetic-local-call-validation.json)
+is derived from the retained private raw smoke report and channel details,
+and hash-binds the existing image-startup and inspected-payload records.
+Its queue result variables were independently rechecked against the actual
+channel dump, including the exact timeout threshold and no-answer state.
+The raw runner report initially inherited the startup-only combined
+`callsOrMediaTested=false` flag; it is retained unmodified privately. The
+derived validation explicitly records **syntheticCallsTested=true,
+sipTested=false, mediaTested=false**, and notes the correction rather than
+silently rewriting runtime history. Future runner reports now set the
+combined call flag appropriately while retaining explicit SIP/media flags.
+The original successful startup-only report remains unchanged.
+
+Execution retained no network/ports, read-only root, capabilities dropped,
+no-new-privileges, UID/GID 10001, 64 MiB state tmpfs, 4 CPU-equivalents,
+4 GiB RAM with no extra swap, 256 tasks, core dumps off, 2 MiB daemon logs
+and a five-minute container watchdog. The four existing stopped containers
+remain unchanged, no owned smoke container remains and the builder is still
+stopped. No image/tag/payload changed.
+
+Eight new offline functional tests cover the private bounded dialplan,
+channel parsing, exact policy/dynamic caller state, observed queue entry,
+both legs, successful timeout/cleanup, pre-existing channels, missing queue
+entry, wrong status, absolute deadline, exact 3000/4000-ms threshold edges,
+no-answer values and duplicate result-variable rejection. Desktop harness
+tests also cover opt-in wiring and startup-only behavior preservation.
+Together **34 offline Python tests and 28 source/evidence tests pass**.
+
+This is functional custom-image execution, not live taxi service, successful
+member answering, SIP registration, call transfer, audio/media, production
+configuration or remaining Gate A lifecycle/output/AO2 acceptance. Gate C,
+deployment, redistribution and complete source/license closure remain
+separate and unapproved.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

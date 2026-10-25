@@ -2558,6 +2558,18 @@ tests pass**. No SIP registration, calls, media, deployment, redistribution,
 remaining Gate A acceptance or Gate C is implied. See the
 [container startup handoff](./PROJECT-PLAN.md#corrected-image-container-startup-passed-nss-dynamic-dependency-closure).
 
+### Custom image synthetic Local-channel queue timeout passed
+
+One explicitly approved no-network container executed the synthetic private
+dialplan. Both Local legs and one queued caller were observed; an empty queue
+returned `TIMEOUT` after **3,000 ms**, with zero answered time. The call then
+left zero active channels/callers and the container exited zero and was removed.
+No rebuild or existing-container changes occurred. The
+[functional evidence](./local/asterisk-build/synthetic-local-call-validation.json)
+binds the existing image proof. This proves dialplan/empty-queue timeout and
+cleanup only, not SIP registration, audio/media, human answering or Gate C.
+See the [functional handoff](./PROJECT-PLAN.md#custom-image-synthetic-local-channel-queue-timeout-passed).
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

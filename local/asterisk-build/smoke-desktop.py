@@ -8,6 +8,7 @@ import time
 import uuid
 
 import runtime_image as runtime
+import runtime_local_call
 
 
 def command(arguments, timeout=20):
@@ -54,7 +55,7 @@ def arguments(image, name, owner, root):
     ]
 
 
-def smoke(root, trace_loader=False):
+def smoke(root, trace_loader=False, local_call=False):
     build = runtime.read_json(runtime.HERE / "image-build-validation-nss.json")
     payload_path = runtime.HERE / "image-payload-validation-nss.json"
     if runtime.digest(payload_path) != build["evidence"][payload_path.name]["sha256"]:
@@ -78,6 +79,8 @@ def smoke(root, trace_loader=False):
     content = content.replace("/state/keys", "/fixture/keys")
     config.write_text(content)
     (root / "etc/keys/keys").mkdir(parents=True)
+    if local_call:
+        runtime_local_call.prepare(root)
     owner = uuid.uuid4().hex
     name = "asterisk-desktop-smoke-" + owner[:12]
     report = dict(
@@ -86,7 +89,9 @@ def smoke(root, trace_loader=False):
         payloadValidationSha256=runtime.digest(payload_path),
         observations=[], diagnostics=[], runtimeApplyAuthorized=False,
         loaderDiagnosticsEnabled=trace_loader,
-        existingPbxOperated=False, registryPushed=False, callsOrMediaTested=False,
+        syntheticLocalCallRequested=local_call,
+        existingPbxOperated=False, registryPushed=False, callsOrMediaTested=local_call,
+        sipTested=False, mediaTested=False,
         redistributionApproved=False, licenseClosureComplete=False,
     )
     lock = threading.Lock()
@@ -178,6 +183,9 @@ def smoke(root, trace_loader=False):
             if len(raw.splitlines()) != 1 or json.loads(raw) != expected["response"]:
                 raise ValueError(f"Policy mismatch: {expected['stage']}")
             report["observations"].append(expected)
+        if local_call:
+            report["syntheticLocalCall"] = runtime_local_call.execute(
+                lambda text: cli(container, text, report["diagnostics"]))
         command(["stop", "--time=10", container], timeout=15)
         exit_code = command(["wait", container], timeout=15)[0].strip()
         state = json.loads(command(["inspect", "--format", "{{json .State}}", container])[0])
@@ -207,5 +215,7 @@ if __name__ == "__main__":
     parser.add_argument("--approve-desktop-image-smoke", action="store_true", required=True)
     parser.add_argument("--work-dir", type=pathlib.Path, required=True)
     parser.add_argument("--trace-loader", action="store_true")
+    parser.add_argument("--approve-synthetic-local-call", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(smoke(args.work_dir.resolve(), args.trace_loader), indent=2))
+    print(json.dumps(smoke(args.work_dir.resolve(), args.trace_loader,
+                           args.approve_synthetic_local_call), indent=2))

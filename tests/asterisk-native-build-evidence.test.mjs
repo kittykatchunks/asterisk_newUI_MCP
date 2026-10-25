@@ -19,6 +19,51 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("synthetic Local call proves measured empty-queue timeout and exact channel cleanup", () => {
+  const validation = read(`${directory}/synthetic-local-call-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const startup = read(`${directory}/desktop-image-smoke-report.json`);
+  assert.equal(validation.imageId, startup.imageId);
+  assert.equal(validation.bundleManifestSha256, startup.bundleManifestSha256);
+  assert.deepEqual(validation.loadedModules, startup.loadedModules);
+  assert.deepEqual(validation.startupPolicyObservations, startup.observations);
+  assert.deepEqual(validation.isolationSettings, startup.isolationSettings);
+  assert.deepEqual(validation.pjsipEmptyObjectChecks, startup.pjsipEmptyObjectChecks);
+  assert.equal(validation.testCommandAbsent, true);
+  const call = validation.syntheticLocalCall;
+  assert.equal(call.passed, true);
+  assert.equal(call.queueStatus, "TIMEOUT");
+  assert.equal(call.initialPolicy.callerCount, 0);
+  assert.equal(call.initialPolicy.callerListEmpty, true);
+  assert.equal(call.queuedObservation.policy.callerCount, 1);
+  assert.equal(call.queuedObservation.policy.callerListEmpty, false);
+  assert.deepEqual(call.finalPolicy, call.initialPolicy);
+  assert.equal(call.initialPolicy.memberCount, 0);
+  assert.equal(call.finalActiveChannels, 0);
+  assert.equal(call.channelNames.length, 2);
+  assert(call.channelNames[0].endsWith(";1") && call.channelNames[1].endsWith(";2"));
+  assert(call.channelNames.every((name) => name.startsWith("Local/start@isolated-local-queue-proof-")));
+  assert.equal(call.queueTimeoutSeconds, 3);
+  assert(call.elapsedSeconds >= 3 && call.elapsedSeconds < 25);
+  assert.deepEqual(validation.resultVariablesIndependentlyVerified, {
+    QUEUESTATUS: "TIMEOUT", QUEUEWAIT_MS: "3000", ANSWEREDTIME_MS: "0", ABANDONED: "TRUE",
+  });
+  for (const [name, value] of Object.entries(validation.resultVariablesIndependentlyVerified)) {
+    assert(call.resultChannelDetails.split("\n").includes(`${name}=${value}`), name);
+  }
+  assert.equal(validation.ownedContainerRemoved, true);
+  assert.equal(validation.processExitCode, 0);
+  assert.equal(validation.watchdogExpired, false);
+  assert.equal(validation.syntheticCallsTested, true);
+  for (const flag of ["sipTested", "mediaTested", "humanAnsweringTested", "existingPbxOperated",
+    "existingContainersChanged", "imageRebuilt", "registryPushed", "runtimeApplyAuthorized",
+    "redistributionApproved", "licenseClosureComplete", "gateAAcceptanceComplete", "gateCAuthorized"]) {
+    assert.equal(validation[flag], false, flag);
+  }
+});
+
 test("corrected NSS image startup evidence is exact, hash-bound and isolated", () => {
   const validation = read(`${directory}/image-startup-validation.json`);
   for (const [name, evidence] of Object.entries(validation.evidence)) {
