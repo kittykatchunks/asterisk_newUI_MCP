@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "compileReportSha256": "29537418a32f531dd26ece0f76b7afc14099ebfbd06d59763ec92cba9311ce48",
+  "nativeTestsExecuted": true,
+  "runtimeApplyAuthorized": false,
+  "attempt": 2,
+  "results": [
+    {
+      "name": "bounded_walk",
+      "category": "/main/astobj2/bounded_queue_policy/",
+      "result": "passed",
+      "elapsedSeconds": 0.01,
+      "failure": null,
+      "xmlSha256": "edce27e507eea8dda3ce02914b2ee368df9c19e0b854f009ec6f820215cdf972"
+    },
+    {
+      "name": "retained_nodes",
+      "category": "/main/astobj2/bounded_queue_policy/",
+      "result": "passed",
+      "elapsedSeconds": 0.009,
+      "failure": null,
+      "xmlSha256": "ae34b91b6bb96b17e02a60d8e42e8915a3ecef7119defd4cc4b8b6fcabca3279"
+    },
+    {
+      "name": "protected_lease",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.009,
+      "failure": null,
+      "xmlSha256": "cdf79a5c073955454b64375787c8ee6d4f7995f9367be5b5f7b261598c1b7f32"
+    },
+    {
+      "name": "protected_dispatch",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.012,
+      "failure": null,
+      "xmlSha256": "4f5875607fc4242d3a84a91ea54673e92cfdef9933d589888ed4ea26a6cdd47e"
+    },
+    {
+      "name": "bounded_matrix",
+      "category": "/main/astobj2/bounded_queue_policy/",
+      "result": "passed",
+      "elapsedSeconds": 0.01,
+      "failure": null,
+      "xmlSha256": "9bfd453bc0fbe2a4c4b2bb73f1bc02a643768f0420a0088b1ef6d24567cab1e0"
+    },
+    {
+      "name": "bounded_contention",
+      "category": "/main/astobj2/bounded_queue_policy/",
+      "result": "passed",
+      "elapsedSeconds": 0.011,
+      "failure": null,
+      "xmlSha256": "7357271a7867a8148d0b150317c0c7e86e25a5da0cd56966f818643a370d766b"
+    },
+    {
+      "name": "bounded_ownership",
+      "category": "/main/astobj2/bounded_queue_policy/",
+      "result": "passed",
+      "elapsedSeconds": 0.01,
+      "failure": null,
+      "xmlSha256": "864c92b615d4ca1a656c24cf0af363c9b294f5e58970a3b0e5329897eecaf813"
+    },
+    {
+      "name": "policy_snapshot_copy",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.01,
+      "failure": null,
+      "xmlSha256": "e75ef6a5194c4949045cdca304eaa88df50b3748be31519153a755627c14818e"
+    },
+    {
+      "name": "policy_snapshot_selection",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.01,
+      "failure": null,
+      "xmlSha256": "ae92bcaa45a5592958c991e182f7f8f5f7aed5fa74158b924bbc3384fb20496e"
+    },
+    {
+      "name": "policy_snapshot_values",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.012,
+      "failure": null,
+      "xmlSha256": "1e6ede17cb1a75ad71f1354838f92f37e1d188efca90c0d45324478546ae16dc"
+    },
+    {
+      "name": "policy_snapshot_invalid_request",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.012,
+      "failure": null,
+      "xmlSha256": "5057836d003e6cec00f72e2189c524b613ad8e9ddf8ea28ebb8028fbd8937504"
+    },
+    {
+      "name": "policy_snapshot_contention",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.011,
+      "failure": null,
+      "xmlSha256": "c1bdb142d97a6026cc8011993994e3228cab202f97ded1a07f25ff2e98310b80"
+    },
+    {
+      "name": "policy_snapshot_protocol",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.011,
+      "failure": null,
+      "xmlSha256": "2fde2b153b7136c6265c5570b45f25e174d638b44255083552d4b00f63abdac5"
+    },
+    {
+      "name": "policy_snapshot_output_failure",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.211,
+      "failure": null,
+      "xmlSha256": "59534907e92ad019acb5496bed915d142e337667c526772bd7fa5810de59818e"
+    },
+    {
+      "name": "protected_completion",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.012,
+      "failure": null,
+      "xmlSha256": "e3ee2cebd01ddf529542d39be67b5fea5fcbfefff96af27abd7ef9de12c70cde"
+    },
+    {
+      "name": "protected_registration",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.011,
+      "failure": null,
+      "xmlSha256": "4d9efcb54b09add655ab758be5c41017b04f2aaaf5de6a8302b35c146c3aca63"
+    },
+    {
+      "name": "policy_snapshot_rejected_state",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.016,
+      "failure": null,
+      "xmlSha256": "a8c8dc47041325455bf3972fbd57770a7e284963498b9bb433227ff094e85b45"
+    },
+    {
+      "name": "policy_snapshot_traversal",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.014,
+      "failure": null,
+      "xmlSha256": "99ed85dd07fa302e848dbb1cb81212386f9ec741b5edd55d8e2e3eab5b9c6acd"
+    },
+    {
+      "name": "policy_snapshot_queue_lock_kind",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.013,
+      "failure": null,
+      "xmlSha256": "c71587d6f858ea50c55bfe18b92354c3e5a01b3a639b2618132d81ade5f2ba8a"
+    },
+    {
+      "name": "policy_snapshot_member_boundary",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.03,
+      "failure": null,
+      "xmlSha256": "cfd06dc86efa3fb93f213098dd8db261ae43674184b3eccd3ba51f26355b4c2a"
+    },
+    {
+      "name": "policy_snapshot_status_mapping",
+      "category": "/apps/app_queue/policy_snapshot/",
+      "result": "passed",
+      "elapsedSeconds": 0.015,
+      "failure": null,
+      "xmlSha256": "ecab10fbb21fd6e724f6434b16e6de306773a96718eedeac75b876418e606d55"
+    },
+    {
+      "name": "protected_target_lifecycle",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.017,
+      "failure": null,
+      "xmlSha256": "b7537b7fc2ffb8e9c6d1b0c9e662c9a8c06e87acd45aa6610eba550b5cddf803"
+    },
+    {
+      "name": "protected_target_completion",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.016,
+      "failure": null,
+      "xmlSha256": "627f765b42f910756ce892427618ae35321e81cafdbf8926045ed1162081abdc"
+    },
+    {
+      "name": "protected_target_closing",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.013,
+      "failure": null,
+      "xmlSha256": "959cbd5f7569a3b25a8f32b202b23f246261d75a3dc0f70492c3f439d4e32f9e"
+    },
+    {
+      "name": "protected_target_lookup",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.014,
+      "failure": null,
+      "xmlSha256": "3f0ba6a3af6db195ef222e5d6c7511302c27f386859a862a5a57f1997c205445"
+    },
+    {
+      "name": "protected_target_loader_busy",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.014,
+      "failure": null,
+      "xmlSha256": "ec793c09500f5f05b61947cfb68feca218eee7523e335460cb3f755d96b76592"
+    },
+    {
+      "name": "protected_target_permission",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.016,
+      "failure": null,
+      "xmlSha256": "2b33e4734a6a7e546d5d42ac97e38ba880b6f9c9077bb7bc1d4ac7c6d8e2797a"
+    },
+    {
+      "name": "protected_target_refresh",
+      "category": "/main/loader/protected_cli/",
+      "result": "passed",
+      "elapsedSeconds": 0.012,
+      "failure": null,
+      "xmlSha256": "be1c04dbc98e5ee2348394666f9a41edc68cbae4df2243430f5c0b4dc848dccf"
+    },
+    {
+      "name": "bounded_mixed_nodes",
+      "category": "/main/astobj2/bounded_queue_policy/",
+      "result": "passed",
+      "elapsedSeconds": 0.014,
+      "failure": null,
+      "xmlSha256": "2fce912de97acc6d93e65ddbc79b58326de38fb242be56a24630422bbcafb08d"
+    },
+    {
+      "name": "bounded_callback_work",
+      "category": "/main/astobj2/bounded_queue_policy/",
+      "result": "passed",
+      "elapsedSeconds": 0.016,
+      "failure": null,
+      "xmlSha256": "0af6424296a71f61ec93138921e71407f1bfb8ff3f075f7e7ffe132e65af64e7"
+    }
+  ],
+  "completed": true,
+  "allOwnedProcessesStopped": true,
+  "passed": 30,
+  "failed": 0
+}

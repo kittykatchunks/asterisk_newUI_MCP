@@ -4175,6 +4175,78 @@ runtime-image construction, dependency/source-license redistribution closure,
 remaining lifecycle/output/AO2 acceptance and Gate C are not claimed.
 The 30-definition native batch and source patch remain unchanged.
 
+##### Full runtime startup: restoring the upstream optional API default
+
+The user approved an isolated all-41-module release startup and fixture checks.
+The first run correctly failed: the original recipe's `menuselect --disable-all`
+disabled not only unneeded modules but **upstream-default `OPTIONAL_API`**.
+With that flag off, optional API providers become hard dependencies during
+`dlopen`: PJSIP required absent geolocation/statsd, app_stack required AGI,
+and MixMonitor required periodic-hook support. Unresolved PJSIP data symbols
+were downstream failures because their exporting `res_pjsip` never loaded;
+inspection confirmed they are correctly exported there, not missing from
+the bundled PJPROJECT archive. No source or shared-library shim was needed.
+
+The user then approved a corrected rebuild of both profiles and rerunning
+all 30 native definitions plus queue-only/full-module release checks.
+The [recipe](./local/asterisk-build/compile-profiles.py) now explicitly enables
+`OPTIONAL_API` and verifies it survives menuselect. This restores supported
+upstream behavior rather than dropping required modules or forcing additional
+providers into the 41-module scope. No package or source-patch changes occurred.
+
+Fresh build attempt 4 produced 46 instrumented and 44 release outputs.
+The previous attempt-3 artifacts/reports remain unchanged historical evidence;
+**the current candidate is build attempt 4**. Its
+[compile report](./local/asterisk-build/compile-report-optional-api.json),
+[native report](./local/asterisk-build/native-test-report-optional-api.json),
+[native XML](./local/asterisk-build/native-test-results-optional-api.xml),
+[queue-only smoke](./local/asterisk-build/release-smoke-report-optional-api.json)
+and [full-module smoke](./local/asterisk-build/full-module-smoke-report.json)
+are hash-bound by the [current validation record](./local/asterisk-build/full-startup-validation.json).
+Do not combine older binary hashes with the new runtime results.
+
+All 30 native definitions passed again in 31.115 seconds. The queue-only
+release smoke passed in 1.688 seconds. Full-module smoke passed in 1.674
+seconds: **all 41 exact configured module names reported Running**, with
+PJSIP endpoint/transport queries both returning `No objects found.`.
+The release test command remained absent. Both smoke modes passed all five
+loaded-policy/disk-edit/reload/restoration observations.
+
+The [shared smoke runner](./local/asterisk-build/smoke-release.py) supports
+explicit full-startup approval and build-attempt selection. It waits for the
+exact completed-boot response before reading module status; a control socket
+existing is not sufficient readiness. It rejects missing, extra or non-Running
+module rows. Config remains private: autoload off, all modules explicitly
+required, AMI/HTTP disabled, no PJSIP transport/endpoint, no calls. Fixtures
+provide disabled CDR/CEL engines, a valid private CEL text mapping, PJPROJECT/
+Stasis defaults, UK indications and an empty key directory. Empty CEL mappings
+caused a required-module decline in two intermediate runs; this was fixed in
+the fixture rather than ignored or removed from startup requirements.
+
+Execution retained the approved resource limits, private network, unprivileged
+user, no-new-privileges, disabled core dumps, bounded logs and external
+watchdogs. Three failed startups left stale owned socket/PID files, although
+their processes had exited. Independent inspection verified no live owner,
+removed exactly those six entries in the three failed attempt directories,
+and retained their logs/configuration. The runner now explicitly reports and
+removes only expected-type runtime entries after its owned process has exited.
+Successful final startup/shutdown required exit zero.
+
+The [independent verifier](./local/asterisk-build/verify-full-startup.py)
+rechecked all 90 new ELF hashes/architecture, both optional-API selections,
+every native XML hash/name/pass state, both smoke library hashes, module
+inventory, loaded-state transitions and absence of remaining owned Asterisk
+processes or smoke sockets/PID files. All source/package/profile flags remain
+honest about their individual evidence stages. The builder was stopped after
+verification. Existing PBXs, global WSL settings and runtime publication
+authority remain untouched.
+
+This establishes a loadable full module baseline, **not** SIP registration,
+calls, media, full production configuration, a standalone deployable runtime,
+redistribution/license closure, remaining lifecycle/output/AO2 acceptance or
+Gate C. The historical first build remains valid compilation/queue-only
+evidence but is superseded as the current binary candidate.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

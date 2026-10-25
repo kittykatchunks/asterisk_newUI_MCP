@@ -2487,6 +2487,19 @@ disk edits, reloads and restoration. The final process exited cleanly and the
 owned builder is stopped. This does not prove standalone packaging, full
 runtime-module startup, SIP/media or Gate C.
 
+### Full 41-module release startup passed after recipe correction
+
+Full startup exposed that the earlier `--disable-all` menuselect recipe also
+disabled upstream-default `OPTIONAL_API`. The explicitly approved correction
+restores that flag in both profiles, without changing the source patch,
+dependencies or 41-module selection. All 30 native definitions and queue-only
+release smoke passed again; all 41 release modules now report Running.
+The [current validation](./local/asterisk-build/full-startup-validation.json)
+binds the corrected binaries and new results; earlier evidence remains
+historical. PJSIP has no endpoints/transports; no calls/media or deployment
+were authorized or exercised. See the
+[full startup handoff](./PROJECT-PLAN.md#full-runtime-startup-restoring-the-upstream-optional-api-default).
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

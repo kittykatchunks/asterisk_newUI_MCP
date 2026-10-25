@@ -14,12 +14,13 @@ import xml.etree.ElementTree as ET
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-native-tests", action="store_true")
 parser.add_argument("--attempt", type=int, required=True)
+parser.add_argument("--build-attempt", type=int, default=3)
 args = parser.parse_args()
-if not args.approve_native_tests or args.attempt < 1 or os.geteuid() == 0:
+if not args.approve_native_tests or min(args.attempt, args.build_attempt) < 1 or os.geteuid() == 0:
     raise SystemExit("Explicit approval, positive attempt and unprivileged user required")
 home = pathlib.Path("/home/asterisk-build")
 staging = home / "source-staging"
-build = home / "native-build-attempt-3"
+build = home / f"native-build-attempt-{args.build_attempt}"
 tree = build / "instrumented"
 compile_report = json.loads((build / "compile-report.json").read_text())
 candidate = json.loads((staging / "queue-policy-v1.json").read_text())

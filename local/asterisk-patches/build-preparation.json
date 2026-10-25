@@ -1,6 +1,19 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-native-batch-and-release-loaded-state-smoke-passed",
+  "stage": "gate-b-corrected-build-native-batch-and-full-module-startup-passed",
+  "currentValidation": {
+    "record": "../asterisk-build/full-startup-validation.json",
+    "buildAttempt": 4,
+    "optionalApiEnabled": true,
+    "nativePassed": 30,
+    "nativeFailed": 0,
+    "runtimeModulesRunning": 41,
+    "authorization": "User accepted corrected rebuild and all stated disposable validation, including both profiles, 30 native tests and queue-only/full-module release smokes.",
+    "olderExecutionSectionsAreHistorical": true,
+    "ownedDistributionStopped": true,
+    "runtimeApplyAuthorized": false,
+    "runtimeImageProduced": false
+  },
   "buildAuthorized": true,
   "dependenciesInstalled": true,
   "nativeCompiled": true,
@@ -306,7 +319,7 @@
   },
   "unresolvedPrerequisites": [
     "Complete regression, shutdown/output/recursive lifecycle/AO2 instrumentation obligations and Gate A acceptance evidence; the current 30-definition runtime batch passes but does not close broader acceptance gaps.",
-    "Separate minimal fixture configuration startup warnings from production runtime configuration acceptance; the fixtures intentionally do not supply full production configuration.",
+    "Retain production configuration acceptance separately from successful private 41-module startup; no endpoints, transports, calls or media were exercised.",
     "Prepare matching release runtime packaging with full shared-library closure, license/copyright/source obligations and separate approval before any export or redistribution.",
     "Keep Gate C closed until independently approved; no stock/custom ABI mixing or runtime publication authority is enabled."
   ]

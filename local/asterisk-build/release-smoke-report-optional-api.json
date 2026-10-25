@@ -1,0 +1,316 @@
+{
+  "schemaVersion": 1,
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "compileReportSha256": "29537418a32f531dd26ece0f76b7afc14099ebfbd06d59763ec92cba9311ce48",
+  "profile": "release",
+  "attempt": 5,
+  "mode": "release-smoke",
+  "verifiedReleaseOutputs": 44,
+  "resolvedLibraries": {
+    "ld-linux-x86-64.so.2": {
+      "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+    },
+    "libasteriskpj.so.2": {
+      "path": "/home/asterisk-build/native-build-attempt-4/release/main/libasteriskpj.so.2",
+      "sha256": "4cecee1e5f208a490fcfccadb8e15ae90369a8f5d1d1e10f8a658d5aa3723eed"
+    },
+    "libasteriskssl.so.1": {
+      "path": "/home/asterisk-build/native-build-attempt-4/release/main/libasteriskssl.so.1",
+      "sha256": "fe0d7359866371eafef83ee093226e8ca3307ff81201d9ed7e5d37b763a30607"
+    },
+    "libbsd.so.0": {
+      "path": "/usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1",
+      "sha256": "e86cd4f0019f42c2ba5e60602e0edc8694d2948377d98c3654d0f6bddb5254bb"
+    },
+    "libc.so.6": {
+      "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+    },
+    "libcap.so.2": {
+      "path": "/usr/lib/x86_64-linux-gnu/libcap.so.2.66",
+      "sha256": "6ac6abc86ac891c6e13486470e26f1d939f47fda9e6b5d5508a7f5ec881adc84"
+    },
+    "libcrypt.so.1": {
+      "path": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1.1.0",
+      "sha256": "1502636e3be8232c9cf801dfb533694aea985d449904f3e1295db26d7b348946"
+    },
+    "libcrypto.so.3": {
+      "path": "/usr/lib/x86_64-linux-gnu/libcrypto.so.3",
+      "sha256": "6866ed711dab8927e1bf82bf1cd30e828bdfc34f3cc1e83b1c9eb01ce6c37d9a"
+    },
+    "libedit.so.2": {
+      "path": "/usr/lib/x86_64-linux-gnu/libedit.so.2.0.72",
+      "sha256": "195c607216f8581dbf516346ed38f4c73500cac4b84e18eb0a4fd49931e4cd56"
+    },
+    "libgcc_s.so.1": {
+      "path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+    },
+    "libicudata.so.74": {
+      "path": "/usr/lib/x86_64-linux-gnu/libicudata.so.74.2",
+      "sha256": "ddbb3718b8bd9cbd780e5ab08b4503c30a6c4fa0706ebe5d074ed6b596c1714e"
+    },
+    "libicuuc.so.74": {
+      "path": "/usr/lib/x86_64-linux-gnu/libicuuc.so.74.2",
+      "sha256": "7560aadde38e5f4237a47a1ddd5891f9b36768a77a60faae30beee003ac01901"
+    },
+    "libjansson.so.4": {
+      "path": "/usr/lib/x86_64-linux-gnu/libjansson.so.4.14.0",
+      "sha256": "c49935a4b3ac599064281b1f257576087806d0dad7ec46f353bd983b052c5e26"
+    },
+    "liblzma.so.5": {
+      "path": "/usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5",
+      "sha256": "26b37d25f7ca2a2d348de8ecabacda12e921cd933b21fa069a179760db77219d"
+    },
+    "libm.so.6": {
+      "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+    },
+    "libmd.so.0": {
+      "path": "/usr/lib/x86_64-linux-gnu/libmd.so.0.1.0",
+      "sha256": "423e18586b6ea740f4465afd64f7a9a4cb7264ed979c8e7256f9085af5345fef"
+    },
+    "libnspr4.so": {
+      "path": "/usr/lib/x86_64-linux-gnu/libnspr4.so",
+      "sha256": "c32583a53640c144757419b977a76976ee3dbda7b905a0af1046ace3c570ae98"
+    },
+    "libnss3.so": {
+      "path": "/usr/lib/x86_64-linux-gnu/libnss3.so",
+      "sha256": "e02cd7ae23536d20588e6f0a3e1cfa93e7591cbca2408a090a147769dd3e3f7d"
+    },
+    "libnssutil3.so": {
+      "path": "/usr/lib/x86_64-linux-gnu/libnssutil3.so",
+      "sha256": "8be78576227541c877d6ab17b49efe9ed7635b75039ea9810c8ccd030380f6e3"
+    },
+    "libplc4.so": {
+      "path": "/usr/lib/x86_64-linux-gnu/libplc4.so",
+      "sha256": "f68520b4a9ba6190c67ce96511192f9af31dd96d91f18fd64cca48ffe08f7deb"
+    },
+    "libplds4.so": {
+      "path": "/usr/lib/x86_64-linux-gnu/libplds4.so",
+      "sha256": "403f3c1ec489de93d04b5a386d2e659af6da0a41e09ffb90a280b6d68eeb1617"
+    },
+    "libsqlite3.so.0": {
+      "path": "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0.8.6",
+      "sha256": "85265a9d4afca6f4b325ceb078b669c754fb881abed4cafe91ccebe9d625d975"
+    },
+    "libsrtp2.so.1": {
+      "path": "/usr/lib/x86_64-linux-gnu/libsrtp2.so.1",
+      "sha256": "e3053f846aca31ce5222c991c10f953f614fe5371aa38ef6b140c17adf5ffccf"
+    },
+    "libssl.so.3": {
+      "path": "/usr/lib/x86_64-linux-gnu/libssl.so.3",
+      "sha256": "a40e7b67489bbd257e432c700ff8f6a1ad796425b5eccecdc2930127fdd86624"
+    },
+    "libstdc++.so.6": {
+      "path": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33",
+      "sha256": "1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11"
+    },
+    "libtinfo.so.6": {
+      "path": "/usr/lib/x86_64-linux-gnu/libtinfo.so.6.4",
+      "sha256": "e6089d7bb95eee5b545f3770dd69095b0bca47d26701cad145af429561d16306"
+    },
+    "libuuid.so.1": {
+      "path": "/usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0",
+      "sha256": "78d7f4d6f27b7dffc1c84dfe2f83e84aefa6f6ceeffc6ac4bc41f9fbc61cb84e"
+    },
+    "libxml2.so.2": {
+      "path": "/usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14",
+      "sha256": "209e941be9eb2eb9ab36caaa0b81d1c6b36c8f5d7268c24f19e81039137e6485"
+    },
+    "libz.so.1": {
+      "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3",
+      "sha256": "f61677c7bdb7c2aa2a243ea781bfd16afcb361cede7b4ef76127a9d8eb9a5242"
+    }
+  },
+  "observations": [
+    {
+      "stage": "initial-loaded",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "disk-edited-without-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "after-fixture-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "linear",
+            "memberTimeoutSeconds": 23,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "disk-restored-without-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "linear",
+            "memberTimeoutSeconds": 23,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "stage": "after-fixture-restore-reload",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-aaaaaaaaaaaaaaaaaaaaaaaa",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-aaaaaaaaaaaaaaaaaaaaaaaa-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    }
+  ],
+  "passed": true,
+  "ownedProcessStopped": true,
+  "runtimeApplyAuthorized": false,
+  "existingPbxOperated": false,
+  "loadedModules": [
+    "app_queue.so"
+  ],
+  "allExpectedModulesRunning": true,
+  "testCommandAbsent": true,
+  "cliTransport": "unix-control-socket-cli-quit-after",
+  "ownedPidGreetingVerified": true,
+  "processExitCode": 0
+}

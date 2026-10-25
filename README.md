@@ -509,6 +509,16 @@ queue policy; only explicit fixture reloads change it. See the
 Only `app_queue` loaded; this is not a full 41-module startup, SIP/call proof,
 standalone runtime image, or production deployment approval.
 
+**[Full 41-module startup now passes on a corrected build](./PROJECT-PLAN.md#full-runtime-startup-restoring-the-upstream-optional-api-default).**
+The original recipe accidentally disabled upstream-default `OPTIONAL_API`,
+making optional providers mandatory. Both profiles were rebuilt with it
+explicitly enabled; all 30 native definitions and both release smoke modes
+passed again. The [current validation record](./local/asterisk-build/full-startup-validation.json)
+binds the new reports; older reports remain historical evidence, not the
+current binary candidate. All 41 modules report Running with zero PJSIP
+endpoints/transports and the same five loaded-policy checks passing.
+No calls, media, runtime image or deployment are claimed; the builder is stopped.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

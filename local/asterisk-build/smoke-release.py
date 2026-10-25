@@ -6,6 +6,7 @@ import pathlib
 import re
 import signal
 import socket
+import stat
 import subprocess
 import threading
 import time
@@ -13,17 +14,20 @@ import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-release-smoke", action="store_true")
+parser.add_argument("--approve-full-module-startup", action="store_true")
 parser.add_argument("--attempt", type=int, required=True)
+parser.add_argument("--build-attempt", type=int, default=3)
 args = parser.parse_args()
-if not args.approve_release_smoke or args.attempt < 1 or os.geteuid() == 0:
+if not args.approve_release_smoke or min(args.attempt, args.build_attempt) < 1 or os.geteuid() == 0:
     raise SystemExit("Explicit release-smoke approval, positive attempt and unprivileged user required")
 home = pathlib.Path("/home/asterisk-build")
-build = home / "native-build-attempt-3"
+build = home / f"native-build-attempt-{args.build_attempt}"
 tree = build / "release"
 compile_bytes = (build / "compile-report.json").read_bytes()
 compile_report = json.loads(compile_bytes)
 profile = next(item for item in compile_report["profiles"] if item["name"] == "release")
-root = home / f"release-smoke-attempt-{args.attempt}"
+mode = "full-module-smoke" if args.approve_full_module_startup else "release-smoke"
+root = home / f"{mode}-attempt-{args.attempt}"
 root.mkdir(mode=0o700)
 for name in ["etc", "modules", "data", "db", "keys", "spool", "log", "run", "cache"]:
     (root / name).mkdir()
@@ -88,6 +92,35 @@ config.write_text("[directories]\n" + "".join(
 (root / "etc/manager.conf").write_text("[general]\nenabled=no\n")
 (root / "etc/http.conf").write_text("[general]\nenabled=no\n")
 (root / "etc/logger.conf").write_text("[general]\n[logfiles]\nconsole=notice,warning,error\n")
+module_plan = json.loads((home / "source-staging/module-plan.json").read_text())
+expected_modules = {"app_queue.so"}
+if args.approve_full_module_startup:
+    expected_modules = {name + ".so" for name in module_plan["requestedModules"]}
+    if len(expected_modules) != 41:
+        raise ValueError("Full startup requires the exact 41-module runtime plan")
+    (root / "etc/modules.conf").write_text(
+        "[modules]\nautoload=no\n"
+        + "".join(f"require={name}.so\n" for name in module_plan["requestedModules"])
+    )
+    fixtures = {
+        "pjsip.conf": "",
+        "sorcery.conf": "",
+        "extensions.conf": "[general]\nstatic=yes\nwriteprotect=yes\n",
+        "cdr.conf": "[general]\nenable=no\n",
+        "cel.conf": "[general]\nenable=no\n",
+        "cel_custom.conf": "[mappings]\nfixture.csv => ${eventtype}\n",
+        "pjproject.conf": "[startup]\ntype=startup\n",
+        "stasis.conf": "[taskpool]\n",
+        "ccss.conf": "[general]\n",
+        "features.conf": "[general]\n",
+        "acl.conf": "",
+        "udptl.conf": "[general]\nudptlstart=4500\nudptlend=4599\n",
+        "rtp.conf": "[general]\nrtpstart=10000\nrtpend=10100\nicesupport=no\n",
+        "indications.conf": "[general]\ncountry=uk\n[uk]\ndescription=United Kingdom\nringcadence=400,200,400,2000\ndial=350+440\n",
+    }
+    for name, content in fixtures.items():
+        (root / "etc" / name).write_text(content)
+    (root / "keys/keys").mkdir()
 
 
 def write_queues(timeout, strategy):
@@ -104,6 +137,7 @@ report = dict(
     schemaVersion=1, patchSha256=compile_report["patchSha256"],
     compileReportSha256=hashlib.sha256(compile_bytes).hexdigest(),
     profile="release", attempt=args.attempt,
+    mode=mode,
     verifiedReleaseOutputs=len(profile["outputs"]),
     resolvedLibraries=dict(sorted(libraries.items())),
     observations=[], passed=False, ownedProcessStopped=False,
@@ -198,11 +232,32 @@ try:
         if process.poll() is not None or time.monotonic() > deadline:
             raise RuntimeError(f"Release startup failed; see {root / 'console.log'}")
         time.sleep(0.1)
+    boot_output = cli("core waitfullybooted")
+    (root / "boot-output.txt").write_text(boot_output)
+    if boot_output != "Asterisk has fully booted.\n":
+        raise RuntimeError(f"Unexpected completed-boot response: {boot_output!r}")
     loaded = cli("module show")
-    actual = set(re.findall(r"^(\S+\.so)\s", loaded, re.MULTILINE))
-    if actual != {"app_queue.so"}:
+    (root / "loaded-modules.txt").write_text(loaded)
+    module_rows = re.findall(
+        r"^(\S+\.so)\s+.*?\s+\d+\s+(Running|Not Running)\s+\S+\s*$",
+        loaded, re.MULTILINE,
+    )
+    actual = {name for name, state in module_rows}
+    if actual != expected_modules or any(state != "Running" for _, state in module_rows):
         raise ValueError(f"Unexpected release startup modules: {actual}")
     report["loadedModules"] = sorted(actual)
+    report["allExpectedModulesRunning"] = True
+    if args.approve_full_module_startup:
+        checks = {}
+        for key, command in [
+            ("endpoints", "pjsip show endpoints"),
+            ("transports", "pjsip show transports"),
+        ]:
+            output = cli(command)
+            if output.strip() != "No objects found.":
+                raise ValueError(f"Unexpected PJSIP {key}: {output}")
+            checks[key] = output.strip()
+        report["pjsipEmptyObjectChecks"] = checks
     help_text = cli("core show help test execute")
     if "No such command" not in help_text:
         raise ValueError(f"Test command not absent from release CLI: {help_text}")
@@ -238,6 +293,15 @@ finally:
     process.stdout.close()
     report["ownedProcessStopped"] = process.poll() is not None
     report["processExitCode"] = process.returncode
+    for name in ["asterisk.ctl", "asterisk.pid"]:
+        stale = root / "run" / name
+        if stale.exists():
+            kind = stale.lstat().st_mode
+            if not ((name == "asterisk.ctl" and stat.S_ISSOCK(kind))
+                    or (name == "asterisk.pid" and stat.S_ISREG(kind))):
+                raise RuntimeError(f"Unexpected owned runtime entry type: {stale}")
+            print(f"REMOVING_STALE_RUNTIME_ENTRY_AFTER_PROCESS_EXIT={stale}", flush=True)
+            stale.unlink()
     (root / "release-smoke-report.json").write_text(json.dumps(report, indent=2) + "\n")
 if overflow.is_set() or log_errors:
     raise RuntimeError(f"Release console failure: overflow={overflow.is_set()} errors={log_errors}")

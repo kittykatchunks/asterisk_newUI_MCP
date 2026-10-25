@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "stage": "optional-api-build-full-startup-verified",
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "buildAttempt": 4,
+  "optionalApiEnabledBothProfiles": true,
+  "nativePassed": 30,
+  "nativeFailed": 0,
+  "fullStartupModules": 41,
+  "pjsipEndpoints": 0,
+  "pjsipTransports": 0,
+  "independentOutputHashesAndElfHeadersVerified": true,
+  "independentNativeXmlVerified": true,
+  "independentLibraryHashesVerified": true,
+  "exactLoadedStateTransitionsVerified": true,
+  "noOwnedAsteriskProcessesRemain": true,
+  "noSmokeControlSocketsOrPidFilesRemain": true,
+  "runtimeApplyAuthorized": false,
+  "existingPbxOperated": false,
+  "runtimeImageProduced": false,
+  "evidence": {
+    "compile-report-optional-api.json": {
+      "guestPath": "/home/asterisk-build/native-build-attempt-4/compile-report.json",
+      "sha256": "29537418a32f531dd26ece0f76b7afc14099ebfbd06d59763ec92cba9311ce48"
+    },
+    "native-test-report-optional-api.json": {
+      "guestPath": "/home/asterisk-build/native-test-attempt-2/native-test-report.json",
+      "sha256": "7fa629bc017dc83c13a32ac136847400a0ddf2e3bd6ff4f11673dcfa2b53036b"
+    },
+    "native-test-results-optional-api.xml": {
+      "guestPath": "/home/asterisk-build/native-test-attempt-2/native-test-results.xml",
+      "sha256": "eb15c71408cb3cebb2eb185d8a3fe284ddfd0136ab96d558e4582484b9147b0f"
+    },
+    "release-smoke-report-optional-api.json": {
+      "guestPath": "/home/asterisk-build/release-smoke-attempt-5/release-smoke-report.json",
+      "sha256": "953e08bc187fb71cbb7e5b16a17274fb9d80c71f5a9ec1b023cb7ea241c4e420"
+    },
+    "full-module-smoke-report.json": {
+      "guestPath": "/home/asterisk-build/full-module-smoke-attempt-4/release-smoke-report.json",
+      "sha256": "96e195bf9e78c29599d963910fb8b0b528461b6fa54dbe41b2463b3ff85c84a6"
+    }
+  }
+}

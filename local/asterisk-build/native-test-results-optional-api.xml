@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites tests="30" failures="0" errors="0" skipped="0">
+  <testsuite name="optional-api-native-batch" tests="30" failures="0" errors="0" skipped="0">
+    <testcase time="0.0" classname="main.astobj2.bounded_queue_policy." name="bounded_walk" />
+    <testcase time="0.0" classname="main.astobj2.bounded_queue_policy." name="retained_nodes" />
+    <testcase time="0.0" classname="main.loader.protected_cli." name="protected_lease" />
+    <testcase time="0.1" classname="main.loader.protected_cli." name="protected_dispatch" />
+    <testcase time="0.0" classname="main.astobj2.bounded_queue_policy." name="bounded_matrix" />
+    <testcase time="0.0" classname="main.astobj2.bounded_queue_policy." name="bounded_contention" />
+    <testcase time="0.0" classname="main.astobj2.bounded_queue_policy." name="bounded_ownership" />
+    <testcase time="0.0" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_copy" />
+    <testcase time="0.0" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_selection" />
+    <testcase time="0.0" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_values" />
+    <testcase time="0.0" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_invalid_request" />
+    <testcase time="0.1" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_contention" />
+    <testcase time="0.0" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_protocol" />
+    <testcase time="0.200" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_output_failure" />
+    <testcase time="0.0" classname="main.loader.protected_cli." name="protected_completion" />
+    <testcase time="0.0" classname="main.loader.protected_cli." name="protected_registration" />
+    <testcase time="0.1" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_rejected_state" />
+    <testcase time="0.0" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_traversal" />
+    <testcase time="0.0" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_queue_lock_kind" />
+    <testcase time="0.18" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_member_boundary" />
+    <testcase time="0.1" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_status_mapping" />
+    <testcase time="0.4" classname="main.loader.protected_cli." name="protected_target_lifecycle" />
+    <testcase time="0.3" classname="main.loader.protected_cli." name="protected_target_completion" />
+    <testcase time="0.0" classname="main.loader.protected_cli." name="protected_target_closing" />
+    <testcase time="0.1" classname="main.loader.protected_cli." name="protected_target_lookup" />
+    <testcase time="0.0" classname="main.loader.protected_cli." name="protected_target_loader_busy" />
+    <testcase time="0.1" classname="main.loader.protected_cli." name="protected_target_permission" />
+    <testcase time="0.0" classname="main.loader.protected_cli." name="protected_target_refresh" />
+    <testcase time="0.2" classname="main.astobj2.bounded_queue_policy." name="bounded_mixed_nodes" />
+    <testcase time="0.3" classname="main.astobj2.bounded_queue_policy." name="bounded_callback_work" />
+  </testsuite>
+</testsuites>

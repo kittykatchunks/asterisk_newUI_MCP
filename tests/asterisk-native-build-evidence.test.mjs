@@ -95,3 +95,56 @@ test("passing fixture evidence does not grant deployment authority", () => {
   assert.equal(candidate.nativeCompiled, false);
   assert.equal(candidate.nativeTestsExecuted, false);
 });
+
+test("current corrected build restores upstream optional API and binds all new evidence", () => {
+  const validation = read(`${directory}/full-startup-validation.json`);
+  assert.equal(validation.patchSha256, candidate.patchSha256);
+  assert.equal(validation.buildAttempt, preparation.currentValidation.buildAttempt);
+  assert.equal(validation.optionalApiEnabledBothProfiles, true);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const corrected = read(`${directory}/compile-report-optional-api.json`);
+  for (const profile of corrected.profiles) {
+    assert.equal(profile.enabledOptions.includes("OPTIONAL_API"), true);
+    assert.equal(profile.outputs.length, profile.name === "instrumented" ? 46 : 44);
+  }
+  const compiledHash = hash(`${directory}/compile-report-optional-api.json`);
+  for (const name of ["native-test-report-optional-api.json",
+    "release-smoke-report-optional-api.json", "full-module-smoke-report.json"]) {
+    assert.equal(read(`${directory}/${name}`).compileReportSha256, compiledHash);
+  }
+});
+
+test("corrected instrumented build reran every native definition successfully", () => {
+  const current = read(`${directory}/native-test-report-optional-api.json`);
+  assert.equal(current.completed, true);
+  assert.equal(current.passed, 30);
+  assert.equal(current.failed, 0);
+  assert.equal(current.allOwnedProcessesStopped, true);
+  assert.deepEqual(current.results.map((item) => item.name), candidate.nativeTests);
+  assert(current.results.every((item) => item.result === "passed" && item.failure === null));
+});
+
+test("full startup requires all forty-one modules running and no PJSIP objects", () => {
+  const current = read(`${directory}/full-module-smoke-report.json`);
+  const plan = read(`${directory}/module-plan.json`);
+  assert.equal(current.passed, true);
+  assert.equal(current.allExpectedModulesRunning, true);
+  assert.deepEqual(current.loadedModules, plan.requestedModules.map((name) => `${name}.so`).sort());
+  assert.equal(current.loadedModules.length, 41);
+  assert.deepEqual(current.pjsipEmptyObjectChecks,
+    { endpoints: "No objects found.", transports: "No objects found." });
+  assert.equal(current.testCommandAbsent, true);
+  assert.equal(current.ownedProcessStopped, true);
+  assert.equal(current.processExitCode, 0);
+  assert.equal(current.runtimeApplyAuthorized, false);
+  assert.equal(current.existingPbxOperated, false);
+  for (const name of ["full-module-smoke-report.json", "release-smoke-report-optional-api.json"]) {
+    const smoke = read(`${directory}/${name}`);
+    assert.deepEqual(smoke.observations.map((item) => item.response.objects[0].memberTimeoutSeconds),
+      [11, 11, 23, 23, 11]);
+    assert.deepEqual(smoke.observations.map((item) => item.response.objects[0].strategy),
+      ["ringall", "ringall", "linear", "linear", "ringall"]);
+  }
+});

@@ -74,7 +74,7 @@ for profile in ["instrumented", "release"]:
         configure.append("--enable-dev-mode")
     run(configure)
     run(["make", "menuselect.makeopts"])
-    options = ["menuselect/menuselect", "--disable-all"]
+    options = ["menuselect/menuselect", "--disable-all", "--enable", "OPTIONAL_API"]
     modules = sorted(module_plan["resolvedRuntimeModules"])
     if profile == "instrumented":
         modules += module_plan["testOnlyModules"]
@@ -96,7 +96,7 @@ for profile in ["instrumented", "release"]:
         )
     (tree / "selected-options.txt").write_text(selected)
     enabled = {line.split()[1] for line in selected.splitlines() if line.startswith("+ ")}
-    required = set(modules)
+    required = set(modules) | {"OPTIONAL_API"}
     if profile == "instrumented":
         required.add("TEST_FRAMEWORK")
     if not required.issubset(enabled):
