@@ -3736,6 +3736,61 @@ No dependency install, native compile/test, image build, module load or PBX
 operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
 M1-09 remain open.
 
+##### Gate B preparation started: resource probe, not compilation
+
+The user requested moving from source test definitions toward actual building,
+selected **custom Asterisk build/native-test preparation (Gate B)** and retained
+the **2 CPU / 2 GiB RAM / 20 GiB incremental storage / 30-minute** proposal.
+This authorizes preparation, not an unspecified dependency installer or build.
+The subsequent isolated shell-only resource-probe form was accepted with its
+default approval; no PBX or native-test execution was requested by that probe.
+The [preparation record](./local/asterisk-patches/build-preparation.json) is
+separate from the unchanged source-candidate manifest and is explicitly blocked,
+not a complete dependency/build manifest or permission to compile.
+
+Read-only inspection found Docker Desktop's Linux/amd64 engine 29.6.2,
+cgroup v2 and the containerd `overlayfs` snapshotter. A uniquely named
+create-only probe accepted `--storage-opt size=20G`, 2 CPUs, 2 GiB memory,
+zero swap and 128 PIDs; it was removed without starting. A second uniquely
+owned shell-only probe used the cached digest-pinned stock image, no network,
+no shared mounts/ports, all capabilities dropped, no-new-privileges and
+disabled container logging. Its host watchdog was 120 seconds. It started
+only a shell, read cgroup/filesystem limits, wrote/deleted exactly 64 MiB
+and exited successfully in less than one second. The container and named
+temporary stdout/stderr files were removed. Asterisk was not started.
+
+Observed live limits were `cpu.max = 200000 100000`,
+`memory.max = 2147483648`, `memory.swap.max = 0` and `pids.max = 128`.
+The watchdog did not expire; its forced-stop path is not tested by this
+successful short probe. These observations verify configured cgroup limits,
+not that compilation or the 65,536-member fixture fits the budget.
+
+**Storage remains a blocking prerequisite.** The engine retained the size
+option, but root `df` reported 1,055,762,868 KiB (roughly 1 TiB), not a bounded
+20 GiB filesystem, and no quota inspection utility was present. This does not
+prove the quota is ignored; it also does not demonstrate an enforced quota.
+No 20 GiB fill was attempted. A root-layer option alone would not bound host
+downloads, image pulls/build caches, bind mounts, artifact exports or logs.
+Do not use host free-space sampling, a size estimate or the accepted option
+as a substitute for a hard aggregate incremental-storage cap.
+
+Next preparation must establish a verified quota-backed storage boundary
+without changing shared daemon settings or allocating a large disk silently,
+then select exact builder/runtime digests, package/archive checksum closure,
+license obligations, configure/menuselect/modules and test/release profiles.
+The existing diagnostic Dockerfile uses unversioned `apt-get update/install`
+and is not an approved reproducible native builder. Preserve the explicit
+runtime module list, including PJSIP/SRTP/queue/CEL/media dependencies; compiling
+only the getter module is not an ABI-compatible runtime deliverable.
+
+The completed manifest, exact commands, enforceable aggregate resource limits
+and cleanup plan still require explicit Gate B approval before installation
+or compilation. If storage enforcement needs a dedicated disk/host or broader
+privilege, obtain a decision first. Gate C remains separately closed. No image
+pull/build, dependency installation, native compile/test or PBX operation
+occurred. The source patch/manifest remain unchanged; documentation links,
+JSON shape/source binding and whitespace are checked, not native tests.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

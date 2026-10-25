@@ -469,6 +469,14 @@ enforced resources before any native run. Gate C separately controls owned
 two-PBX proof. No custom parser/binding or runtime publication authority is
 enabled by these source definitions.
 
+[Gate B build preparation has started](./PROJECT-PLAN.md#gate-b-preparation-started-resource-probe-not-compilation).
+An isolated cached-image shell probe verified live 2-CPU/2-GiB/zero-swap
+cgroup settings and was removed; it did not start Asterisk. The 20-GiB
+aggregate storage cap is not yet proven despite Docker accepting the size
+option. The [preparation record](./local/asterisk-patches/build-preparation.json)
+lists this blocker and the missing immutable builder/dependency/profile
+closure. No dependencies were installed or native code compiled.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
