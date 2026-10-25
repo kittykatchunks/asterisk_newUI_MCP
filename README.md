@@ -589,6 +589,14 @@ The container exited zero and was removed. See the
 No SIP, media, human-agent behavior, image rebuild or existing-container change
 is claimed.
 
+**[The next custom-image SIP/RTP test is proposed, not executed](./PROJECT-PLAN.md#proposed-custom-image-sip-registration-and-rtp-echo-proof-not-authorized).**
+Repository probes can be reused in a fresh one-PBX/one-client internal network,
+without published ports or touching existing customer containers. The proposal
+defines digest rejection/registration/unregistration, authenticated INVITE/BYE,
+and the existing **70-of-100 distinct synthetic PCMU frame** echo threshold.
+It requires separate execution approval; no network, container, credential,
+SIP packet or media was created for this proposal.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

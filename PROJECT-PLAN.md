@@ -4831,6 +4831,169 @@ does not prove real endpoint ringing, SIP registration, agent behavior,
 audio/media, production retries/transfer, remaining Gate A acceptance or
 Gate C. Deployment and redistribution/source-license closure remain separate.
 
+##### Proposed custom-image SIP registration and RTP echo proof: not authorized
+
+**Status: proposal only.** The user requested investigation and a concrete
+isolated protocol-test proposal, not network/container execution. This step
+read repository fixtures and local image metadata only. It did not start
+containers/builders, create a network, generate credentials, install packages,
+build/pull images, send SIP/RTP or operate existing PBXs. The latest executed
+custom-image result remains the synthetic unanswered-member proof above.
+
+**Reusable prior art and boundaries**
+
+- [Python SIP/RTP probe](./tests/sip_rtp_proof.py): standard-library UDP
+  INVITE digest challenge/response, ACK, PCMU SDP negotiation, synthetic RTP
+  echo and BYE. It checks Call-ID/CSeq and bounds final-response exchanges
+  to five seconds with 500-ms retransmission. The RTP check sends 100 distinct
+  160-byte/20-ms PCMU payloads and requires at least 70 distinct matching
+  outbound payloads echoed during a three-second observation. It does **not**
+  register an endpoint.
+- [Registration client](./tests/identity/sip-registration-client.ts) and
+  [registration proof](./tests/identity/pbx-registration-proof.ts): prior
+  digest REGISTER, contact-expiry and unregistration assertions. They assume
+  loopback/custom identity plumbing and two customer fixtures, so cannot
+  simply be invoked against this new scratch-image test.
+- [SIP Compose overlay](./compose.sip-proof.yaml) proves the already pinned
+  Asterisk carrier image contains Python in earlier runs. Local metadata
+  confirms that Linux amd64 image remains present; Python availability in
+  the selected immutable image must still be checked at future execution.
+- [Existing wrapper](./scripts/Test-SipProof.ps1) calls `up --force-recreate`
+  for named customer services, checks CEL/WAV recordings and leaves PBXs
+  running. **Do not run it for this proposal.** Frozen REFER/browser/identity
+  proofs and existing customer configs/credentials must not be changed.
+
+**Proposed topology and prerequisites**
+
+Use one fresh owned PBX from immutable ID
+`sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967`,
+binding the current image-startup/payload evidence before launch. Use one
+client container from existing
+`andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d`
+**only as a Python carrier**: override entrypoint, never start its Asterisk.
+No new image/dependency build, pull, package install, external trunk or host
+SIP client is needed. Missing images/tools must fail explicitly, not trigger
+downloads or substitute an unverified image.
+
+Create one unique user-defined bridge with `internal=true`; attach only the
+owned PBX and client with per-run ownership labels. Publish **no ports**,
+attach no existing networks and do not use host networking or Docker-socket
+mounts. Verify network membership and internal flag before protocol traffic.
+Resolve the PBX alias on that network and retain the actual peer IP; accept
+SIP/RTP only from the selected PBX address and negotiated bounded media port.
+An internal bridge reduces external routing but is **not proof of host
+inaccessibility, tenant isolation or a security boundary against host admins**.
+This is one PBX plus a client, not the separately gated two-PBX Gate C proof.
+
+The scratch PBX has no Python/shell: host orchestration uses the existing
+copied-loader remote CLI path. Private read-only fixture configuration enables
+one UDP transport on 5060, one `proof-client` endpoint/auth/AOR, PCMU only,
+`direct_media=no`, and a private `echo` dialplan using `Answer`, `Echo`,
+`Hangup`. No AMI, HTTP/WSS, CEL/recording export, production context, outbound
+dialplan, anonymous endpoint, source-IP auth bypass or telephone number is
+enabled. RTP is restricted to the existing private 10000–10100 range, ICE
+off. This is intentionally unencrypted UDP SIP/RTP for the isolated fixture,
+**not a production transport/security recommendation**.
+
+Generate a new 32-byte random secret (64 hex characters) for this run only.
+One AOR accepts at most one contact; use explicit 60-second requested lifetime
+and bounded minimum/maximum expirations. Qualification is disabled for this
+first contact-lifecycle proof; OPTIONS reachability is a separate milestone.
+The private PBX config and client's secret-only input are separate mounts;
+do not give the client unrelated PBX/build records or other customer secrets.
+Never log password, Authorization headers, digest responses or credential
+file bytes/hashes. Bind sanitized configuration structure and nonsecret
+protocol outcomes in reports; clean up only the exact generated credential
+files after both owned containers are gone. Failed-run logs must be sanitized
+before export; do not retain secret-bearing fixtures as ordinary evidence.
+
+**Implementation proposed after approval**
+
+Add a bounded custom-image orchestrator reusing existing image/payload
+identity checks, Docker Desktop command/error handling, readiness, module
+checks, unique-label/name/ID cleanup, tmpfs and watchdog patterns. Extract
+shared helpers only where needed; keep current no-network smoke behavior
+unchanged rather than silently switching it to an internal network.
+Add an isolated Python protocol entrypoint importing the existing `Probe`
+and RTP verifier, with method-aware REGISTER digest support and contact
+lifecycle checks based on registration prior art. Preserve the existing
+INVITE helper API/default semantics and frozen callers; test any shared
+change against existing SIP/REFER unit coverage. The current probe's `main`
+requires two-customer credential mounts, so **reuse its functions, not main**.
+Use a new fixture directory and unique resource names, never the existing
+Compose project or customer volumes.
+
+Before runtime, offline tests must verify exact digest method/URI/qop input,
+challenge handling, wrong-secret refusal, Call-ID/CSeq matching, expiration
+parsing, packet/output limits, malformed SDP/RTP rejection, exact echo
+threshold edges (69 fails / 70 passes), deadlines and ownership-safe cleanup.
+Do not claim a full RFC SIP implementation from these bounded test clients.
+
+**Proposed ordered acceptance**
+
+1. Inspect image evidence and pre-existing container/network inventory.
+   Verify isolation/resource settings and completed boot, exact 41 Running
+   module rows, absent test CLI and unchanged loaded queue policy.
+2. Require exactly one UDP transport/configured endpoint and zero initial
+   dynamic contacts. Unauthenticated REGISTER must be challenged; a random
+   wrong secret must never produce SIP 200 or create a contact.
+3. Correct digest REGISTER must return 200 with a positive contact lifetime
+   no greater than the requested 60 seconds. Correlate the sole PBX contact
+   to the client's actual address/port; it is contact presence, **not**
+   qualification/reachability proof. Duplicate retransmissions must not create
+   extra contacts. Never infer registration success from INVITE success.
+4. Unauthenticated INVITE must be challenged. An INVITE with a wrong secret
+   must end with an explicit authentication rejection (401/403), no answered
+   dialog and zero PBX channels afterward. Timeouts/5xx are failures, not
+   accepted negative-auth results.
+5. Correct authenticated INVITE to only the private echo extension must
+   return 200; ACK it, require SDP PCMU/8000 and the expected peer/media port,
+   then require **at least 70 of 100 distinct synthetic PCMU payloads echoed**
+   within the existing three-second observation. Report sent/matching frame
+   counts and negotiated codec, not human audio quality, latency/jitter/MOS,
+   queue/member behavior or production RTP performance.
+6. Send BYE, require 200 and poll PBX channels to zero within ten seconds.
+   Authenticated REGISTER with expiry zero must return 200 and remove the
+   exact dynamic contact; endpoint config remains and no extra contacts exist.
+   Do not rely on container teardown to claim unregistration.
+7. Send SIGTERM to PBX; require exit zero without OOM/watchdog expiry.
+   Client must exit zero. Remove both exact owned containers, then the exact
+   owned network only if its label matches and no foreign endpoints remain.
+   Compare initial existing-resource inventory; never prune or disconnect
+   foreign resources to force cleanup. Delete only generated credential files;
+   retain sanitized results and nonsecret failure evidence.
+
+The registration and echo portions produce separate pass/fail results. If
+registration passes but media fails, preserve that distinction rather than
+claiming end-to-end success. Fail closed on missing observables/credentials,
+unexpected auth success, external SDP addresses, extra endpoints/contacts,
+nonzero exit or cleanup failures.
+
+**Proposed budget and approval boundary**
+
+One PBX: 4 CPU-equivalents, 4 GiB RAM, zero extra swap, 256 tasks; one client:
+0.5 CPU-equivalent, 128 MiB RAM, zero extra swap, 32 tasks. Thus the proposed
+aggregate limits are **4.5 CPU-equivalents / 4 GiB + 128 MiB / 288 tasks**,
+not the previous single-container total. Read-only roots, all capabilities
+dropped, no-new-privileges, non-root numeric identities, core dumps disabled.
+PBX state tmpfs 64 MiB; client tmpfs at most 8 MiB if needed, no persistent
+volumes. Single-file daemon logs capped at 2 MiB per container with compression
+off; protocol reports bounded and credential-free, no default packet capture.
+Overall watchdog **five minutes including cleanup**, per exchange five seconds,
+client process at most 60 seconds and ten-second graceful-stop limits.
+Implementation/preflight budget 15 minutes; monitored incremental storage
+stop threshold 256 MiB (not a guaranteed disk quota); shared Docker Desktop
+overhead remains outside process limits. No existing image/cache pruning.
+
+**No execution is authorized by this document.** A later approval must cover
+the new internal network, both containers, ephemeral credentials, UDP
+registration/calls and synthetic RTP, plus the stated aggregate budget and
+cleanup. Recommend one initial attempt with an explicit stop/report on
+failure; do not automatically expand into retries, more PBXs, real trunks,
+WebRTC/TLS/SRTP, production deployment or Gate C. This proposal creates no
+new runtime evidence and leaves all previous acceptance/redistribution limits
+unchanged.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

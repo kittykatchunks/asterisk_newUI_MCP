@@ -2597,6 +2597,18 @@ separately. **50 offline Python tests and 30 source/evidence tests pass.**
 No SIP/media, human behavior, rebuild, existing-container change or Gate C
 is implied. See the [handoff](./PROJECT-PLAN.md#custom-image-synthetic-unanswered-member-timeout-and-cleanup-passed).
 
+### Custom-image SIP registration/RTP proof proposed only
+
+Read-only inspection identified reusable Python SIP/RTP and TypeScript
+registration probes. The [bounded proposal](./PROJECT-PLAN.md#proposed-custom-image-sip-registration-and-rtp-echo-proof-not-authorized)
+selects one custom-image PBX, one pinned Python client carrier and a fresh
+internal Docker network with no published ports. It defines authentication,
+contact lifecycle, INVITE/BYE, PCMU echo and complete owned-resource cleanup
+checks. No existing customer wrapper will run: it recreates named PBXs and
+leaves them running. No network/container startup, generated credentials,
+dependency changes or SIP/media execution occurred. Separate approval is
+required; this is not Gate C or multi-customer isolation proof.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
