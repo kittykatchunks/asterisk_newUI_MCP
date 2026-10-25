@@ -6,6 +6,7 @@ import type { openCelHistory } from "./cel-history.ts";
 import { historyInteger as integer, historyDigest as digest, historySha256 as sha256 } from "./history-evidence.ts";
 
 const applicationId = 0x4a50524a;
+export class HistoryProjectionNotFound extends Error {}
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -59,10 +60,24 @@ export function openHistoryProjections(path: string, options: { readOnly?: boole
     projectionScope(scope);
     const row = db.prepare(`SELECT * FROM projection_revisions WHERE customer=? AND runtime=? AND epoch=? ORDER BY id DESC LIMIT 1`)
       .get(scope.customer, scope.runtime, scope.epoch);
-    if (!row) throw new Error("Journey projection not found for customer/runtime/epoch");
+    if (!row) throw new HistoryProjectionNotFound("Journey projection not found for customer/runtime/epoch");
     return decode(row, scope);
   }
   return {
+    scopes(customer: string, afterId = 0, limit = 100) {
+      projectionScope({ customer, runtime: "validation", epoch: "validation" });
+      if (!integer(afterId) || !Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error("Invalid projection scope page");
+      const rows = db.prepare(`SELECT runtime,epoch,MIN(id) AS first_id FROM projection_revisions
+        WHERE customer=? GROUP BY runtime,epoch HAVING MIN(id)>? ORDER BY first_id LIMIT ?`)
+        .all(customer, afterId, limit + 1);
+      const scopes = rows.slice(0, limit).map((row) => {
+        if (typeof row.runtime !== "string" || typeof row.epoch !== "string" ||
+            !integer(row.first_id) || row.first_id < 1) throw new Error("Corrupt projection scope metadata");
+        projectionScope({ customer, runtime: row.runtime, epoch: row.epoch });
+        return { runtime: row.runtime, epoch: row.epoch, firstRevisionId: row.first_id };
+      });
+      return { scopes, nextAfterId: rows.length > limit ? scopes.at(-1)!.firstRevisionId : null };
+    },
     rebuild(history: ReturnType<typeof openCelHistory>, scope: ProjectionScope) {
       if (options.readOnly) throw new Error("Projection rebuild requires a writable projection database");
       projectionScope(scope);
@@ -94,7 +109,7 @@ export function openHistoryProjections(path: string, options: { readOnly?: boole
       if (!integer(id) || id < 1) throw new Error("Invalid projection revision ID");
       const row = db.prepare("SELECT * FROM projection_revisions WHERE customer=? AND runtime=? AND epoch=? AND id=?")
         .get(scope.customer, scope.runtime, scope.epoch, id);
-      if (!row) throw new Error("Journey projection revision not found for scope");
+      if (!row) throw new HistoryProjectionNotFound("Journey projection revision not found for scope");
       return decode(row, scope);
     },
     revisions(scope: ProjectionScope, afterId = 0, limit = 100) {

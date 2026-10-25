@@ -12,6 +12,7 @@ import { openAgentStore } from "./agent-store.ts";
 import { openAgentDeviceLeaseStore } from "./agent-device-lease.ts";
 import type { CustomerPermission } from "./access.ts";
 import { openBookingSimulation } from "./booking-simulation.ts";
+import { createHistoryReader } from "./history-reader.ts";
 
 export async function loadLocalPbxStatus(root: string, endpoints = false) {
   let text: string;
@@ -64,6 +65,15 @@ async function configuration(root: string) {
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+export async function loadLocalHistoryReader(root: string) {
+  const value: unknown = JSON.parse(await readFile(join(root, ".local-proof", "engineering", "history-reader.json"), "utf8"));
+  if (!record(value) || Object.keys(value).sort().join(",") !== "historyPath,members,projectionPath" ||
+      typeof value.historyPath !== "string" || typeof value.projectionPath !== "string" ||
+      !Array.isArray(value.members) || value.members.length < 1 || value.members.length > 2 ||
+      !value.members.every((m: unknown) => m === "alice" || m === "bob") ||
+      new Set(value.members).size !== value.members.length) throw new Error("Invalid explicit local history reader configuration");
+  return { reader: createHistoryReader(value.historyPath, value.projectionPath), members: value.members };
+}
 
 export async function loadCapturedIncidents(root: string): Promise<ApprovedIncident[]> {
   const evidenceRoot = join(root, ".local-proof", "evidence");
@@ -107,7 +117,8 @@ export async function loadCapturedIncidents(root: string): Promise<ApprovedIncid
   }));
 }
 
-export async function startLocalEngineering(root: string, stageCapturedReports = false, withAgents = false, withSimulation = false) {
+export async function startLocalEngineering(root: string, stageCapturedReports = false, withAgents = false, withSimulation = false, withHistory = false) {
+  const history = withHistory ? await loadLocalHistoryReader(root) : undefined;
   const { accounts, client } = await configuration(root);
   const pbx = await loadLocalPbxStatus(root);
   const endpoints = await loadLocalPbxStatus(root, true);
@@ -167,6 +178,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
           ["diagnostics:read", "diagnostics:report", "diagnostics:review"] : ["diagnostics:read"];
         if ((withAgents || withSimulation) && account.username === "alice") permissions.push("agent:access");
         if (withSimulation && account.username === "alice") permissions.push("booking:simulate");
+        if (history?.members.includes(account.username)) permissions.push("history:read");
         return { issuer, subject: account.subject, customer: account.customer, permissions };
       }), supportGrants: [],
     }, store.audit, (error, requestId) => {
@@ -177,7 +189,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
       tokenEndpoint: discovery.token_endpoint, jwksUrl: discovery.jwks_uri,
       clientId: client.clientId, clientSecret: client.secret, audience: "diagnostic-api",
       allowLoopbackHttpForTests: true,
-    }, pbx, endpoints, agents, deviceLeases, simulation);
+    }, pbx, endpoints, agents, deviceLeases, simulation, history?.reader);
     const active = server;
     await new Promise<void>((resolve, reject) => {
       const failed = (error: Error) => reject(error);
@@ -189,7 +201,7 @@ export async function startLocalEngineering(root: string, stageCapturedReports =
     });
     let stopped: Promise<void> | undefined;
     return {
-      origin, databasePath, staged, withAgents, withSimulation,
+      origin, databasePath, staged, withAgents, withSimulation, withHistory,
       stop() {
         stopped ??= new Promise<void>((resolve, reject) => {
           active.close((error) => {

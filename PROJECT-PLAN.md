@@ -961,18 +961,25 @@ This checkpoint inspects existing evidence; it does not rerun tests or REFER.
 The main integration gap is between trusted operator history tools and the
 authenticated application. Raw CEL/queue, manifests, collector/gap provenance
 and immutable v1-v5 projections exist; current-input versus offline reads are
-explicit. They are not a tenant-authorized history service or usable selected-call
-workspace. Existing diagnostic/agent/simulation grants must not implicitly expose
-history. Repeated same-caller/same-queue entry stays ambiguous by design.
+explicit. At checkpoint time they were not a tenant-authorized workspace.
+The subsequently authorized HR batch below now provides bounded member-only
+read access, not a complete call-history graph. Existing diagnostic/agent/
+simulation grants do not expose history. Repeated same-caller/same-queue entry
+stays ambiguous by design.
 
 Recommended sequence:
 
-1. **Agree then implement a bounded read-only history-evidence workspace.**
-   The proposed HR-01 through HR-10 contract covers opt-in/read-only stores,
-   customer/session/explicit permission and audit boundaries, bounded scope/
-   revision navigation, unmodified legacy documents, honest freshness/gaps,
-   separate observations and hostile-data/error tests. Audience, raw evidence
-   exposure and support grants remain decisions, not assumptions.
+1. **Bounded read-only history-evidence workspace: implemented and verified.**
+   User selected explicit customer `history:read` membership only, no support
+   grants, references-only exposure and autonomous HR-01 through HR-10 execution.
+   All ten pass, alongside 151 focused existing regressions (161 total) and
+   typecheck. Both customers' retained v1-v5 stores additionally pass real
+   authenticated HTTP/browser reads and explicit current checks, with raw and
+   projection bytes unchanged. Opt-in configured existing read-only stores,
+   no inherited permission, scope/revision cursors, audit/session loss boundaries,
+   offline versus checked freshness, legacy absence, independent health/gaps,
+   separate observations and hostile/error handling are covered. No raw route,
+   background collection, database creation/migration, rebuild or phone activation.
 2. **Integrate restart/interruption/replay acceptance** against the fixed
    scenarios and visible evidence, preserving explicit unknown gaps; distinguish
    local proof from continuous remote collection/rotation/retention.
@@ -987,12 +994,17 @@ Recommended sequence:
 These are priorities, not a new authorization to build all five packages.
 Further event interpretation, repeated-visit or transfer joins should be driven
 by an agreed unsupported scenario, not an indefinite synthetic-test cycle.
-No dependency/runtime/permission change, ordinary routing, live phone, production
-collector, voice AI or real Autocab integration is part of this checkpoint.
+The original documentation-only checkpoint made no dependency/runtime/permission
+change. The subsequently authorized HR batch adds only the explicitly selected
+read permission and opt-in workspace; ordinary routing, live phone, production
+collection, voice AI and real Autocab integration remain out of scope.
 
-See the [proposed ten-check HR batch](./MILESTONE-1.md#proposed-hr-batch-read-only-history-evidence-ten-acceptance-checks)
-before selecting the next implementation. M1 startup/capture thresholds,
-production capacity, retention and deployment questions remain unresolved.
+See the [executed ten-check HR batch](./MILESTONE-1.md#selected-hr-batch-read-only-history-evidence-ten-acceptance-checks)
+and [opt-in setup](./README.md#opt-in-read-only-history-workspace).
+HR completion does not close any full M1 gate. Integrated restart/interruption/
+replay is the next recommendation, requiring its own bounded contract.
+M1 startup/capture thresholds, production capacity, retention and deployment
+questions remain unresolved.
 
 ## 6. Interface and roaming agents
 

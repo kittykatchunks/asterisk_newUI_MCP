@@ -15,6 +15,8 @@ import { handleAgentDeviceRequest } from "./agent-device-http.ts";
 import type { AgentDeviceLeaseStore } from "./agent-device-lease.ts";
 import type { BookingSimulationStore } from "./booking-simulation.ts";
 import { handleBookingSimulationRequest } from "./booking-simulation-http.ts";
+import { handleHistoryRequest } from "./history-http.ts";
+import type { HistoryReader } from "./history-reader.ts";
 
 export interface AccessAudit {
   requestId: string;
@@ -24,7 +26,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout" | "agent-device-acquire" | "agent-device-renew" | "agent-device-release" | "booking-simulation";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout" | "agent-device-acquire" | "agent-device-renew" | "agent-device-release" | "booking-simulation" | "history-read";
   incident?: string;
   bookingOperation?: string;
 }
@@ -41,11 +43,13 @@ export function createDiagnosticApi(
   agents?: AgentDirectory,
   deviceLeases?: AgentDeviceLeaseStore,
   bookingSimulation?: BookingSimulationStore,
+  historyReader?: HistoryReader,
 ) {
   if (bookingSimulation && !sessionConfig) throw new Error("Booking simulation requires application sessions");
+  if (historyReader && !sessionConfig) throw new Error("History workspace requires application sessions");
   if (sessionConfig && (sessionConfig.issuer !== config.issuer || sessionConfig.audience !== config.audience ||
       sessionConfig.jwksUrl !== config.jwksUrl)) throw new Error("Application and API identity configuration mismatch");
-  const sessions = sessionConfig ? createApplicationSessions(sessionConfig, bookingSimulation !== undefined) : undefined;
+  const sessions = sessionConfig ? createApplicationSessions(sessionConfig, bookingSimulation !== undefined, historyReader !== undefined) : undefined;
   const identityIssuer = config.issuer;
   const verify = createAccessVerifier(config);
   return createServer(async (request, response) => {
@@ -56,6 +60,7 @@ export function createDiagnosticApi(
     response.setHeader("X-Request-Id", requestId);
     response.setHeader("Referrer-Policy", "no-referrer");
     let simulationRequest = false;
+    let historyRequest = false;
     const send = (status: number, code: string) => {
       if (status === 401) response.setHeader("WWW-Authenticate", 'Bearer realm="diagnostics"');
       response.writeHead(status).end(JSON.stringify({ code, requestId,
@@ -65,6 +70,7 @@ export function createDiagnosticApi(
     try {
       const path = new URL(request.url ?? "/", "http://localhost").pathname;
       simulationRequest = /^\/api\/customers\/[^/]+\/booking-simulation(?:\/|$)/.test(path);
+      historyRequest = /^\/api\/customers\/[^/]+\/history(?:\/|$)/.test(path);
       if (sessions && await sessions.handle(request, response, requestId, audit)) return;
       if (path.startsWith("/api/") && sessions) {
         const session = sessions.authorization(request);
@@ -81,6 +87,18 @@ export function createDiagnosticApi(
       const agentAsset = path === "/agent/console.js";
       const simulationWorkspace = /^\/simulation\/customer-[ab]$/.test(path);
       const simulationAsset = path === "/simulation/workspace.js";
+      const historyWorkspace = /^\/engineering\/history\/[a-z0-9][a-z0-9-]{0,63}$/.test(path);
+      const historyAsset = path === "/engineering/history.js";
+      if (historyWorkspace || historyAsset) {
+        if (request.method !== "GET") { response.setHeader("Allow", "GET"); send(405, "method_not_allowed"); return; }
+        if (!sessions || !historyReader) { send(503, "history_workspace_disabled"); return; }
+        const content = await readFile(new URL(historyAsset ? "./history-workspace.js" : "./history-workspace.html", import.meta.url), "utf8");
+        response.setHeader("Content-Type", historyAsset ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
+        response.setHeader("Content-Security-Policy",
+          "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+        response.setHeader("X-Frame-Options", "DENY");
+        response.writeHead(200).end(content); return;
+      }
       if (agentWorkspace || agentAsset || simulationWorkspace || simulationAsset) {
         if (request.method !== "GET") { response.setHeader("Allow", "GET"); send(405, "method_not_allowed"); return; }
         if (!sessions) { send(503, "application_session_unavailable"); return; }
@@ -135,6 +153,13 @@ export function createDiagnosticApi(
       const agentMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/profile$/);
       const deviceMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/device-lease(?:\/(renew|release))?$/);
       const simulationMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/booking-simulation(?:\/(.*))?$/);
+      const historyReadMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/history(?:\/(.*))?$/);
+      if (historyReadMatch) {
+        customer = historyReadMatch[1];
+        await handleHistoryRequest(request, response, requestId, customer, historyReadMatch[2] ?? "",
+          () => sessions?.identity(request), verify, audit, logError, historyReader);
+        return;
+      }
       if (simulationMatch) {
         customer = simulationMatch[1];
         await handleBookingSimulationRequest(request, response, requestId, customer,
@@ -328,7 +353,7 @@ export function createDiagnosticApi(
       }));
     } catch (error) {
       logError(error, requestId);
-      send(503, simulationRequest ? "booking_simulation_unavailable" : "diagnostic_access_unavailable");
+      send(503, historyRequest ? "history_read_unavailable" : simulationRequest ? "booking_simulation_unavailable" : "diagnostic_access_unavailable");
     }
   });
 }

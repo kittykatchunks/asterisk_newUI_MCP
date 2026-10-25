@@ -1568,7 +1568,7 @@ permissions but no history-specific grant. Do not repurpose those grants silentl
 
 | Priority | Bounded work package | Why now / dependencies | Exit and non-claims |
 |---|---|---|---|
-| 1 | Read-only authenticated history-evidence workspace | Integrate existing durable facts with visible uncertainty before adding more event interpretations. First agree audience, explicit history read grant/support policy and whether raw records are exposed. Reuse session/audit/customer-boundary patterns, not CLI authority. | Finite HR contract below, then approve implementation. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
+| 1 | Read-only authenticated history-evidence workspace | Subsequently authorized: explicit customer `history:read` members only, no support grants, references-only exposure. Reuses session/audit/customer boundaries, not CLI authority. | HR-01 through HR-10 below pass in the bounded local scope. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
 | 2 | Integrated restart/interruption/replay proof | Requires fixed scenario/evidence contracts, not completion of the UI; can proceed independently once scoped. Combine existing durable stores/collectors with owned failure injection rather than another isolated event-name case. | Prior observations survive process/PBX restart, late data/replay/unknown gaps remain explicit. Map exact remaining M1-06/07 gaps; remote delivery remains separately designed. |
 | 3 | Limited route/queue publication foundation | Critical dependency for intended agent call path (M1-09, then M1-02/04/05/18). Needs agreed managed-file ownership, draft/revision/drift and rollback semantics. | Invalid/stale/drifted publication fails; owned apply/verify proof, no broad admin editor or Docker socket in the web process. |
 | 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
@@ -1579,28 +1579,61 @@ Autocab integration or voice AI is authorized as a side effect. Further history
 reconstruction should follow evidence of a required unsupported scenario, not an
 automatic sequence of algorithm versions.
 
-#### Proposed HR batch: read-only history evidence, ten acceptance checks
+#### Selected HR batch: read-only history evidence, ten acceptance checks
 
-**Proposed only.** Audience/access policy, raw evidence exposure and service
-integration/storage wiring must be agreed before implementation; this review
-does not choose a new permission or grant anyone access.
+**Authorized and implemented after the checkpoint.** The user selected explicit
+customer `history:read` membership only, no support access, references-only
+exposure, and autonomous execution of the complete ten-check batch. Opt-in
+server configuration selects existing absolute raw/projection paths and explicit
+local Alice/Bob members; the browser never selects files. No other permission
+implicitly grants access. No agent assignment is required.
 
-| Check | Proposed finite acceptance |
+| Check | Executed finite acceptance (all pass locally) |
 |---|---|
 | HR-01 | Explicit opt-in and configured existing read-only stores; no store creation, migration, import, rebuild or background collector on page load. |
-| HR-02 | Authenticated customer-bound access with an explicitly agreed read permission/support policy; agent or simulation access alone never grants history. Guessed foreign runtime/epoch/revision IDs disclose nothing. |
+| HR-02 | Live application session, CSRF and explicit customer `history:read` membership; no support, diagnostic, agent, simulation, token-role or bearer-only authority. Guessed foreign runtime/epoch/revision IDs disclose nothing. |
 | HR-03 | Reuse persistent audit and request-reference conventions for allowed/denied/error reads; audit/storage failures surface, not empty success. Test logout/session expiry and no stale protected data after loss of access. |
 | HR-04 | Select only authorized customer/runtime/epoch/revision scope; bounded metadata pages with explicit cursors. Never list other customers or accept arbitrary filesystem paths from the browser. |
 | HR-05 | Read immutable v1-v5 documents as stored, including absent newer fields; display algorithm/revision and supported legacy limitations without reinterpretation. |
 | HR-06 | Separate explicit current-input checking from stored/offline inspection. Show inputs-match/inputs-changed/not-checked and independent coverage/health; failure is never green freshness. |
 | HR-07 | Display caller answer/end, queue timeout/CONNECT/member correlation/completion/ABANDON as separate observations. No human-service badge, business total or whole-journey outcome. |
 | HR-08 | Show unresolved/conflicting/unassigned evidence and permanent unknown gaps prominently. Do not hide incomplete data behind an empty timeline or join by timestamps/linkedid. |
-| HR-09 | Evidence references retain kind/source/generation/offset/hash; raw record viewing only if explicitly approved with bounded access/audit and scope validation. Escape hostile strings; no recording/export/capture actions. |
+| HR-09 | Evidence references retain kind/source/generation/offset/hash; no raw record routes or arbitrary file inputs. Allowlisted observation DTOs exclude unexpected/raw/configuration fields. Hostile text is escaped; no recording/export/capture actions. |
 | HR-10 | Focused API/browser tests for scope/session/audit/storage/freshness/legacy/error cases plus both-customer persisted synthetic proof. No microphone/WebSocket phone activation, PBX changes or REFER reruns; clean up only owned test resources. |
 
-Stop this checkpoint at the updated plan. Selecting/implementing HR, or another
-priority, is the next scope decision. No runtime code or acceptance status changes
-are made by this documentation-only review.
+Measured verification: typecheck and **161 focused tests passed**, comprising
+the ten new HR checks plus access/application-session/local-launcher,
+diagnostic-audit storage, booking HTTP and the existing 101 history checks.
+HR tests cover audit failure and logout during awaited audit, unauthorized scope
+and query/method/route rejection, bounded metadata cursors, missing/corrupt stores,
+offline reads, immutable legacy bytes, current-input changes and independent
+unhealthy/never-collected collector status with permanent gaps. Chromium tests
+cover hostile text, explicit retry, access loss, expiry and late logout responses.
+
+Additional retained-evidence proof: authenticated HTTP and Chromium read and
+current-check both customers' genuine stored v1-v5 revisions from
+`run-99RbJ4`, `run-XYvtHl`, `run-n7q0gL`, `run-nOTX5T`, and `run-PIl5h8`.
+All ten customer/version cases pass. Exposed journeys/issues exactly equal the
+stored observations, without upgrading missing legacy fields. Current checks
+report changed inputs for v1-v4 under v5 and matching inputs for the current v5
+revisions, not green collector freshness. Every raw/projection file remains
+byte-identical. Owned temporary servers/browser contexts/audit databases are
+closed and removed; retained synthetic files are preserved. No Docker/PBX,
+ordinary route/queue, live phone or REFER rerun was needed.
+
+The UI displays source document/input checksums, not a checksum of the allowlisted
+view. Successful persistent `history_*_view_prepared` audits record preparation
+before disclosure, not a receipt; a session lost while audit is awaited receives
+no protected result. Denials and storage errors use existing durable audit and
+request references; failed auditing prevents disclosure and is logged.
+
+Reproduction and opt-in configuration are in the
+[workspace instructions](./README.md#opt-in-read-only-history-workspace).
+This completes HR only. The 17 full M1 gates remain open; M1-06/07/12/16 are not
+closed wholesale. Integrated restart/interruption/replay is the next recommended
+scope, not automatically authorized here. Remote continuous delivery, rotation/
+retention, repeated-visit/transfer attribution, recording authorization/export/
+restore, production identity and live queue-agent calling remain unproved.
 
 ## 6. Proposed implementation backlog
 

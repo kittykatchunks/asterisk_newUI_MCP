@@ -24,17 +24,89 @@ local conventional echo-route outage scope. The 101 focused history tests and
 two-customer synthetic queue evidence do not complete the live calling milestone.
 This checkpoint reviewed existing evidence; it did not run new runtime tests.
 
-Recommended next: agree the scope/access policy for a **read-only authenticated
-history-evidence workspace**, then implement the proposed
-[HR-01 through HR-10 batch](./MILESTONE-1.md#proposed-hr-batch-read-only-history-evidence-ten-acceptance-checks).
-Existing CLI scoping is not tenant authorization, and diagnostic/agent/simulation
-permissions must not silently grant history access. Raw evidence exposure and
-support access remain decisions. No implementation is authorized by this review.
+The subsequently authorized **read-only authenticated history-evidence workspace**
+now passes [HR-01 through HR-10](./MILESTONE-1.md#selected-hr-batch-read-only-history-evidence-ten-acceptance-checks).
+Access requires an explicit customer `history:read` membership and application
+session; support grants and diagnostic/agent/simulation permissions never confer
+history access. Only allowlisted observations and scoped evidence references are
+exposed, not raw records. This closes the bounded HR batch, not any full M1 gate.
 
 The [prioritized plan](./PROJECT-PLAN.md#milestone-checkpoint-and-current-recommendation)
 then sequences integrated restart/replay, route/queue publication, explicitly gated
 browser-agent calling, recording/engineering/export and combined restore.
 Live phones remain disabled, ordinary routing unchanged and REFER frozen.
+
+## Opt-in read-only history workspace
+
+Disabled by default. Configure the existing, ignored
+`.local-proof\engineering\history-reader.json` on the server, with **absolute,
+distinct paths** and an explicit synthetic member list. For example (replace
+the root with this checkout's actual location):
+
+```json
+{
+  "historyPath": "C:\\checkout\\.local-proof\\queue-abandonment\\run-PIl5h8\\history.sqlite",
+  "projectionPath": "C:\\checkout\\.local-proof\\queue-abandonment\\run-PIl5h8\\projections.sqlite",
+  "members": ["alice", "bob"]
+}
+```
+
+Only listed accounts receive `history:read` for their own provisioned customer.
+Omit either account to deny it; omit `-WithHistory` to disable the entire feature.
+No agent assignment, device reservation or simulation permission is required.
+Missing/invalid configuration or a missing/unsupported projection database fails
+startup explicitly. No database is created or migrated. The raw database may be
+offline: stored reads remain available, while an explicit current check fails.
+
+Start the owned local identity/application launcher with:
+
+```powershell
+.\scripts\Start-LocalEngineering.ps1 -WithHistory
+```
+
+Visit `/engineering/history/customer-a` or `/engineering/history/customer-b` at
+the printed local origin, then use the history sign-in link. No other existing
+workspace navigation or route behavior changes. Scope and revision metadata
+pages are bounded (default 50, maximum 200) with explicit next cursors.
+
+- **Read stored revision** never opens raw history; freshness is `not-checked`.
+- **Check current local inputs** opens raw history read-only and compares the
+  committed bounded input hash. `inputs-match`/`inputs-changed` do not prove PBX
+  delivery, completeness or healthy collectors. Current health is sampled
+  independently; permanent gaps and uncertainty remain visible.
+- The source revision/algorithm/checksums are shown. Legacy absent fields remain
+  absent, with an explicit limitation, not invented negative observations.
+- API access is session/customer/member-bound with CSRF validation and persistent
+  request-reference audit before disclosure. A successful `view_prepared` event
+  means a view was prepared, not a delivery receipt; logout during audit prevents
+  its disclosure. Audit/storage failures fail closed.
+- The UI uses text-only rendering, clears protected data on logout/expiry/access
+  loss and discards late responses. No raw record route, arbitrary file input,
+  export, recording, capture, collection, rebuild, microphone or WebSocket action.
+
+Validation: typecheck and **161 focused tests** passed, including all ten HR
+checks. Real retained v1-v5 stores were additionally read and current-checked
+through authenticated HTTP and Chromium for both customers (ten customer/version
+cases); before/after raw and projection files were byte-identical. No PBX or
+REFER tests were rerun. Reproduce the normal HR checks with:
+
+```powershell
+npm run typecheck
+node --test tests\history-workspace.test.ts
+```
+
+To repeat the extra retained-evidence proof when those ignored runs exist:
+
+```powershell
+$env:HR_PROOF_ROOT = Join-Path (Get-Location) '.local-proof'
+node --test --test-name-pattern='HR-10' tests\history-workspace.test.ts
+Remove-Item Env:\HR_PROOF_ROOT
+```
+
+The retained proof uses the recorded v1/v2/v3/v4/v5 runs below, creates only owned
+temporary identity/audit fixtures, and closes/removes those resources afterward.
+This is a local prototype, not production identity, remote collection, restore,
+recording authorization, a complete call-history graph or live agent calling.
 
 ## Ten-test batch: pre-connection queue abandonment observations
 

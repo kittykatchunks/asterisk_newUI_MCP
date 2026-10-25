@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>History evidence workspace</title>
+<main>
+  <h1>Read-only history evidence</h1>
+  <p>Selected customer: <strong id="customer"></strong>. Selection grants no permission.</p>
+  <p>No collection, rebuild, raw records, recordings, exports or phone actions.
+    Observations do not prove human service, whole-journey outcomes or business totals.</p>
+  <p id="session-status" role="status">Checking application session...</p>
+  <a id="sign-in" hidden>Sign in to history</a>
+  <button id="sign-out" hidden>Sign out</button>
+  <button id="retry">Retry session connection</button>
+  <p id="status" role="status"></p>
+  <section id="workspace" aria-label="History evidence" hidden>
+    <h2>Stored scopes and revisions</h2>
+    <button id="scopes">Refresh scopes</button><button id="more-scopes" hidden>More scopes</button>
+    <ul id="scope-list"></ul>
+    <p id="selection"></p>
+    <ul id="revision-list"></ul><button id="more-revisions" hidden>More revisions</button>
+    <button id="stored" hidden>Read stored revision (freshness not checked)</button>
+    <button id="check" hidden>Check current local inputs (no rebuild)</button>
+    <h2>Revision and freshness</h2><pre id="freshness"></pre>
+    <p>The document checksum identifies the stored source document, not this allowlisted observation view.</p>
+    <h2>Uncertainty, coverage and gaps</h2><pre id="warnings"></pre>
+    <p>Unresolved, conflicting and unassigned evidence remains explicit. Unknown gaps are permanent;
+      a later successful collection does not erase them. Stored coverage and independently sampled current health may differ.</p>
+    <h2>Separate caller and queue observations</h2>
+    <p>PBX answer/end, timeout, CONNECT, member answer/end, completion and ABANDON
+      are independent. Missing legacy fields mean not available in that algorithm,
+      not a negative result. No timestamp, linkedid or transfer graph is inferred.</p>
+    <pre id="observations"></pre>
+    <h2>Scoped record references only</h2>
+    <p>References identify kind/source/generation/byte offset/hash, not raw CEL or queue contents.</p>
+    <pre id="references"></pre>
+  </section>
+</main>
+<script type="module" src="/engineering/history.js"></script>
+</html>

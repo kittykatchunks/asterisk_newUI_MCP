@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export type DiagnosticPermission = "diagnostics:read" | "diagnostics:report" | "diagnostics:review";
-export type CustomerPermission = DiagnosticPermission | "agent:access" | "booking:simulate";
+export type CustomerPermission = DiagnosticPermission | "agent:access" | "booking:simulate" | "history:read";
 
 export interface Membership {
   issuer: string;
@@ -51,7 +51,7 @@ export function createAccessVerifier(config: AccessConfig) {
         membership.permissions.some((permission) =>
           permission !== "diagnostics:read" && permission !== "diagnostics:report" &&
           permission !== "diagnostics:review" && permission !== "agent:access" &&
-          permission !== "booking:simulate")) {
+          permission !== "booking:simulate" && permission !== "history:read")) {
       throw new Error("Invalid provisioned customer membership");
     }
   }
@@ -100,7 +100,7 @@ export function createAccessVerifier(config: AccessConfig) {
     const permits = (entry: Membership) => entry.subject === subject &&
       entry.customer === customer && entry.permissions.includes(permission);
     if (memberships.some(permits)) return { allowed: true, subject, basis: "membership" };
-    if (permission === "agent:access" || permission === "booking:simulate") {
+    if (permission === "agent:access" || permission === "booking:simulate" || permission === "history:read") {
       return { allowed: false, status: 403, code: "customer_access_denied" };
     }
     const now = Date.now() / 1000;

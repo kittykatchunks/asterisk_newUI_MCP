@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Interactive, [switch]$StageCapturedReports, [switch]$WithAgents, [switch]$WithSimulation)
+param([switch]$Interactive, [switch]$StageCapturedReports, [switch]$WithAgents, [switch]$WithSimulation, [switch]$WithHistory)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -12,6 +12,7 @@ try {
     if ($StageCapturedReports -and -not $Interactive) { throw 'Captured-report staging requires interactive mode.' }
     if ($WithAgents -and -not $Interactive) { throw 'Agent mode requires interactive mode.' }
     if ($WithSimulation -and -not $Interactive) { throw 'Simulation mode requires interactive mode.' }
+    if ($WithHistory -and -not $Interactive) { throw 'History mode requires interactive mode.' }
     $preserveSubjects = $WithAgents -or $WithSimulation -or
         (Test-Path -LiteralPath (Join-Path $root '.local-proof\engineering\booking-simulation.sqlite') -PathType Leaf)
     $retainedSubjects = @{}
@@ -120,6 +121,7 @@ try {
                 if ($StageCapturedReports) { $arguments += '--stage-captured-reports' }
                 if ($WithAgents) { $arguments += '--with-agents' }
                 if ($WithSimulation) { $arguments += '--with-simulation' }
+                if ($WithHistory) { $arguments += '--with-history' }
                 & node @arguments
                 if ($LASTEXITCODE -ne 0) { throw 'Interactive engineering application failed.' }
             } else {
