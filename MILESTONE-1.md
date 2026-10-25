@@ -2098,6 +2098,33 @@ and app_queue. No source patch/install/build/PBX was performed. QO-03/QO-07,
 all QO execution, publication verification, full CP and M1-09 remain open;
 implementation and build/resource approval are still separate decisions.
 
+#### QO CLI lifetime review: no teardown guarantee claimed
+
+The accepted scope form contained no values, so the recommended
+**`review-lifetime-only`** default was used. The
+[pinned CLI/loader trace](./PROJECT-PLAN.md#cli-lifetime-review-module-references-are-not-an-unload-barrier)
+records four additional source hashes and confirms module-owned registration,
+normal dispatch-time running-module references, ordinary use-count unload
+checks and app_queue teardown ordering.
+
+It also establishes limits: CLI unregistration warns/skips an in-use entry but
+returns zero rather than draining; forced unload bypasses use counts; and the
+reviewed running-check/reference path does not itself hold the loader lock
+across both operations. **Concurrent dispatch versus teardown is not proven.**
+The queue mutex, a non-null container check, extra ref or host binding checks
+are not substitutes for module/container lifetime synchronization.
+
+The owned quiescent proof excludes lifecycle writers during observation;
+AT-09/QO-03 retain their lifecycle proof obligation. Any core CLI/loader gate
+would be a separate scope expansion, not a patch authorized here.
+The protocol also distinguishes transport success from logical success:
+handled error JSON must avoid dispatcher-added failure text, and host parsing
+still blocks on `status:"error"`, non-JSON, truncation or missing evidence.
+
+No patch, installation, build, module command, PBX execution or AT/QO pass
+occurred. Documentation/source-hash/link/diff checks only; QO-03/QO-07,
+publication verification, full CP and M1-09 remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

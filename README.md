@@ -353,6 +353,16 @@ patch surface but does not authorize implementation/build or claim QO-03 passed.
 Module lifetime, visitor safety, build provenance and all runtime proof remain
 gates; the stock inspector and publication block are unchanged.
 
+The [read-only CLI lifetime review](./PROJECT-PLAN.md#cli-lifetime-review-module-references-are-not-an-unload-barrier)
+confirms normal module-owned dispatch references, but **not a concurrent
+teardown guarantee**: unregistration is not a drain barrier, forced unload
+bypasses use counts, and lookup/reference/unload synchronization still needs
+proof. A queue mutex or extra reference cannot be assumed to resolve that.
+It also specifies that handled error JSON remains logically blocking even
+when CLI transport succeeds, avoiding dispatcher-added text.
+No patch/build/runtime work occurred; lifecycle safety and implementation/build
+approval remain open rather than becoming an implicit further scope expansion.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

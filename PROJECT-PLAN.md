@@ -2229,6 +2229,99 @@ QO-03 is not passed, QO-07 build closure is unresolved, and no full CP/M1-09
 gate is closed. Next requires explicit implementation scope and separate pinned
 dependency/resource/build approval; this design alone grants none of them.
 
+##### CLI lifetime review: module references are not an unload barrier
+
+After the next scope form was accepted without values, work followed its
+recommended **`review-lifetime-only`** default: pinned-source tracing and
+documentation, with no patch/install/build/PBX execution. The reviewed commit
+remains `874768141f94bc03865cc746eee1c7669e3c46d5`.
+
+| Upstream file | Reviewed SHA-256 |
+|---|---|
+| `main/cli.c` | `d4f119061d6417770c3f60f3dfe3f29883889f610ac16e9ef00abf77a0193c26` |
+| `include/asterisk/cli.h` | `16b5df1e02a86d55d61c9760a6b9aa2a3393c975e4968a0502bf08b9061435f2` |
+| `main/loader.c` | `1d0f2e95a961b99a2b51f4cd262f197e0ff19dedb4438e14326e607516c53397` |
+| `include/asterisk/module.h` | `3111f521cc5a22ff8f041554f2cfb3d707fb82507d0ba97597d8337812d600e4` |
+
+`apps/app_queue.c` was re-read and matches the earlier recorded hash. Source
+analysis identifies existing lifetime mechanisms and their limits; it is not
+an executed unload race, a stock-runtime finding of exploitability, or a claim
+that the proposed getter already exists.
+
+**Observed source trace:**
+
+| Phase | Pinned behavior | Implication for the proposed getter |
+|---|---|---|
+| Registration | `ast_cli_register_multiple` passes `AST_MODULE_SELF` (`cli.h:265`); `__ast_cli_register` stores it in `e->module` and calls `CLI_INIT` (`cli.c:2570-2592`). app_queue registers its array at `app_queue.c:12230`. | Keep the getter in the normal module-owned array. Do not bypass registration with a null module pointer or fabricate a second registry. `CLI_INIT` must set constant command/help metadata only, with no queue access. |
+| Lookup | `ast_cli_command_full` finds the entry and increments `e->inuse` under the helpers read lock, then releases that lock (`cli.c:3106-3110`). | `inuse` is entry bookkeeping, not a queue/container reference or an exclusive lifetime token held by app_queue. |
+| Execution | After shutdown/permission checks, dispatch calls `ast_module_running_ref(e->module)`, executes `CLI_HANDLER` only if allowed, then unrefs (`cli.c:3117-3137`). | Normal handler execution has a module use-count reference. It covers the synchronous visitor, response formatting and output until handler return; the getter should not add a redundant module ref and mistake it for stronger synchronization. |
+| Completion | `CLI_GENERATE` also uses a running-module reference (`cli.c:3051-3054`), and generation occurs during helpers traversal. | Return no namespace/queue completions and touch no queue state in this phase. Do not turn completion into another observation path. |
+| Reference implementation | `__ast_module_running_ref` tests `flags.running`, then `__ast_module_ref` increments `usecount` (`loader.c:2877-2900`). The viewed running-ref path does not acquire the loader's module-list lock around both operations. | Do not describe this as a demonstrated atomic acquire-versus-unload handshake. A second running check, extra reference, or module metadata read does not by itself close that proof gap. |
+| Soft unload | `auto_unload_resource` holds the module-list lock, checks usecount and normally refuses nonzero usecount before calling the module's unload callback (`loader.c:1294,1366-1381`). | A reference already visible at that check supplies the normal refusal mechanism. This source trace does not prove all dispatch/unload interleavings are serialized. |
+| Forced unload | Firm/hard modes can proceed despite usecount; hard mode can ignore unload failure (`loader.c:1366-1388`, `module.h:61-65,168-175`). | Existing privileged force-unload authority is outside the safe proof boundary. No getter lock or host timeout is claimed to make it safe. |
+| Unregistration | `ast_cli_unregister` checks `inuse`; if nonzero it warns and leaves the entry registered, but still returns zero. Otherwise it removes/frees entry metadata (`cli.c:2547-2568`). | Success-shaped return is **not a drain acknowledgement**. Do not poll it, assume it waited, or free getter state on that basis. This design does not change stock unregistration semantics. |
+| Queue teardown | app_queue's unload callback starts unsubscribing/cleaning message types before CLI unregistration, then later cleans `queues` and sets it null (`app_queue.c:12092-12153`). Failed load paths can call that same cleanup (`12271-12319`). | A global queue mutex protects membership, not its own enclosing container destruction or module text. A non-null `queues` check is not a lifetime pin. No getter invocation is valid before successful module startup or during teardown. |
+| Shutdown | `modules_shutdown` skips modules with nonzero usecount and may release shutdown-held references later (`loader.c:1181-1229`); dispatch rejects most new commands once shutdown is visible (`cli.c:3117`). | Shutdown gating and ordinary use counts are existing defenses, not proof of all shutdown races or cancellation of a handler already running. Do not register the getter as shutdown-allowed. |
+
+**Refined lifetime contract and explicit stop:**
+
+- The proposed AO2 API remains synchronous and assumes a valid live container
+  for the entire call. It cannot safely try-lock freed storage. It must not
+  promise to establish lifetime by reading container fields, grabbing a new
+  AO2 reference after teardown begins, or retaining borrowed pointers.
+- Initial future proof is still an owned, quiescent, cold-start fixture with
+  **no module load/unload/refresh, shutdown/restart, registration changes or
+  competing privileged lifecycle writer during observation**. No such runtime
+  operation is performed in this increment. Before/after image/boot/module
+  checks remain necessary evidence binding; they cannot prevent an in-process
+  lifecycle race or substitute for synchronization.
+- Ordinary runtime outage/restart tests may validate host-side rejection of
+  incomplete evidence, but must not be reported as a memory-lifetime test.
+  Forced unload is excluded, not silently exercised to "see what happens."
+  Source/startup failure and controlled concurrency tests require separately
+  approved instrumentation/build scope; no active reader is assumed cancellable
+  when the CLI client disconnects.
+- AT-09/QO-03 must retain an unresolved **dispatch-versus-teardown lifetime
+  proof obligation**, including lookup-to-ref, handler-to-output-return,
+  registration failure and unregistration paths. The current trace does not
+  establish an atomic normal-unload boundary; it is insufficient to clear
+  concurrent module unload/shutdown acceptance.
+- A stronger guarantee could require core CLI/loader synchronization or a
+  separately designed registration/lifecycle gate. Such a change would expand
+  beyond the selected AO2/hash/app_queue design and may introduce lock-order/
+  waiting concerns. It is **not selected or authorized here**. Neither adding
+  a blocking loader lock to the bounded queue critical section nor polling
+  `inuse` is an approved fix. The alternatives are an explicitly agreed proof
+  boundary that preserves the required safety contract, separately scoped
+  lifecycle design, or deferral; do not silently weaken AT/QO acceptance.
+
+**CLI response detail carried into the proposed protocol:**
+
+The dispatcher appends text for `CLI_SHOWUSAGE` and `CLI_FAILURE`
+(`cli.c:3140-3144`). Therefore a handled getter request that successfully emits
+its one complete **error JSON envelope** must use transport-level `CLI_SUCCESS`,
+just as a complete observed envelope does; logical success is determined solely
+by the strict JSON status and facts. This is not an error-to-success fallback:
+queue `status:"error"` remains blocking, and the host never verifies from the
+CLI exit code. Do not append usage/failure text to a valid envelope.
+
+Pre-handler denial/no-command/shutdown paths may emit ordinary CLI text rather
+than JSON; the host must treat that as unavailable/error, never empty inventory.
+Actual output/transport failure or truncation cannot promise an intact envelope;
+it remains unavailable regardless of exit status. No broad catch, fabricated
+empty objects, partial observed output or successful verification fallback is
+allowed. CLI parsing/output itself is outside the bounded queue-lock work
+contract, but remains under finite host capture limits and the existing 8 KiB
+getter response cap.
+
+**Outcome:** normal registration supplies module association and dispatch-time
+use-count references; unregistration does not establish a drain barrier and
+forced unload bypasses those references. Module/container lifetime is therefore
+documented accurately but **not proven for concurrent teardown**. No new API,
+getter, runtime test or AT/QO pass exists. QO-03, QO-07, exact loaded-policy
+verification, full CP and M1-09 remain open. Next is an explicit lifecycle/
+implementation scope decision, not automatic patch/build execution.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
