@@ -1570,7 +1570,7 @@ permissions but no history-specific grant. Do not repurpose those grants silentl
 |---|---|---|---|
 | 1 | Read-only authenticated history-evidence workspace | Subsequently authorized: explicit customer `history:read` members only, no support grants, references-only exposure. Reuses session/audit/customer boundaries, not CLI authority. | HR-01 through HR-10 below pass in the bounded local scope. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
 | 2 | Integrated restart/interruption/replay proof | Subsequently selected: LR local process slice, then separately authorized BE isolated PBX boot-epoch slice. Exact ten-check contracts below. | LR-01 through LR-10 and BE-01 through BE-10 pass in their bounded scopes. Full M1-06/07 outcomes, continuous remote delivery and production boot attestation remain open. |
-| 3 | Limited route/queue publication foundation | Selected design: one isolated route/empty queue; explicit same-author approval; trusted operator CLI, no web apply authority. Detailed CP contract below. | Planning only; CP-01 through CP-10 unexecuted. Invalid/stale/drifted publication must fail; exact loaded-state/canary and recovery proof required. No broad editor or web Docker socket. |
+| 3 | Limited route/queue publication foundation | Offline compiler, durable scoped drafts/approval and operation fencing; CF-01 through CF-15. One isolated route/empty queue; explicit same-author approval; trusted operator CLI, no web apply authority. | Full CP-01 through CP-10 remain unverified. No runtime binding, inspector or executor; base zero is not empty-runtime evidence. Exact loaded-state/canary and recovery proof still required. No broad editor or web Docker socket. |
 | 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
 | 5 | Recording, engineering/export and combined restore | Requires explicit storage/retention/access/capture-limit contracts and links to durable identities. Can be separately planned where independent. | Close exact M1-08/11-17 requirements through executed scoped workflows, not report/hash proxies. |
 
@@ -1765,7 +1765,7 @@ selected design is recorded below, without implementation authority.
 
 #### Selected CP design: limited route/queue publication
 
-**25 October 2026: planning only.** User decisions:
+**25 October 2026: design selected; offline foundation subsequently implemented.** User decisions:
 `route-empty-queue`, `same-author-explicit`, `operator-cli`.
 One isolated synthetic route points to one empty queue with bounded timeout and
 hangup. Existing ordinary routes, endpoint/member/credential management, live
@@ -1784,7 +1784,7 @@ conditional verified rollback. Proposed model bounds are one route/queue,
 slugs `[a-z][a-z0-9-]{0,31}`, integer wait 1-30 seconds, unknown keys rejected.
 These are initial implementation acceptance bounds, not a production taxonomy.
 
-| Check | Planned finite acceptance; **not run** |
+| Check | Full acceptance contract; **not yet verified end-to-end** |
 |---|---|
 | CP-01 | Strict bounded versioned route/empty-queue model and deterministic compiler. Reject invalid/missing/foreign destinations, unsafe identifiers/text, unknown fields, boundary/type errors, collisions and unsupported configuration without disk/runtime effects. Valid min/max waits and canonical output shapes pass; marker ordering and revision provenance are exact. |
 | CP-02 | Immutable scoped drafts, exact validation/impact/output hashes and explicit revision/base-bound approval persist across process restart. Editing cannot reuse approval. Same-author approval is visibly permitted, not represented as four-eyes; unauthenticated local operator references are not customer identity. |
@@ -1797,13 +1797,39 @@ These are initial implementation acceptance bounds, not a production taxonomy.
 | CP-09 | Persistent bounded operator/reason/diff/approval/application/recovery receipts distinguish desired, last-verified and independently observed state. Status/inspect is read-only, PBX outage is explicit, audit/receipt failure is not empty success, and application restart never auto-applies or auto-resumes. |
 | CP-10 | Focused offline/store/concurrency tests plus owned pinned runtime acceptance cover both customers, malformed/stale/drift/error/restart/rollback paths, measured exact runtime facts and required canary records. Verify owned resource/credential cleanup and unchanged ordinary/shared PBXs; no live agent phone, production deployment, member/credential change or REFER rerun. |
 
-All CP checks remain **planned/unverified**. No tooling or configuration was
-implemented, no new permissions or dependencies were introduced, and no PBX
-was started/reloaded by this design increment. Documentation-only validation:
-check consistency and diff hygiene; no runtime test result is claimed.
+All full CP checks remain **unverified**. The original design increment was
+documentation only. The following offline implementation adds
+[compiler](./src/configuration-model.ts), [dedicated store](./src/configuration-store.ts),
+[operator CLI](./scripts/Manage-ConfigurationDraft.ts) and
+[CF-01 through CF-15](./tests/configuration-foundation.test.ts):
 
-Next scope decision is CP implementation, starting with the strict model/compiler
-and durable store before the owned runtime executor. If exact loaded-state facts
+- Exact bounded flat model, duplicate/unsafe/noncanonical input rejection,
+  deterministic exact artifacts with fresh UUID expressions and ordered markers.
+- Immutable scoped drafts, canonical hashes, exact validation/diff/impact and
+  same-author-permitted approval. Local operator reference is attribution only;
+  runtime apply authorization stays false.
+- Real-process contention, exact operation-ID retry/conflict, durable fencing,
+  cancellation before any effects and persistent uncertain status. Kill inside
+  the actual claim transaction rolls back all operation rows; kill after commit
+  retains the claim. Receipt insertion failures cannot produce success.
+- Read-only/no-create inspection, restart persistence, corruption/compiler/hash
+  binding checks, and a real CLI workflow across separate processes.
+
+These cover **offline portions only** of CP-01/02/03/07/09/10, not complete CP
+passes. Base zero means no verified revision, not an inspected empty namespace;
+validation diff is additive against `empty-uninspected`. Offline scope labels
+are not provisioned runtime bindings. There is no disk/loaded collision or drift
+inspection, include hook, staging, apply/reload, canary, last-verified pointer,
+recovery or rollback. No PBX started/reloaded, existing route changed, permission
+or dependency added, phone enabled or REFER test rerun.
+
+Recorded validation: `npm run typecheck` and **68 focused tests pass**:
+15 new CF tests plus 53 existing provisioning-store, history-manifest and
+history-projection regressions. No failures, skips or cancelled tests. Test-owned
+child processes and temporary stores are cleaned; no runtime proof is claimed.
+
+Next scope decision is the owned binding and read-only disk/loaded inspector
+before any executor. If exact loaded-state facts
 or safe scoped application cannot be verified on the pinned runtime, implementation
 must stop/narrow the contract rather than substitute a green file hash.
 M1-09 remains open; the 17 full M1 gates are unchanged.

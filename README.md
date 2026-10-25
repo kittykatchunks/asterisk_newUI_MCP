@@ -38,9 +38,9 @@ Limited route/queue publication, explicitly gated browser-agent calling,
 recording/engineering/export and combined restore remain separate work.
 Live phones remain disabled, ordinary routing unchanged and REFER frozen.
 
-## Selected publication design (not implemented)
+## Limited publication: offline foundation only
 
-The next publication slice is now planned in depth:
+The selected publication slice is:
 **one isolated synthetic route to one empty queue**, explicit approval permitted
 by the same trusted local operator, and a separate **operator CLI** apply against
 an owned proof project. No web Docker socket or runtime apply authority.
@@ -56,11 +56,64 @@ interrupted or uncertain application blocks new publication until explicit
 reconciliation. A reload acknowledgement or matching checksum cannot verify
 loaded behavior.
 
+The offline [model/compiler](./src/configuration-model.ts) and dedicated
+[SQLite store](./src/configuration-store.ts) are now implemented, with an
+[operator CLI](./scripts/Manage-ConfigurationDraft.ts). They provide immutable
+customer/runtime-scoped drafts, exact validation/output/diff receipts, explicit
+same-author-permitted approval, durable operation identity and single-active
+operation fencing. Operator references are local attribution, not authenticated
+customer identity. The compiler emits two in-memory fragments only; it does not
+write Asterisk configuration.
+
+Model JSON has exactly these four fields (input is at most 4096 UTF-8 bytes):
+
+```json
+{"schemaVersion":1,"routeId":"inbound","queueId":"waiting","waitSeconds":2}
+```
+
+Slugs are `[a-z][a-z0-9-]{0,31}`; wait is an integer 1-30. Unknown/duplicate
+fields, escaped duplicate keys, decimal/exponent number tokens and unsafe
+identifiers fail explicitly. Validation errors include bounded issue code/path/
+message; rejected input cannot consume a draft revision. Compiler output uses
+fresh per-call UUID expressions and entry/visit markers with revision provenance.
+
+Use a dedicated absolute database path and an existing absolute model-file path;
+the containing directory must already exist. For example, from the repository:
+
+```powershell
+$db = Join-Path (Get-Location) '.local-proof\configuration.sqlite'
+$model = Join-Path (Get-Location) '.local-proof\configuration-model.json'
+$draft = node .\scripts\Manage-ConfigurationDraft.ts draft $db customer-a runtime-a $model 0 operator-a "Offline draft" | ConvertFrom-Json
+$validation = node .\scripts\Manage-ConfigurationDraft.ts validate $db customer-a runtime-a $draft.result.revision $draft.result.sha256 operator-a "Review generated output" | ConvertFrom-Json
+$approval = node .\scripts\Manage-ConfigurationDraft.ts approve $db customer-a runtime-a $draft.result.revision $draft.result.sha256 $validation.result.sha256 operator-a "Explicit offline approval" | ConvertFrom-Json
+node .\scripts\Manage-ConfigurationDraft.ts read $db customer-a runtime-a $draft.result.revision
+```
+
+CLI actions also include `claim`, `operation`, `cancel` and `uncertain`; invoking
+without arguments prints their exact usage to stderr and fails. A claim is
+**offline reservation only**, never apply. Exact operation-ID retries inspect the
+original receipt history; changed intent conflicts. Cancellation releases only a
+still-claimed offline reservation with an explicit `cancelled-before-effects`
+receipt. `uncertain` remains fenced, including after reopening; no recovery
+command or automatic resume is implemented. Use a fresh dedicated test store
+rather than deleting uncertainty to bypass it.
+
+Expected base must be **zero**: no publication has been verified. Zero is not
+evidence that a PBX namespace is empty. Customer/runtime labels select offline
+store scope only, not a provisioned project or authorization. There is no runtime
+binding, collision/drift inspection, include installation, staging, apply,
+reload, canary, verified pointer or rollback API. Runtime apply authorization
+remains explicitly false, including in approval receipts.
+
+Run the 15 [CF offline acceptance tests](./tests/configuration-foundation.test.ts)
+with `node --test tests\configuration-foundation.test.ts`; they include competing
+real processes, death inside/after the real claim transaction, receipt-write
+failure, restart/read-only/corruption and real CLI workflows.
 [CP-01 through CP-10](./MILESTONE-1.md#selected-cp-design-limited-routequeue-publication)
-are **planned, not executed**. This increment changes documentation only; it
-does not authorize or implement runtime publication. M1-09 and the other full
-open gates remain unchanged. Next is separately scoped implementation, beginning
-with the model/compiler and durable draft/approval/operation store.
+remain **unverified as full checks**. This foundation supplies only offline
+parts; no runtime publication was executed. M1-09 and all other full open gates
+remain unchanged. Next is the separately scoped provisioned binding and
+read-only disk/loaded-runtime inspector, before any executor.
 
 ## Isolated PBX boot-epoch recovery proof
 

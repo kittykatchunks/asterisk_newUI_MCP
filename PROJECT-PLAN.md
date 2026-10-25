@@ -1004,7 +1004,7 @@ Recommended sequence:
    independently verified absent; only synthetic SQLite/report files remain.
    **Full M1-06/07 remain open**, including all business outcomes after restart,
    production boot attestation and remote delivery/rotation/retention.
-3. **Limited publication first-slice design: selected, not implemented.**
+3. **Limited publication: offline foundation implemented; runtime deferred.**
    One isolated synthetic inbound route to one empty queue with timeout/hangup;
    no member/endpoint/credential changes. Same authorized operator may explicitly
    approve the exact immutable draft; apply is a separate deliberate trusted
@@ -1012,7 +1012,10 @@ Recommended sequence:
    capability. The [selected contract](#selected-first-publication-slice)
    defines fail-closed ownership, validation, stale/drift checks, exact observed
    runtime verification and conditional verified recovery. CP-01 through CP-10
-   are planned, not passed. No runtime publication is authorized by this design.
+   remain unverified as full checks. The strict compiler, immutable scoped
+   drafts/validation/approval and durable offline operation fencing now have
+   CF-01 through CF-15 tests. No runtime binding or executor exists; expected
+   base is limited to zero without asserting inspected empty ownership.
 4. **Explicitly gate browser-agent activation**, then intended queue/media/
    controls/roaming/error acceptance. Existing reservations do not enable phones.
 5. **Complete recording/engineering/export and combined restore** using agreed
@@ -1115,9 +1118,10 @@ does not reverse calls, bookings, or messages already completed.
 
 ### Selected first publication slice
 
-Selected after BE on **25 October 2026**. This is a design contract only:
-no configuration store, permission, API, executor or runtime application has
-been implemented or tested by this increment. M1-09 remains open.
+Selected after BE on **25 October 2026**, initially as a documentation-only
+contract. The subsequently authorized offline model/compiler and dedicated
+draft/approval/operation store are implemented below. No web permission/API,
+runtime binding, executor or runtime application is implemented. M1-09 remains open.
 
 The user selected:
 
@@ -1277,20 +1281,69 @@ No rollback claims to reverse any call/event already generated.
 #### Planned CP acceptance and implementation stop
 
 The exact ten-check [CP acceptance contract](./MILESTONE-1.md#selected-cp-design-limited-routequeue-publication)
-is **planned/unexecuted**. Proposed implementation order:
+remains **unverified as full checks**. Implementation order:
 
-1. Strict model/compiler and dedicated durable revision/approval/operation store;
-   offline tests first, no runtime executor.
+1. **Offline foundation implemented:** strict model/compiler and dedicated durable
+   revision/approval/operation store, CF-01 through CF-15; no runtime executor.
 2. Provisioned owned-project binding and read-only disk/loaded-state inspector.
 3. Scoped operator apply/recovery and pinned two-customer quiescent canaries;
    failure injection verifies every external-effect boundary.
 4. Only after exact CLI acceptance, separately decide browser permission/audit
    policy, member/endpoint changes and any production worker.
 
-Stop this increment after documenting the contract. No apply/reload, runtime
-permission, new member, ordinary routing change, phone activation or REFER rerun
-is authorized. The next implementation must verify the claimed runtime surfaces
-and durable recovery end-to-end before calling M1-09 complete.
+The original design increment stopped after documenting the contract; the
+following increment implemented only item 1. No apply/reload, runtime permission,
+new member, ordinary routing change, phone activation or REFER rerun was performed.
+Runtime surfaces and durable recovery must be verified end-to-end before calling
+M1-09 complete.
+
+#### Implemented offline publication foundation
+
+[Compiler](./src/configuration-model.ts), [store](./src/configuration-store.ts),
+[CLI](./scripts/Manage-ConfigurationDraft.ts) and
+[15 CF acceptance tests](./tests/configuration-foundation.test.ts) now implement:
+
+- Exact flat `schemaVersion:1, routeId, queueId, waitSeconds` JSON, 4096 UTF-8-byte
+  input limit, selected slug/wait bounds, duplicate-key detection including
+  escaped keys, canonical unsigned integer tokens, bounded structured validation
+  errors, no coercion or invalid-input draft insertion.
+- Deterministic canonical model/compiler/artifact digests. Namespace is
+  `cp-` plus the first 24 hex characters of SHA-256 of the ordered customer/runtime
+  tuple; route and queue suffixes are logical IDs. Artifact provenance includes
+  compiler generation, scoped draft revision and a model-digest prefix. The
+  complete scoped draft hash binds full model, output, compiler, base and
+  attribution, avoiding a circular output/revision digest. Collision checks are
+  deferred to the future inspector; hash derivation alone does not establish
+  namespace ownership. Output remains in memory/database, never runtime files.
+- Dedicated SQLite identity/schema, DELETE/FULL durability, scoped immutable
+  revisions, one validation and approval receipt per revision, exact draft and
+  validation hashes, visible same-author policy, explicit operator/reason/time.
+  Local operator references are not authentication, approval is not runtime apply
+  authority, and checksums detect corruption rather than provide tamper resistance
+  against an actor able to rewrite the database and all hashes.
+- Atomic per-scope operation reservation, exact-intent ID retries, independent
+  scope fencing and append-only operation events. Offline states are `claimed`,
+  `cancelled-before-effects` or `uncertain`; these are not runtime `applying` or
+  `verified`. Only still-claimed offline reservations can be cancelled. Uncertainty
+  cannot be cleared by this API; it persists across process startup.
+- Read-only existing-store inspection without creation/migration/runtime access,
+  checksum/compiler/receipt-binding checks, and explicit errors for storage failure
+  or foreign schemas. Real competing processes and kill inside/after the actual
+  claim transaction verify rollback and durable fencing.
+
+Expected base accepts **zero only**, meaning no verified publication exists in
+this offline store, not an inspected empty PBX. Labels identify logical offline
+scope; they are not provisioned project bindings. Validation's additive diff is
+explicitly `empty-uninspected`, not a computed disk/runtime diff. There is no
+last-verified pointer, external-effect step API, runtime inspection or executor,
+canary, rollback, automatic resume, new permission, browser surface or dependency.
+Rejected input returns structured errors rather than persisting a draft with a
+`validation-failed` lifecycle; the richer runtime lifecycle remains deferred.
+
+The [README workflow](./README.md#limited-publication-offline-foundation-only)
+documents CLI input/output. Only offline parts of CP-01/02/03/07/09/10 are covered.
+CP-04/05/06/08 and all full CP checks remain unverified. Next is item 2:
+separately scoped binding and read-only inspection, with no implied apply authority.
 
 ## 8. AI assistance, MCP, reports, and wallboards
 
