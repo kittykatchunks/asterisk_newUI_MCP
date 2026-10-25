@@ -444,8 +444,12 @@ recovery. The [lookup ordering update](./PROJECT-PLAN.md#gate-a-lookup-ordering-
 now brings the inventory to **25 uncompiled/unexecuted native definitions**.
 Three worker schedules specify failed teardown winning after lookup but before
 admission, requiring a closing denial without a lease or handler call.
-This is not successful-removal race or native lifecycle acceptance;
-shutdown and further instrumentation remain pending.
+The [loader contention update](./PROJECT-PLAN.md#gate-a-loader-contention-twenty-six-definitions-still-unexecuted)
+now brings the inventory to **26 uncompiled/unexecuted native definitions**.
+It specifies denial of dispatch and both completions while another thread
+holds the loader lock, then successful recovery on the same loaded target.
+This is not measured latency, successful-removal race or native lifecycle
+acceptance; shutdown and further instrumentation remain pending.
 **Twelve package tests pass** and exact application/nine postimages match.
 Pinned build closure and enforced resources
 still require Gate B approval before any native run; Gate C separately controls

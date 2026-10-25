@@ -4,7 +4,7 @@
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "upstreamTag": "22.11.0",
   "patch": "queue-policy-v1.patch",
-  "patchSha256": "447130e704c02a2585bb94cdb27197c2815019973ec45711b71ee8451ef3ec40",
+  "patchSha256": "ca133bfdcced5b94919a038544136d67cf77dfb4a9944445ba7805402cd928ef",
   "stage": "gate-a-source-candidate",
   "nativeCompiled": false,
   "nativeTestsExecuted": false,
@@ -35,7 +35,8 @@
     "protected_target_lifecycle",
     "protected_target_completion",
     "protected_target_closing",
-    "protected_target_lookup"
+    "protected_target_lookup",
+    "protected_target_loader_busy"
   ],
   "files": [
     {
@@ -56,7 +57,7 @@
     {
       "path": "include/asterisk/module.h",
       "beforeSha256": "3111f521cc5a22ff8f041554f2cfb3d707fb82507d0ba97597d8337812d600e4",
-      "afterSha256": "a2ae31234a114b754cddf18c165c27ce52c6a657f74996d09121246f0ff20cb5"
+      "afterSha256": "2fda405359b955c8c6103589bc77e9a5615699b9e843e67f5ce4e211318139e9"
     },
     {
       "path": "main/astobj2_hash.c",
@@ -71,12 +72,12 @@
     {
       "path": "main/loader.c",
       "beforeSha256": "1d0f2e95a961b99a2b51f4cd262f197e0ff19dedb4438e14326e607516c53397",
-      "afterSha256": "fe0f8b080aed9e064c676b9679f881e93c57a5d9759615a88a3f6e7d29108a5d"
+      "afterSha256": "2682c6c234196f3c341428a21121c945ccbfa80a2f50af515cacb698f6413cbd"
     },
     {
       "path": "tests/test_bounded_queue_policy.c",
       "beforeSha256": null,
-      "afterSha256": "6da5cd7d13b55b5922f3d9991fa3dfa764299a740c1b63f8c6443a2322770187"
+      "afterSha256": "a7e0ea3befba857ced3690a5629b1b367193101171de351f83e690957dd022d9"
     },
     {
       "path": "tests/test_protected_cli_target.c",

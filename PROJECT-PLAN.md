@@ -3206,6 +3206,58 @@ No dependency install, native compile/test, image build or PBX operation
 occurred. A's verified exit, Gates B/C, exact publication, full CP and M1-09
 remain open.
 
+##### Gate A loader contention: twenty-six definitions, still unexecuted
+
+`protected_target_loader_busy` adds a foreign-thread loader-contention source
+fixture within the same nine-path approval. The inventory is **26
+uncompiled/unexecuted native definitions**. Only test-profile module-header/
+loader instrumentation and the controller fixture change; the other six
+postimages, including production CLI and the disposable target, are unchanged.
+
+A new `TEST_FRAMEWORK`-only core helper acquires the real module-list lock,
+records `LOADER_LOCKED` through the existing core observer, waits at that
+barrier and unlocks after resume. The holder runs on a separate worker, not
+the controller: recursive acquisition on the same thread would not establish
+contention. The observer accepts this pause point; it releases its own mutex
+while waiting. No target callback, production bypass or substituted lock is
+used. The target is loaded before starting the holder.
+
+At the first pause the test requires only one holder event, no request events,
+zero readers and no worker completion. While the holder remains paused, the
+controller invokes real dispatch and both completion words. Dispatch must fail
+and both completions must return null. A second snapshot before resume requires
+exactly three target lookups, still one holder event, and **no acquisitions,
+admission, callbacks, releases, closing-state denials, teardown or worker
+completion**. Returning from all three requests before releasing the foreign
+loader owner specifies try-lock refusal rather than waiting for that owner.
+This is not an elapsed-time threshold or an observed runtime latency result.
+
+After resume/join, the controller repeats all three requests on the **same
+still-loaded target**: dispatch must succeed, text completion must equal
+`"xyz"` and the null branch must stay null. Final counters require six lookups,
+three acquisitions/admissions/handlers/returns/entry-cleanups/releases, one
+holder event, one holder-worker completion, one successful unload callback,
+zero closing denials and zero readers. Existing admitted lifecycle schedules
+also require no loader-holder event. Cleanup always resumes/joins before
+unload; failures explicitly fail and require discarding the test process.
+
+The helper intentionally holds a global loader lock and must never run on a
+shared/runtime PBX. The serialized disposable process, excluded-from-autoload
+target, separately approved native resources and external watchdog remain
+mandatory: an accidental blocking admission could deadlock this source test.
+This does not establish shutdown/permission denial, successful-removal races,
+refresh/recursive teardown, slow-output, profile or exhaustive concurrency
+acceptance. All AT/QO gates remain open.
+
+**Twelve package tests pass**, as do JavaScript syntax, whitespace and added
+documentation links. Seven exact preimages/application dry run and all nine
+independently applied postimages match. Lexical `TEST_FRAMEWORK`-off header/
+loader parity with the preceding candidate passes; it is not preprocessing,
+compilation or runtime transparency evidence. Both named source scratch
+directories are removed after verification. No dependency installation,
+native build/test, image build or PBX operation occurred. A's verified exit,
+Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

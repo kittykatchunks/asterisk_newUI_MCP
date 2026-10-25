@@ -2338,6 +2338,17 @@ the registry read lock protects the entry, nor exhaustive concurrency.
 header/CLI/loader test-profile-off lexical parity is not native evidence.
 A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
 
+The [loader contention source](./PROJECT-PLAN.md#gate-a-loader-contention-twenty-six-definitions-still-unexecuted)
+brings the inventory to **26 uncompiled/unexecuted native definitions**.
+A separate worker holds the real loader lock while dispatch and two completions
+must return denial with three lookups and zero acquisitions/callbacks. After
+release/join, the same loaded target must serve all three requests normally,
+drain three leases and unload once. This specifies nonwaiting lock refusal,
+not measured latency. The test-only helper is disposable-process-only.
+**Twelve package tests pass**, exact application/nine postimages match and
+header/loader test-profile-off lexical parity passes, not native evidence.
+A's verified exit, AT/QO and Gates B/C remain open; no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
