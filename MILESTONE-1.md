@@ -2175,6 +2175,16 @@ pending; the stock inspector and default runtime are untouched.
 A is authorized with a persisted candidate, **not a verified exit**. B/C,
 AT-01 through AT-10, QO-01 through QO-10, full CP and M1-09 remain open.
 
+The subsequent [Gate A coverage increment](./PROJECT-PLAN.md#gate-a-coverage-increment-eight-native-definitions-still-unexecuted)
+brings native definitions to **eight**, adding AO2 argument/bucket/unsupported
+matrix, barrier-controlled cross-thread contention and borrowed-ownership/
+abort checks; retained-node source cases now include 127/128/129.
+All seven production-source postimages are unchanged. **Ten package tests
+pass** and the validator matches native definitions/registration/unregistration
+to the manifest. Clean patch application and all eight exact postimages were
+rechecked. None of these are native test results: compilation, remaining native
+coverage, AT/QO and Gates B/C remain pending; no image/PBX ran.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

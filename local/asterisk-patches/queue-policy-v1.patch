@@ -732,10 +732,10 @@ index 6d92492..87338ba 100644
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000..c7ed005
+index 0000000..7736378
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,373 @@
+@@ -0,0 +1,682 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -749,6 +749,7 @@ index 0000000..c7ed005
 +#include "asterisk.h"
 +
 +#include <fcntl.h>
++#include <limits.h>
 +
 +#include "asterisk/astobj2.h"
 +#include "asterisk/cli.h"
@@ -958,9 +959,9 @@ index 0000000..c7ed005
 +		ao2_unlink(container, object);
 +		ao2_ref(borrowed, -1);
 +		ao2_ref(object, -1);
-+		if (i == 127) {
++		if (i == 126 || i == 127) {
 +			if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
-+				!= AO2_BOUNDED_COMPLETE || result.nodes != 128 || result.objects || count) {
++				!= AO2_BOUNDED_COMPLETE || result.nodes != i + 1 || result.objects || count) {
 +				goto done;
 +			}
 +		}
@@ -1011,6 +1012,308 @@ index 0000000..c7ed005
 +		ast_test_status_update(test, "Protected reader did not veto unload\n");
 +	}
 +	return failed ? AST_TEST_FAIL : AST_TEST_PASS;
++}
++
++static int bounded_hash(const void *object, int flags)
++{
++	return 0;
++}
++
++static int bounded_sort(const void *left, const void *right, int flags)
++{
++	const int *a = left, *b = right;
++	return (*a > *b) - (*a < *b);
++}
++
++AST_TEST_DEFINE(bounded_matrix)
++{
++	const struct ao2_bounded_limits invalid[] = {
++		{ 0, 64, 128, 64 }, { 2, 64, 128, 64 },
++		{ 1, 0, 128, 64 }, { 1, 65, 128, 64 },
++		{ 1, 64, 0, 64 }, { 1, 64, 129, 64 },
++		{ 1, 64, 128, 0 }, { 1, 64, 128, 65 },
++		{ 1, UINT_MAX, UINT_MAX, UINT_MAX },
++	};
++	const unsigned int bucket_counts[] = { 1, 53, 64, 65 };
++	const unsigned int unsupported_locks[] = {
++		AO2_ALLOC_OPT_LOCK_RWLOCK, AO2_ALLOC_OPT_LOCK_NOLOCK,
++	};
++	const struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
++	struct ao2_bounded_result result;
++	struct ao2_container *container = NULL;
++	unsigned int count = 0, i;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "bounded_matrix";
++		info->category = "/main/astobj2/bounded_queue_policy/";
++		info->summary = "Reject invalid inputs and unsupported locks; count all buckets";
++		info->description = "Actual owner API boundary matrix, including exact 64 and excess 65 buckets.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	container = ao2_container_alloc_list(AO2_ALLOC_OPT_LOCK_MUTEX, 0, NULL, NULL);
++	if (!container) {
++		goto done;
++	}
++	for (i = 0; i < ARRAY_LEN(invalid); ++i) {
++		result = (struct ao2_bounded_result) { AO2_BOUNDED_COMPLETE, 99, 99, 99 };
++		if (ao2_container_visit_bounded_v1(container, &invalid[i], count_visit, &count, &result)
++			!= AO2_BOUNDED_INVALID || result.status != AO2_BOUNDED_INVALID
++			|| result.buckets || result.nodes || result.objects || count) {
++			goto done;
++		}
++	}
++	if (ao2_container_visit_bounded_v1(NULL, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_INVALID || result.buckets || result.nodes || result.objects
++		|| ao2_container_visit_bounded_v1(container, NULL, count_visit, &count, &result)
++		!= AO2_BOUNDED_INVALID || result.buckets || result.nodes || result.objects
++		|| ao2_container_visit_bounded_v1(container, &limits, NULL, &count, &result)
++		!= AO2_BOUNDED_INVALID || result.buckets || result.nodes || result.objects
++		|| ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, NULL)
++		!= AO2_BOUNDED_INVALID || count) {
++		goto done;
++	}
++	ao2_cleanup(container);
++	container = NULL;
++	for (i = 0; i < ARRAY_LEN(bucket_counts); ++i) {
++		enum ao2_bounded_status expected = bucket_counts[i] > 64
++			? AO2_BOUNDED_LIMIT : AO2_BOUNDED_COMPLETE;
++
++		container = ao2_container_alloc_hash(AO2_ALLOC_OPT_LOCK_MUTEX, 0,
++			bucket_counts[i], bounded_hash, NULL, NULL);
++		if (!container) {
++			goto done;
++		}
++		if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++			!= expected || result.status != expected || result.nodes || result.objects || count
++			|| result.buckets != (expected == AO2_BOUNDED_COMPLETE ? bucket_counts[i] : 0)) {
++			goto done;
++		}
++		ao2_cleanup(container);
++		container = NULL;
++	}
++	for (i = 0; i < ARRAY_LEN(unsupported_locks); ++i) {
++		container = ao2_container_alloc_list(unsupported_locks[i], 0, NULL, NULL);
++		if (!container) {
++			goto done;
++		}
++		if (ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++			!= AO2_BOUNDED_UNSUPPORTED || result.buckets || result.nodes || result.objects || count) {
++			goto done;
++		}
++		ao2_cleanup(container);
++		container = NULL;
++	}
++	container = ao2_container_alloc_rbtree(AO2_ALLOC_OPT_LOCK_MUTEX, 0, bounded_sort, NULL);
++	if (!container || ao2_container_visit_bounded_v1(container, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_UNSUPPORTED || result.buckets || result.nodes || result.objects || count) {
++		goto done;
++	}
++	state = AST_TEST_PASS;
++done:
++	ao2_cleanup(container);
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Bounded API matrix invariant failed\n");
++	}
++	return state;
++}
++
++struct bounded_lock_fixture {
++	ast_mutex_t lock;
++	ast_cond_t condition;
++	struct ao2_container *container;
++	int entered;
++	int release;
++	int lock_result;
++	int unlock_result;
++};
++
++static void *bounded_lock_worker(void *data)
++{
++	struct bounded_lock_fixture *fixture = data;
++
++	fixture->lock_result = ao2_lock(fixture->container);
++	ast_mutex_lock(&fixture->lock);
++	fixture->entered = 1;
++	ast_cond_signal(&fixture->condition);
++	while (!fixture->release) {
++		ast_cond_wait(&fixture->condition, &fixture->lock);
++	}
++	ast_mutex_unlock(&fixture->lock);
++	if (!fixture->lock_result) {
++		fixture->unlock_result = ao2_unlock(fixture->container);
++	}
++	return NULL;
++}
++
++AST_TEST_DEFINE(bounded_contention)
++{
++	struct bounded_lock_fixture fixture = { 0 };
++	const struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
++	struct ao2_bounded_result result;
++	pthread_t worker;
++	unsigned int count = 0;
++	int started = 0, failed = 1;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "bounded_contention";
++		info->category = "/main/astobj2/bounded_queue_policy/";
++		info->summary = "Cross-thread container lock denies traversal without any visits";
++		info->description = "Condition barriers hold the actual AO2 mutex; no timing sleeps.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	ast_mutex_init(&fixture.lock);
++	ast_cond_init(&fixture.condition, NULL);
++	fixture.container = ao2_container_alloc_list(AO2_ALLOC_OPT_LOCK_MUTEX, 0, NULL, NULL);
++	if (!fixture.container || ast_pthread_create(&worker, NULL, bounded_lock_worker, &fixture)) {
++		goto done;
++	}
++	started = 1;
++	ast_mutex_lock(&fixture.lock);
++	while (!fixture.entered) {
++		ast_cond_wait(&fixture.condition, &fixture.lock);
++	}
++	ast_mutex_unlock(&fixture.lock);
++	if (fixture.lock_result
++		|| ao2_container_visit_bounded_v1(fixture.container, &limits, count_visit, &count, &result)
++		!= AO2_BOUNDED_BUSY || result.status != AO2_BOUNDED_BUSY
++		|| result.buckets || result.nodes || result.objects || count) {
++		goto done;
++	}
++	failed = 0;
++done:
++	if (started) {
++		ast_mutex_lock(&fixture.lock);
++		fixture.release = 1;
++		ast_cond_signal(&fixture.condition);
++		ast_mutex_unlock(&fixture.lock);
++		pthread_join(worker, NULL);
++		if (fixture.unlock_result) {
++			failed = 1;
++		}
++		if (!failed
++			&& (ao2_container_visit_bounded_v1(fixture.container, &limits, count_visit, &count, &result)
++			!= AO2_BOUNDED_COMPLETE || result.buckets != 1
++			|| result.nodes || result.objects || count)) {
++			failed = 1;
++		}
++	}
++	ao2_cleanup(fixture.container);
++	ast_cond_destroy(&fixture.condition);
++	ast_mutex_destroy(&fixture.lock);
++	if (failed) {
++		ast_test_status_update(test, "Cross-thread busy/release invariant failed\n");
++	}
++	return failed ? AST_TEST_FAIL : AST_TEST_PASS;
++}
++
++struct bounded_owned_object {
++	unsigned int *destroyed;
++};
++
++struct bounded_owned_visit {
++	unsigned int seen;
++	unsigned int abort_at;
++	int bad_reference;
++};
++
++static void bounded_owned_destroy(void *object)
++{
++	struct bounded_owned_object *owned = object;
++	++*owned->destroyed;
++}
++
++static int bounded_owned_visit(void *object, void *context)
++{
++	struct bounded_owned_visit *visit = context;
++
++	if (ao2_ref(object, 0) != 1) {
++		visit->bad_reference = 1;
++		return 1;
++	}
++	++visit->seen;
++	return visit->abort_at && visit->seen == visit->abort_at;
++}
++
++AST_TEST_DEFINE(bounded_ownership)
++{
++	const unsigned int abort_positions[] = { 1, 32, 64 };
++	struct ao2_bounded_limits limits = { 1, 64, 128, 64 };
++	struct ao2_bounded_result result;
++	struct ao2_container *container = NULL;
++	struct bounded_owned_visit visit = { 0 };
++	unsigned int destroyed = 0, linked = 0, i;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "bounded_ownership";
++		info->category = "/main/astobj2/bounded_queue_policy/";
++		info->summary = "Borrowed refs, exact node limit, and first/middle/final abort";
++		info->description = "Container remains sole object owner; cleanup/destructors occur only afterward.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	container = ao2_container_alloc_list(AO2_ALLOC_OPT_LOCK_MUTEX, 0, NULL, NULL);
++	if (!container) {
++		goto done;
++	}
++	for (i = 0; i < 64; ++i) {
++		struct bounded_owned_object *object = ao2_alloc(sizeof(*object), bounded_owned_destroy);
++		int added;
++
++		if (!object) {
++			goto done;
++		}
++		object->destroyed = &destroyed;
++		added = ao2_link(container, object);
++		ao2_ref(object, -1);
++		if (!added) {
++			goto done;
++		}
++		++linked;
++	}
++	for (i = 0; i < ARRAY_LEN(abort_positions); ++i) {
++		visit = (struct bounded_owned_visit) { .abort_at = abort_positions[i] };
++		if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++			!= AO2_BOUNDED_ABORTED || visit.seen != abort_positions[i] || visit.bad_reference
++			|| result.objects != visit.seen || result.nodes != visit.seen || destroyed
++			|| ao2_container_count(container) != 64 || ao2_ref(container, 0) != 1) {
++			goto done;
++		}
++	}
++	visit = (struct bounded_owned_visit) { 0 };
++	limits.max_nodes = 63;
++	if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++		!= AO2_BOUNDED_LIMIT || result.nodes != 63 || result.objects != 63
++		|| visit.seen != 63 || visit.bad_reference || destroyed) {
++		goto done;
++	}
++	visit = (struct bounded_owned_visit) { 0 };
++	limits.max_nodes = 64;
++	if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
++		!= AO2_BOUNDED_COMPLETE || result.nodes != 64 || result.objects != 64
++		|| visit.seen != 64 || visit.bad_reference || destroyed
++		|| ao2_container_count(container) != 64 || ao2_ref(container, 0) != 1) {
++		goto done;
++	}
++	state = AST_TEST_PASS;
++done:
++	ao2_cleanup(container);
++	if (destroyed != linked) {
++		state = AST_TEST_FAIL;
++	}
++	if (state != AST_TEST_PASS) {
++		ast_test_status_update(test, "Borrowed ownership/abort/cleanup invariant failed\n");
++	}
++	return state;
 +}
 +
 +AST_TEST_DEFINE(protected_dispatch)
@@ -1096,6 +1399,9 @@ index 0000000..c7ed005
 +	AST_TEST_UNREGISTER(retained_nodes);
 +	AST_TEST_UNREGISTER(protected_lease);
 +	AST_TEST_UNREGISTER(protected_dispatch);
++	AST_TEST_UNREGISTER(bounded_matrix);
++	AST_TEST_UNREGISTER(bounded_contention);
++	AST_TEST_UNREGISTER(bounded_ownership);
 +	return 0;
 +}
 +
@@ -1105,6 +1411,9 @@ index 0000000..c7ed005
 +	AST_TEST_REGISTER(retained_nodes);
 +	AST_TEST_REGISTER(protected_lease);
 +	AST_TEST_REGISTER(protected_dispatch);
++	AST_TEST_REGISTER(bounded_matrix);
++	AST_TEST_REGISTER(bounded_contention);
++	AST_TEST_REGISTER(bounded_ownership);
 +	return AST_MODULE_LOAD_SUCCESS;
 +}
 +

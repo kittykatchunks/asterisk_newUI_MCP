@@ -2525,6 +2525,44 @@ verification, full CP and M1-09 remain open. Next can complete remaining native
 test-source coverage within A, or prepare concrete B inputs for explicit
 approval; no automatic build/install/PBX action follows.
 
+##### Gate A coverage increment: eight native definitions, still unexecuted
+
+Continuing within the existing A approval, the pinned patch now defines
+**eight** native tests (the prior five plus three AO2 tests). Only the added
+native test module changes in the upstream patch; all seven production-source
+postimage hashes remain identical to the prior candidate.
+
+| Native source addition | Assertions to execute later, not results |
+|---|---|
+| `bounded_matrix` | Null arguments, unknown versions, zero/over-ceiling/`UINT_MAX` budgets reset counters and reject; empty 1/53/64 bucket hashes complete with exact bucket counts, 65 buckets deny before visiting; RW/no-lock containers and a valid allocated rbtree reject as unsupported. |
+| `bounded_contention` | A separate thread holds the actual container mutex behind condition-variable barriers. The reader returns busy with zero node/object/bucket/callback counts; after release/join the same empty container completes. No sleeps or same-thread recursive-lock false positive. |
+| `bounded_ownership` | Container-only object ownership remains at refcount one inside visitors; aborts at objects 1/32/64 stay incomplete; a 63-node budget denies before object 64 and an exact 64-node budget completes. No destructor runs during visits; all linked objects are destroyed during subsequent fixture cleanup. |
+| Extended `retained_nodes` | Actual empty retained nodes are checked at 127 as well as 128, then node 129 produces a 128-node limit result without object visits. |
+
+The unsupported-tree fixture uses the pinned allocator's required comparator;
+passing a null comparator would fail fixture construction rather than test the
+new API. No private container layout access or production test hook was added.
+Destructor/refcount assertions cover the observed fixture invariants, **not**
+all allocator, node-ref, corruption, teardown or profile instrumentation.
+
+The read-only package validator now requires a unique bounded native-test name
+inventory matching every added `AST_TEST_DEFINE`, `REGISTER` and `UNREGISTER`
+exactly once. This is lexical source consistency, not C parsing, compiler
+validation, branch coverage or proof that a registration is reachable.
+**Ten package tests pass**, including duplicate/omitted/invented inventory and
+missing-registration denial even when a changed patch checksum is supplied.
+The inventory check still does not authenticate a modified source package.
+
+Validation repeated seven exact pristine preimages, application dry run,
+source-only application in an independent checkout and all eight exact
+postimage hashes. Named scratch checkouts and the inspected rbtree source are
+removed afterward. **No dependency install, C build/test, image or PBX ran.**
+The native source count is eight; the only executed tests are the ten package
+tests. More lifecycle schedules, delegated-lock/profile/instrumentation cases,
+queue protocol/selection boundaries and upstream regressions remain required.
+A's verified exit, B/C, all AT/QO acceptance, exact publication, full CP and
+M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

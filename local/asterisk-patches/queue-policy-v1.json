@@ -4,7 +4,7 @@
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "upstreamTag": "22.11.0",
   "patch": "queue-policy-v1.patch",
-  "patchSha256": "3991f19f0d72389dfd830fb7d6199491c82bfb3f85490dd7b547553ff5b224fc",
+  "patchSha256": "06393da8c4081f9d5ffbd16da6790807ad166063c22f54fcc794454af76911a4",
   "stage": "gate-a-source-candidate",
   "nativeCompiled": false,
   "nativeTestsExecuted": false,
@@ -15,6 +15,9 @@
     "retained_nodes",
     "protected_lease",
     "protected_dispatch",
+    "bounded_matrix",
+    "bounded_contention",
+    "bounded_ownership",
     "policy_snapshot_copy"
   ],
   "files": [
@@ -56,7 +59,7 @@
     {
       "path": "tests/test_bounded_queue_policy.c",
       "beforeSha256": null,
-      "afterSha256": "0d34de0edc410e8956f54d7a53b66e230de4ef138a8f0b9fcb2f9d9c7af72034"
+      "afterSha256": "e61302445cd1fa88b6f7a112e55f353399c9e03c8f4f8b7467a4743c3bf59fdf"
     }
   ]
 }

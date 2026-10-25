@@ -49,12 +49,31 @@ const patchBytes = readRegular(patchFile);
 if (sha256(patchBytes) !== manifest.patchSha256 || patchBytes.includes(13)) {
   throw new Error("Patch checksum or LF encoding mismatch");
 }
-const patchFiles = [...patchBytes.toString("utf8").matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)];
+const patchText = patchBytes.toString("utf8");
+const patchFiles = [...patchText.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)];
 if (
   JSON.stringify(patchFiles.map((match) => match[1])) !== JSON.stringify(expected) ||
   patchFiles.some((match) => match[1] !== match[2])
 ) {
   throw new Error("Patch paths differ from the exact approved source boundary");
+}
+const nativeTestNames = manifest.nativeTests;
+if (
+  !Array.isArray(nativeTestNames) ||
+  nativeTestNames.length === 0 ||
+  nativeTestNames.length > 32 ||
+  nativeTestNames.some((name) => typeof name !== "string" || !/^[a-z][a-z0-9_]{0,63}$/.test(name)) ||
+  new Set(nativeTestNames).size !== nativeTestNames.length
+) {
+  throw new Error("Invalid or duplicate native-test inventory");
+}
+const declaredNames = [...nativeTestNames].sort();
+for (const macro of ["DEFINE", "REGISTER", "UNREGISTER"]) {
+  const expression = new RegExp(`^\\+\\s*AST_TEST_${macro}\\(([a-z][a-z0-9_]*)\\)`, "gm");
+  const names = [...patchText.matchAll(expression)].map((match) => match[1]).sort();
+  if (JSON.stringify(names) !== JSON.stringify(declaredNames)) {
+    throw new Error(`Native-test inventory differs from added AST_TEST_${macro} source`);
+  }
 }
 for (const file of manifest.files) {
   if (

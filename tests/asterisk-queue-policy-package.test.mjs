@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -93,5 +94,54 @@ test("missing preimages never pass as a clean applicable source tree", () => {
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /ENOENT/);
     assert.equal(result.stdout, "");
+  });
+});
+
+test("duplicate native-test names fail inventory validation", () => {
+  withFixture(({ run, manifest }) => {
+    const changed = JSON.parse(sourceManifest);
+    changed.nativeTests.push(changed.nativeTests[0]);
+    writeFileSync(manifest, JSON.stringify(changed));
+    const result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /duplicate native-test inventory/);
+  });
+});
+
+test("omitted native-test names cannot hide definitions", () => {
+  withFixture(({ run, manifest }) => {
+    const changed = JSON.parse(sourceManifest);
+    changed.nativeTests.pop();
+    writeFileSync(manifest, JSON.stringify(changed));
+    const result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /AST_TEST_DEFINE/);
+  });
+});
+
+test("invented native-test names cannot count as implemented coverage", () => {
+  withFixture(({ run, manifest }) => {
+    const changed = JSON.parse(sourceManifest);
+    changed.nativeTests.push("not_implemented");
+    writeFileSync(manifest, JSON.stringify(changed));
+    const result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /AST_TEST_DEFINE/);
+  });
+});
+
+test("definitions without registrations fail even with an updated patch checksum", () => {
+  withFixture(({ run, manifest, patch }) => {
+    const changed = JSON.parse(sourceManifest);
+    const name = changed.nativeTests[0];
+    const original = sourcePatch.toString("utf8");
+    const altered = original.replace(`+\tAST_TEST_REGISTER(${name});`, "+\t/* registration omitted */");
+    assert.notEqual(altered, original);
+    writeFileSync(patch, altered);
+    changed.patchSha256 = createHash("sha256").update(altered).digest("hex");
+    writeFileSync(manifest, JSON.stringify(changed));
+    const result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /AST_TEST_REGISTER/);
   });
 });

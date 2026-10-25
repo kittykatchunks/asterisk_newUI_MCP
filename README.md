@@ -392,6 +392,14 @@ node .\scripts\Test-AsteriskQueuePolicyPatch.mjs --source C:\path\to\asterisk
 The validator never downloads/applies/builds/runs the patch. Default stock
 runtime/Compose/inspector behavior is unchanged, and publication remains blocked.
 
+The [coverage-source update](./PROJECT-PLAN.md#gate-a-coverage-increment-eight-native-definitions-still-unexecuted)
+now defines **eight unexecuted native tests**, including cross-thread contention,
+budget/unsupported-type matrices and ownership/abort checks. **Ten package
+tests pass**; the validator also checks the native-test inventory against added
+definitions and registration pairs. The production patch bytes are unchanged.
+This does not establish C compilation, native correctness or AT/QO acceptance;
+Gates B/C remain closed.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
