@@ -2643,6 +2643,24 @@ and credentials removed after 25.5 seconds. See the
 [diagnostic handoff](./PROJECT-PLAN.md#custom-image-sip-attempt-2-contact-parser-failure-diagnosed).
 Another runtime attempt requires approval.
 
+### Corrected custom-image SIP registration/call/PCMU echo passed
+
+A separately approved third protocol attempt exercised the corrected parser
+and zero-exit Python preflight. REGISTER challenge/wrong-secret rejection,
+correct-secret registration with one exact contact, wrong-secret INVITE
+rejection, authenticated INVITE/ACK, **100 of 100 distinct synthetic PCMU
+frames echoed** (70 required), BYE and explicit unregistration all passed.
+Final contact/channel counts were zero; endpoint configuration remained.
+
+Preflight/client/PBX exited zero, with no OOM or watchdog expiry. Both client
+lifetimes, PBX, private network and credentials were removed. Existing four
+containers remained stopped; post-preflight bridge snapshots and inventories
+matched. Total 13.969 seconds includes all assertions and cleanup, not media
+latency. [The handoff](./PROJECT-PLAN.md#custom-image-sip-attempt-3-registration-call-and-pcmu-echo-passed)
+preserves prior failures unchanged and binds exact passing evidence. No
+production quality, encrypted transport, WebRTC, load, queue-over-SIP, Gate A/
+Gate C or deployment acceptance is implied. Further runtime needs approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

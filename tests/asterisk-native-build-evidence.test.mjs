@@ -19,6 +19,69 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("corrected SIP proof binds registration, authenticated call, exact RTP threshold and complete cleanup", () => {
+  const validation = read(`${directory}/sip-registration-rtp-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const report = read(`${directory}/sip-proof-attempt-3-report.json`);
+  const startup = read(`${directory}/desktop-image-smoke-report.json`);
+  assert.equal(validation.passed, true);
+  assert.equal(report.passed, true);
+  assert.equal(validation.totalProtocolAttempts, 3);
+  assert.equal(validation.attemptsExecutedThisStep, 1);
+  assert.equal(validation.imageId, startup.imageId);
+  assert.equal(report.imageId, validation.imageId);
+  assert.equal(report.bundleManifestSha256, validation.bundleManifestSha256);
+  assert.deepEqual(report.loadedModules, startup.loadedModules);
+  assert.equal(report.testCommandAbsent, true);
+  assert.deepEqual(report.preflightClientStopped, { exitCode: 0, oomKilled: false });
+  assert.deepEqual(report.processExitCodes, { pbx: 0, client: 0 });
+  assert.equal(report.registrationPassed, true);
+  assert.equal(report.contactRegistrationPassed, true);
+  assert.equal(report.mediaPassed, true);
+  assert.equal(report.mediaTested, true);
+  assert.equal(report.clientReport.passed, true);
+  assert.equal(report.clientReport.registrationPassed, true);
+  assert.deepEqual(report.phases.map((item) => item.client), [
+    { phase: "wrong-register", code: 401 },
+    { phase: "registered", code: 200, contactExpirySeconds: 59 },
+    { phase: "wrong-invite", code: 401 },
+    { phase: "echo-complete", inviteCode: 200, byeCode: 200 },
+    { phase: "unregistered", code: 200 },
+  ]);
+  assert.deepEqual(report.phases[0].contacts, []);
+  assert.deepEqual(report.phases[4].contacts, []);
+  for (const phase of report.phases.slice(1, 4)) {
+    assert.equal(phase.contacts.length, 1);
+    assert(phase.contacts[0].includes(`proof-client@${report.clientReport.clientAddress}:${report.clientReport.clientPort} `));
+  }
+  assert.equal(report.rtp.sentDistinctFrames, 100);
+  assert.equal(report.rtp.echoedDistinctFrames, 100);
+  assert(report.rtp.echoedDistinctFrames >= validation.acceptance.requiredEchoedDistinctFrames);
+  assert.equal(report.rtp.codec, "PCMU/8000");
+  assert(report.rtp.pbxMediaPort >= 10000 && report.rtp.pbxMediaPort <= 10100);
+  assert.deepEqual(report.initialBridge, report.finalBridge);
+  assert.deepEqual(report.initialInventory, report.finalInventory);
+  assert.equal(report.networkSettings.internal, true);
+  assert.equal(report.networkSettings.publishedPorts, 0);
+  assert.equal(report.ownedResourcesRemoved, true);
+  assert.equal(report.credentialFilesRemoved, true);
+  assert.equal(report.watchdogExpired, false);
+  assert.equal(report.elapsedSeconds, 13.969);
+  for (const [name, digest] of Object.entries(report.toolCanonicalLfHashes)) {
+    const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
+    assert.equal(canonical, digest, name);
+  }
+  for (const flag of ["runtimeApplyAuthorized", "gateCAuthorized", "redistributionApproved"]) {
+    assert.equal(report[flag], false, flag);
+    assert.equal(validation[flag], false, flag);
+  }
+  assert.equal(validation.gateAAcceptanceComplete, false);
+  assert.equal(validation.furtherRuntimeAuthorized, false);
+  assert.equal(preparation.sipRegistrationRtpExecution.passed, true);
+});
+
 test("second SIP diagnostic proves header-count bug and stable warmed bridge without promoting runtime acceptance", () => {
   const validation = read(`${directory}/sip-diagnostic-validation.json`);
   for (const [name, evidence] of Object.entries(validation.evidence)) {

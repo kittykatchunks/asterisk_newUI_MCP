@@ -5169,6 +5169,70 @@ exercise the corrected parser and continue registration/unregistration,
 INVITE/BYE and synthetic PCMU echo. No deployment, Gate A/Gate C completion,
 production media quality or redistribution authority is granted.
 
+##### Custom-image SIP attempt 3: registration, call and PCMU echo passed
+
+The user accepted one further corrected isolated proof under the previous
+resource/network boundaries. No harness change was needed before execution:
+the offline-validated parser and file-signalled preflight exit from the
+diagnostic step were exercised as published. Exactly one new protocol
+attempt ran; earlier failures remain immutable historical evidence.
+
+**Successful ordered observations**
+
+- Network-free Python preflight became ready and exited **zero**, without
+  OOM. That client was removed before the protocol client was created.
+- The current immutable custom image loaded all **41** required modules
+  Running, exposed no release test command and matched initial/final queue
+  policy. One pinned carrier ran Python only, not another PBX.
+- Unauthenticated requests received digest challenges; wrong-secret
+  REGISTER returned **401**, created no contact and left zero channels.
+- Correct-secret REGISTER returned **200**, accepted expiry **59 seconds**,
+  and the host verified exactly one contact matching client IP/port.
+- Wrong-secret INVITE returned **401**, with zero channels afterward.
+- Correct authenticated INVITE returned **200**, was ACKed, and negotiated
+  **PCMU/8000**, expected PBX address and media port **10048** inside the
+  private 10000–10100 range.
+- The existing three-second RTP observation sent **100 distinct synthetic
+  payloads and received all 100 echoed**; acceptance required at least 70.
+  No microphone, human speech or real caller was involved.
+- BYE returned **200**; channels drained to zero. Authenticated REGISTER
+  with expiry zero returned **200** and the host verified zero contacts.
+  The configured endpoint remained present.
+- The protocol client exited **zero**. SIGTERM shutdown returned PBX exit
+  **zero**, not running and not OOM-killed.
+
+The network was internal-only with exactly the two protocol containers and
+no published ports. Aggregate ceilings remained **4.5 CPU-equivalents /
+4 GiB + 128 MiB RAM / no extra swap / 288 tasks**, read-only roots,
+non-root identities, capabilities dropped and no-new-privileges. There was
+no image build/pull, dependency installation, external trunk or operation
+on existing customer containers.
+
+All owned client lifetimes, PBX, private network and generated credentials
+were removed. The four existing container IDs/names/states remained stopped.
+**Post-preflight bridge snapshots and existing-resource inventories were
+identical before/after.** No watchdog expired. Overall observation/cleanup
+was **13.969 seconds**, including the three-second media check and CLI work:
+this is not media latency, jitter or quality measurement.
+
+[Validation summary](./local/asterisk-build/sip-registration-rtp-validation.json)
+hash-binds the [byte-exact passing report](./local/asterisk-build/sip-proof-attempt-3-report.json),
+whose transport CRLF bytes are preserved. It contains sanitized fixtures,
+executed-tool raw/canonical-LF hashes, inspected limits, contact observations,
+client phases, media counts, exits and cleanup/baseline comparisons.
+Independent checks verified source identity, evidence acceptance, live
+resource inventory and absence of both generated credential files.
+Final regression validation passed **62 offline Python tests and 34
+source/evidence tests**, including unchanged historical failed-report hashes.
+
+**Acceptance boundary:** this proves one synthetic private UDP SIP/PCMU
+registration/contact lifecycle and echo dialog on the custom image. It does
+not prove general phone interoperability, OPTIONS qualification, timed
+contact expiry, real human audio quality, encrypted SIP/media, WebRTC,
+SIP queue/member paths, load/performance, multi-PBX tenant isolation,
+Gate A completion, Gate C, redistribution/license closure or deployment.
+No further runtime execution is granted by this success.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

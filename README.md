@@ -613,6 +613,17 @@ also kept the post-preflight bridge snapshot and existing-resource inventory
 unchanged through cleanup. Attempt 2 remained failed; no INVITE/RTP or third
 attempt occurred. All owned resources and credentials were removed.
 
+**[The corrected custom-image SIP registration/call/RTP proof now passes](./PROJECT-PLAN.md#custom-image-sip-attempt-3-registration-call-and-pcmu-echo-passed).**
+One separately approved run verified correct registration and its sole dynamic
+contact, wrong-secret REGISTER/INVITE rejection, authenticated INVITE/ACK,
+**100/100 distinct synthetic PCMU frames echoed** (required 70), BYE and explicit
+unregistration with zero contacts/channels afterward. Preflight/client/PBX
+exited zero; all owned resources and credentials were removed. Post-preflight
+bridge snapshots and existing-resource inventories matched exactly. Earlier
+failed reports remain unchanged. This is isolated UDP/PCMU fixture evidence,
+not production quality, WebRTC/TLS/SRTP, Gate A/Gate C or deployment acceptance.
+See [hash-bound evidence](./local/asterisk-build/sip-registration-rtp-validation.json).
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

@@ -1,6 +1,25 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-custom-image-sip-diagnostic-contact-parser-fixed-offline",
+  "stage": "gate-b-custom-image-isolated-sip-registration-pcmu-echo-passed",
+  "sipRegistrationRtpExecution": {
+    "validation": "../asterisk-build/sip-registration-rtp-validation.json",
+    "approvedAttemptsThisStep": 1,
+    "executedAttemptsThisStep": 1,
+    "totalProtocolAttempts": 3,
+    "passed": true,
+    "registrationAndUnregistrationPassed": true,
+    "wrongSecretRegisterAndInviteRejected": true,
+    "authenticatedInviteAckByePassed": true,
+    "sentDistinctPcmuFrames": 100,
+    "echoedDistinctPcmuFrames": 100,
+    "requiredEchoedDistinctPcmuFrames": 70,
+    "preflightPbxClientExitCodesZero": true,
+    "postPreflightBridgeAndInventoryUnchanged": true,
+    "ownedResourcesAndCredentialsRemoved": true,
+    "furtherRuntimeAuthorized": false,
+    "runtimeApplyAuthorized": false,
+    "gateCAuthorized": false
+  },
   "sipDiagnosticExecution": {
     "validation": "../asterisk-build/sip-diagnostic-validation.json",
     "approvedAdditionalAttempts": 1,
