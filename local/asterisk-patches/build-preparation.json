@@ -1,6 +1,22 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-custom-image-isolated-sip-registration-pcmu-echo-passed",
+  "stage": "gate-b-custom-image-sip-empty-queue-timeout-passed",
+  "sipQueueExecution": {
+    "validation": "../asterisk-build/sip-queue-timeout-validation.json",
+    "approvedQueueAttempts": 1,
+    "executedQueueAttempts": 1,
+    "passed": true,
+    "queueWaitMilliseconds": 3000,
+    "answeredMilliseconds": 0,
+    "finalChannelsCallersContactsZero": true,
+    "postPreflightBridgeAndInventoryUnchanged": true,
+    "ownedResourcesAndCredentialsRemoved": true,
+    "mediaTested": false,
+    "humanAnsweringTested": false,
+    "furtherRuntimeAuthorized": false,
+    "runtimeApplyAuthorized": false,
+    "gateCAuthorized": false
+  },
   "sipQueuePreparation": {
     "stage": "offline-only-implemented-not-runtime-tested",
     "preparation": "../asterisk-build/sip-queue-preparation.json",

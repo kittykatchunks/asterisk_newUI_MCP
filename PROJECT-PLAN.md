@@ -5292,6 +5292,56 @@ proposed under the previous one-PBX/one-client internal-network limits, but
 none is authorized here. This preparation does not establish answering SIP
 agents, SIP queue media quality, real taxi calls, Gate A/Gate C or deployment.
 
+##### SIP-to-empty-queue timeout: runtime passed
+
+After the offline-only preparation, the user accepted one isolated runtime
+attempt under the previous network/resource/watchdog/cleanup limits.
+The prepared implementation ran unchanged; **the first queue runtime attempt
+passed**. The earlier preparation record remains historical with zero runtime
+authority at the time it was written.
+
+**Observed:** network-free Python preflight exited zero; custom-image startup
+loaded all 41 modules Running, lacked test CLI and matched initial queue
+policy. Wrong-secret REGISTER/INVITE returned 401. Correct-secret REGISTER
+returned 200 with 59-second expiry, with its sole exact contact verified.
+Authenticated INVITE to `queue-timeout` returned 200 and was ACKed, negotiating
+private PCMU SDP. This run did not send echo payloads or verify RTP.
+
+The host retained **eight bounded progress samples**, observing exactly one
+`PJSIP/proof-client-00000000` channel in the private queue context/extension,
+`Queue(proof-queue,r,,,3)`, zero members and one caller. The same channel
+entered the result `Wait(10)` with zero queued callers; its channel variables,
+captured once, were **QUEUESTATUS=TIMEOUT, QUEUEWAIT_MS=3000,
+ANSWEREDTIME_MS=0, ABANDONED=TRUE**. Static policy remained unchanged.
+
+The host acknowledged result validation, the client sent BYE/received 200,
+and channels drained to zero. Authenticated unregistration returned 200 with
+zero dynamic contacts, retained endpoint configuration and exact restored
+queue-policy baseline. Protocol client and PBX exited zero without OOM or
+watchdog expiry. Both client lifetimes, PBX, owned private network and generated
+credentials were removed. The four existing containers remained stopped;
+post-preflight bridge fields and existing-resource inventories matched exactly.
+
+One PBX and one Python-only carrier ran concurrently at most, with no published
+ports/trunks, image build/pull, dependency installs or existing-PBX operations.
+Aggregate ceilings remained 4.5 CPU-equivalents, 4 GiB + 128 MiB RAM, no extra
+swap and 288 tasks. Overall **19.546 seconds** includes preflight, protocol,
+CLI and cleanup work; the measured queue wait is separately **3000 ms**,
+not inferred from overall duration or the ten-second diagnostic result hold.
+
+[Validation summary](./local/asterisk-build/sip-queue-timeout-validation.json)
+binds the [byte-exact report](./local/asterisk-build/sip-queue-timeout-smoke-report.json)
+by SHA-256. Independent checks verified measured variables, queued/result
+policies, executed-tool hashes, exit codes, unchanged warmed inventories,
+live owned-resource absence and deletion of both credential files.
+Final validation passed **70 offline Python tests and 36 source/evidence tests**.
+
+**Scope:** this closes the synthetic registered-SIP-caller-to-empty-queue
+timeout path only. It does not prove an answering/unanswered SIP agent member,
+queue audio quality/RTP, human service, real taxi/trunk calls, load, encrypted
+transport, WebRTC, multi-PBX isolation, Gate A/Gate C or deployment. No further
+runtime attempt is authorized by this success.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

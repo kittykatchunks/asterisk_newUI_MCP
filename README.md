@@ -632,6 +632,14 @@ No new containers, networks, credentials or SIP/RTP traffic were created for thi
 preparation. The echo path remains default; a queue runtime attempt needs separate
 approval. This does not test an answering SIP agent or queue media quality.
 
+**[The first SIP-to-empty-queue runtime attempt now passes](./PROJECT-PLAN.md#sip-to-empty-queue-timeout-runtime-passed).**
+One registered PJSIP caller was observed in the empty private queue, then returned
+`TIMEOUT`, **3000 ms queue wait**, zero answered time and `ABANDONED=TRUE`.
+BYE/unregistration, zero residual callers/channels/contacts, zero process exits,
+owned cleanup and unchanged post-preflight bridge/inventory all passed.
+This is SIP queue-timeout evidence, not an answering SIP agent or RTP verification.
+See [exact runtime evidence](./local/asterisk-build/sip-queue-timeout-validation.json).
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

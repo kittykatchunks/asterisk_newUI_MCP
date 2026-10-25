@@ -19,6 +19,71 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("SIP empty-queue runtime binds one queued caller, exact timeout and authenticated cleanup", () => {
+  const validation = read(`${directory}/sip-queue-timeout-validation.json`);
+  for (const [name, evidence] of Object.entries(validation.evidence)) {
+    assert.equal(hash(`${directory}/${name}`), evidence.sha256, name);
+  }
+  const report = read(`${directory}/sip-queue-timeout-smoke-report.json`);
+  const queue = report.sipQueueTimeout;
+  assert.equal(validation.passed, true);
+  assert.equal(report.passed, true);
+  assert.equal(report.sipQueueTimeoutRequested, true);
+  assert.equal(report.imageId, validation.imageId);
+  assert.equal(report.bundleManifestSha256, validation.bundleManifestSha256);
+  assert.equal(report.loadedModules.length, 41);
+  assert.equal(report.testCommandAbsent, true);
+  assert.equal(queue.passed, true);
+  assert.match(queue.channelName, /^PJSIP\/proof-client-[a-f0-9]+$/);
+  assert.equal(queue.queuedPolicy.memberCount, 0);
+  assert.equal(queue.queuedPolicy.callerCount, 1);
+  assert.equal(queue.queuedPolicy.callerListEmpty, false);
+  assert.equal(queue.resultPolicy.callerCount, 0);
+  assert.equal(queue.resultPolicy.callerListEmpty, true);
+  assert.deepEqual(queue.resultVariables, {
+    QUEUESTATUS: "TIMEOUT", QUEUEWAIT_MS: "3000", ANSWEREDTIME_MS: "0", ABANDONED: "TRUE",
+  });
+  assert.equal(queue.progress.length, 8);
+  assert.deepEqual(queue.progress, report.sipQueueProgress);
+  assert(queue.progress.some((item) => item.channel.application === "Queue" && item.policy.callerCount === 1));
+  assert.equal(queue.progress.at(-1).channel.application, "Wait");
+  assert.equal(new Set(queue.progress.map((item) => item.channel.name)).size, 1);
+  assert.equal(queue.mediaVerified, false);
+  assert.deepEqual(report.phases.map((item) => item.client.phase), [
+    "wrong-register", "registered", "wrong-invite", "queue-started", "queue-complete", "unregistered",
+  ]);
+  assert.equal(report.phases[0].client.code, 401);
+  assert.equal(report.phases[1].client.code, 200);
+  assert.equal(report.phases[2].client.code, 401);
+  assert.equal(report.phases[3].client.ackSent, true);
+  assert.equal(report.phases[4].client.byeCode, 200);
+  assert.equal(report.phases[5].client.code, 200);
+  assert.deepEqual(report.phases[5].contacts, []);
+  assert.equal(report.registrationPassed, true);
+  assert.equal(report.clientReport.passed, true);
+  assert.equal(report.clientReport.queueTimeoutRequested, true);
+  assert.equal(report.mediaTested, false);
+  assert.equal(report.mediaPassed, false);
+  assert.deepEqual(report.preflightClientStopped, { exitCode: 0, oomKilled: false });
+  assert.deepEqual(report.processExitCodes, { pbx: 0, client: 0 });
+  assert.deepEqual(report.initialInventory, report.finalInventory);
+  assert.deepEqual(report.initialBridge, report.finalBridge);
+  assert.equal(report.ownedResourcesRemoved, true);
+  assert.equal(report.credentialFilesRemoved, true);
+  assert.equal(report.watchdogExpired, false);
+  assert.equal(report.elapsedSeconds, 19.546);
+  for (const [name, digest] of Object.entries(report.toolCanonicalLfHashes)) {
+    const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
+    assert.equal(canonical, digest, name);
+  }
+  for (const flag of ["mediaTested", "humanAnsweringTested", "existingPbxOperated",
+    "runtimeApplyAuthorized", "gateAAcceptanceComplete", "gateCAuthorized",
+    "redistributionApproved", "licenseClosureComplete", "furtherRuntimeAuthorized"]) {
+    assert.equal(validation[flag], false, flag);
+  }
+  assert.equal(preparation.sipQueueExecution.passed, true);
+});
+
 test("SIP-to-queue preparation stays offline and cannot promote echo evidence to queue runtime success", () => {
   const record = read(`${directory}/sip-queue-preparation.json`);
   assert.equal(record.stage, "sip-to-empty-queue-timeout-implemented-offline-only");

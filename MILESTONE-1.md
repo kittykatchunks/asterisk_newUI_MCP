@@ -2675,6 +2675,19 @@ or SIP/RTP traffic**. [The handoff](./PROJECT-PLAN.md#sip-to-empty-queue-timeout
 describes unit/mocked coverage and zero runtime authority. No answering SIP
 agent or media quality is tested. A queue runtime attempt needs new approval.
 
+### First SIP-to-empty-queue runtime proof passed
+
+One separately approved runtime attempt observed a sole authenticated PJSIP
+caller inside the private queue with zero members. The same channel then
+reported TIMEOUT, **3000 ms wait**, zero answered time and ABANDONED=TRUE.
+BYE and explicit unregistration passed, leaving zero channels/callers/contacts.
+Preflight/client/PBX exited zero; owned resources and credentials were removed.
+Post-preflight bridge snapshots and inventories matched; existing containers
+remained stopped. Overall 19.546 seconds includes all checks/cleanup and is not
+queue latency. [The handoff](./PROJECT-PLAN.md#sip-to-empty-queue-timeout-runtime-passed)
+binds exact evidence. No answering SIP agent or RTP verification was performed.
+No further runtime, Gate A/Gate C or deployment authority is granted.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
