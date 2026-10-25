@@ -539,6 +539,17 @@ arguments, strict CLI/module checks and ownership-safe cleanup. No actual
 build context, image, container or binary export was produced in this step.
 Image build/runtime compatibility remains untested and requires separate approval.
 
+**[The local scratch image is now built and its payload independently verified](./PROJECT-PLAN.md#local-scratch-image-built-and-payload-verified-not-started).**
+Following separate build/inspection approval, the verified bundle was
+exported privately and built for Linux amd64 on Docker Desktop with no pulls,
+no build network and no registry push. The
+[image-build record](./local/asterisk-build/image-build-validation.json)
+binds verification of 379 files (including the manifest), 41 module aliases,
+ownership/modes and OCI identity/layer hashes. **No container was created or
+started**; the earlier preparation-only flags remain historical. Existing
+containers were untouched and the dedicated builder is stopped. Docker
+Desktop-compatible runtime smoke remains a separate unapproved step.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

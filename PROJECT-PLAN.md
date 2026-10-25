@@ -4398,6 +4398,93 @@ evidence checks. No dependency additions, image-build approval, container
 runtime approval, redistribution/license closure, calls/media, production
 deployment, Gate C or remaining Gate A acceptance is implied.
 
+##### Local scratch image built and payload verified, not started
+
+Read-only availability checks found Docker Desktop's Linux amd64 engine
+reachable through the Windows named-pipe context `desktop-linux`. The
+prepared runtime smoke harness deliberately requires a same-host Linux Unix
+socket and cannot safely be used unchanged in this environment. The user
+therefore approved **build-inspect only**: restart the owned builder, verify
+and privately export the bundle, build the scratch image, independently
+inspect its payload, retain local artifacts and stop the builder. No Docker
+installation in WSL, shared-setting changes, existing-container changes or
+container runtime were authorized.
+
+The context was prepared in the dedicated guest under the existing
+4 CPU-equivalent / 4 GiB / zero-swap / 256-task limits, private network,
+unprivileged user and five-minute service watchdog. An initial attempt
+failed before context creation because the tool's adjacent pinned manifest
+had not yet been staged. After staging that exact manifest, preparation
+and full context verification passed. A guest tar preserved executable
+modes and absolute module symlinks; binary-safe Windows transport verified
+its exact **133,253,120 bytes** and SHA256 before build. The context remains
+an archive rather than being extracted onto NTFS.
+The Windows working recipe had CRLF bytes while its committed representation
+is LF. The build record preserves the **actual exported recipe hash** plus a
+separate canonical-LF hash matching Git; only line endings differ. Regression
+checks use the canonical hash so a fresh checkout does not invalidate evidence.
+
+Docker built from that tar with `--platform=linux/amd64 --network=none
+--pull=false`, a ten-minute subprocess timeout, and a 15-minute approved
+overall work budget. There are no `RUN` commands, image downloads or
+dependency installations. The local result is:
+
+- Tag: `asterisk-local-verified:b6eb351-1`.
+- Immutable OCI index ID:
+  `sha256:dd7be33ac549af7758c92a3857d52f06c0967ecbd9b1df6e7875ee9d26adb8dc`.
+- Config digest:
+  `sha256:a1e2fe59ea552e2f10c83eaeba6eb537176959aad6feb78ed34b40854f210b98`.
+- [Build evidence](./local/asterisk-build/image-build-validation.json) and
+  [payload evidence](./local/asterisk-build/image-payload-validation.json).
+
+The [independent archive inspector](./local/asterisk-build/inspect-runtime-image.py)
+reads a local `docker image save` archive without extracting or running it.
+The current Docker engine uses an OCI index ID, not the legacy assumption
+that image ID equals config digest. The inspector verifies the saved index's
+selected identity, descriptor SHA256/length chain to the unique Linux amd64
+manifest/config, compressed layer SHA256/lengths and uncompressed diff IDs.
+It checks all **379 payload files** (378 original files plus manifest),
+all **41 module aliases**, exact non-directory inventory, hashes, lengths,
+modes and UID/GID 10001 ownership. It rejects whiteouts, traversal paths,
+special/hardlink entries, duplicate overwritten files and unexpected files.
+The three verified filesystem layers include the two copies and working
+directory layer. Entrypoint, command, environment, user, working directory,
+stop signal and manifest label match the reviewed recipe. BuildKit's
+attestation sibling is not treated as a runtime platform or independently
+audited provenance claim.
+
+Only evidence JSON is committed. Exported binaries/context, saved image,
+logs and metadata remain under the private local attempt directory recorded
+in the build evidence; the actual image stays in Docker Desktop. The guest
+context/archive and prior failed-attempt log are retained too. No registry
+push occurred: Docker's local `docker.io/library/...` naming in its log does
+not mean it pushed anything. **No container was created or started**; the
+four pre-existing stopped containers were not changed. The dedicated builder
+is stopped. Historical preparation-only/no-export flags were not rewritten
+to imply those earlier operations had a wider scope.
+
+The **2 GiB incremental-storage stop threshold** was monitored, not enforced
+as an aggregate quota. Observed host attempt files were about 199 MB; guest
+context plus archive about 267 MB. Docker's rounded total image-size report
+changed from 4.025 to 4.224 GB and its build-cache report from 5.302 to
+5.768 GB. Even conservatively summing these reported increments remains
+below the threshold. These are shared-engine snapshots, not an exact
+deduplicated allocation/peak measurement. Docker Desktop overhead remains
+outside guest process limits; no other images, caches or volumes were pruned.
+
+Five new synthetic OCI-inspector tests cover identity substitution,
+descriptor/layer/diff-ID tampering, altered bytes/modes/owners/aliases,
+extra files, traversal, whiteouts, hardlinks and overwrites. They complement
+the 14 existing offline recipe/harness tests and 25 source/evidence tests.
+The actual saved image also passed the final inspector including recipe
+configuration checks. No dependencies were added.
+
+This establishes **an actual locally built image with verified contents,
+not a running container**. Docker Desktop-compatible smoke transport still
+needs preparation and separate runtime approval. SIP registration, calls,
+media, deployment, complete dependency-source/license closure, redistribution,
+Gate C and remaining Gate A acceptance remain unclaimed and unauthorized.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

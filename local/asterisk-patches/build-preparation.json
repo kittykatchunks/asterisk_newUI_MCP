@@ -1,6 +1,26 @@
 {
   "schemaVersion": 1,
-  "stage": "gate-b-local-runtime-bundle-smoke-verified",
+  "stage": "gate-b-local-image-built-and-payload-verified-not-executed",
+  "localImageBuild": {
+    "authorization": "User selected build-inspect: approve local binary export, image build and payload inspection only; no container runtime.",
+    "validation": "../asterisk-build/image-build-validation.json",
+    "payloadValidation": "../asterisk-build/image-payload-validation.json",
+    "inspector": "../asterisk-build/inspect-runtime-image.py",
+    "localTag": "asterisk-local-verified:b6eb351-1",
+    "imageId": "sha256:dd7be33ac549af7758c92a3857d52f06c0967ecbd9b1df6e7875ee9d26adb8dc",
+    "imageBuilt": true,
+    "hostBinaryExported": true,
+    "payloadFilesVerifiedIncludingManifest": 379,
+    "moduleAliasesVerified": 41,
+    "imageRuntimeAuthorized": false,
+    "imageRuntimeExecuted": false,
+    "registryPushed": false,
+    "redistributionApproved": false,
+    "licenseClosureComplete": false,
+    "runtimeApplyAuthorized": false,
+    "ownedDistributionStopped": true,
+    "earlierPreparationAndBundleFlagsAreHistorical": true
+  },
   "containerPreparation": {
     "stage": "recipe-and-validation-harness-prepared-only",
     "authorization": "User selected prepare-only: prepare container recipe and validation harness; no image build, binary export or container execution.",

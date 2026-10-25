@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "stage": "local-image-built-and-payload-verified-not-executed",
+  "authorization": "User selected build-inspect: local bundle export, Docker Desktop Linux amd64 scratch image build and independent payload inspection only; no container runtime.",
+  "imageId": "sha256:dd7be33ac549af7758c92a3857d52f06c0967ecbd9b1df6e7875ee9d26adb8dc",
+  "localTag": "asterisk-local-verified:b6eb351-1",
+  "platform": "linux/amd64",
+  "dockerContext": "desktop-linux",
+  "privateHostDirectory": "C:\\Users\\james\\AppData\\Local\\AsteriskNativeBuild\\image-b6eb351-1",
+  "guestContext": "/home/asterisk-build/image-context-attempt-1",
+  "contextTarSha256": "b6225459a53fd602fb9dc3f415930ef2103b1830fd6d63065857414dda8f397a",
+  "contextTarBytes": 133253120,
+  "bundleManifestSha256": "1d83ef928916419a836e4297addc7e56c91b75a69314f2ded15035c9b859dffd",
+  "dockerfileSha256": "9a90a65302c0ac76ee685d7e5a8cecac1b58a6d5d7219e48a1b9367088ef5bfa",
+  "buildLogSha256": "7f1a5e8439079126a3e561415ea1d4f3055ab14164ec1a2b162b79babf64e663",
+  "imageReportedSizeBytes": 65343243,
+  "hostAttemptFileBytes": 198615297,
+  "buildPullEnabled": false,
+  "buildNetwork": "none",
+  "imageBuilt": true,
+  "hostBinaryExported": true,
+  "imageRuntimeAuthorized": false,
+  "imageRuntimeExecuted": false,
+  "ownedDistributionStopped": true,
+  "existingContainersChanged": false,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "runtimeApplyAuthorized": false,
+  "resourceBoundary": {
+    "overallTimeBudgetSeconds": 900,
+    "buildSubprocessWatchdogSeconds": 600,
+    "contextServiceWatchdogSeconds": 300,
+    "incrementalStorageStopThresholdBytes": 2147483648,
+    "aggregateStorageQuotaEnforced": false,
+    "sharedDockerDesktopOverheadOutsideBuilderLimits": true,
+    "approximateDockerImageSizeBeforeGB": 4.025,
+    "approximateDockerImageSizeAfterGB": 4.224,
+    "approximateDockerBuildCacheBeforeGB": 5.302,
+    "approximateDockerBuildCacheAfterGB": 5.768,
+    "reportedStorageThresholdExceeded": false
+  },
+  "evidence": {
+    "image-payload-validation.json": {
+      "sha256": "55ab2b05f8db4d4ec345cdb318103a22abea8aeac3fdf78da3bbae32b1342912"
+    }
+  },
+  "limitations": [
+    "No image startup, SIP registration, calls or media tested.",
+    "Docker Desktop smoke transport still requires implementation/approval.",
+    "Source/license closure and redistribution remain unapproved.",
+    "Storage figures are observed snapshots, not a dedicated disk quota or guaranteed peak bound."
+  ],
+  "dockerfileCanonicalLfSha256": "242a219d31c048f56dc3ab07aac3d2f6b3f221db76f692d164b4656face83e0b",
+  "dockerfileTransportLineEndings": "CRLF; content equals committed recipe after LF normalization"
+}

@@ -19,6 +19,40 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("built image evidence binds actual inspected payload without implying container execution", () => {
+  const build = read(`${directory}/image-build-validation.json`);
+  const payload = read(`${directory}/image-payload-validation.json`);
+  assert.equal(build.imageId, payload.imageId);
+  assert.equal(build.imageId, preparation.localImageBuild.imageId);
+  assert.equal(build.bundleManifestSha256, hash(`${directory}/runtime-bundle-manifest.json`));
+  assert.equal(payload.bundleManifestSha256, build.bundleManifestSha256);
+  assert.equal(build.dockerfileCanonicalLfSha256, createHash("sha256")
+    .update(bytes(`${directory}/runtime.Dockerfile`).toString("utf8").replace(/\r\n/g, "\n"))
+    .digest("hex"));
+  assert.equal(hash(`${directory}/image-payload-validation.json`),
+    build.evidence["image-payload-validation.json"].sha256);
+  assert.equal(payload.payloadFilesVerified, bundleManifest.entries.length + 1);
+  assert.equal(payload.moduleAliasesVerified, 41);
+  assert.equal(payload.imageLayersVerified, 3);
+  assert.equal(payload.allPayloadHashesSizesModesAndOwnershipVerified, true);
+  assert.equal(payload.exactNonDirectoryImageInventoryVerified, true);
+  assert.equal(payload.imageConfigurationMatchesRecipe, true);
+  assert.equal(build.imageBuilt, true);
+  assert.equal(build.hostBinaryExported, true);
+  assert.equal(build.imageRuntimeAuthorized, false);
+  assert.equal(build.buildPullEnabled, false);
+  assert.equal(build.buildNetwork, "none");
+  assert.equal(build.ownedDistributionStopped, true);
+  assert.equal(build.existingContainersChanged, false);
+  assert.equal(build.resourceBoundary.reportedStorageThresholdExceeded, false);
+  for (const record of [build, payload]) {
+    for (const flag of ["imageRuntimeExecuted", "registryPushed", "redistributionApproved",
+      "licenseClosureComplete", "runtimeApplyAuthorized"]) {
+      assert.equal(record[flag], false, flag);
+    }
+  }
+});
+
 test("local bundle evidence binds the corrected build and every staged release output", () => {
   assert.equal(bundleValidation.patchSha256, candidate.patchSha256);
   const compiledHash = hash(`${directory}/compile-report-optional-api.json`);

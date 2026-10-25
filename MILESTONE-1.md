@@ -2529,6 +2529,20 @@ binary export occurred. Actual container compatibility remains untested;
 image creation and smoke need separately approved execution/environment scope.
 See the [preparation handoff](./PROJECT-PLAN.md#container-recipe-and-validation-harness-prepared-only).
 
+### Local scratch image built and inspected, not started
+
+The user separately approved **build-inspect**, including local binary export
+and image creation, but not container runtime. The Linux amd64 image
+`asterisk-local-verified:b6eb351-1` is retained locally.
+Its [build record](./local/asterisk-build/image-build-validation.json) binds
+independent OCI identity/config/layer and exact payload verification:
+379 files including the manifest, 41 aliases and numeric ownership/modes.
+No container was created or started; no calls, registry push or redistribution
+occurred. The builder is stopped and existing containers remain untouched.
+See the [image handoff](./PROJECT-PLAN.md#local-scratch-image-built-and-payload-verified-not-started).
+The earlier prepare-only and no-host-export records remain historical;
+this newer bounded approval supersedes them only for this local build.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
