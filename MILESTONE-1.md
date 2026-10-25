@@ -970,6 +970,69 @@ This adds partial evidence toward M1-07, not full milestone acceptance. The 17
 remaining broad M1 gates remain incomplete; no phone, HTTP/UI, queue/journey
 reconstruction, remote collector deployment or REFER rerun was added.
 
+### Journey design and reconstruction contract
+
+The user selected **documentation only**, explicit trusted inbound-entry markers
+and separate outcome facts. The detailed
+[journey reconstruction design v1](./PROJECT-PLAN.md#journey-reconstruction-design-v1-not-implemented)
+defines source/epoch pairing, entities, instrumentation, queue/CEL relationships,
+projection semantics, metric exclusions and staged delivery.
+Design recorded 25 October 2026; **no implementation or new acceptance pass** is
+claimed here. JD checks below are future implementation exit criteria, not a
+completed checklist or authorisation to activate agent phones.
+
+Core invariants:
+
+- An explicit customer/runtime/epoch-scoped entry marker admits one inbound
+  journey. A linked ID, caller number, channel, queue visit or bridge cannot.
+- Legs, repeated queue visits and parallel offers have independent identities.
+  Two confirmed inbound roots joined by consultation remain two journeys.
+- PBX answer, human queue service, queue exit, transfer activation and target
+  connection are separate facts; evidence quality and source gaps accompany them.
+- Keep immutable raw records and stable derived identities across replay/rebuild.
+  Unknown, missing and conflicting evidence stays visible rather than becoming
+  invented success/failure or a misleading denominator.
+
+| Check | Future finite required evidence |
+|---|---|
+| JD-01 | Source-kind/runtime/epoch manifest binds CEL/queue streams to one customer, preserves original generations/offsets and explicitly maps restart boundaries. Missing/ambiguous pairing leaves relationships unresolved; legacy HF rows are not silently assigned epochs. |
+| JD-02 | Operator-only queue import preserves exact bytes, five fixed fields and variable/empty parameters, including sensitive optional caller-name data. Bounded parse/import/read, atomic checkpoint, partial tail, failure rollback, unknown events and replay/restart proofs match the CEL foundation's discipline without parsing queue logs as CSV. |
+| JD-03 | Versioned trusted entry marker on an approved isolated inbound route creates one stable root. Caller-controlled marker spoofing, incompatible duplicate roots and malformed marker payloads are rejected/flagged; unmarked legacy evidence is queryable but absent from confirmed inbound counts. |
+| JD-04 | One served fixture yields one root despite caller/member/Local legs and parallel offers. CONNECT/member uniqueid and CEL relationships support service; route Answer alone produces no human-service claim. Media success remains separately measured. |
+| JD-05 | One journey visits the same queue twice and/or changes queue: two ENTERQUEUE/visit identities, one root, no nearest-time joining of ambiguous open visits. CONNECT/terminal records attach only with supporting context; unmatched events remain visible. |
+| JD-06 | Empty-queue timeout, key exit, member ring-no-answer and caller abandonment have distinct visit facts. Current Answer-before-Queue timeout is never labelled human answered or caller abandoned. A declared unanswered-target fixture proves its own no-service terminal contract. |
+| JD-07 | Blind transfer fixture retains source root, source/member/target relationships and separate target service result; failed/unanswered targets do not become served from BLINDTRANSFER or SIP 202 alone. Queue re-entry after transfer remains the same root with a new visit. |
+| JD-08 | Attended consultation, Local optimization and two independently marked inbound calls entering a common bridge preserve both roots and stable leg relationships; no linked-ID/bridge transitive merge invents or deletes inbound journeys. Use a separate fixture, not a rerun/expansion of the frozen REFER matrix. |
+| JD-09 | Answered/served, unanswered target, pre-service abandoned and transferred M1-06 fixtures have predeclared roots/legs/visits/facts, exact correlated raw evidence and expected unknowns. Repeat after collector/application restart without duplicate roots/visits. A later abandoned visit never erases earlier service. |
+| JD-10 | Two customers and two PBX epochs deliberately reuse channel/linked/queue identifiers; all raw/derived reads, references and counts remain isolated. A rotated generation is not treated as a new PBX epoch, and a reused root with contradictory provenance is conflicting rather than auto-merged. |
+| JD-11 | Reordered CEL/queue arrival, delayed relationships, equal timestamps, missing terminal/entry/CONNECT and contradictory terminals yield deterministic explicit unresolved/partial/conflicting states. Rebuilds retain stable IDs and evidence; no last-write-wins fabricated outcome. |
+| JD-12 | Full replay, different batch sizes, competing rebuilds and injected crash/commit failure preserve exact raw evidence and publish complete atomic projection revisions. Same evidence/manifest/algorithm yields equal entities/facts/counts; failed rebuild leaves prior revision readable with truthful freshness. |
+| JD-13 | Collector outage replays retained CEL and queue evidence without duplicate roots/visits. Unknown generation gaps persist on old/new projections, even with healthy collectors. Uncertain time/epoch association cannot silently exclude a gap or become a precise loss interval. |
+| JD-14 | Totals disclose confirmed roots separately from legs/visits/offers and unresolved/conflicting evidence; synthetic entry filters do not mix into external totals. Unknown coverage/denominators block unjustified service-level or abandonment rates. No unagreed short-abandon/service-level/occupancy rules are invented. |
+| JD-15 | Pinned runtime adapter verifies queue parameter shapes/units, CEL relationships and fields actually available. UTC/time-basis conversion and both UK DST transitions preserve ambiguous/missing times explicitly; cross-source ordering and timestamp subtraction do not invent durations. |
+| JD-16 | When authenticated history presentation is separately authorised, explicit scope/read permission, session/audit boundaries, guessed IDs, customer substitution and inert raw-value display pass before exposing caller data. Until then, operator CLI access is not described as tenant authentication. |
+
+Implementation stop boundaries:
+
+1. Select **QF operator queue evidence** next; specify its finite limits, source
+   kind and migration contract before coding. No derived totals or live route
+   change in QF.
+2. Select **JI instrumentation/reconstruction** separately, with new isolated
+   routes and an epoch manifest; marker schemas and trust checks are part of that
+   contract, not caller-controlled API inputs.
+3. Select **JR outcome/recovery acceptance** only after QF/JI evidence. Reassess
+   M1-06/07 against their full wording rather than marking them passed because
+   individual JD checks exist.
+4. Select **HP authenticated presentation** independently before adding a user
+   history surface.
+
+Existing evidence remains unchanged: empty Local-channel queue timeout/restart,
+synthetic echo CEL lifecycle, HF durable CEL import and CR local-file recovery
+are partial foundations. None currently proves all four history outcomes,
+queue/member service, full journey reconstruction or production collection.
+The 17 broad M1 gaps remain incomplete. No runtime files, dependencies, services
+or frozen REFER tests were changed or executed in this design increment.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

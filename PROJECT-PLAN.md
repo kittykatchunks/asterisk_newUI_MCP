@@ -718,6 +718,279 @@ asset; configuration revision.
 
 Test transfers, Local channels, repeated queue visits, and AI handovers.
 
+### Journey reconstruction design v1 (not implemented)
+
+The user selected a documentation-only increment and explicitly chose:
+
+1. **Trusted inbound-entry markers**, not inferred linked-ID roots.
+2. **Separate outcome facts**, not one overloaded answered/failed label.
+
+This design is the next implementation contract, not evidence that queue ingestion,
+journey reconstruction or live phones exist. The HF/CR implementations continue to
+store CEL channel evidence only. Use the finite
+[JD acceptance matrix](./MILESTONE-1.md#journey-design-and-reconstruction-contract)
+before implementing derived reports.
+
+#### Evidence namespace and source pairing
+
+Every reference is scoped by customer, runtime instance, runtime epoch, source
+kind, source generation and byte offset. Runtime epoch means an explicitly
+provisioned PBX process/incarnation namespace, not a timestamp inferred from an
+Asterisk uniqueid. A source generation denotes a particular log stream/segment;
+it is **not** a runtime epoch. One epoch may span multiple log generations and
+one persistent log generation may contain multiple PBX restarts.
+
+Before cross-source reconstruction, an operator-controlled manifest must map CEL
+and queue sources to the same customer/runtime and explicit epoch boundaries.
+Queue `QUEUESTART` and CEL IDs are supporting observations, not an automatic
+epoch authority. If an event cannot be assigned to an epoch without ambiguity,
+keep it unresolved; do not join its identifiers across possible incarnations.
+Existing HF source/generation IDs do not yet implement this manifest. Migration
+must retain their original identities and leave legacy epoch associations
+unassigned until an explicit, evidenced mapping is supplied.
+
+Use a source-qualified record key for replay deduplication. Equal payloads at
+different offsets are separate evidence; equal uniqueid/linkedid/queue names
+across runtimes or epochs cannot join. New generation replay must not quietly
+deduplicate overlapping exports or inflate derived entities: explicit overlaps
+require evidence references and a conflict/alias decision. Never rewrite raw
+records or original identifiers to force a match.
+
+#### Proposed entities and cardinalities
+
+| Entity | Identity and evidence rule |
+|---|---|
+| Journey | Customer/runtime/epoch plus explicit inbound-entry `journeyId`; one admitted external/test inbound interaction, not one channel or queue entry. |
+| Channel leg | Runtime/epoch-qualified CEL uniqueid with start/end and observed channel-name history. One journey may reference many legs; bridge/consultation relationships may touch more than one journey without merging their roots. |
+| Relationship | Typed, directed evidence edge (created leg, bridge participation, Local optimization, transfer or explicit continuation); retain supporting record keys and resolved/unresolved/conflicting state. |
+| Queue visit | Explicit `visitId` where instrumented, plus caller-channel/queue and ENTERQUEUE record reference. A repeated ENTERQUEUE is a new visit even on the same channel and queue. |
+| Agent offer | Attempt within a visit; queue member interface, ring observations and terminal evidence. Multiple members can ring for one visit. A member string is not a verified person. |
+| Service segment | A proven queue CONNECT/bridge relationship between caller and member legs; separate from PBX answering or media announcements. |
+| Transfer attempt | Source journey/leg plus transfer evidence; requested target, observed runtime transfer, target service and terminal/unknown state are separate. |
+| Derived projection | Stable entity IDs, algorithm version, input checkpoint vector, scoped gap/health references, revision and evidence-backed facts. Not a replacement raw log. |
+
+Recording and agent-session references remain optional future associations.
+Never join by caller number, display name, time proximity, channel-name prefix,
+endpoint extension alone or shared bridge alone. Those values may be shown as
+scoped clues only. Human attribution requires the historical provisioned
+assignment/session effective at the event, not today's endpoint owner.
+
+#### Proposed trusted instrumentation contract
+
+Introduce instrumentation only in a separately approved dialplan increment.
+Ordinary echo probes and existing frozen REFER fixtures remain unchanged.
+
+- On each approved inbound entry, before `Answer()`/queue/fallback, generate a
+  fresh opaque journey UUID and emit `HISTORY_ENTRY` with a versioned JSON object:
+  `{v:1, journeyId, entryKind, routeRevision}`. `entryKind` is a configured
+  `external` or `synthetic` value; it is not a caller-supplied header.
+- The CEL event supplies the root channel uniqueid and explicit source namespace.
+  The dialplan must JSON-escape values and bound fields; missing route revision
+  stays explicit rather than substituting the newest configuration revision.
+  Marker schema validation, trusted route location and unique root association
+  are required. A root key is scoped even when UUIDs are globally random.
+- Internal queue retries, Local channels, consultation and transferred
+  continuations inherit the existing journey context; they do not emit a new
+  inbound root. A new independently arriving call receives a new root.
+  Context propagation is evidence to validate, not an assumption about inherited
+  variables surviving every channel optimization/transfer.
+- Immediately before each Queue invocation, generate a fresh visit UUID and
+  emit `HISTORY_QUEUE_VISIT` with `{v:1, journeyId, visitId, queue}` on the caller
+  channel. Retain actual ENTERQUEUE as separate evidence; a marker alone does not
+  prove entry, and queue application exit does not imply caller abandonment.
+- Route-controlled continuation can emit a versioned `HISTORY_CONTINUATION`
+  marker referencing the existing journey and source/target leg identities when
+  native relationship events cannot unambiguously carry context. Exact event
+  shape and provenance checks must be specified with the implementing route.
+  Do not accept external JSON as trusted lineage or fabricate target IDs.
+
+Unmarked legacy CEL and queue records remain queryable as **unresolved evidence**,
+not silently promoted to business journeys. An identical repeated marker with
+the same root is idempotent at the projection layer while retaining every raw
+record. One journey ID attached to contradictory roots, or incompatible marker
+payloads on a root, is a visible conflict excluded from confirmed totals.
+Consultation involving two already marked inbound journeys creates a relationship
+between two roots, never a union-find merge of both customers' calls into one.
+
+#### Queue log ingestion and visit assembly
+
+Queue file records have five fixed pipe-separated fields: Unix timestamp,
+call/channel identifier, queue, member and event; all remaining fields are
+event-specific parameters. Preserve the exact bytes and parameter array (including
+empty fields). This format is not CSV: do not reuse CEL quoting, split it into a
+fixed six-field object or pretend embedded pipes are escaped automatically.
+Recognised event adapters validate required parameters for the pinned runtime.
+Ambiguous delimiter-bearing data is flagged, not heuristically reassembled.
+
+Retain `NONE`/`REALTIME` identifiers and administrative events such as QUEUESTART
+and CONFIGRELOAD without treating them as caller journeys. Preserve unknown
+events/extra parameters as unsupported evidence; never discard them or interpret
+them as successful completion. Caller ID/name in ENTERQUEUE are sensitive raw
+evidence, not identity keys. A future queue importer needs the same atomic
+prefix/replay, byte/record/page bounds and customer-scoped reads as CEL, with its
+own source kind and schema/migration tests.
+
+Assemble visits using explicit visit context plus matching caller uniqueid/queue,
+source order and the runtime/epoch manifest. Legacy ENTERQUEUE can define a
+provisional evidence visit identified by its record key, but cannot create a
+confirmed inbound journey. Re-entry creates a new visit, including after transfer
+back to the same queue. Events that fit multiple open visits remain ambiguous;
+do not assign them to the nearest timestamp or close an earlier visit silently.
+
+| Evidence | Permitted interpretation | Not sufficient for |
+|---|---|---|
+| ENTERQUEUE | Observed queue entry; retain optional configured caller-name field. | Agent offer, human answer or new inbound journey by itself. |
+| CONNECT | Queue service connection; hold time, member leg uniqueid and ring time are separate fields. | Real two-way audio, verified agent identity or a completed journey. |
+| RINGNOANSWER / RINGCANCELED | Member offer did not connect / ringing was canceled. | Whole-journey unanswered or caller abandonment without visit evidence. |
+| ABANDON | Caller abandoned this queue visit before service. | Every visit/journey was abandoned, especially after earlier service. |
+| EXITWITHTIMEOUT | Queue waiting timed out. | Caller hung up, target rang without answer, or the journey ended. |
+| EXITEMPTY / EXITWITHKEY | Empty-queue routing exit / explicit key exit. | Abandonment, fault attribution or failed fallback. |
+| COMPLETECALLER / COMPLETEAGENT | Queue service ended, with the documented terminating party and durations. | All related legs ended or every subsequent route completed. |
+| BLINDTRANSFER / ATTENDEDTRANSFER / legacy TRANSFER | Observed queue transfer evidence using version-specific parameters. | Target answered, successful media, or a new inbound root. |
+| SYSCOMPAT / AGENTDUMP | Explicit compatibility/agent-disposition evidence. | A generic successful service or inferred blame for other legs. |
+
+CONNECT's member-leg uniqueid must match CEL in the same namespace when available.
+If missing, retain observed queue connection but mark the cross-source leg
+relationship unresolved. Multiple offers or repeated visits never increase
+confirmed inbound-journey counts.
+
+#### CEL relationships, ordering and transfer interpretation
+
+CEL orders records for a primary channel, not a universal ordering across all
+channels. Preserve source offsets as source observation order; timestamps from
+different channels/sources may tie, arrive late or disagree. Reconstruct by
+explicit IDs/relationships first and timing second. Never claim causal ordering
+from a stable display sort alone.
+
+`linkedid` is a changing relationship hint, not an immutable journey key.
+`BRIDGE_ENTER`/`BRIDGE_EXIT` and bridge IDs can support service relationships;
+`LOCAL_OPTIMIZE` relates Local halves without creating a new inbound journey.
+CHAN_END ends a channel, not necessarily a journey; LINKEDID_END can occur after
+channel end and does not prove every business outcome. The existing eight-column
+CEL mapping omits standard fields such as peer/application; preserve current raw
+evidence and identify missing relationship fields instead of inventing them.
+Additional mapping fields require a separately versioned source format adapter,
+not changing the meaning of already-stored eight-column records.
+
+For a blind transfer, distinguish request/activation from a correlated target
+connection. An unanswered/rejected target remains unserved even if the runtime
+logged BLINDTRANSFER. For attended transfer, retain the consultation leg, native
+transfer relationship and any independent inbound root; do not count consultation
+as another inbound call or erase a second existing root after a bridge merge.
+SIP REFER/202/NOTIFY is signalling evidence, not by itself human service.
+No new SIP transaction investigation or rerun of the frozen REFER matrix is
+required by this design.
+
+#### Separate facts, labels and completeness
+
+Store supported facts with evidence references independently:
+
+- `entry`: confirmed root / unresolved / conflicting.
+- `callerAnswer`: observed answered / unknown (an answered PBX/IVR channel is not
+  human service).
+- `service`: observed connected / not observed / conflicting; absence is not a
+  negative fact unless the route-specific complete fixture proves it.
+- `queueDisposition`: per-visit connected/completed/abandoned/timed-out/empty/
+  key-exit/other/open/unknown, retaining all contradictory terminals.
+- `transfer`: none observed/requested/runtime-observed/target-connected/
+  target-unanswered-or-rejected/unknown, with multiple attempts separately.
+- `lifecycle`: open / all currently attributed legs ended / conflicting; an ended
+  projection may still revise when late relationship evidence arrives.
+- `evidenceQuality`: unresolved/partial/conflicting or validated for a particular
+  fixture contract, including source health/gaps and missing markers/fields.
+
+Missing records never become invented hangups or zero-duration successes.
+Recent collector health is not completeness. Existing source-level unknown gaps
+must be surfaced as applicable/possibly applicable/association-unknown; they are
+collection observations, not precise missing-event intervals. Without a defensible
+clock/epoch mapping, never claim a journey is outside a gap merely because its
+timestamp appears earlier. Missing source manifests or epoch boundaries make
+cross-source quality unresolved.
+
+Friendly history labels are derived summaries, not one mutually exclusive stored
+outcome. A journey may be "served; transferred; later queue timed out". The M1-06
+fixtures must specify:
+
+| Fixture label | Required interpretation |
+|---|---|
+| Served/answered | Explicit root and queue CONNECT/correlated member connection; caller-answer fact separate. Media acceptance remains a separate proof. |
+| Unanswered | Test target/route never establishes service under the specified timeout/terminal contract; caller PBX answer may still be observed. A queue timeout alone is labelled queue timeout, not automatically this outcome. |
+| Caller-abandoned | Confirmed pre-service visit ABANDON plus caller lifecycle and scoped root; a later abandoned re-entry must not erase previous service. |
+| Transferred | Runtime transfer plus correlated continuation; target connection is reported separately and must be observed before calling that target served. |
+
+#### Deterministic projections and reporting boundaries
+
+Rebuild versioned projections from immutable evidence with an input checkpoint
+vector (CEL plus queue and manifest revisions). Publish each projection revision
+atomically, retaining previous revision/evidence provenance; a failed rebuild
+must not expose a half-updated graph or replace the last projection with empty
+success. Late/reordered cross-source evidence can revise facts without changing
+stable root/leg/visit IDs. Readers see projection freshness plus contributing
+collector status/gaps and algorithm version. Changing an algorithm or manifest
+requires an explicit rebuild, not silent reinterpretation of old exports.
+
+Replay must produce equal IDs/facts/counts for equal evidence/manifests even if
+import batch sizes or cross-source arrival order differ; ingestion timestamps
+and projection revision metadata are not expected to be identical.
+New confirmed roots change totals once. Additional legs, offers, repeated
+markers/visits or transfer continuations do not create inbound counts. Orphan
+evidence is reported separately rather than counted or dropped.
+
+Initial metrics are limited to confirmed inbound roots, distinct observed legs,
+queue visits, connections and each evidenced queue terminal, with unknown/
+conflicting entities disclosed alongside. They are different units; never add
+legs or visits to the inbound denominator. Synthetic and external entry kinds
+must be independently filterable and never silently mixed.
+Customer-wide rates/totals must disclose excluded unresolved/conflicting roots
+and applicable coverage uncertainty; suppress completeness-dependent percentages
+where the denominator is not defensible.
+
+Queue event-provided durations retain their native documented units and
+provenance; validate nonnegative numeric fields. RINGNOANSWER duration is
+milliseconds; CONNECT ring/hold and completion duration fields require pinned
+adapter verification rather than assuming all parameters share a unit.
+Cross-source timestamp subtraction cannot silently replace these measures.
+Time-to-human-service is not PBX answer time or sum of overlapping queue visits.
+Service-level thresholds, short-abandon rules, business-day inclusion and
+occupancy denominators remain unagreed: do not implement those rates by default.
+Unambiguous timestamps can map to UTC with declared source basis, while ambiguous
+or nonexistent local times remain explicit. Test both UK DST transitions; business
+time-zone bucketing must not collapse repeated local hours.
+
+#### Implementation order and design sources
+
+1. **QF: queue evidence foundation**: operator-only bounded raw ingestion,
+   durable checkpoints/replay and scoped reads; source kind/runtime pairing
+   manifest design, no journey totals.
+2. **JI: isolated instrumentation and reconstruction**: versioned trusted entry/
+   visit markers in a new fixture, epoch manifest and deterministic graph with
+   explicit ambiguity. Prove local/transfer/re-entry cases with synthetic peers,
+   without enabling the real agent phone or changing frozen REFER fixtures.
+3. **JR: four-outcome acceptance and recovery**: queue/member fixtures, projection
+   replay/rebuild/late-input and outage/gap cases, then honest M1-06/07 mapping.
+4. **HP: authenticated history presentation**: separately scoped read permission,
+   session/customer boundaries, audit and inert/redacted displays before exposing
+   raw history or caller identity to users.
+
+Each phase needs its own finite implementation contract and commit/push after
+verification; this design does not authorise all phases in one increment.
+
+Public references checked for this design:
+[Asterisk queue log event documentation](https://docs.asterisk.org/Operation/Logging/Queue-Logs/)
+and [CEL specification](https://docs.asterisk.org/Configuration/Reporting/Channel-Event-Logging-CEL/CEL-Specification/).
+These are upstream semantics, not proof of the exact emitted event shape in the
+pinned runtime. Confirm consumed adapters against actual
+`22.11.0_debian-trixie` fixtures before implementation acceptance.
+Repository prior art:
+[CEL mapping](./local/asterisk/cel_custom.conf),
+[current routes](./local/asterisk/extensions.conf),
+[empty queue fixture](./local/asterisk/queues.conf) and
+[queue-timeout/restart checks](./scripts/Test-LocalProof.ps1).
+The existing proof route calls Answer before Queue; its empty queue only proves
+ENTERQUEUE/EXITWITHTIMEOUT and persistence, not human service, abandonment or
+transfer. The existing echo history proves lifecycle only. No new acceptance
+test was executed for this documentation-only design.
+
 ### Metric definitions
 
 Define inbound journeys, queue waiting time, abandoned visits, service level,

@@ -15,6 +15,26 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Journey reconstruction design (not implemented)
+
+The next history design is documented in the
+[project plan](./PROJECT-PLAN.md#journey-reconstruction-design-v1-not-implemented),
+with a finite [future acceptance matrix](./MILESTONE-1.md#journey-design-and-reconstruction-contract).
+The user selected explicit trusted inbound-entry markers and separate answer,
+service, queue-disposition and transfer facts. Linked IDs, legs and queue visits
+must not be counted as inbound journeys.
+
+The design covers runtime/epoch-scoped CEL/queue pairing, repeated visits, Local
+channels, transfers/consultation, unresolved evidence, permanent coverage gaps,
+deterministic projection revisions and metric exclusions. The current queue
+fixture answers at the PBX before waiting in an empty queue: that is not evidence
+of human service or caller abandonment.
+
+This increment is **documentation only**; its acceptance checks are not recorded
+passes. Recommended next is operator-only queue evidence ingestion, then
+separately scoped instrumentation/reconstruction and outcome acceptance. No
+runtime behaviour, phones, services, dependencies or REFER checks changed.
+
 ## Operator-run CEL collector recovery
 
 The finite CR-01 through CR-08 increment adds **local-file, operator-run
