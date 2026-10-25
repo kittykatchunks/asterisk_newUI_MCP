@@ -443,6 +443,10 @@ positions and successful walks after retained-empty nodes are released.
 The [failure-path extension](./PROJECT-PLAN.md#gate-a-mixed-node-failure-paths-inventory-unchanged-still-unexecuted)
 adds object-budget rejection before traversal and invalid visitor returns at
 first/middle/final live objects, followed by unchanged-chain recovery.
+The [owner callback-work fixture](./PROJECT-PLAN.md#gate-a-owner-callback-work-thirty-definitions-still-unexecuted)
+brings the inventory to **30 uncompiled/unexecuted native definitions**.
+Eight walks on a real sorted hash collision container require unchanged
+positively calibrated hash/sort/comparison counters and exact visitor counts.
 **Twelve package tests pass**; exact application and all nine source postimages
 match. Those checks do not prove C compilation,
 native behavior, measured latency or lifecycle acceptance. Shutdown, recursive

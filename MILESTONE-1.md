@@ -2412,6 +2412,17 @@ borrowed references and destructors must remain unchanged. Only the controller
 postimage changes. **Twelve package tests pass** and exact application/nine
 postimages match. All native acceptance and Gates B/C remain open.
 
+The [owner callback-work source](./PROJECT-PLAN.md#gate-a-owner-callback-work-thirty-definitions-still-unexecuted)
+brings the inventory to **30 uncompiled/unexecuted native definitions**.
+A real sorted 53-bucket container places 64 keyed objects in one collision
+chain. Positive insertion/find controls calibrate hash/sort/comparison counters;
+eight bounded walks across completion, limits, aborts, invalid return and
+recovery must leave those counters unchanged, with exact visits/refs and no
+destructor until cleanup. Only the controller postimage changes.
+**Twelve package tests pass** and exact application/nine postimages match.
+Full work/ref/profile instrumentation and native acceptance remain pending;
+Gates B/C stay closed with no native/PBX execution.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

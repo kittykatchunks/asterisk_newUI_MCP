@@ -3563,6 +3563,56 @@ No dependency install, native compile/test, image build, module load or PBX
 operation occurred. A's verified exit, all AT/QO gates, Gates B/C, exact
 publication, full CP and M1-09 remain open.
 
+##### Gate A owner callback work: thirty definitions, still unexecuted
+
+`bounded_callback_work` adds eight walk schedules in one new definition.
+The inventory is **30 uncompiled/unexecuted native definitions** on the same
+nine source paths. Only the controller fixture postimage changes; production
+AO2, queue, CLI, loader, headers and separate target are unchanged.
+
+The real sorted mutex-protected hash container has **53 buckets**, with all
+64 distinct keyed objects deliberately hashing to bucket zero. Dedicated
+fixture hash, sort and comparison callbacks increment object-owned counters;
+the destructor increments its own count. Reverse-key insertion exercises
+sorting. A successful ordinary `ao2_find` for key 32 calibrates the lookup
+path, and its returned object reference is released before measured walks.
+Every callback counter must be nonzero before its baseline is captured,
+preventing an unwired zero counter from passing. The pinned container owner
+source confirms ordinary find uses its configured comparison callback.
+
+The eight real bounded walks require:
+
+| Schedule | Expected status | Buckets | Nodes/live visits |
+|---|---|---|---|
+| Full walk | Complete | 53 | 64 |
+| Node budget 63 | Limit | 1 | 63 |
+| Object budget 63 | Limit before traversal | 0 | 0 |
+| Abort at first/middle/final live object | Aborted | 1 each | 1/32/64 |
+| Invalid return at live 32 | Internal | 1 | 32 |
+| Normal recovery walk | Complete | 53 | 64 |
+
+Each walk checks API return and result status, exact bucket/node/object/
+visitor counts, borrowed reference count one, unchanged 64-live container
+count and sole container reference. **Hash, sort and comparison counters must
+remain exactly at their calibrated baselines**, with no object destructor
+during measured traversal. Final cleanup requires one destructor per allocated
+object, 64 on the complete fixture path. Setup/find/cleanup are not included
+in the bounded-walk callback claim.
+
+This narrows the AT-05 callback-work source gap and complements existing
+ownership/error/abort fixtures. It does not instrument every allocator,
+internal ref/mutation/lock operation, prove native no-I/O behavior, establish
+concurrent retirement or clear debug/ref/profile acceptance. Counts are source
+assertions until the actual compiled test executes. All AT/QO gates stay open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match; the other eight postimages
+are unchanged. Both named scratch directories and the pinned public
+container-owner review download are removed after verification. No dependency
+install, native compile/test, image build, module load or PBX operation occurs.
+A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
