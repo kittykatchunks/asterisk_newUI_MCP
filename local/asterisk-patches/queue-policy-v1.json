@@ -4,7 +4,7 @@
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "upstreamTag": "22.11.0",
   "patch": "queue-policy-v1.patch",
-  "patchSha256": "ec37b0262300477eb5860b0faa7234c1ee8d7850ed80fdcd6b4df85732649d01",
+  "patchSha256": "41c0ff512bae0793e054e2690b9acf37195b5c70f00b9fbfe900816a7f57fa58",
   "stage": "gate-a-source-candidate",
   "nativeCompiled": false,
   "nativeTestsExecuted": false,
@@ -31,7 +31,8 @@
     "policy_snapshot_traversal",
     "policy_snapshot_queue_lock_kind",
     "policy_snapshot_member_boundary",
-    "policy_snapshot_status_mapping"
+    "policy_snapshot_status_mapping",
+    "protected_target_lifecycle"
   ],
   "files": [
     {
@@ -52,7 +53,7 @@
     {
       "path": "include/asterisk/module.h",
       "beforeSha256": "3111f521cc5a22ff8f041554f2cfb3d707fb82507d0ba97597d8337812d600e4",
-      "afterSha256": "23feefaacb9fc339405b4d0ab47ae09520cca4c4a4f3ac50e6922fe418666de9"
+      "afterSha256": "3948472bb83bcb51ab7d8a0ff49c3dcfe53b5e9d8acba9da8157a0f41b0adb1c"
     },
     {
       "path": "main/astobj2_hash.c",
@@ -62,17 +63,22 @@
     {
       "path": "main/cli.c",
       "beforeSha256": "d4f119061d6417770c3f60f3dfe3f29883889f610ac16e9ef00abf77a0193c26",
-      "afterSha256": "21dea45e33f1319191dbc79b4c492c897c7e8e31864cdf2897323a893b15e2ed"
+      "afterSha256": "d5a6ef1ea56c643fde9e5e9718da00de01f1c3c03238c94310e6d47a1ae7d92d"
     },
     {
       "path": "main/loader.c",
       "beforeSha256": "1d0f2e95a961b99a2b51f4cd262f197e0ff19dedb4438e14326e607516c53397",
-      "afterSha256": "5c8bafaa79bcb152a07f2b24d893a1b3af8dc985293ee6207e797950989a0abc"
+      "afterSha256": "3cb31a9a1fc8fb6acd5c5c138bda1d5ef9f6eeb78cbce8feebc83370e1de7930"
     },
     {
       "path": "tests/test_bounded_queue_policy.c",
       "beforeSha256": null,
-      "afterSha256": "4e2b5aec355c265c6657f8213d90236ab9b490cdc4592bb22f81778f18f68d9c"
+      "afterSha256": "f0becedb5c3ada0faea2659d9acbec56430be7a800e7f823c84bc9e8139170c4"
+    },
+    {
+      "path": "tests/test_protected_cli_target.c",
+      "beforeSha256": null,
+      "afterSha256": "82e246b98c879a4f9c1467b3ad17fa5e237ec6673851e6729dc1728c44749ebe"
     }
   ]
 }

@@ -426,10 +426,16 @@ Gates B/C remain closed.
 
 The [acceptance reconciliation](./PROJECT-PLAN.md#gate-a-acceptance-reconciliation-source-coverage-is-not-an-exit)
 maps the current source assertions to every AT/QO requirement. All remain open.
-The critical next source work is deterministic lifecycle instrumentation with
-exact lease/teardown counters, not more test-count growth. Pinned build closure
-and enforced resources still require Gate B approval before any native run;
-Gate C separately controls owned PBX proof.
+The subsequently approved [separate lifecycle target](./PROJECT-PLAN.md#gate-a-separate-lifecycle-target-twenty-two-definitions-still-unexecuted)
+adds one disposable native module and test-profile-only core barriers/counters.
+The inventory is now **22 uncompiled/unexecuted native definitions**, including
+12 source schedules with actual reader counts through dispatcher output/entry
+cleanup/final release, controlled outside the unloadable target.
+**Twelve package tests pass** and exact application/nine postimages match.
+This is not native lifecycle acceptance: teardown-first, shutdown and further
+instrumentation remain pending. Pinned build closure and enforced resources
+still require Gate B approval before any native run; Gate C separately controls
+owned PBX proof.
 
 ## Isolated PBX boot-epoch recovery proof
 

@@ -1570,10 +1570,10 @@ index e8509e89317d7354979c3370cf5bb84d33f5b585..60f03ff40d99f00baccbf29939be4e3c
  
  #if defined(__cplusplus) || defined(c_plusplus)
 diff --git a/include/asterisk/module.h b/include/asterisk/module.h
-index 8ba29f32a9f725c9a966288b7d4fb255d4b354b0..754f8af5d091a184f58a621a5c120fabfb24edc9 100644
+index 8ba29f32a9f725c9a966288b7d4fb255d4b354b0..a238271f17cf8e8292e5e324285e7c73e614fdc1 100644
 --- a/include/asterisk/module.h
 +++ b/include/asterisk/module.h
-@@ -446,6 +446,17 @@ struct ast_module *__ast_module_running_ref(struct ast_module *mod, const char *
+@@ -446,6 +446,45 @@ struct ast_module *__ast_module_running_ref(struct ast_module *mod, const char *
  void __ast_module_shutdown_ref(struct ast_module *mod, const char *file, int line, const char *func);
  void __ast_module_unref(struct ast_module *mod, const char *file, int line, const char *func);
  
@@ -1587,6 +1587,34 @@ index 8ba29f32a9f725c9a966288b7d4fb255d4b354b0..754f8af5d091a184f58a621a5c120fab
 + */
 +int ast_module_cli_try_acquire(struct ast_module *mod);
 +void ast_module_cli_release(struct ast_module *mod);
++
++#ifdef TEST_FRAMEWORK
++enum ast_cli_lease_test_event {
++	AST_CLI_LEASE_TEST_ACQUIRED,
++	AST_CLI_LEASE_TEST_ADMITTED,
++	AST_CLI_LEASE_TEST_HANDLER,
++	AST_CLI_LEASE_TEST_HANDLER_RETURNED,
++	AST_CLI_LEASE_TEST_ENTRY_DONE,
++	AST_CLI_LEASE_TEST_RELEASED,
++	AST_CLI_LEASE_TEST_UNLOAD,
++	AST_CLI_LEASE_TEST_WORKER_DONE,
++	AST_CLI_LEASE_TEST_EVENTS,
++};
++
++struct ast_cli_lease_test_result {
++	unsigned int events[AST_CLI_LEASE_TEST_EVENTS];
++	int readers;
++	int paused;
++};
++
++/* Serialized disposable native fixture only; never arm on a runtime PBX. */
++int ast_cli_lease_test_begin(enum ast_cli_lease_test_event pause_at);
++int ast_cli_lease_test_wait(struct ast_cli_lease_test_result *result);
++void ast_cli_lease_test_resume(void);
++int ast_cli_lease_test_end(struct ast_cli_lease_test_result *result);
++void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_test_event event);
++void ast_cli_lease_test_worker_done(void);
++#endif
 +
  /*!
   * \brief Hold a reference to the module
@@ -1674,7 +1702,7 @@ index 890e12e385dfde7c25ddd344a520a08606616947..8011de47389cd328b63393889c61f4b8
   * \brief always zero hash function
   *
 diff --git a/main/cli.c b/main/cli.c
-index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..feb970b5cd591d3314ae75a3a2d856576da8532e 100644
+index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..4e22354199aafccacd5fe2b597e61b2b7d4a135e 100644
 --- a/main/cli.c
 +++ b/main/cli.c
 @@ -2546,6 +2546,24 @@ static void remove_shutdown_command(struct ast_cli_entry *e)
@@ -1738,7 +1766,7 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..feb970b5cd591d3314ae75a3a2d85657
  	struct ast_cli_args a = {
  		.fd = fd, .argc = x, .argv = args+1 };
  
-@@ -3105,10 +3136,22 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+@@ -3105,14 +3136,31 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
  
  	AST_RWLIST_RDLOCK(&helpers);
  	e = find_cli(args + 1, 0);
@@ -1761,7 +1789,16 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..feb970b5cd591d3314ae75a3a2d85657
  		ast_cli(fd, "No such command '%s' (type 'core show help %s' for other possible commands)\n", s, find_best(args + 1));
  		goto done;
  	}
-@@ -3132,7 +3175,9 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
+ 
++#ifdef TEST_FRAMEWORK
++	if (lease) {
++		ast_cli_lease_test_checkpoint(lease, AST_CLI_LEASE_TEST_ADMITTED);
++	}
++#endif
+ 	if (ast_shutting_down() && !allowed_on_shutdown(e)) {
+ 		ast_cli(fd, "Command '%s' cannot be run during shutdown\n", s);
+ 		goto done;
+@@ -3132,11 +3180,18 @@ int ast_cli_command_full(int uid, int gid, int fd, const char *s)
  	args[0] = (char *)e;
  
  	/* If the command is in a module it must be running. */
@@ -1772,18 +1809,30 @@ index a73cab96edb3cfdf1453184d4b9bbe145cdcfe6e..feb970b5cd591d3314ae75a3a2d85657
  		retval = e->handler(e, CLI_HANDLER, &a);
  		ast_module_unref(e->module);
  	}
-@@ -3147,6 +3192,9 @@ done:
+ 
++#ifdef TEST_FRAMEWORK
++	if (lease) {
++		ast_cli_lease_test_checkpoint(lease, AST_CLI_LEASE_TEST_HANDLER_RETURNED);
++	}
++#endif
+ 	if (retval == CLI_SHOWUSAGE) {
+ 		ast_cli(fd, "%s", S_OR(e->usage, "Invalid usage, but no usage information available.\n"));
+ 	} else if (retval == CLI_FAILURE) {
+@@ -3147,6 +3202,12 @@ done:
  	if (e) {
  		ast_atomic_fetchadd_int(&e->inuse, -1);
  	}
 +	if (lease) {
++#ifdef TEST_FRAMEWORK
++		ast_cli_lease_test_checkpoint(lease, AST_CLI_LEASE_TEST_ENTRY_DONE);
++#endif
 +		ast_module_cli_release(lease);
 +	}
  	ast_free(duplicate);
  	return retval == CLI_SUCCESS ? RESULT_SUCCESS : RESULT_FAILURE;
  }
 diff --git a/main/loader.c b/main/loader.c
-index 6d924928335bc769c7e058360dc02ae0e6637e17..87338ba9dd9171b25312c9c4ab3725ef04fd2083 100644
+index 6d924928335bc769c7e058360dc02ae0e6637e17..20e62bdabe3f8dfa6ca06ca7a25081213680850d 100644
 --- a/main/loader.c
 +++ b/main/loader.c
 @@ -36,6 +36,7 @@
@@ -1853,10 +1902,124 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..87338ba9dd9171b25312c9c4ab3725ef
  		if (mod->flags.builtin) {
  			/* Built-in modules cannot be unloaded. */
  			ast_module_shutdown_ref(mod);
-@@ -2874,6 +2893,29 @@ int ast_loader_unregister(int (*v)(void))
+@@ -2874,6 +2893,160 @@ int ast_loader_unregister(int (*v)(void))
  	return cur ? 0 : -1;
  }
  
++#ifdef TEST_FRAMEWORK
++AST_MUTEX_DEFINE_STATIC(cli_lease_test_lock);
++static ast_cond_t cli_lease_test_condition;
++static struct ast_cli_lease_test_result cli_lease_test_result;
++static enum ast_cli_lease_test_event cli_lease_test_pause;
++static int cli_lease_test_active;
++static int cli_lease_test_continue;
++
++static int cli_lease_test_target(struct ast_module *mod)
++{
++	return mod && !strcmp(mod->resource, "test_protected_cli_target.so");
++}
++
++static void cli_lease_test_record(enum ast_cli_lease_test_event event, int readers)
++{
++	ast_mutex_lock(&cli_lease_test_lock);
++	if (cli_lease_test_active) {
++		++cli_lease_test_result.events[event];
++		if (event == AST_CLI_LEASE_TEST_ACQUIRED || event == AST_CLI_LEASE_TEST_RELEASED) {
++			cli_lease_test_result.readers = readers;
++		}
++		if (event == cli_lease_test_pause) {
++			cli_lease_test_result.paused = 1;
++		}
++		ast_cond_broadcast(&cli_lease_test_condition);
++		while (event == cli_lease_test_pause && !cli_lease_test_continue) {
++			ast_cond_wait(&cli_lease_test_condition, &cli_lease_test_lock);
++		}
++	}
++	ast_mutex_unlock(&cli_lease_test_lock);
++}
++
++int ast_cli_lease_test_begin(enum ast_cli_lease_test_event pause_at)
++{
++	int result = -1;
++
++	if (pause_at != AST_CLI_LEASE_TEST_ADMITTED
++		&& pause_at != AST_CLI_LEASE_TEST_HANDLER_RETURNED
++		&& pause_at != AST_CLI_LEASE_TEST_ENTRY_DONE
++		&& pause_at != AST_CLI_LEASE_TEST_RELEASED) {
++		return -1;
++	}
++	ast_mutex_lock(&cli_lease_test_lock);
++	if (!cli_lease_test_active && !ast_cond_init(&cli_lease_test_condition, NULL)) {
++		cli_lease_test_result = (struct ast_cli_lease_test_result) { 0 };
++		cli_lease_test_pause = pause_at;
++		cli_lease_test_continue = 0;
++		cli_lease_test_active = 1;
++		result = 0;
++	}
++	ast_mutex_unlock(&cli_lease_test_lock);
++	return result;
++}
++
++int ast_cli_lease_test_wait(struct ast_cli_lease_test_result *result)
++{
++	struct timeval now = ast_tvnow();
++	struct timespec deadline = { .tv_sec = now.tv_sec + 5, .tv_nsec = now.tv_usec * 1000 };
++	int error = 0;
++
++	ast_mutex_lock(&cli_lease_test_lock);
++	if (!cli_lease_test_active) {
++		ast_mutex_unlock(&cli_lease_test_lock);
++		return -1;
++	}
++	while (!cli_lease_test_result.paused
++		&& !cli_lease_test_result.events[AST_CLI_LEASE_TEST_WORKER_DONE] && !error) {
++		error = ast_cond_timedwait(&cli_lease_test_condition, &cli_lease_test_lock, &deadline);
++	}
++	*result = cli_lease_test_result;
++	ast_mutex_unlock(&cli_lease_test_lock);
++	return error || !result->paused ? -1 : 0;
++}
++
++void ast_cli_lease_test_resume(void)
++{
++	ast_mutex_lock(&cli_lease_test_lock);
++	if (cli_lease_test_active) {
++		cli_lease_test_continue = 1;
++		ast_cond_broadcast(&cli_lease_test_condition);
++	}
++	ast_mutex_unlock(&cli_lease_test_lock);
++}
++
++int ast_cli_lease_test_end(struct ast_cli_lease_test_result *result)
++{
++	ast_mutex_lock(&cli_lease_test_lock);
++	if (!cli_lease_test_active || !cli_lease_test_result.events[AST_CLI_LEASE_TEST_WORKER_DONE]
++		|| cli_lease_test_result.readers) {
++		ast_mutex_unlock(&cli_lease_test_lock);
++		return -1;
++	}
++	*result = cli_lease_test_result;
++	cli_lease_test_active = 0;
++	ast_cond_destroy(&cli_lease_test_condition);
++	ast_mutex_unlock(&cli_lease_test_lock);
++	return 0;
++}
++
++void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_test_event event)
++{
++	if ((event == AST_CLI_LEASE_TEST_ADMITTED || event == AST_CLI_LEASE_TEST_HANDLER
++		|| event == AST_CLI_LEASE_TEST_HANDLER_RETURNED || event == AST_CLI_LEASE_TEST_ENTRY_DONE
++		|| event == AST_CLI_LEASE_TEST_UNLOAD) && cli_lease_test_target(mod)) {
++		cli_lease_test_record(event, 0);
++	}
++}
++
++void ast_cli_lease_test_worker_done(void)
++{
++	cli_lease_test_record(AST_CLI_LEASE_TEST_WORKER_DONE, 0);
++}
++#endif
++
 +int ast_module_cli_try_acquire(struct ast_module *mod)
 +{
 +	int res = -1;
@@ -1868,6 +2031,12 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..87338ba9dd9171b25312c9c4ab3725ef
 +		&& !ast_shutting_down()
 +		&& ast_atomic_fetchadd_int(&mod->cli_readers, 0) < INT_MAX) {
 +		ast_atomic_fetchadd_int(&mod->cli_readers, 1);
++#ifdef TEST_FRAMEWORK
++		if (cli_lease_test_target(mod)) {
++			cli_lease_test_record(AST_CLI_LEASE_TEST_ACQUIRED,
++				ast_atomic_fetchadd_int(&mod->cli_readers, 0));
++		}
++#endif
 +		res = 0;
 +	}
 +	AST_DLLIST_UNLOCK(&module_list);
@@ -1876,8 +2045,19 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..87338ba9dd9171b25312c9c4ab3725ef
 +
 +void ast_module_cli_release(struct ast_module *mod)
 +{
++#ifdef TEST_FRAMEWORK
++	int tracked = cli_lease_test_target(mod);
++	int previous;
++
++	previous = ast_atomic_fetchadd_int(&mod->cli_readers, -1);
++	/* Only core-owned fixture state is accessed after the final decrement. */
++	if (tracked) {
++		cli_lease_test_record(AST_CLI_LEASE_TEST_RELEASED, previous - 1);
++	}
++#else
 +	/* The final decrement must be the last access: unload may now free mod. */
 +	ast_atomic_fetchadd_int(&mod->cli_readers, -1);
++#endif
 +}
 +
  struct ast_module *__ast_module_ref(struct ast_module *mod, const char *file, int line, const char *func)
@@ -1885,10 +2065,10 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..87338ba9dd9171b25312c9c4ab3725ef
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..846a8b140cc700fe74266689783661ba5ee069ce
+index 0000000000000000000000000000000000000000..de9fc25d96f14821a8217dadedeb0d9e7da9280c
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,785 @@
+@@ -0,0 +1,931 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -2645,6 +2825,150 @@ index 0000000000000000000000000000000000000000..846a8b140cc700fe74266689783661ba
 +	return AST_TEST_PASS;
 +}
 +
++struct lifecycle_target_worker {
++	int fd;
++	const char *command;
++	int result;
++};
++
++static void *lifecycle_target_dispatch(void *data)
++{
++	struct lifecycle_target_worker *worker = data;
++
++	worker->result = ast_cli_command(worker->fd, worker->command);
++	ast_cli_lease_test_worker_done();
++	return NULL;
++}
++
++static int lifecycle_target_case(struct ast_test *test, enum ast_cli_lease_test_event pause_at,
++	const char *outcome)
++{
++	const char target[] = "test_protected_cli_target.so";
++	struct ast_cli_lease_test_result snapshot;
++	struct lifecycle_target_worker fixture = { .fd = -1 };
++	char command[128];
++	pthread_t worker;
++	enum ast_module_unload_mode mode;
++	int armed = 0, started = 0, loaded = 0, failed = 1;
++
++	if (ast_module_check(target)) {
++		ast_test_status_update(test, "Disposable target already loaded; refusing to adopt it\n");
++		return 1;
++	}
++	fixture.fd = open("/dev/null", O_WRONLY);
++	if (fixture.fd < 0 || ast_load_resource(target) != AST_MODULE_LOAD_SUCCESS) {
++		goto done;
++	}
++	loaded = 1;
++	if (ast_cli_lease_test_begin(pause_at)) {
++		goto done;
++	}
++	armed = 1;
++	snprintf(command, sizeof(command), "test bounded-policy lifecycle-target %s", outcome);
++	fixture.command = command;
++	if (ast_pthread_create(&worker, NULL, lifecycle_target_dispatch, &fixture)) {
++		goto done;
++	}
++	started = 1;
++	if (ast_cli_lease_test_wait(&snapshot) || snapshot.events[AST_CLI_LEASE_TEST_ACQUIRED] != 1
++		|| snapshot.events[AST_CLI_LEASE_TEST_UNLOAD]
++		|| snapshot.events[AST_CLI_LEASE_TEST_ADMITTED] != 1
++		|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER] != (pause_at != AST_CLI_LEASE_TEST_ADMITTED)
++		|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER_RETURNED] != (pause_at != AST_CLI_LEASE_TEST_ADMITTED)
++		|| snapshot.events[AST_CLI_LEASE_TEST_ENTRY_DONE] != (pause_at == AST_CLI_LEASE_TEST_ENTRY_DONE
++			|| pause_at == AST_CLI_LEASE_TEST_RELEASED)
++		|| snapshot.events[AST_CLI_LEASE_TEST_RELEASED] != (pause_at == AST_CLI_LEASE_TEST_RELEASED)
++		|| snapshot.readers != (pause_at == AST_CLI_LEASE_TEST_RELEASED ? 0 : 1)) {
++		goto done;
++	}
++	if (pause_at == AST_CLI_LEASE_TEST_RELEASED) {
++		if (ast_unload_resource(target, AST_FORCE_SOFT)) {
++			goto done;
++		}
++		loaded = 0;
++		/* The worker is now paused in core code, with no target pointer access left. */
++		if (!ast_cli_command(fixture.fd, command)) {
++			goto done;
++		}
++	} else {
++		for (mode = AST_FORCE_SOFT; mode <= AST_FORCE_HARD; ++mode) {
++			if (!ast_unload_resource(target, mode)) {
++				goto done;
++			}
++		}
++	}
++	failed = 0;
++done:
++	if (armed) {
++		ast_cli_lease_test_resume();
++	}
++	if (started) {
++		pthread_join(worker, NULL);
++		if (!!fixture.result != !!strcmp(outcome, "success")) {
++			failed = 1;
++		}
++	} else if (armed) {
++		ast_cli_lease_test_worker_done();
++	}
++	if (loaded && ast_unload_resource(target, AST_FORCE_SOFT)) {
++		ast_test_status_update(test, "Disposable target did not unload; discard native test process\n");
++		failed = 1;
++	}
++	if (armed) {
++		if (ast_cli_lease_test_end(&snapshot)) {
++			ast_test_status_update(test, "Core test session did not drain; discard native test process\n");
++			failed = 1;
++		} else if (snapshot.events[AST_CLI_LEASE_TEST_ACQUIRED] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_RELEASED] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_ADMITTED] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_HANDLER_RETURNED] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_ENTRY_DONE] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_UNLOAD] != 1
++			|| snapshot.events[AST_CLI_LEASE_TEST_WORKER_DONE] != 1
++			|| snapshot.readers) {
++			failed = 1;
++		}
++	}
++	if (fixture.fd >= 0) {
++		close(fixture.fd);
++	}
++	if (failed) {
++		ast_test_status_update(test, "Separate-target lifecycle failed: pause=%d outcome=%s\n",
++			pause_at, outcome);
++	}
++	return failed;
++}
++
++AST_TEST_DEFINE(protected_target_lifecycle)
++{
++	const enum ast_cli_lease_test_event pauses[] = {
++		AST_CLI_LEASE_TEST_ADMITTED, AST_CLI_LEASE_TEST_HANDLER_RETURNED,
++		AST_CLI_LEASE_TEST_ENTRY_DONE, AST_CLI_LEASE_TEST_RELEASED,
++	};
++	const char *outcomes[] = { "success", "failure", "usage" };
++	unsigned int i, j;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "protected_target_lifecycle";
++		info->category = "/main/loader/protected_cli/";
++		info->summary = "Separate target survives output/entry cleanup and drains exactly once before unload";
++		info->description = "Twelve core-controlled schedules; controller remains loaded when target is removed.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	for (i = 0; i < ARRAY_LEN(pauses); ++i) {
++		for (j = 0; j < ARRAY_LEN(outcomes); ++j) {
++			if (lifecycle_target_case(test, pauses[i], outcomes[j])) {
++				return AST_TEST_FAIL;
++			}
++		}
++	}
++	return AST_TEST_PASS;
++}
++
 +static int unload_module(void)
 +{
 +	AST_TEST_UNREGISTER(bounded_walk);
@@ -2653,6 +2977,7 @@ index 0000000000000000000000000000000000000000..846a8b140cc700fe74266689783661ba
 +	AST_TEST_UNREGISTER(protected_dispatch);
 +	AST_TEST_UNREGISTER(protected_completion);
 +	AST_TEST_UNREGISTER(protected_registration);
++	AST_TEST_UNREGISTER(protected_target_lifecycle);
 +	AST_TEST_UNREGISTER(bounded_matrix);
 +	AST_TEST_UNREGISTER(bounded_contention);
 +	AST_TEST_UNREGISTER(bounded_ownership);
@@ -2667,6 +2992,7 @@ index 0000000000000000000000000000000000000000..846a8b140cc700fe74266689783661ba
 +	AST_TEST_REGISTER(protected_dispatch);
 +	AST_TEST_REGISTER(protected_completion);
 +	AST_TEST_REGISTER(protected_registration);
++	AST_TEST_REGISTER(protected_target_lifecycle);
 +	AST_TEST_REGISTER(bounded_matrix);
 +	AST_TEST_REGISTER(bounded_contention);
 +	AST_TEST_REGISTER(bounded_ownership);
@@ -2674,3 +3000,64 @@ index 0000000000000000000000000000000000000000..846a8b140cc700fe74266689783661ba
 +}
 +
 +AST_MODULE_INFO_STANDARD_EXTENDED(ASTERISK_GPL_KEY, "Bounded queue policy native tests");
+diff --git a/tests/test_protected_cli_target.c b/tests/test_protected_cli_target.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..8e4bfef4564b5e878f56ceed94644fa331d12433
+--- /dev/null
++++ b/tests/test_protected_cli_target.c
+@@ -0,0 +1,55 @@
++/*
++ * Disposable protected CLI lifecycle target.
++ * SPDX-License-Identifier: GPL-2.0-only
++ */
++
++/*** MODULEINFO
++	<depend>TEST_FRAMEWORK</depend>
++	<support_level>extended</support_level>
++ ***/
++
++#include "asterisk.h"
++
++#include "asterisk/cli.h"
++#include "asterisk/module.h"
++
++static char *target_handler(struct ast_cli_entry *entry, int cmd, struct ast_cli_args *args)
++{
++	switch (cmd) {
++	case CLI_INIT:
++		entry->command = "test bounded-policy lifecycle-target";
++		entry->usage = "Disposable native lifecycle fixture\n";
++		return NULL;
++	case CLI_GENERATE:
++		return NULL;
++	}
++	ast_cli_lease_test_checkpoint(AST_MODULE_SELF, AST_CLI_LEASE_TEST_HANDLER);
++	if (args->argc != 4) {
++		return CLI_SHOWUSAGE;
++	}
++	if (!strcmp(args->argv[3], "failure")) {
++		return CLI_FAILURE;
++	}
++	if (!strcmp(args->argv[3], "usage")) {
++		return CLI_SHOWUSAGE;
++	}
++	return !strcmp(args->argv[3], "success") ? CLI_SUCCESS : CLI_SHOWUSAGE;
++}
++
++static struct ast_cli_entry target_entry[] = {
++	AST_CLI_DEFINE(target_handler, "Disposable protected lifecycle target", .protected_execution = 1),
++};
++
++static int load_module(void)
++{
++	return ast_cli_register_multiple(target_entry, ARRAY_LEN(target_entry))
++		? AST_MODULE_LOAD_FAILURE : AST_MODULE_LOAD_SUCCESS;
++}
++
++static int unload_module(void)
++{
++	ast_cli_lease_test_checkpoint(AST_MODULE_SELF, AST_CLI_LEASE_TEST_UNLOAD);
++	return ast_cli_unregister(&target_entry[0]);
++}
++
++AST_MODULE_INFO_STANDARD_EXTENDED(ASTERISK_GPL_KEY, "Disposable protected CLI lifecycle target");

@@ -2291,6 +2291,20 @@ No new test execution or patch change accompanies this documentation-only
 reconciliation. Gate B still requires pinned dependency/build closure and
 enforced resources before compilation; Gate C independently gates PBX proof.
 
+The user then approved the [separate lifecycle target source](./PROJECT-PLAN.md#gate-a-separate-lifecycle-target-twenty-two-definitions-still-unexecuted):
+one additional disposable native module plus `TEST_FRAMEWORK`-only core/header
+instrumentation. The package now has nine source paths and **22 uncompiled/
+unexecuted test definitions**. One new controller test defines 12 admission/
+handler-return/entry-cleanup/final-decrement schedules across three handler
+outcomes, with actual reader/event counts and separate target unload.
+The target must not autoload; tests require a serialized disposable process,
+external watchdog and separately approved native resources. Teardown-first,
+shutdown/startup/unload-failure, completion instrumentation and slow output
+remain uncovered. **Twelve package tests pass**; exact application/nine
+postimages match, with lexical test-profile-off core parity only.
+No build/native/PBX execution occurred; A's verified exit, AT/QO and B/C remain
+open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

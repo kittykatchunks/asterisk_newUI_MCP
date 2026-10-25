@@ -2978,6 +2978,87 @@ No new tests are executed for this documentation-only increment; the recorded
 The patch and manifest remain unchanged. All AT/QO checks, A's verified exit,
 Gates B/C, exact publication, full CP and M1-09 remain open.
 
+##### Gate A separate lifecycle target: twenty-two definitions, still unexecuted
+
+After an interrupted scope form, the user explicitly selected
+**`approve-separate-target-source`**. This expands the approved patch boundary
+by exactly one native fixture file, `tests/test_protected_cli_target.c`, plus
+test-profile instrumentation in the already approved module header/CLI/loader
+files. It does not authorize dependencies, compilation, native execution,
+image builds or PBXs. The package now contains **seven changed upstream files
+and two new native files**, with **22 uncompiled/unexecuted test definitions**.
+The target file is a supporting module, not an additional test definition.
+
+**Implemented source candidate, not executed lifecycle evidence:**
+
+- `TEST_FRAMEWORK`-guarded declarations/state/hooks record admission increments,
+  actual reader count, admitted dispatch, target handler invocation, handler
+  return, post-output/post-`inuse` entry cleanup, final decrement, target unload
+  callback and worker completion. The core owns the fixture state and barrier;
+  no callback pointer into the disposable target is retained by the controller.
+- The observer recognizes only the exact disposable target resource name.
+  It can pause at admitted-before-handler, handler-return-before-dispatcher-
+  output, entry-cleanup-before-release or immediately after the atomic release.
+  Admission counting under the loader lock and target unload recording never
+  pause. Controller wait releases the fixture mutex and never calls loader APIs
+  while holding it; no instrumentation enters the bounded AO2/queue visitor.
+- In the test profile, release identifies the target while its lease still
+  protects the module, then captures the atomic decrement's previous count.
+  After decrement, it touches only core-owned fixture state, never the module
+  or entry. This permits the controller to unload the target while the dispatch
+  worker is paused safely in core after release.
+- New `protected_target_lifecycle`, defined in the existing controller test
+  module, specifies **12 schedules**: four pause points times success/failure/
+  usage outcomes. Before release, soft/firm/hard unload must all refuse and
+  no target unload callback may run. After release, soft unload must succeed
+  while the worker remains paused; a fresh command lookup must fail, not invoke
+  the removed handler.
+- After worker join and target cleanup, exact event assertions require one
+  acquisition, handler invocation, handler-return/entry-cleanup event, release,
+  unload callback and worker completion, with actual recorded reader count
+  zero. The controller remains loaded throughout; successful teardown is no
+  longer an attempt to unload this test's own code. Older self-module unload
+  tests remain separate disposable-only fixtures and are not superseded as
+  executed results.
+
+The controller refuses to adopt an already loaded target. The eventual
+disposable test configuration must **exclude the target from autoload** and
+let this test load/unload it; do not run the fixture on a runtime PBX or
+concurrently with other target/observer tests. The observer permits one armed
+session. Its missing-pause wait has a five-second timed condition; resume/join
+and end follow on cleanup. Session end rejects nonzero readers or a missing
+worker completion, rather than clearing evidence of a leaked lease.
+Unexpected unload/drain failures explicitly fail and require discarding the
+native process. Worker join and teardown are not internally time-bounded;
+an external process watchdog/resource cap remains mandatory. A safety
+regression may still crash/hang the disposable target process, never justify
+force-cleaning or reusing a shared PBX.
+
+This first instrumented source fixture does **not** implement lookup-before-
+admission, teardown-wins/closing admission, loader-lock contention, denied
+permission/shutdown, startup/unload-failure/recursive/refresh schedules or
+instrumented completion. It brackets dispatcher output but uses `/dev/null`;
+slow/disconnected/partial output still needs its own schedules. Counts measure
+the target handler/unload callback and actual lease increments/decrements, not
+all subscription cleanup/destructors or an instrumented `dlclose`. No new
+production command, public production bypass or release-profile API is added.
+
+**Twelve package tests pass**, including rejection if the approved new target
+is falsely described as an existing upstream preimage. Validator scope is the
+exact nine paths, not a wildcard expansion. JavaScript syntax, whitespace and
+added documentation links pass. Seven exact preimages/application dry run and
+independent application to all **nine postimages** match. A lexical
+`TEST_FRAMEWORK`-off comparison, allowing only blank-line-run differences,
+matches the previous core/header candidate. That is not a C preprocessing,
+linking, build-profile or instrumentation-transparency result. Queue/AO2
+implementation postimages are unchanged. The initial new-file CRLF mismatch
+was corrected to LF before final hashes/application checks.
+
+Both named scratch directories and the pinned lock-header review download are
+removed after checks. The native execution flags remain false; A's verified
+exit, Gates B/C, all AT/QO acceptance, exact publication, full CP and M1-09
+remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

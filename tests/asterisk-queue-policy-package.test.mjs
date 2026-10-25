@@ -100,6 +100,20 @@ test("manifest source scope cannot expand", () => {
   });
 });
 
+test("approved disposable target is a new file, not an overwritten upstream path", () => {
+  withFixture(({ run, manifest }) => {
+    const changed = JSON.parse(sourceManifest);
+    const target = changed.files.find((file) => file.path === "tests/test_protected_cli_target.c");
+    assert.ok(target, "Missing approved target fixture");
+    assert.equal(target.beforeSha256, null);
+    target.beforeSha256 = "a".repeat(64);
+    writeFileSync(manifest, JSON.stringify(changed));
+    const result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /preimage\/postimage hash/);
+  });
+});
+
 test("missing preimages never pass as a clean applicable source tree", () => {
   withFixture(({ run, directory }) => {
     const result = run("--source", directory);

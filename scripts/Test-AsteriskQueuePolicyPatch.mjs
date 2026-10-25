@@ -15,7 +15,9 @@ const expected = [
   "main/cli.c",
   "main/loader.c",
   "tests/test_bounded_queue_policy.c",
+  "tests/test_protected_cli_target.c",
 ];
+const newFiles = new Set(["tests/test_bounded_queue_policy.c", "tests/test_protected_cli_target.c"]);
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const readRegular = (filename) => {
   const stat = lstatSync(filename);
@@ -78,7 +80,7 @@ for (const macro of ["DEFINE", "REGISTER", "UNREGISTER"]) {
 for (const file of manifest.files) {
   if (
     !/^[a-f0-9]{64}$/.test(file.afterSha256) ||
-    (file.path === "tests/test_bounded_queue_policy.c"
+    (newFiles.has(file.path)
       ? file.beforeSha256 !== null
       : !/^[a-f0-9]{64}$/.test(file.beforeSha256))
   ) {
