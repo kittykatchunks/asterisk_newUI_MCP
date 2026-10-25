@@ -7,7 +7,7 @@ export interface QueueServiceObservation {
   memberCorrelation: "not-observed" | "unresolved" | "answered-channel-observed" | "conflicting";
   memberUniqueid: string | null;
   memberChannelEnd: "not-observed" | "observed" | "conflicting";
-  completion: "not-observed" | "member-ended-queue-service-observed" | "unresolved" | "conflicting";
+  completion: "not-observed" | "member-ended-queue-service-observed" | "caller-ended-queue-service-observed" | "unresolved" | "conflicting";
   queueEvidence: EvidenceRef[];
   memberEvidence: EvidenceRef[];
 }
@@ -53,11 +53,13 @@ export function observeQueueService(
     service.completion = "conflicting"; report("conflicting-service-terminals", terminals.map((q) => q.ref));
   } else if (terminals.length === 1) {
     const end = terminals[0];
-    if (end.event.event === "COMPLETEAGENT" && sameStream(connect.ref, end.ref) &&
+    if ((end.event.event === "COMPLETEAGENT" || end.event.event === "COMPLETECALLER") && sameStream(connect.ref, end.ref) &&
         end.ref.offset > connect.ref.offset && end.event.member === connect.event.member &&
         end.event.parameters.length === 3 && end.event.parameters.every(unsigned) &&
         Number(end.event.parameters[2]) > 0) {
-      service.completion = "member-ended-queue-service-observed"; consumed.push(end.ref);
+      service.completion = end.event.event === "COMPLETEAGENT" ?
+        "member-ended-queue-service-observed" : "caller-ended-queue-service-observed";
+      consumed.push(end.ref);
     } else {
       service.completion = "unresolved"; report("unsupported-or-contradictory-service-terminal", [end.ref]);
     }

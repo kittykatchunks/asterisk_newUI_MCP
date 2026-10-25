@@ -15,6 +15,64 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Caller-ended synthetic queue service
+
+QC-01 through QC-06 extend the isolated service proof with **post-CONNECT
+COMPLETECALLER**, distinct from COMPLETEAGENT. This is **not queue abandonment**.
+The new temporary trusted route uses its own queue and automated Local `/n`
+member: caller-side Wait ends after three seconds, while the answered member's
+Wait is bounded to twenty seconds. The Queue invocation is bounded to ten seconds.
+The proof requires CONNECT before COMPLETECALLER and all owned channels to finish.
+No live phone, ordinary route or frozen REFER fixture changes.
+
+Current builds use **`marked-caller-v4`**. `visit.service.completion` additionally
+supports `caller-ended-queue-service-observed`, only for the **sole** remaining
+record after a valid CONNECT, in the same queue source/generation, later in byte
+order, with the same member and exactly `hold|call|original-position`.
+All three fields must be canonical nonnegative safe integers, with positive
+original position. COMPLETEAGENT retains the same checks and distinct
+`member-ended-queue-service-observed` value. Duplicate/mixed terminals conflict;
+malformed, reordered, wrong-member and cross-stream records stay unresolved.
+Missing/foreign evidence never supplies completion.
+
+Queue completion remains independent of exact member answer/end and caller
+answer/end. It does not establish human identity, two-way audio, an abandonment,
+all legs ending or the whole business journey completing. Visit summary
+`completion-observed` covers either supported queue terminal; inspect the
+separate completion value to distinguish the recorded ending party. Transfers
+remain unsupported, durations remain raw and service quality remains
+`not-classified`, with completeness unverified and all independent gap warnings.
+
+Stored v1/v2/v3 revisions remain readable **as written**; rebuilding appends v4
+without changing raw schema 5, projection schema 1 or `history-entity-v1` keys.
+An earlier v3 caller-completion observation stays unresolved when read; only a
+new rebuild can publish the newer interpretation. No silent document upgrade.
+
+```powershell
+.\scripts\Test-QueueServiceEvidence.ps1 -CallerEnded
+```
+
+This runs typecheck and **91 focused tests** (six QC additions plus all 85 prior
+regressions), then a fresh owned two-customer proof covering timeout,
+member-ended service **and** caller-ended service. It uses the locally available
+pinned runtime, without pulling/building or touching the shared deployment.
+
+Recorded `run-nOTX5T` (`asterisk-history-notx5t`) retains **69 CEL records /
+12,349 bytes and nine queue records / 619 bytes per customer**. Both new
+visits emit ENTERQUEUE -> CONNECT -> COMPLETECALLER with member
+`synthetic-caller-member`. Each has ten exact caller CEL records and six member
+records including ordered CHAN_START/ANSWER/CHAN_END; bridge events remain raw
+observations, not a media proof. Both PBXs reuse caller ID `1792920819.8`;
+member uniqueids `1792920819.9` / `1792920820.9` stay in their customer scope.
+
+V4 revisions **5/6** preserve both earlier journeys, stable keys and immutable
+revisions. Exact raw round trips, zero-insert replay, persisted CLI reopen,
+offline freshness `not-checked`, scope denial and independent owned-resource
+absence checks pass. Temporary configs/credentials are removed.
+A genuine saved v3 discovery revision still reads with caller completion
+`unresolved` under the v4 reader. Only ignored synthetic databases/reports remain.
+This finite increment does not complete M1-06/07 or broader outcome acceptance.
+
 ## Synthetic queue-member service observations
 
 QS-01 through QS-06 add an **isolated automated member** proof and conservative
@@ -22,7 +80,8 @@ operator projection observations. No real agent phone is enabled. Temporary
 service dialplan/queue configuration is mounted only in the owned proof; ordinary
 routes, the existing empty-queue timeout fixture and frozen REFER tests do not change.
 
-New builds use **`marked-caller-v3`**. Existing v1/v2 revisions remain readable
+The QS increment introduced **`marked-caller-v3`**. Current builds use v4 as
+described above. Existing v1/v2/v3 revisions remain readable
 without adding fields or rewriting their documents; rebuilding appends a new
 revision using unchanged `history-entity-v1` journey/visit keys. Raw history
 schema 5 and projection database schema 1 are unchanged.
@@ -45,11 +104,13 @@ The [service observer](./src/history-queue-service.ts) adds `visit.service`:
   the independent identity, records and end observation. A correlated answer may
   be observed before CHAN_END arrives. No linkedid, Local-half, bridge peer,
   endpoint-name or timestamp relationship is invented.
-- `completion`: `not-observed|member-ended-queue-service-observed|unresolved|conflicting`.
-  The **sole** remaining record must be a same-stream, later COMPLETEAGENT with
+- `completion`: `not-observed|member-ended-queue-service-observed|caller-ended-queue-service-observed|unresolved|conflicting`.
+  The **sole** remaining record must be a same-stream, later COMPLETEAGENT or
+  COMPLETECALLER with
   the same member and exactly `hold|call|original-position` canonical unsigned
-  safe integers, with positive original position. COMPLETECALLER, transfers,
-  abandonment and other unsupported/mismatched records remain explicit;
+  safe integers, with positive original position. V4 adds the distinct
+  caller-ended value above; transfers, abandonment and other
+  unsupported/mismatched records remain explicit;
   competing terminals conflict. `queueEvidence` preserves their references.
 
 These observations are independent: a valid queue CONNECT/completion can remain
@@ -69,8 +130,9 @@ all new references; no truncation or partial publication is allowed.
 .\scripts\Test-QueueServiceEvidence.ps1
 ```
 
-This runs typecheck, **85 focused tests** (nine QS additions plus the 76 existing
-history/collector regressions), then the owned two-customer `--service` proof
+The recorded QS run passed **85 focused tests** (nine QS additions plus the 76
+existing history/collector regressions). The command now runs the current
+**91-test** suite, then the owned two-customer `--service` proof
 using the locally available pinned image without a pull or build.
 Recorded `run-n7q0gL` (`asterisk-history-n7q0gl`) retained **44 CEL records /
 7,497 bytes and six queue records / 370 bytes per customer**, with exact raw
@@ -169,9 +231,9 @@ Separate projection/diagnostic/agent/simulation formats are unchanged.
 
 The queue recovery increment introduced **`marked-caller-v2`**, with independent
 `kind:cel|queue` collector/gap observations in the input vector and current health
-output. Current `marked-caller-v3` retains that provenance and adds the separate
-service observations above. Earlier v1/v2 revisions remain readable; rebuilding
-appends v3 without rewriting history or prior revisions. The independent
+output. Current `marked-caller-v4` retains that provenance and the separate
+service observations introduced by v3. Earlier v1/v2/v3 revisions remain
+readable; rebuilding appends v4 without rewriting history or prior revisions. The independent
 `history-entity-v1` journey/visit identity namespace is unchanged.
 Reading old schema-4 history remains possible: queue collection capability and
 quality explicitly say `unavailable-legacy-schema`, not healthy or gap-free.
@@ -254,8 +316,8 @@ interchangeable. Filesystem/CLI access is a trusted operator boundary, not tenan
 authentication or an approved sensitive-data export.
 
 Each revision returns ID, scope, publication time, algorithm
-`marked-caller-v3`, input SHA-256, projection SHA-256 and the document
-(earlier `marked-caller-v1`/`marked-caller-v2` revisions remain readable).
+`marked-caller-v4`, input SHA-256, projection SHA-256 and the document
+(earlier `marked-caller-v1`/`marked-caller-v2`/`marked-caller-v3` revisions remain readable).
 `revisions` returns metadata with `nextAfterId`; pass that cursor until null.
 Revision IDs are database-wide, not per-customer counters.
 An identical latest input/output reuses its revision (`reused:true`); late input
@@ -314,7 +376,8 @@ freshness fallback.
 - Pinned ENTERQUEUE (`caller-url|caller-id|position`) and
   EXITWITHTIMEOUT (`position|original-position|wait`) retain their existing
   member-`NONE` rules. V3 additionally recognizes the bounded CONNECT/
-  COMPLETEAGENT observations above. No caller fields/durations are interpreted.
+  COMPLETEAGENT observations above; v4 also supports COMPLETECALLER under the
+  same conservative terminal checks. No caller fields/durations are interpreted.
   A sole correctly ordered timeout in the same queue stream becomes
   `timeout-observed`. Unsupported/invalid evidence or competing terminals
   remain unresolved/conflicting. QUEUESTART stays administrative evidence.

@@ -5,7 +5,7 @@ import { inspectHistoryMarker } from "./history-markers.ts";
 import { historyIdentifier as identifier, historySha256 as sha256 } from "./history-evidence.ts";
 import { emptyQueueService, observeQueueService, type QueueServiceObservation } from "./history-queue-service.ts";
 
-export const PROJECTION_ALGORITHM = "marked-caller-v3";
+export const PROJECTION_ALGORITHM = "marked-caller-v4";
 export const PROJECTION_DOCUMENT_LIMIT = 8 * 1024 * 1024;
 export interface ProjectionScope { customer: string; runtime: string; epoch: string }
 export interface EvidenceRef {
@@ -240,7 +240,8 @@ export function buildHistoryProjection(store: ReturnType<typeof openCelHistory>,
           for (const ref of visit.service.memberEvidence) usedCel.add(refKey(ref));
         }
         visit.state = visit.service.connection === "observed" ? "connection-observed" : "unresolved";
-        if (visit.service.completion === "member-ended-queue-service-observed") visit.state = "completion-observed";
+        if (visit.service.completion === "member-ended-queue-service-observed" ||
+            visit.service.completion === "caller-ended-queue-service-observed") visit.state = "completion-observed";
         if (visit.service.connection === "conflicting" || visit.service.memberCorrelation === "conflicting" ||
             visit.service.completion === "conflicting") visit.state = "conflicting";
         continue;

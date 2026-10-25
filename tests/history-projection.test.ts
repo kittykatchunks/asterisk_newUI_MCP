@@ -63,9 +63,174 @@ const servedQueue = (event: string, params: string, member = "synthetic-member",
   Buffer.from(`1792890000|${uid}|proof-queue|${member}|${event}|${params}\n`);
 const connect = () => servedQueue("CONNECT", `0|${memberUid}|0`);
 const complete = () => servedQueue("COMPLETEAGENT", "0|2|1");
+const callerComplete = () => servedQueue("COMPLETECALLER", "0|3|1");
 const memberRows = () => ["CHAN_START", "ANSWER", "HANGUP", "CHAN_END"].map((event) => cel(event, undefined, memberUid));
 const projectedVisit = (history: ReturnType<typeof openCelHistory>) =>
   buildHistoryProjection(history, scope).document.journeys.find((j) => j.journeyId === journeyId)!.visits[0];
+
+test("QC-03: COMPLETECALLER and COMPLETEAGENT remain distinct queue observations with the same conservative shape rules", async () => {
+  for (const [terminal, completion] of [
+    [callerComplete(), "caller-ended-queue-service-observed"],
+    [complete(), "member-ended-queue-service-observed"],
+  ] as const) await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), terminal]);
+    const built = buildHistoryProjection(history, scope);
+    const visit = projectedVisit(history);
+    assert.equal(built.document.algorithm, "marked-caller-v4");
+    assert.equal(visit.state, "completion-observed");
+    assert.equal(visit.service.completion, completion);
+    assert.equal(visit.service.connection, "observed");
+    assert.equal(visit.service.memberCorrelation, "answered-channel-observed");
+    assert.equal(visit.service.memberChannelEnd, "observed");
+    assert.equal(visit.service.queueEvidence.length, 2);
+    assert.equal(built.document.journeys.length, 1);
+    assert.equal(built.document.quality.service, "not-classified");
+    assert.equal(built.document.quality.completeness, "unverified");
+    assert.equal("outcome" in visit, false);
+    assert.equal("totals" in built.document, false);
+    assert.deepEqual(buildHistoryProjection(history, scope), built);
+    assert.ok(!built.document.issues.some((i) => i.evidence.some((ref) => ref.kind === "queue")));
+  });
+});
+
+test("QC-03/05: malformed, unordered, unmatched and competing COMPLETECALLER records never silently become completion", async () => {
+  for (const params of ["0|3", "0|3|1|extra", "-1|3|1", "0|-3|1", "0|3|0", "0|3|-1", "0|3|1.5",
+    "0|3|01", "0|9007199254740992|1", "9007199254740992|3|1", "0|3|9007199254740992", "||1"]) {
+    await fixture((history) => {
+      seed(history, [...call(), ...memberRows()], [entered, connect(), servedQueue("COMPLETECALLER", params)]);
+      const visit = projectedVisit(history);
+      assert.equal(visit.service.completion, "unresolved", params);
+      assert.equal(visit.service.connection, "observed");
+      assert.equal(visit.service.memberCorrelation, "answered-channel-observed");
+      assert.equal(visit.state, "connection-observed");
+      assert.ok(buildHistoryProjection(history, scope).document.issues.some((i) =>
+        i.reason === "unsupported-or-contradictory-service-terminal"));
+    });
+  }
+  for (const queued of [
+    [entered, callerComplete()], [entered, callerComplete(), connect()],
+    [callerComplete(), entered, connect()],
+    [entered, connect(), servedQueue("COMPLETECALLER", "0|3|1", "wrong-member")],
+    [entered, connect(), servedQueue("COMPLETECALLER", "0|3|1", "NONE")],
+  ]) await fixture((history) => {
+    seed(history, [...call(), ...memberRows()], queued);
+    assert.equal(projectedVisit(history).service.completion, queued.length === 2 ? "not-observed" : "unresolved");
+    assert.notEqual(projectedVisit(history).state, "completion-observed");
+  });
+  for (const extra of [callerComplete(), complete(), timeout, servedQueue("ABANDON", "1|1|3")]) {
+    await fixture((history) => {
+      seed(history, [...call(), ...memberRows()], [entered, connect(), callerComplete(), extra]);
+      assert.equal(projectedVisit(history).service.completion, "conflicting");
+      assert.equal(projectedVisit(history).state, "conflicting");
+    });
+  }
+});
+
+test("QC-03/05: caller-ended queue completion does not imply member answer, caller channel end or human service", async () => {
+  for (const [members, correlation] of [
+    [[], "unresolved"], [memberRows().slice(0, 1), "unresolved"],
+    [memberRows().slice(0, 2), "answered-channel-observed"],
+    [[...memberRows(), cel("ANSWER", undefined, memberUid)], "conflicting"],
+  ] as const) await fixture((history) => {
+    seed(history, [cel("CHAN_START"), entry(), visit(), ...members], [entered, connect(), callerComplete()]);
+    const built = buildHistoryProjection(history, scope);
+    const root = built.document.journeys[0], service = root.visits[0].service;
+    assert.equal(service.completion, "caller-ended-queue-service-observed");
+    assert.equal(service.memberCorrelation, correlation);
+    assert.equal(service.memberChannelEnd, "not-observed");
+    assert.equal(root.channel?.answer, "not-observed");
+    assert.equal(root.channel?.end, "not-observed");
+    assert.equal(root.visits[0].state, correlation === "conflicting" ? "conflicting" : "completion-observed");
+    assert.equal(built.document.quality.service, "not-classified");
+  });
+});
+
+test("QC-04/05: COMPLETECALLER from another stream, customer, runtime, epoch or unassigned range cannot complete the visit", async () => {
+  for (const location of ["source", "generation", "customer", "runtime", "epoch", "unassigned"] as const) {
+    await fixture((history) => {
+      const { queueRaw } = seed(history, [...call(), ...memberRows()], [entered, connect()]);
+      if (location === "unassigned") history.queue.ingest(source, Buffer.concat([queueRaw, callerComplete()]));
+      else {
+        const selected = { ...scope, ...(location === "customer" ? { customer: "customer-b" } :
+          location === "runtime" ? { runtime: "runtime-b" } : location === "epoch" ? { epoch: "boot-2" } : {}) };
+        const selectedSource = { ...source, customer: selected.customer,
+          source: location === "generation" ? source.source : "other-source",
+          ...(location === "generation" ? { generation: "generation-2" } : {}) };
+        seed(history, [], [callerComplete()], selected, selectedSource);
+      }
+      const service = projectedVisit(history).service;
+      assert.equal(service.connection, "observed");
+      assert.equal(service.memberCorrelation, "answered-channel-observed");
+      assert.equal(service.completion, location === "source" || location === "generation" ? "unresolved" : "not-observed");
+    });
+  }
+});
+
+test("QC-04/05: late COMPLETECALLER appends an immutable revision with stable IDs, independent gaps and exact replay", async () => {
+  await fixture((history, _historyPath, path, directory) => {
+    const { queueRaw } = seed(history, [...call(), ...memberRows()], [entered, connect()]);
+    history.queue.collectors.configure({ customer: scope.customer, source: source.source, generation: source.generation,
+      path: join(directory, "queue_log"), staleAfterMs: 1000 }, 1000);
+    history.queue.collectors.transition(scope.customer, source.source, "replacement", "operator", "Unknown coverage", 2000);
+    const projections = openHistoryProjections(path);
+    try {
+      const first = projections.rebuild(history, scope);
+      const before = buildHistoryProjection(history, scope).document;
+      const nextRaw = Buffer.concat([queueRaw, callerComplete()]);
+      assert.equal(history.queue.ingest(source, nextRaw).inserted, 1);
+      assert.equal(history.queue.ingest(source, nextRaw).inserted, 0);
+      history.manifests.register({ ...scope, operator: "test", reason: "Explicit late caller completion evidence", routes: [],
+        ranges: [{ kind: "queue", source: source.source, generation: source.generation, start: queueRaw.length, end: nextRaw.length }] });
+      const next = projections.rebuild(history, scope);
+      const after = buildHistoryProjection(history, scope).document;
+      assert.ok(next.id > first.id);
+      assert.equal(before.journeys[0].visits[0].service.completion, "not-observed");
+      assert.equal(after.journeys[0].visits[0].service.completion, "caller-ended-queue-service-observed");
+      assert.equal(after.journeys[0].id, before.journeys[0].id);
+      assert.equal(after.journeys[0].visits[0].id, before.journeys[0].visits[0].id);
+      assert.equal(after.input.coverage[0].gaps.length, 1);
+      assert.equal(after.input.coverage[0].association, "possibly-applicable");
+      assert.equal(after.quality.queueCoverage, "unverified");
+      assert.equal(projections.rebuild(history, scope).id, next.id);
+      assert.deepEqual(projections.read(scope, first.id).document, before);
+    } finally { projections.close(); }
+    const reopened = openHistoryProjections(path, { readOnly: true });
+    try {
+      assert.equal(reopened.read(scope).algorithm, "marked-caller-v4");
+      assert.throws(() => reopened.read({ ...scope, epoch: "foreign" }), /not found/);
+    } finally { reopened.close(); }
+  });
+});
+
+test("QC-04/05: v3 unresolved caller completion remains byte-preserved and readable after a v4 rebuild", async () => {
+  await fixture((history, _historyPath, path) => {
+    seed(history, [...call(), ...memberRows()], [entered, connect(), callerComplete()]);
+    const projections = openHistoryProjections(path);
+    const built = buildHistoryProjection(history, scope);
+    const legacy = JSON.parse(JSON.stringify(built.document));
+    legacy.algorithm = "marked-caller-v3"; legacy.input.algorithm = "marked-caller-v3";
+    legacy.journeys[0].visits[0].state = "connection-observed";
+    legacy.journeys[0].visits[0].service.completion = "unresolved";
+    const text = JSON.stringify(legacy);
+    const db = new DatabaseSync(path);
+    try {
+      const row = db.prepare(`INSERT INTO projection_revisions
+        (customer,runtime,epoch,algorithm,input_sha256,document,sha256,created_at) VALUES(?,?,?,?,?,?,?,?)`)
+        .run(scope.customer, scope.runtime, scope.epoch, legacy.algorithm,
+          historySha256(Buffer.from(JSON.stringify(legacy.input))), text, historySha256(Buffer.from(text)), "2026-10-25T09:00:00.000Z");
+      const oldId = Number(row.lastInsertRowid);
+      assert.deepEqual(projections.read(scope, oldId).document, legacy);
+      const next = projections.rebuild(history, scope);
+      assert.equal(next.algorithm, "marked-caller-v4");
+      assert.ok(next.id > oldId);
+      assert.equal(built.document.journeys[0].id, legacy.journeys[0].id);
+      assert.equal(built.document.journeys[0].visits[0].id, legacy.journeys[0].visits[0].id);
+      assert.equal(projectedVisit(history).service.completion, "caller-ended-queue-service-observed");
+      assert.deepEqual(projections.read(scope, oldId).document, legacy);
+      assert.equal(db.prepare("SELECT document FROM projection_revisions WHERE id=?").get(oldId)?.document, text);
+    } finally { db.close(); projections.close(); }
+  });
+});
 
 test("QS-02/03: independent queue CONNECT, exact member answer/end and COMPLETEAGENT observations; no human/media outcome", async () => {
   await fixture((history) => {
@@ -225,7 +390,7 @@ test("QS-03/05: completion is independent and requires ordered same-stream same-
     servedQueue("COMPLETEAGENT", "0|2|1", "wrong-member"), servedQueue("COMPLETEAGENT", "0|2"),
     servedQueue("COMPLETEAGENT", "0|2|0"), servedQueue("COMPLETEAGENT", "0|2|-1"),
     servedQueue("COMPLETEAGENT", "0|2|1|extra"), servedQueue("COMPLETEAGENT", "0|9007199254740992|1"),
-    servedQueue("COMPLETECALLER", "0|2|1"), servedQueue("ABANDON", "1|1|2"), timeout,
+    servedQueue("TRANSFER", "0|2|1"), servedQueue("ABANDON", "1|1|2"), timeout,
   ]) await fixture((history) => {
     seed(history, [...call(), ...memberRows()], [entered, connect(), end]);
     const service = projectedVisit(history).service;
@@ -298,7 +463,7 @@ test("QS-04/05: late member evidence appends immutable service revision, stable 
   });
 });
 
-test("QS-04/05: v1/v2 documents without service fields remain readable byte-for-byte; v3 rebuild preserves entity keys", async () => {
+test("QS-04/05: v1/v2 documents without service fields remain readable byte-for-byte; current rebuild preserves entity keys", async () => {
   for (const algorithm of ["marked-caller-v1", "marked-caller-v2"]) await fixture((history, _historyPath, path) => {
     seed(history, [...call(), ...memberRows()], [entered, connect(), complete()]);
     const projections = openHistoryProjections(path);
@@ -325,7 +490,7 @@ test("QS-04/05: v1/v2 documents without service fields remain readable byte-for-
       assert.deepEqual(projections.read(scope).document, legacy);
       const next = projections.rebuild(history, scope);
       assert.ok(next.id > oldId);
-      assert.equal(next.algorithm, "marked-caller-v3");
+      assert.equal(next.algorithm, PROJECTION_ALGORITHM);
       assert.equal(built.document.journeys[0].id, legacy.journeys[0].id);
       assert.equal(built.document.journeys[0].visits[0].id, legacy.journeys[0].visits[0].id);
       assert.deepEqual(projections.read(scope, oldId).document, legacy);

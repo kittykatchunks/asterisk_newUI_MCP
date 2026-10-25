@@ -36,7 +36,7 @@ export function openHistoryProjections(path: string, options: { readOnly?: boole
   function decode(row: Record<string, unknown>, scope: ProjectionScope) {
     if (!integer(row.id) || row.id < 1 || row.customer !== scope.customer || row.runtime !== scope.runtime ||
         row.epoch !== scope.epoch || typeof row.algorithm !== "string" ||
-        ![PROJECTION_ALGORITHM, "marked-caller-v1", "marked-caller-v2"].includes(row.algorithm) ||
+        ![PROJECTION_ALGORITHM, "marked-caller-v1", "marked-caller-v2", "marked-caller-v3"].includes(row.algorithm) ||
         !digest(row.sha256) || !digest(row.input_sha256) || typeof row.document !== "string" ||
         Buffer.byteLength(row.document) > PROJECTION_DOCUMENT_LIMIT || sha256(Buffer.from(row.document)) !== row.sha256 ||
         typeof row.created_at !== "string" || !Number.isFinite(Date.parse(row.created_at)) ||

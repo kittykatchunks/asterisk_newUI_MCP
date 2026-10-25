@@ -807,8 +807,9 @@ No timestamp, linkedid, Local-half or bridge-peer join is introduced.
 
 Queue connection/completion remains an independent record observation even if
 member correlation cannot be established. COMPLETEAGENT is not human identity,
-caller abandonment or whole-journey completion. COMPLETECALLER and transfers
-remain unsupported. Numeric parameters stay raw, not metrics. No extra inbound
+caller abandonment or whole-journey completion. At QS completion, COMPLETECALLER
+and transfers remained unsupported; the QC increment below adds only the former.
+Numeric parameters stay raw, not metrics. No extra inbound
 journey root, business outcome or total is created. Quality remains service
 unclassified/completeness unverified, with independent collection/gap warnings.
 
@@ -840,6 +841,53 @@ and [observation semantics](./README.md#synthetic-queue-member-service-observati
 No dependency, production route, UI or permission surface changes. Stop after
 this bounded increment: human service, two-way service audio, broader lifecycle/
 outcome acceptance, remote evidence delivery/retention and M1-06/07 remain open.
+
+### Caller-ended synthetic queue-service completion
+
+The user selected QC-01 through QC-06: post-CONNECT COMPLETECALLER evidence and
+its separate conservative projection observation. A new temporary trusted
+caller-service route/queue/automated Local `/n` member leaves the member
+answered while the caller-side Wait ends after three seconds. Queue/member
+waits are bounded; the proof fails unless CONNECT precedes COMPLETECALLER and
+all owned channels finish. No live phone, ordinary route or REFER change.
+
+Actual pinned output has COMPLETECALLER `hold|call|original-position`, the same
+shape as COMPLETEAGENT with a distinct terminating-party record. Both require
+a valid unique CONNECT, a sole same-stream later terminal, matching member,
+canonical nonnegative safe integers and positive original position.
+`marked-caller-v4` adds `caller-ended-queue-service-observed`, retaining separate
+`member-ended-queue-service-observed` and independent member/caller answer/end.
+No human identity, audio, pre-connection abandonment, whole-journey completion,
+transfer, duration metric or total is inferred.
+Malformed/mismatched/cross-stream terminals stay unresolved; duplicate/mixed
+terminals conflict. Unsupported events remain evidence/issues.
+
+V1/v2/v3 documents remain unchanged and readable; v4 rebuilds append immutable
+revisions with stable entity keys. A genuine earlier v3 caller-service revision
+still reads unresolved under the v4 reader, rather than silently acquiring the
+new interpretation. Raw schema 5 and projection schema 1 are unchanged.
+Existing coverage/gap warnings and reference/document bounds remain enforced.
+
+Typecheck and **91 focused tests** pass: six QC additions plus all 85 previous
+regressions. Tests cover exact shapes/order, terminal disagreement/duplicates,
+absent/conflicting member evidence, independent caller end, foreign scopes,
+late completion, preserved unknown gaps, replay and byte-preserved v3 history.
+Real `run-nOTX5T` (`asterisk-history-notx5t`) retains **69 CEL records / 12,349
+bytes and nine queue records / 619 bytes per customer** across baseline,
+timeout, member-ended service and caller-ended service. New caller uniqueid
+`1792920819.8` is reused across both customers without attribution leakage;
+CONNECT member uniqueids are `1792920819.9` / `1792920820.9`.
+Each new visit has ten caller and six member CEL references plus the distinct
+three-record caller-ended queue sequence. V4 revisions **5/6** preserve both
+earlier journeys and all prior revisions. Raw round trips/replay, persisted
+CLI reopen, offline reads, scope denial and independent owned-resource absence
+checks pass; generated credentials/configurations are removed.
+
+Reproduce with `.\scripts\Test-QueueServiceEvidence.ps1 -CallerEnded`; see
+[QC evidence](./MILESTONE-1.md#selected-next-increment-caller-ended-synthetic-queue-service)
+and [operator semantics](./README.md#caller-ended-synthetic-queue-service).
+Stop after this bounded increment. M1-06/07, human service, service media,
+pre-connection abandonment and broader journey/outcome acceptance remain open.
 
 ## 6. Interface and roaming agents
 

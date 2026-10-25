@@ -279,7 +279,7 @@ test("QR-05: old projection algorithm revisions remain readable and rebuild unde
       assert.equal(projections.read(projectionScope).algorithm, "marked-caller-v1");
       const next = projections.rebuild(store, projectionScope);
       assert.notEqual(next.id, first.id);
-      assert.equal(next.algorithm, "marked-caller-v3");
+      assert.equal(next.algorithm, "marked-caller-v4");
       assert.equal(buildHistoryProjection(store, projectionScope).document.journeys[0].id, v1.journeys[0].id);
       assert.equal(projections.read(projectionScope, first.id).algorithm, "marked-caller-v1");
     } finally { db.close(); projections.close(); }

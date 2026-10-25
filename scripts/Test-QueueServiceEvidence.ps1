@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$CallerEnded)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -9,6 +9,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Queue service evidence typecheck failed.' }
     & node --test --test-reporter=dot (Join-Path $root 'tests\queue-collector.test.ts') (Join-Path $root 'tests\history-projection.test.ts') (Join-Path $root 'tests\history-manifest.test.ts') (Join-Path $root 'tests\queue-history.test.ts') (Join-Path $root 'tests\cel-history.test.ts') (Join-Path $root 'tests\cel-collector.test.ts')
     if ($LASTEXITCODE -ne 0) { throw 'Queue service, projection, collector and raw history regressions failed.' }
-    & node (Join-Path $root 'tests\cel-history\run.ts') --service
+    $proofMode = if ($CallerEnded) { '--caller-service' } else { '--service' }
+    & node (Join-Path $root 'tests\cel-history\run.ts') $proofMode
     if ($LASTEXITCODE -ne 0) { throw 'Queue service proof failed; inspect its owned result directory.' }
 } finally { Pop-Location }

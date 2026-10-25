@@ -1320,8 +1320,9 @@ position). Exact member uniqueid correlation requires one consistent channel,
 one start before one answer and no contradictory end, competing CONNECT/root
 identity or source/generation reuse in the selected scope. An open member channel
 may have answer observed with end not observed. Missing or cross-stream evidence
-cannot supply an answer. Unsupported COMPLETECALLER/transfer/other terminal
-records stay unresolved; conflicting candidates retain references.
+cannot supply an answer. At QS completion, unsupported COMPLETECALLER/transfer/
+other terminal records stayed unresolved; QC below adds only COMPLETECALLER.
+Conflicting candidates retain references.
 
 Caller answer/end, queue connection, member answer/end and queue completion are
 separate. A queue connection/completion observation may survive unresolved member
@@ -1361,6 +1362,74 @@ Reproduce with `.\scripts\Test-QueueServiceEvidence.ps1`. The separate authentic
 echo baseline is **not** proof of media on the synthetic member call.
 No real human, verified agent identity, two-way service audio, journey completion,
 caller abandonment, transfer, totals or broad M1 gate is claimed. No REFER rerun.
+
+### Selected next increment: caller-ended synthetic queue service
+
+The user selected isolated caller-ended service evidence after QS completion.
+This is post-CONNECT COMPLETECALLER, **not** pre-connection abandonment.
+
+| Check | Bounded required evidence |
+|---|---|
+| QC-01 | Separate temporary trusted caller-service route/queue/automated member, bounded caller termination while member remains answered; existing timeout/member-ended fixtures and ordinary routes unchanged. No live phones or REFER rerun. |
+| QC-02 | Pin actual two-customer ENTERQUEUE/CONNECT/COMPLETECALLER bytes and shapes plus exact caller/member CEL, explicit scoped manifests and trusted entry/visit order. No human, audio, verified agent, abandonment or whole-journey claim. |
+| QC-03 | Versioned projection recognizes only the sole ordered same-stream/same-member supported COMPLETECALLER after valid CONNECT, distinct from COMPLETEAGENT. Missing/invalid/mismatched/duplicate/conflicting terminal evidence remains unresolved/conflicting; member correlation remains independent. |
+| QC-04 | Preserve immutable v1/v2/v3 documents, stable keys, previous visits, late-evidence revisions, independent gap warnings and existing bounds. No raw or projection schema change. |
+| QC-05 | Focused tests cover terminal shapes/order/scope/conflicts, absent/contradictory member evidence, replay/late terminals and actual historical v3 reads; all existing 85 regressions remain covered. |
+| QC-06 | Real owned two-customer proof includes old timeout/member-ended cases, exact replay, persisted/offline reads, scope denial and independent resource absence; document measured results, commit/push and stop. |
+
+Implemented and verified within this finite operator-only scope.
+The separate trusted caller-service-v1 route emits entry before Answer and
+visit before Queue, with a separate caller-service-queue and automated member.
+Caller-side Wait ends after three seconds while the member Wait is twenty
+seconds and Queue is bounded to ten. Acceptance requires actual post-CONNECT
+COMPLETECALLER plus completed owned channel cleanup, not a timing assumption.
+Ordinary routes, empty-queue/member-ended fixtures, phones and REFER are unchanged.
+
+Pinned COMPLETECALLER shape is exactly `hold|call|original-position`.
+V4 uses the existing shared terminal checks for COMPLETEAGENT/COMPLETECALLER:
+unique valid CONNECT followed by a sole same-stream, later, same-member
+terminal with three canonical unsigned safe integers and positive original
+position. New `caller-ended-queue-service-observed` is distinct from existing
+`member-ended-queue-service-observed`. Duplicate/mixed terminals conflict;
+malformed, reordered, foreign/missing or wrong-member evidence cannot prove
+completion. Separate member correlation can remain unresolved/conflicting and
+caller end not observed even when the valid queue completion is observed.
+No human identity, service audio, abandonment or whole-journey outcome is inferred.
+
+Raw schema 5, projection schema 1, independent gaps, bounds and stable
+history-entity-v1 keys are unchanged. V1/v2/v3 reads preserve their exact
+documents; a v4 rebuild appends without rewriting. A genuine discovery v3
+revision reads caller completion unresolved under the new reader.
+Typecheck and **91 focused tests pass**: six QC additions plus all 85 previous
+regressions. Late completion/replay, scope exclusion, malformed/mixed terminals,
+partial/conflicting member evidence, independent caller facts, preserved gaps
+and old-v3 byte preservation are covered.
+
+Recorded real `run-nOTX5T` (`asterisk-history-notx5t`):
+
+| Observation | Customer A | Customer B |
+|---|---|---|
+| Exact durable CEL | 69 records / 12,349 bytes | 69 records / 12,349 bytes |
+| Exact durable queue | 9 records / 619 bytes | 9 records / 619 bytes |
+| New caller uniqueid | `1792920819.8` | `1792920819.8` |
+| CONNECT member uniqueid | `1792920819.9` | `1792920820.9` |
+| New queue sequence | ENTERQUEUE, CONNECT, COMPLETECALLER | Same sequence |
+| COMPLETECALLER raw params | `0|3|1` | `0|2|1` |
+| New caller/member CEL refs | 10 / 6 | 10 / 6 |
+| V4 revision | 5 | 6 |
+| Completion observation | caller-ended-queue-service-observed | Same distinct value |
+
+Each member has CHAN_START, ANSWER, BRIDGE_ENTER, BRIDGE_EXIT, HANGUP, CHAN_END;
+bridge records are retained, not interpreted as two-way media. Both earlier
+timeout and member-ended journeys/keys/revisions remain unchanged. Exact raw
+round trips, zero-insert import replay, immutable rebuild reuse, persisted CLI
+reopen, offline freshness not-checked and foreign-scope denial pass.
+Independent owned container/network/volume absence is verified after down;
+temporary credentials/configs are removed. Only ignored synthetic databases
+and reports remain. Reproduce with
+`.\scripts\Test-QueueServiceEvidence.ps1 -CallerEnded`.
+Stop here: M1-06/07, live/human service, pre-connection abandonment, production
+delivery and broad journey/outcome acceptance remain incomplete. No REFER rerun.
 
 ## 6. Proposed implementation backlog
 

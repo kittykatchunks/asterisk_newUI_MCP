@@ -14,16 +14,17 @@ import { proveQueueService } from "./queue-service.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const args = process.argv.slice(2);
-if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery", "--service"].includes(args[0]))) {
-  throw new Error("Only --recovery, --queue, --markers, --projection, --queue-recovery or --service is supported");
+if (args.length > 1 || (args.length === 1 && !["--recovery", "--queue", "--markers", "--projection", "--queue-recovery", "--service", "--caller-service"].includes(args[0]))) {
+  throw new Error("Only --recovery, --queue, --markers, --projection, --queue-recovery, --service or --caller-service is supported");
 }
 const recovery = args[0] === "--recovery";
 const queueProof = args[0] === "--queue";
 const queueRecovery = args[0] === "--queue-recovery";
-const serviceProof = args[0] === "--service";
+const callerServiceProof = args[0] === "--caller-service";
+const serviceProof = args[0] === "--service" || callerServiceProof;
 const projectionProof = args[0] === "--projection" || queueRecovery || serviceProof;
 const markerProof = args[0] === "--markers" || projectionProof;
-const mode = recovery ? "cel-collector" : serviceProof ? "queue-service" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
+const mode = recovery ? "cel-collector" : callerServiceProof ? "caller-queue-service" : serviceProof ? "queue-service" : queueRecovery ? "queue-collector" : queueProof ? "queue-history" :
   projectionProof ? "history-projection" : markerProof ? "history-markers" : "cel-history";
 const parent = join(root, ".local-proof", mode);
 await mkdir(parent, { recursive: true });
@@ -71,6 +72,7 @@ let composeAttempted = false;
 const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
   scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
+    callerServiceProof ? "isolated caller-ended and member-ended automated queue service evidence; no human, abandonment, whole-journey or media claim" :
     serviceProof ? "isolated automated queue member CONNECT/completion and exact CEL member answer observations; no human or media claim" :
     queueRecovery ? "operator local-file queue interruption/replay, independent collector status and permanent unknown replacement gap in projection provenance" :
     queueProof ? "operator queue evidence with isolated empty Local-channel timeout and PBX restart; not human service or journey reconstruction" :
@@ -96,6 +98,12 @@ try {
       ]);
       await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}\n${service}`.replaceAll("\r\n", "\n"));
       await writeFile(join(directory, "queues.conf"), `${queues}\n[service-queue]\nstrategy = ringall\ntimeout = 3\nretry = 1\njoinempty = yes\nleavewhenempty = no\nmember => Local/answer@history-service-member/n,0,synthetic-member\n`.replaceAll("\r\n", "\n"));
+      if (callerServiceProof) {
+        const callerService = await readFile(join(root, "tests", "history-markers", "caller-service.conf"), "utf8");
+        await writeFile(join(directory, "extensions.conf"), `${extensions}\n${markers}\n${service}\n${callerService}`.replaceAll("\r\n", "\n"));
+        const generatedQueues = await readFile(join(directory, "queues.conf"), "utf8");
+        await writeFile(join(directory, "queues.conf"), `${generatedQueues}\n[caller-service-queue]\nstrategy = ringall\ntimeout = 3\nretry = 1\njoinempty = yes\nleavewhenempty = no\nmember => Local/answer@history-caller-service-member/n,0,synthetic-caller-member\n`);
+      }
     }
   }
   const template = await readFile(join(root, "local", "sip", "endpoint.conf.template"), "utf8");
@@ -177,6 +185,11 @@ try {
         const services: Record<string, unknown>[] = [];
         report.service = services;
         await proveQueueService(database, directory, project, docker, freshSnapshot, cli, services);
+        if (callerServiceProof) {
+          const callerServices: Record<string, unknown>[] = [];
+          report.callerService = callerServices;
+          await proveQueueService(database, directory, project, docker, freshSnapshot, cli, callerServices, "caller");
+        }
       }
       if (queueRecovery) {
         const recovered: Record<string, unknown>[] = [];
