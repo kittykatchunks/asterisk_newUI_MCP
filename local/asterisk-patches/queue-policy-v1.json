@@ -4,7 +4,7 @@
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "upstreamTag": "22.11.0",
   "patch": "queue-policy-v1.patch",
-  "patchSha256": "fbf08211c78c1275aa2e05f7a62aa0699b354dbd511dfb74e76e3fe67a1d78a3",
+  "patchSha256": "69275e6e683c38850a018c6c16777ae499f414de83ee234e0ddc7e5961aa8545",
   "stage": "gate-a-source-candidate",
   "nativeCompiled": false,
   "nativeTestsExecuted": false,
@@ -24,7 +24,9 @@
     "policy_snapshot_invalid_request",
     "policy_snapshot_contention",
     "policy_snapshot_protocol",
-    "policy_snapshot_output_failure"
+    "policy_snapshot_output_failure",
+    "protected_completion",
+    "protected_registration"
   ],
   "files": [
     {
@@ -65,7 +67,7 @@
     {
       "path": "tests/test_bounded_queue_policy.c",
       "beforeSha256": null,
-      "afterSha256": "e61302445cd1fa88b6f7a112e55f353399c9e03c8f4f8b7467a4743c3bf59fdf"
+      "afterSha256": "4e2b5aec355c265c6657f8213d90236ab9b490cdc4592bb22f81778f18f68d9c"
     }
   ]
 }

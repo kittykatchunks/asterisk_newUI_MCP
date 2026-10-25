@@ -403,8 +403,12 @@ zero/one prior row. The [protocol/checked-output update](./PROJECT-PLAN.md#gate-
 fixes the prior getter's invalid comparison of void `ast_cli` output: a private
 bounded formatter now uses checked `ast_carefulwrite` output with the stock
 100-ms setting, subject to its nonblocking-descriptor assumptions.
-The inventory is now **fourteen uncompiled/unexecuted native definitions**,
-including exact sorted/empty/full/error JSON and output-failure fixtures.
+Protocol fixtures define exact sorted/empty/full/error JSON and output failure.
+The [CLI exit coverage update](./PROJECT-PLAN.md#gate-a-cli-exit-coverage-sixteen-definitions-still-unexecuted)
+brings the inventory to **sixteen uncompiled/unexecuted native definitions**,
+adding handler success/failure/usage schedules, real completion callbacks and
+null-owner registration/admission denial. Exact lease-count release and wider
+loader/shutdown schedules remain unproven.
 **Eleven package tests pass**; the validator checks definitions/registration
 pairs and exact application/postimages were rechecked. Queue fixtures stay
 private and unlinked; request/traversal/locking logic is unchanged.

@@ -2224,6 +2224,18 @@ request/traversal/locking logic and all other source-file postimages are
 unchanged. Actual native compilation/protocol/lifecycle/profile acceptance
 and Gates B/C remain pending.
 
+The subsequent [CLI exit coverage source](./PROJECT-PLAN.md#gate-a-cli-exit-coverage-sixteen-definitions-still-unexecuted)
+brings the inventory to **sixteen uncompiled/unexecuted native definitions**.
+Real dispatch source schedules now cover success/failure/usage returns; two
+new definitions cover allocated/null completion callbacks with active unload
+veto and null-owner registration/null-module admission rejection. Completion
+does not attempt a registry writer while holding its read lock. Entry drain
+is checked, but exact private lease-count release and the remaining loader/
+shutdown/output-boundary schedules are not established.
+**Eleven package tests pass**; exact application/eight postimages match and
+all seven production postimages are unchanged. A's verified exit, native
+execution, AT/QO and Gates B/C remain open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

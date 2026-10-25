@@ -2702,6 +2702,56 @@ review files, are removed after checks. No dependencies, native build/test,
 image build or PBX execution occurred. A's verified exit, Gates B/C, AT/QO,
 exact publication, full CP and M1-09 remain open.
 
+##### Gate A CLI exit coverage: sixteen definitions, still unexecuted
+
+The next A-only source increment changes only the added native test module;
+all seven production-source postimage hashes remain identical to the preceding
+checked-output candidate. The manifest now contains **sixteen native
+definitions**, all **uncompiled/unexecuted**.
+
+Pinned CLI/loader source review confirms that protected dispatch acquires
+before entry `inuse`, runs permission/shutdown/handler/output paths and releases
+after its final entry access. Completion acquires/releases around its callback
+while retaining the registry read lock. The admission helper rejects null
+module pointers before trying the loader mutex. This review informs the
+fixtures; it does not prove all concurrent loader schedules.
+
+| Native source change | Assertions to execute later, not results |
+|---|---|
+| Extended `protected_dispatch` | Repeats the real barrier-held dispatch for handler `CLI_SUCCESS`, `CLI_FAILURE` and `CLI_SHOWUSAGE`. Each active handler must reject unregister and every soft/firm/hard unload attempt. After join, command result matches the handler outcome, entry `inuse` is zero and unregister succeeds. |
+| New `protected_completion` | Uses real `ast_cli_generator` entry lookup and barrier-held `CLI_GENERATE` callbacks for allocated `"xyz"` and null completion returns. Every unload mode must refuse while the callback is active; returned completion bytes/null match and are cleaned up after join. The entry can be unregistered after completion. |
+| New `protected_registration` | A protected entry with null owner is rejected before `CLI_INIT`, linking or metadata allocation; its module/command/usage/full-command/inuse fields stay unset. Null module lease admission also rejects. |
+
+Dispatch/completion schedules reuse one fixture and command instead of a second
+registry or loader-state mutation. The fixture checks the actual handler
+invocation kind and waits for either callback entry or worker completion, so
+admission rejection fails rather than waiting forever for an uncalled handler.
+No-fixture generation returns null rather than a CLI failure sentinel that the
+completion caller might treat as allocated text.
+
+Completion deliberately does **not** attempt busy unregister while its
+callback is paused: it still holds the registry read lock, so the writer
+attempt would deadlock the fixture itself. Post-join unregister is checked
+instead. The tests still invoke real unload APIs on their own module and
+therefore require a separately authorized disposable, serialized native test
+process with an external timeout; if the lease veto regresses, teardown can
+deadlock or unload executing test code.
+
+These assertions are not exact private `cli_readers` counter observations.
+Entry `inuse` reaching zero and successful unregister do not prove that the
+module lease count drained. Final-output pause points, exact release counts,
+permission/shutdown denials, loader-lock contention, startup/declined/closing
+admission, unload-failure and shutdown schedules, ordinary-command regressions
+and profile/instrumentation coverage remain open. No production test hooks,
+global shutdown state edits or extra public inspection API were added.
+
+**Eleven package tests pass**, along with JavaScript syntax, whitespace and
+added documentation link checks. Seven exact source preimages/application dry
+run pass; independent source-only application matches all eight postimages.
+Both named scratch directories are removed after verification. No dependency
+install, native build/test, image build or PBX execution occurred. A's verified
+exit, Gates B/C, AT/QO, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
