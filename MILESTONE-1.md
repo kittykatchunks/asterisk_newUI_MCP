@@ -2442,6 +2442,15 @@ callback/ref/destructor assertions. Only the controller postimage changes.
 **Twelve package tests pass** and exact application/nine postimages match.
 All native/AT/QO acceptance and Gates B/C remain open; no native/PBX execution.
 
+The [independent lock-exit source probes](./PROJECT-PLAN.md#gate-a-independent-lock-exit-probes-inventory-unchanged-still-unexecuted)
+add actual-container foreign-thread try-lock/unlock checks after the 16 mixed
+and 33 callback-matrix walks. This detects held recursive mutexes that a
+same-thread retry could miss; probes run outside the bounded traversal.
+Only the controller postimage changes; inventory remains **30 uncompiled/
+unexecuted native definitions**. **Twelve package tests pass** and exact
+application/nine postimages match. Exact internal lock instrumentation and
+native acceptance remain pending; Gates B/C stay closed, with no native/PBX run.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

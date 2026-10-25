@@ -2206,10 +2206,10 @@ index 6d924928335bc769c7e058360dc02ae0e6637e17..994bc4476bc97d44f7f9ea8327a86731
  	if (!mod) {
 diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc766168188561
+index 0000000000000000000000000000000000000000..ccb603b63b5d310f16fcd39155b5cb071454e4bc
 --- /dev/null
 +++ b/tests/test_bounded_queue_policy.c
-@@ -0,0 +1,1846 @@
+@@ -0,0 +1,1895 @@
 +/*
 + * Bounded queue policy proof tests.
 + * SPDX-License-Identifier: GPL-2.0-only
@@ -2701,6 +2701,41 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +	return failed ? AST_TEST_FAIL : AST_TEST_PASS;
 +}
 +
++struct bounded_lock_probe {
++	struct ao2_container *container;
++	int acquired;
++	int released;
++};
++
++static void *bounded_lock_probe_worker(void *data)
++{
++	struct bounded_lock_probe *probe = data;
++
++	probe->acquired = ao2_trylock(probe->container);
++	if (!probe->acquired) {
++		probe->released = ao2_unlock(probe->container);
++	}
++	return NULL;
++}
++
++static int bounded_lock_available(struct ast_test *test, struct ao2_container *container)
++{
++	struct bounded_lock_probe probe = { .container = container, .acquired = -1, .released = -1 };
++	pthread_t worker;
++
++	if (ast_pthread_create(&worker, NULL, bounded_lock_probe_worker, &probe)) {
++		ast_test_status_update(test, "Could not start independent container lock probe\n");
++		return 1;
++	}
++	pthread_join(worker, NULL);
++	if (probe.acquired || probe.released) {
++		ast_test_status_update(test, "Independent container lock probe failed: acquire=%d release=%d\n",
++			probe.acquired, probe.released);
++		return 1;
++	}
++	return 0;
++}
++
 +struct bounded_owned_object {
 +	unsigned int *destroyed;
 +};
@@ -2796,7 +2831,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +				!= (i == 63 ? AO2_BOUNDED_COMPLETE : AO2_BOUNDED_LIMIT)
 +				|| result.buckets != 1 || result.nodes != (i == 63 ? 127 : 128)
 +				|| result.objects != i || visit.seen != i || visit.bad_reference
-+				|| destroyed != i + 1 || ao2_container_count(container) != i) {
++				|| destroyed != i + 1 || ao2_container_count(container) != i
++				|| bounded_lock_available(test, container)) {
 +				goto done;
 +			}
 +		}
@@ -2824,7 +2860,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +					!= (budget == 127 ? AO2_BOUNDED_LIMIT : AO2_BOUNDED_COMPLETE)
 +					|| result.buckets != 1 || result.nodes != budget
 +					|| result.objects != budget - 64 || visit.seen != budget - 64
-+					|| visit.bad_reference || destroyed != 64 || ao2_container_count(container) != 64) {
++					|| visit.bad_reference || destroyed != 64 || ao2_container_count(container) != 64
++					|| bounded_lock_available(test, container)) {
 +					goto done;
 +				}
 +			}
@@ -2835,7 +2872,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +	if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
 +		!= AO2_BOUNDED_LIMIT || result.status != AO2_BOUNDED_LIMIT
 +		|| result.buckets || result.nodes || result.objects || visit.seen || visit.bad_reference
-+		|| destroyed != 65 || ao2_container_count(container) != 64) {
++		|| destroyed != 65 || ao2_container_count(container) != 64
++		|| bounded_lock_available(test, container)) {
 +		goto done;
 +	}
 +	limits.max_objects = 64;
@@ -2845,7 +2883,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +			!= AO2_BOUNDED_INTERNAL || result.status != AO2_BOUNDED_INTERNAL
 +			|| result.buckets != 1 || result.nodes != 2 * invalid_positions[i]
 +			|| result.objects != invalid_positions[i] || visit.seen != invalid_positions[i]
-+			|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64) {
++			|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64
++			|| bounded_lock_available(test, container)) {
 +			goto done;
 +		}
 +	}
@@ -2853,7 +2892,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +	if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
 +		!= AO2_BOUNDED_LIMIT || result.status != AO2_BOUNDED_LIMIT
 +		|| result.buckets != 1 || result.nodes != 128 || result.objects != 64 || visit.seen != 64
-+		|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64) {
++		|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64
++		|| bounded_lock_available(test, container)) {
 +		goto done;
 +	}
 +	for (i = 0; i < ARRAY_LEN(abort_positions); ++i) {
@@ -2862,7 +2902,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +			!= AO2_BOUNDED_ABORTED || result.status != AO2_BOUNDED_ABORTED
 +			|| result.buckets != 1 || result.nodes != 2 * abort_positions[i]
 +			|| result.objects != abort_positions[i] || visit.seen != abort_positions[i]
-+			|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64) {
++			|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64
++			|| bounded_lock_available(test, container)) {
 +			goto done;
 +		}
 +	}
@@ -2871,7 +2912,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +	if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
 +		!= AO2_BOUNDED_COMPLETE || result.status != AO2_BOUNDED_COMPLETE
 +		|| result.buckets != 1 || result.nodes != 128 || result.objects != 64 || visit.seen != 64
-+		|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64) {
++		|| visit.bad_reference || destroyed != 65 || ao2_container_count(container) != 64
++		|| bounded_lock_available(test, container)) {
 +		goto done;
 +	}
 +	while (initialized) {
@@ -2885,7 +2927,8 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +		if (ao2_container_visit_bounded_v1(container, &limits, bounded_owned_visit, &visit, &result)
 +			!= expected || result.status != expected || result.buckets != 1
 +			|| result.nodes != i || result.objects != i || visit.seen != i || visit.bad_reference
-+			|| destroyed != 65 || ao2_container_count(container) != 64 || ao2_ref(container, 0) != 1) {
++			|| destroyed != 65 || ao2_container_count(container) != 64 || ao2_ref(container, 0) != 1
++			|| bounded_lock_available(test, container)) {
 +			goto done;
 +		}
 +	}
@@ -3020,6 +3063,9 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +			ast_test_status_update(test, "Distributed bucket-budget preflight failed\n");
 +			goto done;
 +		}
++		if (bounded_lock_available(test, container)) {
++			goto done;
++		}
 +	}
 +	for (i = 0; i < ARRAY_LEN(cases); ++i) {
 +		struct ao2_bounded_limits limits = { 1, 64, cases[i].max_nodes, cases[i].max_objects };
@@ -3039,6 +3085,9 @@ index 0000000000000000000000000000000000000000..722de3ee0a2bd4aebe1e3ef909bc7661
 +			|| ao2_container_count(container) != 64 || ao2_ref(container, 0) != 1) {
 +			ast_test_status_update(test, "Callback-work matrix failed at bucket %u distributed=%d case %u\n",
 +				bucket, distributed, i);
++			goto done;
++		}
++		if (bounded_lock_available(test, container)) {
 +			goto done;
 +		}
 +	}

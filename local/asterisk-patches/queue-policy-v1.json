@@ -4,7 +4,7 @@
   "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
   "upstreamTag": "22.11.0",
   "patch": "queue-policy-v1.patch",
-  "patchSha256": "6731d287b12659f16a8c967ace3d0b1c7efe376004c6058e441b3fbfe071aecd",
+  "patchSha256": "9ef837cbe49a2060b8a713999ad12a12c294b49593736f17bb54ca7b68605b66",
   "stage": "gate-a-source-candidate",
   "nativeCompiled": false,
   "nativeTestsExecuted": false,
@@ -81,7 +81,7 @@
     {
       "path": "tests/test_bounded_queue_policy.c",
       "beforeSha256": null,
-      "afterSha256": "fcb9387429222c72c1d88c416e221d697bfea338394f4ee0288e09de94031da2"
+      "afterSha256": "c06d0bb8f5f64be68bd59a6098475e71871464e798130d2dcc194bb6e6284857"
     },
     {
       "path": "tests/test_protected_cli_target.c",

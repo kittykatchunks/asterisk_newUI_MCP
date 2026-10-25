@@ -453,6 +453,10 @@ require exact leading-empty-bucket accounting, with the inventory unchanged.
 The [distributed hard-ceiling extension](./PROJECT-PLAN.md#gate-a-distributed-hard-ceilings-inventory-unchanged-still-unexecuted)
 adds one object per bucket at 64 buckets/64 objects and a 63-bucket preflight
 rejection, bringing the same definition to 33 source walk schedules.
+The [independent lock-exit probes](./PROJECT-PLAN.md#gate-a-independent-lock-exit-probes-inventory-unchanged-still-unexecuted)
+require a foreign thread to try-lock/unlock the actual container after all
+49 mixed-node/callback-matrix walks, detecting recursive-lock leaks that
+same-thread retries could hide. The 30-definition inventory is unchanged.
 **Twelve package tests pass**; exact application and all nine source postimages
 match. Those checks do not prove C compilation,
 native behavior, measured latency or lifecycle acceptance. Shutdown, recursive

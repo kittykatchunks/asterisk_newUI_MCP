@@ -3695,6 +3695,47 @@ No dependency install, native compile/test, image build, module load or PBX
 operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
 M1-09 remain open.
 
+##### Gate A independent lock-exit probes: inventory unchanged, still unexecuted
+
+Every successful assertion in the mixed-node fixture's **16 walks** and the
+callback-work fixture's **33 walks** now starts a separate lock-probe thread
+before the next fixture action. The inventory remains **30 uncompiled/
+unexecuted native definitions**; only the existing controller postimage changes
+within the same nine-path package.
+
+The private probe performs one `ao2_trylock` on the **actual measured
+container**, and unlocks only if acquisition succeeded. The controller joins
+that thread and requires both acquisition and unlock success; thread-creation
+failure or either lock error is explicitly reported. No sleeping, repeated
+polling, blocking container acquisition, replacement mutex or caller-side
+unlock is used to make the assertion pass. The container and stack-owned
+probe state remain alive until join.
+
+This addresses a limitation of same-thread recovery: AO2 mutexes may be
+recursive, so another walk on the original thread could succeed despite an
+unbalanced held lock. A foreign thread must instead acquire the mutex before
+each asserted exit is considered clean. On the full fixture path this
+specifies **49 independent acquisition/unlock probes**, spanning completion,
+object/bucket/node limits, abort and invalid-visitor outcomes, mixed retained
+nodes and release recovery, sparse collision chains and distributed buckets.
+Probes occur after bounded traversal returns, outside its work budget.
+
+These assertions narrow AT-02/AT-06/AT-07 lock-cleanup source gaps; they do not
+count all internal lock attempts, cover lock-wrapper failures, prove no other
+lock is leaked, or establish native latency/profile/concurrency behavior.
+The existing cross-thread busy-container fixture is unchanged. A lock safety
+regression can still make later cleanup hang, so separately approved serialized
+disposable execution and an external watchdog/resource cap remain mandatory.
+All native/AT/QO acceptance remains open.
+
+**Twelve package tests pass**, with JavaScript syntax, whitespace and added
+documentation links checked. Seven exact preimages/application dry run and
+all nine independently applied postimages match; the other eight postimages
+are unchanged. Both named scratch directories are removed after verification.
+No dependency install, native compile/test, image build, module load or PBX
+operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
+M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:
