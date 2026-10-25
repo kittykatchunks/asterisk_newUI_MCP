@@ -1,17 +1,20 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { openCelHistory, type CelEvent } from "../../src/cel-history.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const parent = join(root, ".local-proof", "cel-history");
+const args = process.argv.slice(2);
+if (args.length > 1 || (args.length === 1 && args[0] !== "--recovery")) throw new Error("Only --recovery is supported");
+const recovery = args[0] === "--recovery";
+const parent = join(root, ".local-proof", recovery ? "cel-collector" : "cel-history");
 await mkdir(parent, { recursive: true });
 const directory = await mkdtemp(join(parent, "run-"));
-const project = `asterisk-history-${basename(directory).slice(4).toLowerCase()}`;
+const project = `asterisk-${recovery ? "collector" : "history"}-${basename(directory).slice(4).toLowerCase()}`;
 const database = join(directory, "history.sqlite");
 const compose = ["compose", "--project-name", project,
   "-f", join(root, "compose.yaml"), "-f", join(root, "compose.sip-proof.yaml"),
@@ -25,16 +28,33 @@ async function docker(args: string[], timeout = 30000) {
   });
   return result.stdout.trim();
 }
-async function cli(args: string[]) {
-  const result = await execute(process.execPath, [join(root, "scripts", "Manage-CelHistory.ts"), ...args],
+async function cli(args: string[], script = "Manage-CelHistory.ts") {
+  const result = await execute(process.execPath, [join(root, "scripts", script), ...args],
     { cwd: root, timeout: 10000, maxBuffer: 2 * 1024 * 1024 });
   return result.stdout.trim();
+}
+const collector = (args: string[]) => cli(args, "Manage-CelCollector.ts");
+async function freshSnapshot(customer: string) {
+  const encoded = await docker(["exec", "-T", customer, "python3", "-B", "-c",
+    "import base64; from pathlib import Path; print(base64.b64encode(Path('/var/log/asterisk/cel-custom/Master.csv').read_bytes()).decode())"]);
+  return Buffer.from(encoded, "base64");
+}
+async function calls() {
+  // Wait for both bounded probes before cleanup, including when either fails.
+  const results = await Promise.allSettled(["sip-test-a", "sip-test-b"].map((tester) =>
+    docker(["run", "--rm", "--no-deps", "-T", tester], 30000)));
+  for (const call of results) {
+    if (call.status === "rejected") throw call.reason;
+    assert.match(call.value, /PASS authenticated call, PCMU negotiation, and \d+\/100 distinct RTP frames echoed/);
+    assert.match(call.value, /PASS other customer credentials rejected/);
+  }
 }
 let failed: unknown;
 let composeAttempted = false;
 const evidence: Record<string, unknown>[] = [];
 const report: Record<string, unknown> = { passed: false, project, customers: evidence,
-  scope: "operator-only CEL evidence; no business journey/outcome reconstruction",
+  scope: recovery ? "operator local-file collector interruption/replay and explicit unknown-coverage replacement; synthetic CEL snapshots" :
+    "operator-only CEL evidence; no business journey/outcome reconstruction",
   asteriskImage: "andrius/asterisk:22.11.0_debian-trixie@sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d" };
 try {
   const template = await readFile(join(root, "local", "sip", "endpoint.conf.template"), "utf8");
@@ -50,18 +70,9 @@ try {
     assert.equal(await docker(["exec", "-T", customer, "python3", "-B", "-c",
       "import time; print(time.strftime('%z'))"]), "+0000", "Proof CEL time basis must be UTC");
   }
-  // Wait for both bounded probes before cleanup, including when either fails.
-  const calls = await Promise.allSettled(["sip-test-a", "sip-test-b"].map((tester) =>
-    docker(["run", "--rm", "--no-deps", "-T", tester], 30000)));
-  for (const call of calls) {
-    if (call.status === "rejected") throw call.reason;
-    assert.match(call.value, /PASS authenticated call, PCMU negotiation, and \d+\/100 distinct RTP frames echoed/);
-    assert.match(call.value, /PASS other customer credentials rejected/);
-  }
+  await calls();
   for (const customer of customers) {
-    const encoded = await docker(["exec", "-T", customer, "python3", "-B", "-c",
-      "import base64; from pathlib import Path; print(base64.b64encode(Path('/var/log/asterisk/cel-custom/Master.csv').read_bytes()).decode())"]);
-    const snapshot = Buffer.from(encoded, "base64");
+    const snapshot = await freshSnapshot(customer);
     const input = join(directory, customer, "snapshot.csv");
     await writeFile(input, snapshot);
     const source = { customer, source: `pbx-${customer}`, generation: project, timeBasis: "UTC" };
@@ -113,6 +124,84 @@ try {
       assert.equal(sources.sources[0].source, `pbx-${customer}`);
     }
   } finally { reopened.close(); }
+  if (recovery) {
+    const recoveryEvidence: Record<string, unknown>[] = [];
+    report.recovery = recoveryEvidence;
+    for (const customer of customers) {
+      const source = `pbx-${customer}`;
+      const input = join(directory, customer, "snapshot.csv");
+      await collector(["configure", database, customer, source, project, "UTC", input, "1000"]);
+      const initial = JSON.parse(await collector(["collect", database, customer, source]));
+      assert.equal(initial.result.inserted, 0);
+      assert.equal(initial.status.status, "healthy");
+    }
+    // Collection processes have exited; durable PBX CEL grows without ingestion.
+    await calls();
+    for (const customer of customers) {
+      const source = `pbx-${customer}`;
+      const input = join(directory, customer, "snapshot.csv");
+      const before = JSON.parse(await collector(["status", database, customer, source]));
+      assert.equal(before.status, "stale");
+      assert.equal(before.checkpoint.records, 6);
+      const snapshot = await freshSnapshot(customer);
+      await writeFile(input, snapshot);
+      const resumed = JSON.parse(await collector(["collect", database, customer, source]));
+      assert.equal(resumed.result.inserted, 6);
+      assert.equal(resumed.status.checkpoint.records, 12);
+      assert.equal(resumed.status.status, "healthy");
+      const replay = JSON.parse(await collector(["collect", database, customer, source]));
+      assert.equal(replay.result.inserted, 0);
+      const preserved = openCelHistory(database, { readOnly: true });
+      let originalEvents: CelEvent[];
+      try {
+        originalEvents = preserved.read({ customer, source, generation: project }).events;
+        assert.deepEqual(Buffer.from(originalEvents.map((event) => event.rawRecord).join("")), snapshot);
+        const correlations = originalEvents.filter((event) => event.event === "PROOF_SIP_DIALOG");
+        assert.equal(correlations.length, 2);
+        assert.notEqual(correlations[0].uniqueid, correlations[1].uniqueid);
+        for (const correlation of correlations) {
+          const channel = preserved.read({ customer, source, generation: project, uniqueid: correlation.uniqueid });
+          for (const event of ["CHAN_START", "ANSWER", "HANGUP", "CHAN_END"]) {
+            assert.equal(channel.events.filter((item) => item.event === event).length, 1);
+          }
+        }
+      } finally { preserved.close(); }
+      await rename(input, input + ".saved");
+      await assert.rejects(collector(["collect", database, customer, source]));
+      const missing = JSON.parse(await collector(["status", database, customer, source]));
+      assert.equal(missing.status, "unhealthy");
+      assert.equal(missing.failure, "source-unavailable");
+      const replacement = Buffer.from(snapshot.subarray(snapshot.indexOf(10) + 1));
+      await writeFile(input, replacement);
+      await assert.rejects(collector(["collect", database, customer, source]));
+      const changed = JSON.parse(await collector(["status", database, customer, source]));
+      assert.equal(changed.failure, "prefix-discontinuity");
+      assert.equal(changed.checkpoint.records, 12);
+      const generation = `${project}-replacement`;
+      const transition = JSON.parse(await collector(["transition", database, customer, source, generation,
+        "synthetic-proof-operator", "Synthetic source replacement; continuity cannot be established"]));
+      const recovered = JSON.parse(await collector(["collect", database, customer, source]));
+      assert.equal(recovered.status.status, "healthy");
+      assert.equal(recovered.status.gapCount, 1);
+      assert.equal(recovered.status.coverage, "unknown-gap-recorded");
+      const gaps = JSON.parse(await collector(["gaps", database, customer, source, "0", "100"]));
+      assert.equal(gaps.gaps.length, 1);
+      assert.equal(gaps.gaps[0].id, transition.gapId);
+      const verify = openCelHistory(database, { readOnly: true });
+      try {
+        assert.deepEqual(verify.read({ customer, source, generation: project }).events, originalEvents);
+        assert.throws(() => verify.collectionGaps(customer === "customer-a" ? "customer-b" : "customer-a", source), /not found/);
+      } finally { verify.close(); }
+      recoveryEvidence.push({ customer, staleBeforeRestart: before.status,
+        absentCollectorMs: before.ageMs, beforeRecords: 6, replayedRecords: resumed.result.inserted,
+        afterRecords: 12, duplicateReplayInserted: replay.result.inserted, exactRawRoundTrip: true,
+        missingSourceFailure: missing.failure, replacementFailure: changed.failure,
+        replacementGeneration: generation, replacementRecords: recovered.result.inserted,
+        gapId: transition.gapId, persistentCoverage: recovered.status.coverage,
+        previousGenerationPreserved: true, foreignGapReadDenied: true });
+      console.log(`PASS ${customer}: stale collector resumed 6 retained records exactly once; missing/replaced source failed; healthy recovery retained unknown gap`);
+    }
+  }
   report.passed = true;
 } catch (error) {
   failed = error;

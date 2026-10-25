@@ -1,6 +1,6 @@
-import { open } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { CEL_SNAPSHOT_LIMIT, openCelHistory } from "../src/cel-history.ts";
+import { openCelHistory } from "../src/cel-history.ts";
+import { readCelSnapshot } from "../src/cel-collector.ts";
 
 const [action, database, customer, ...args] = process.argv.slice(2);
 const usage = "Usage: node scripts\\Manage-CelHistory.ts <import|sources|events|channel> <absolute-dedicated-database> <customer> " +
@@ -16,17 +16,7 @@ try {
   if (action === "import") {
     const [source, generation, timeBasis, path] = args;
     if (!isAbsolute(path)) throw new Error(usage);
-    const file = await open(path, "r");
-    try {
-      const bytes = Buffer.alloc(CEL_SNAPSHOT_LIMIT + 1);
-      let length = 0;
-      while (length < bytes.length) {
-        const read = await file.read(bytes, length, bytes.length - length, null);
-        if (!read.bytesRead) break;
-        length += read.bytesRead;
-      }
-      result = store.ingest({ customer, source, generation, timeBasis }, bytes.subarray(0, length));
-    } finally { await file.close(); }
+    result = store.ingest({ customer, source, generation, timeBasis }, await readCelSnapshot(path));
   } else if (action === "sources") {
     if (!/^[1-9][0-9]*$/.test(args[2]) || (args[0] === "-") !== (args[1] === "-")) throw new Error(usage);
     result = store.sources(customer, args[0] === "-" ? undefined : { source: args[0], generation: args[1] }, Number(args[2]));

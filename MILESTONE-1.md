@@ -768,7 +768,7 @@ The subsequent M1-10 local conventional-route result is recorded below; the othe
 | M1-04 | Frozen synthetic REFER transaction/media matrix. | Actual agent mute, hold/resume, receiver-verified keypad and authorised endpoint transfer controls. |
 | M1-05 | Session/device exclusivity, release/expiry, provisioning/registration fixtures. | Live queue offers after endpoint move and historical attribution across the move; no phone activation is implied by reservations. |
 | M1-06 | Fresh CEL/queue/WAV records and restart checks; transfer correlations in fixtures. Subsequent HF foundation adds durable operator-only CEL import, exact replay/reopen and scoped channel evidence reads. | Durable application ingestion/history for all four outcomes with journey/leg/queue-visit accounting after restart; HF does not reconstruct journeys or queue visits. |
-| M1-07 | Durable source logs and isolated AMI status outage tests. | History collector checkpoints/replay, deduplication and explicit stale/unrecoverable-gap reporting; AMI health is not history replay. |
+| M1-07 | Durable source logs and isolated AMI outage tests; subsequent CR operator local-file recovery adds atomic checkpoints/status, exact replay, explicit stale/failure states and permanent unknown-coverage generation gaps. | Production/remote collector lifecycle, automatic segmented/rotated sources, complete history/queue integration and acceptance against full M1-07 wording; local copied-file health is not remote source freshness. |
 | M1-08 | Synthetic WAV payload/format checks and unchanged hashes across restart. | Journey-linked authorised playback and recording upload failure/recovery workflow. |
 | M1-09 | Revision/approval patterns for diagnostic reports and narrow provisioning. | Route/queue configuration publication, runtime verification and external-edit drift handling; report approval is not PBX publication. |
 | M1-10 | Subsequent isolated real outage proof passes MO-01 through MO-06 below: 60-second media continuity and new authenticated echo calls with management stopped. | Local conventional echo-route scope only; no queue/agent, public trunk or production failover claim. |
@@ -907,6 +907,68 @@ This is partial evidence toward M1-06, not completion of M1-06/07 or another bro
 milestone gate. The 17 remaining M1 gaps are unchanged. Do not use linked-ID or
 channel counts as inbound-journey totals. No automatic collector, queue/outcome
 reconstruction, HTTP/UI, phone activation or REFER rerun was added.
+
+### Selected next increment: operator collector recovery
+
+The user selected operator-only local-file collection and explicit gap-recorded
+replacement. Keep HF limits and source/customer/generation scoping; no HTTP/UI,
+phone activation, queue ingestion or journey reconstruction is authorised.
+
+| Check | Finite required evidence |
+|---|---|
+| CR-01 | Persist operator-configured local absolute source path, customer/source/generation, time basis and freshness threshold in the dedicated CEL store. Migrate schema 1 atomically without changing existing evidence; read-only tools remain able to read schema 1/2. |
+| CR-02 | Explicit collection passes read bounded local file bytes and reuse exact-prefix ingestion. Commit checkpoint/evidence and successful collection status atomically; failures never advance checkpoints and fail the command. An optional bounded foreground run repeats passes without leaving a background service. |
+| CR-03 | Persist attempt/success timestamps, failure code and pending bytes. Read-only status distinguishes never-collected, collecting (attempt recorded, not process liveness), unhealthy, stale, pending, healthy and clock-skew. Exact freshness expiry is stale; healthy means recently observed source, never completeness. |
+| CR-04 | Fence asynchronous attempts with durable revisions; superseded replies, failed writers and old-generation work cannot overwrite newer evidence/status. Process death leaves an unfinished attempt that becomes stale; restart replays retained records without duplicates. |
+| CR-05 | Missing/unreadable/oversized/malformed source and changed/truncated consumed prefix are explicit failures. No automatic reset, rotation adoption or success-shaped empty fallback. Earlier evidence stays readable. |
+| CR-06 | Operator-only transition requires a fresh generation, operator reference and reason; atomically retain an immutable unknown-coverage gap marker with previous last-success/observation times and both generations. This is not an exact missing-call interval. Future healthy collection never erases gaps. Customer-scoped bounded gap reads and status expose them. |
+| CR-07 | Typecheck and focused tests cover migration, freshness boundaries, skew, pending tails, malformed inputs, fail/retry, concurrency fencing, transaction rollback, restart/death and tenant isolation. |
+| CR-08 | Isolated real two-customer calls generate additional durable CEL while collection is absent; restarted collection reports staleness then imports retained records exactly once. Missing/replaced source failure and explicit gap-recorded recovery preserve old evidence. Retain measured non-secret results and clean owned services/credentials without REFER reruns. |
+
+The operator supplies source/customer association and supervises local-file
+availability. No scheduler, remote collector deployment, production segmentation,
+automatic rotation, trustworthy gap-free interval or complete M1-07 acceptance is
+claimed. Stop after CR-01 through CR-08 or an explicit blocker.
+
+#### Operator collector recovery evidence
+
+CR-01 through CR-08 pass for the selected operator-run local-file scope.
+Typecheck and 25 focused history/collector tests pass, including failed migration
+rollback and failed status/gap writes. Process-death evidence leaves a committed
+unfinished attempt that reads stale at exact expiry; restarted collection inserts
+only new retained records. Separate connections prove older completions/failures
+and old-generation work cannot overwrite current evidence/status.
+
+The real two-customer proof stops collection processes between calls. After the
+second calls, each source reads stale with six records still persisted; refreshing
+local snapshots and restarting collection imports six additional CEL records each.
+All twelve original records per customer round-trip exactly and another replay
+inserts zero. Both calls have separate named Call-ID correlations and full channel
+lifecycles. Missing local files and a deliberately discontinuous replacement fail
+without advancing checkpoints. Explicit generation transition allows eleven
+replacement records to import with recent healthy status while permanent
+unknown-coverage gaps and all twelve old-generation records remain visible.
+Foreign-customer gap reads are denied.
+
+The replacement fault is injected into copied local snapshots, not by destroying
+PBX logs. Last-success/observation bounds are not exact missing-call intervals.
+Healthy means recently read local source, not reliable remote delivery or complete
+history. See the [README command/status contract](./README.md#operator-run-cel-collector-recovery)
+and reproduce with `.\scripts\Test-CelCollectorProof.ps1`.
+The proof retains only a synthetic database/non-secret report while removing its
+owned Compose resources and generated credentials/snapshots.
+Final recorded run `run-xlF4Kd` (project `asterisk-collector-xlf4kd`) measured
+4,423/5,652 ms since last success before restarting a/b collection, against the
+1,000-ms proof threshold. Independent inspection found no owned containers,
+networks or volumes and only the database/report retained. Separate subsequent
+read-only commands verified stale status and persistent customer-scoped gaps.
+
+CEL schema 2 atomically adds collector/gap state; current read-only history tools
+still read schema 1/2, while collector operations require migration by a trusted
+writer. Other application stores and permissions are unchanged.
+This adds partial evidence toward M1-07, not full milestone acceptance. The 17
+remaining broad M1 gates remain incomplete; no phone, HTTP/UI, queue/journey
+reconstruction, remote collector deployment or REFER rerun was added.
 
 ## 6. Proposed implementation backlog
 

@@ -15,6 +15,145 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Operator-run CEL collector recovery
+
+The finite CR-01 through CR-08 increment adds **local-file, operator-run
+collection** on top of the CEL foundation. No HTTP/UI, permission, phone or
+production collector service is enabled. Configure one source explicitly, collect
+in one-shot passes or a bounded foreground run, and inspect durable status/gaps.
+The operator must make the correct customer's full CEL file available locally;
+this command does not fetch files remotely or discover customer identity.
+
+Example placeholders (Node.js 24, absolute local paths):
+
+```powershell
+node .\scripts\Manage-CelCollector.ts configure 'C:\proof\history.sqlite' customer-a pbx-a generation-1 UTC 'C:\proof\Master.csv' 30000
+node .\scripts\Manage-CelCollector.ts collect 'C:\proof\history.sqlite' customer-a pbx-a
+node .\scripts\Manage-CelCollector.ts run 'C:\proof\history.sqlite' customer-a pbx-a 1000 10
+node .\scripts\Manage-CelCollector.ts status 'C:\proof\history.sqlite' customer-a pbx-a
+node .\scripts\Manage-CelCollector.ts gaps 'C:\proof\history.sqlite' customer-a pbx-a 0 100
+```
+
+`configure` binds source ID, customer, generation, time basis, absolute local path
+and freshness threshold (1,000-86,400,000 ms). Repeating identical configuration is
+idempotent; changing customer/path/time basis/threshold is not supported for that
+collector. Use stable paths; only generation can transition explicitly.
+`run` accepts a 100-60,000 ms interval and 1-1,000 passes, waits between completed
+passes and exits after the requested count. It is a foreground command, not an
+installed scheduler/service. Any failed pass fails the command immediately; no
+silent retry loop, detached helper or background work remains after completion.
+
+Each pass durably starts a revision-fenced attempt, reads at most the existing
+8-MiB snapshot limit, then commits new CEL records, prefix checkpoint and success
+status in **one transaction**. Complete retained records are replayed exactly once
+after interruption. A slower superseded attempt or old-generation reply cannot
+overwrite newer status/evidence. Failure records `source-unavailable`,
+`prefix-discontinuity` or `collection-failed`, preserves the checkpoint and exits
+nonzero. If failure status itself cannot be persisted, the command reports both
+errors rather than pretending health was recorded. An unfinished attempt after
+process death becomes stale; a later explicit pass can recover from the original
+checkpoint. The original import/read byte/record/page limits still apply.
+
+Status is read-only and returns attempt-start/success/update timestamps (Unix
+epoch milliseconds), current outcome/failure, pending bytes, last-success age,
+checkpoint, gap count and coverage:
+
+| Status | Meaning |
+|---|---|
+| `never-collected` | Configured generation has not had a collection attempt. |
+| `collecting` | An unfinished attempt was recorded less than the threshold ago; **not** proof that its process is alive. |
+| `unhealthy` | The latest completed attempt failed; failure remains explicit regardless of age. |
+| `stale` | Last success, or an unfinished attempt, reached the freshness threshold. Exact equality is stale. |
+| `pending` | Recent successful read left an unfinished trailing CSV record; it was not inserted. |
+| `healthy` | A recent successful read ended on a record boundary; **not** a complete-history or gap-free assertion. |
+| `clock-skew` | Current wall clock precedes the last durable update; writes also reject backwards timestamps. |
+
+Thresholds use the operator host's wall clock so freshness survives restart.
+No heartbeat is fabricated during downtime. Forward clock changes may age status;
+backwards changes are exposed instead of yielding fresh health. Health observes
+the **configured local file**, not remote PBX/transfer freshness; a stale copied
+file can be read successfully. The operator must supervise file delivery and
+clock/time-basis correctness. Read-only status does not mutate stored outcomes.
+
+### Explicit source replacement and unknown-coverage gaps
+
+Missing files, malformed/oversized records and changed/truncated consumed prefixes
+never reset a checkpoint or automatically adopt rotation. If the original durable
+file is available, restore it at the configured path and collect its retained
+records. If continuity cannot be established, an explicit operator decision is
+required:
+
+```powershell
+node .\scripts\Manage-CelCollector.ts transition 'C:\proof\history.sqlite' customer-a pbx-a generation-2 'operator-reference' 'Original source unavailable; replacement continuity unknown'
+node .\scripts\Manage-CelCollector.ts collect 'C:\proof\history.sqlite' customer-a pbx-a
+node .\scripts\Manage-CelCollector.ts gaps 'C:\proof\history.sqlite' customer-a pbx-a 0 100
+```
+
+The new generation must never have been used for that source. Transition and an
+append-only gap marker commit atomically, fencing old attempts. The marker
+preserves both generations, previous last-success time (nullable), observation
+time, operator reference and reason. Those are **collection observation bounds**,
+not a known missing-call interval or call-loss count. Even a voluntary transition
+records unknown coverage; it does not assert data was definitely lost. Old evidence
+stays readable by its previous generation. A later healthy pass cannot remove the
+marker: `gapCount` stays positive and `coverage` remains `unknown-gap-recorded`
+(otherwise coverage is only `unverified`, never `complete`).
+
+Gap reads are customer/source scoped and return `{gaps,nextAfterId}`; pass the
+cursor in place of `0` until null. Pages contain 1-200 entries. Operator/reason
+are bounded single-line references, not authentication or tamper-proof auditing.
+This CLI and database remain trusted operator resources; their scope filters are
+not a tenant-login authorisation boundary. Paths and raw CEL can be sensitive.
+Restrict filesystem access and do not publish CLI output as a redacted export.
+
+CEL schema **2** adds collector and gap tables in the same dedicated database.
+A trusted writable open atomically migrates schema 1, preserving original events
+and checkpoints. Current history read commands support schema 1/2 read-only;
+collector reads require schema 2 and otherwise instruct migration with a writer.
+Old schema-1-only binaries reject the upgraded database. Diagnostic, agent and
+simulation schemas/backups are unchanged; production backup for CEL remains open.
+
+### Collector recovery verification
+
+```powershell
+.\scripts\Test-CelCollectorProof.ps1
+```
+
+This runs typecheck, **25 focused history/collector tests**, and the isolated
+two-customer real proof. Tests include schema migration/failed-migration rollback,
+freshness expiry/skew, pending tails, missing/malformed/oversized/truncated files,
+fenced competing attempts, atomic status/evidence rollback, gap persistence,
+bounded foreground CLI runs and process-death restart.
+
+The real proof first persists six records per customer. Collection CLI processes
+exit while a second real call per customer grows durable PBX CEL. It checks actual
+stale status, refreshes each operator-supplied local snapshot, and restarts
+collection: six additional records are inserted per customer, twelve original
+records round-trip exactly, and another replay inserts zero. Both Call-ID/channel
+lifecycles remain distinct and correlated.
+
+It then removes each local source to prove durable failure, replaces it with a
+prefix-discontinuous snapshot to prove rejection, and explicitly transitions
+generation. The replacement imports eleven records; healthy status retains an
+unknown-coverage gap, all twelve old-generation records remain unchanged, and
+foreign-customer gap reads fail. The proof does **not** deliberately lose a real
+PBX record: replacement is injected in the local copied snapshot and coverage is
+truthfully unknown rather than asserting a measured production loss interval.
+
+Each run prints an ignored `.local-proof\cel-collector\run-...\result.json` path.
+The synthetic database/report are retained; owned containers, networks, volumes
+and generated credential/snapshot directories are cleaned on pass/failure.
+Final recorded run `run-xlF4Kd` (project `asterisk-collector-xlf4kd`) observed
+last-success ages of **4,423 ms** and **5,652 ms** before restart, exceeding the
+proof's 1,000-ms freshness threshold. All recovery assertions passed for both
+customers. Independent checks found no owned containers/networks/volumes and only
+the synthetic database/report in its directory. Subsequent read-only CLI processes
+still returned stale status and the permanent scoped gap after cleanup.
+No shared services, REFER checks or phones are touched. This completes only the
+operator recovery contract, **not full M1-07**, remote collection deployment,
+automatic rotation/segmentation, queue/journey reconstruction or production
+availability/retention/backup.
+
 ## Operator-only durable CEL history foundation
 
 The finite HF-01 through HF-08 foundation is implemented in
@@ -58,9 +197,10 @@ segmented collection workflow, not a silent reset of this checkpoint.
 ### Operator commands
 
 Use Node.js 24 and **absolute paths** to a dedicated database and stable copied
-snapshot. Do not use the diagnostic, agent or simulation database. Import is the
-only writer; read commands require an existing supported database and open it
-read-only. Example paths below are placeholders:
+snapshot. Do not use the diagnostic, agent or simulation database. Raw import is
+the foundation writer (collector operations above also write); read commands
+require an existing supported database and open it read-only. Example paths below
+are placeholders:
 
 ```powershell
 node .\scripts\Manage-CelHistory.ts import 'C:\proof\history.sqlite' customer-a pbx-a generation-1 UTC 'C:\proof\Master.csv'
@@ -123,7 +263,9 @@ subsequent operator CLI process successfully read the retained source checkpoint
 This is **channel evidence**, not reconstructed business journeys. No answered,
 unanswered, abandoned or transferred outcome classification, queue visits,
 journey totals, browser/history HTTP route, recording association, continuous
-collector, replay-health/gap reporting or production recovery claim is added.
+collector, replay-health/gap reporting or production recovery claim was added by
+the initial HF increment. The subsequent CR increment above adds operator-only
+collection and explicit recovery status/gaps without completing those broader gates.
 See the [finite HF contract](./MILESTONE-1.md#selected-next-increment-operator-only-durable-cel-foundation).
 
 ## Isolated management-outage continuity proof

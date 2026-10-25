@@ -559,6 +559,43 @@ collector replay/health/gap reporting, authenticated HTTP/UI and production
 retention/backup are separate work. Live phones remain disabled.
 Stop at this verified foundation rather than automatically growing its scope.
 
+### Operator collector recovery completion
+
+The user selected operator-run local-file collection with explicit gap-recorded
+replacement. CR-01 through CR-08 now add durable collector configuration,
+attempt/success/failure status, freshness and gap queries alongside atomic CEL
+checkpoints. One-shot passes or a bounded foreground run collect local files;
+they do not install a service, fetch remote logs, expose HTTP/UI or enable phones.
+Source/customer association remains a trusted operator responsibility.
+
+CEL schema 2 migrates the original evidence store atomically. Revision-fenced
+attempts prevent late/old-generation writes. New records, checkpoint and success
+status commit together; missing/malformed/oversized/discontinuous sources fail
+without checkpoint reset. Status exposes stale, unhealthy, pending and clock-skew
+rather than presenting an old success as fresh. An explicit fresh-generation
+transition records a permanent unknown-coverage gap with operator context and
+collection observation bounds; later healthy collection cannot erase it.
+
+Typecheck and 25 focused tests pass, covering migration rollback, exact freshness,
+process death/restart, malformed files, fencing, failed status/gap transactions
+and customer-scoped reads. The isolated real two-customer proof generates extra
+CEL while collection processes are absent, observes staleness, replays six new
+records per customer exactly once, and verifies all twelve original records.
+Missing/replaced local snapshot faults fail; explicit transition imports eleven
+replacement records while keeping old evidence and the unknown gap visible.
+The synthetic database/report remain local; owned services and generated
+credentials/snapshots are cleaned.
+
+Reproduce with `.\scripts\Test-CelCollectorProof.ps1`; see the
+[CR contract/evidence](./MILESTONE-1.md#selected-next-increment-operator-collector-recovery)
+and [operator command/status limits](./README.md#operator-run-cel-collector-recovery).
+No dependencies, application permissions or shared services were changed.
+This is partial M1-07 evidence, not full acceptance: local-file freshness is not
+remote PBX freshness, and automatic segmented rotation, production deployment,
+queue/journey history, retention/backup and authenticated presentation remain
+separate. Live phones remain disabled and REFER was not rerun.
+Stop after this finite verified increment.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:
