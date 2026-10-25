@@ -1,5 +1,5 @@
 diff --git a/apps/app_queue.c b/apps/app_queue.c
-index 73719a9d92f6acce41236abb1c0e6553e2e9b173..a12858b13b14bca5d230705edbbde74fb7018853 100644
+index 73719a9d92f6acce41236abb1c0e6553e2e9b173..cc373ef2f794d3f85ed9a249df547105c3c5f025 100644
 --- a/apps/app_queue.c
 +++ b/apps/app_queue.c
 @@ -107,6 +107,7 @@
@@ -10,7 +10,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..a12858b13b14bca5d230705edbbde74f
  
  /*!
   * \par Please read before modifying this file.
-@@ -12073,7 +12074,633 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
+@@ -12073,7 +12074,796 @@ static int qupd_exec(struct ast_channel *chan, const char *data)
  	return 0;
  }
  
@@ -286,6 +286,169 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..a12858b13b14bca5d230705edbbde74f
 +		ast_string_field_free_memory(q);
 +		ao2_ref(q, -1);
 +	}
++}
++
++struct policy_lock_fixture {
++	ast_mutex_t lock;
++	ast_cond_t condition;
++	struct call_queue *queue;
++	void *target;
++	int entered;
++	int release;
++	int lock_result;
++	int unlock_result;
++	int queue_probe;
++	int member_probe;
++	int probe_unlock;
++};
++
++static void *policy_lock_worker(void *data)
++{
++	struct policy_lock_fixture *fixture = data;
++
++	fixture->lock_result = ao2_lock(fixture->target);
++	ast_mutex_lock(&fixture->lock);
++	fixture->entered = 1;
++	ast_cond_signal(&fixture->condition);
++	while (!fixture->release) {
++		ast_cond_wait(&fixture->condition, &fixture->lock);
++	}
++	ast_mutex_unlock(&fixture->lock);
++	if (!fixture->lock_result) {
++		fixture->unlock_result = ao2_unlock(fixture->target);
++	}
++	fixture->queue_probe = ao2_trylock(fixture->queue);
++	if (!fixture->queue_probe) {
++		fixture->probe_unlock |= ao2_unlock(fixture->queue);
++	}
++	fixture->member_probe = ao2_trylock(fixture->queue->members);
++	if (!fixture->member_probe) {
++		fixture->probe_unlock |= ao2_unlock(fixture->queue->members);
++	}
++	return NULL;
++}
++
++static int policy_test_contention(struct ast_test *test, struct call_queue *q,
++	struct call_queue *prefix, int member_lock, int selected)
++{
++	struct policy_lock_fixture fixture = { .queue = q, .target = q };
++	struct policy_snapshot sample = { .namespace = "cp-aaaaaaaaaaaaaaaaaaaaaaaa" };
++	struct policy_snapshot before;
++	pthread_t worker;
++	int started = 0, failed = 1;
++
++	if (member_lock) {
++		fixture.target = q->members;
++	}
++	if (ast_mutex_init(&fixture.lock)) {
++		ast_test_status_update(test, "Could not initialize contention fixture mutex\n");
++		return 1;
++	}
++	if (ast_cond_init(&fixture.condition, NULL)) {
++		ast_test_status_update(test, "Could not initialize contention fixture condition\n");
++		ast_mutex_destroy(&fixture.lock);
++		return 1;
++	}
++	if (prefix && (policy_snapshot_visit(prefix, &sample) || sample.error
++		|| sample.count != 1 || strcmp(sample.rows[0].name, "proof-queue"))) {
++		goto done;
++	}
++	before = sample;
++	ast_string_field_set(q, name, selected
++		? "cp-aaaaaaaaaaaaaaaaaaaaaaaa-target" : "foreign-queue");
++	if (ast_pthread_create(&worker, NULL, policy_lock_worker, &fixture)) {
++		ast_test_status_update(test, "Could not start subordinate lock holder\n");
++		goto done;
++	}
++	started = 1;
++	ast_mutex_lock(&fixture.lock);
++	while (!fixture.entered) {
++		ast_cond_wait(&fixture.condition, &fixture.lock);
++	}
++	ast_mutex_unlock(&fixture.lock);
++	if (fixture.lock_result) {
++		goto done;
++	}
++	{
++		int response = policy_snapshot_visit(q, &sample);
++
++		if (!!response != selected || (selected
++			? !sample.error || strcmp(sample.error, "busy") : sample.error != NULL)
++			|| sample.count != before.count || memcmp(sample.rows, before.rows, sizeof(sample.rows))) {
++			goto done;
++		}
++	}
++	failed = 0;
++done:
++	if (started) {
++		ast_mutex_lock(&fixture.lock);
++		fixture.release = 1;
++		ast_cond_signal(&fixture.condition);
++		ast_mutex_unlock(&fixture.lock);
++		pthread_join(worker, NULL);
++		if (fixture.unlock_result || fixture.queue_probe || fixture.member_probe
++			|| fixture.probe_unlock) {
++			failed = 1;
++		}
++		if (!failed) {
++			sample = before;
++			ast_string_field_set(q, name, "cp-aaaaaaaaaaaaaaaaaaaaaaaa-target");
++			if (policy_snapshot_visit(q, &sample) || sample.error
++				|| sample.count != before.count + 1
++				|| memcmp(sample.rows, before.rows, before.count * sizeof(sample.rows[0]))
++				|| strcmp(sample.rows[before.count].name, q->name)
++				|| sample.rows[before.count].timeout != 2) {
++				failed = 1;
++			}
++		}
++	}
++	ast_cond_destroy(&fixture.condition);
++	ast_mutex_destroy(&fixture.lock);
++	if (failed) {
++		ast_test_status_update(test, "Subordinate contention failed: members=%d prefix=%d selected=%d\n",
++			member_lock, prefix != NULL, selected);
++	}
++	return failed;
++}
++
++AST_TEST_DEFINE(policy_snapshot_contention)
++{
++	struct call_queue *q = NULL, *prefix = NULL;
++	enum ast_test_result_state state = AST_TEST_FAIL;
++	int member_lock, with_prefix, selected;
++
++	switch (cmd) {
++	case TEST_INIT:
++		info->name = "policy_snapshot_contention";
++		info->category = "/apps/app_queue/policy_snapshot/";
++		info->summary = "Queue/member contention aborts without appending and releases acquired locks";
++		info->description = "Cross-thread holders/probes; selected/foreign, zero/one prior row and recovery.";
++		return AST_TEST_NOT_RUN;
++	case TEST_EXECUTE:
++		break;
++	}
++	q = policy_test_queue();
++	prefix = policy_test_queue();
++	if (!q || !prefix) {
++		ast_test_status_update(test, "Could not allocate private queue contention fixtures\n");
++		goto done;
++	}
++	ast_string_field_set(prefix, name, "proof-queue");
++	for (member_lock = 0; member_lock <= 1; ++member_lock) {
++		for (with_prefix = 0; with_prefix <= 1; ++with_prefix) {
++			for (selected = 0; selected <= 1; ++selected) {
++				if (policy_test_contention(test, q, with_prefix ? prefix : NULL,
++					member_lock, selected)) {
++					goto done;
++				}
++			}
++		}
++	}
++	state = AST_TEST_PASS;
++done:
++	policy_test_queue_free(prefix);
++	policy_test_queue_free(q);
++	return state;
 +}
 +
 +AST_TEST_DEFINE(policy_snapshot_selection)
@@ -644,7 +807,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..a12858b13b14bca5d230705edbbde74f
  	AST_CLI_DEFINE(queue_show, "Show status of a specified queue"),
  	AST_CLI_DEFINE(handle_queue_rule_show, "Show the rules defined in queuerules.conf"),
  	AST_CLI_DEFINE(handle_queue_add_member, "Add a channel to a specified queue"),
-@@ -12091,6 +12718,10 @@ static struct stasis_forward *topic_forwarder;
+@@ -12091,6 +12881,11 @@ static struct stasis_forward *topic_forwarder;
  
  static int unload_module(void)
  {
@@ -652,10 +815,11 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..a12858b13b14bca5d230705edbbde74f
 +	AST_TEST_UNREGISTER(policy_snapshot_selection);
 +	AST_TEST_UNREGISTER(policy_snapshot_values);
 +	AST_TEST_UNREGISTER(policy_snapshot_invalid_request);
++	AST_TEST_UNREGISTER(policy_snapshot_contention);
  	stasis_message_router_unsubscribe_and_join(agent_router);
  	agent_router = NULL;
  
-@@ -12317,6 +12948,10 @@ static int load_module(void)
+@@ -12317,6 +13112,11 @@ static int load_module(void)
  		unload_module();
  		return AST_MODULE_LOAD_DECLINE;
  	}
@@ -663,6 +827,7 @@ index 73719a9d92f6acce41236abb1c0e6553e2e9b173..a12858b13b14bca5d230705edbbde74f
 +	AST_TEST_REGISTER(policy_snapshot_selection);
 +	AST_TEST_REGISTER(policy_snapshot_values);
 +	AST_TEST_REGISTER(policy_snapshot_invalid_request);
++	AST_TEST_REGISTER(policy_snapshot_contention);
  	return AST_MODULE_LOAD_SUCCESS;
  }
  

@@ -2602,6 +2602,48 @@ install, native build/test, image build or PBX execution is authorized or
 performed. A's verified exit, Gates B/C, AT/QO acceptance, exact publication,
 full CP and M1-09 remain open.
 
+##### Gate A subordinate locks: twelve native definitions, still unexecuted
+
+The source candidate adds `policy_snapshot_contention` under `TEST_FRAMEWORK`,
+bringing its manifest inventory to **twelve native definitions** with matching
+registration pairs. The test is defined, **not compiled or executed**.
+
+Its eight source schedules combine queue/member-container lock targets,
+selected/foreign queue names and zero/one previously copied row. A separate
+worker holds the actual AO2 mutex and signals acquisition through a
+condition-variable barrier; there are no sleeps, same-thread recursive-lock
+contention substitutes or changes to queue names while the worker is active.
+For selected queues, the visitor must abort with `busy` without appending or
+changing any row, including a prior valid row. Foreign names must skip without
+attempting the held subordinate lock.
+
+After release, the worker tries both queue and member mutexes from its own
+thread and unlocks each successful probe. These cross-thread probes are
+intended to catch locks leaked by the reader, especially the queue lock
+acquired before a busy member-container lock. A same-thread recovery call
+alone would miss recursive-mutex leaks. Following join, a fresh selected visit
+must append exactly one row and preserve any prefix row. Queue/member fixtures
+stay private and unlinked globally; no member/device/config/channel or PBX
+activity is introduced.
+
+These assertions do not establish a wall-clock bound or real executed
+contention result. Native execution still requires the separately approved
+disposable test process with an external timeout: a regression that blocks
+instead of trying a lock can stall the fixture before it releases the holder.
+The test covers subordinate busy/release branches, not all unsupported-state/
+unlock-error paths, complete CLI protocol after partial sampling, lifecycle
+schedules, member-count ceilings or allocation/ref/debug instrumentation.
+
+**Ten package tests pass**, together with JavaScript syntax, whitespace and
+added documentation link checks. Seven exact pristine source preimages and
+application dry run pass; an independent source-only application matches all
+eight postimage hashes. Comparison with the previous candidate confirms
+`app_queue` changes only inside the test fixture block and registration calls;
+all seven other postimages are unchanged. Both named scratch directories are
+removed after checks. No dependency install, native build/test, image build or
+PBX execution occurred. A's verified exit, Gates B/C, AT/QO acceptance, exact
+publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

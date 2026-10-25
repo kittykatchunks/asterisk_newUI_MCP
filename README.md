@@ -394,10 +394,12 @@ runtime/Compose/inspector behavior is unchanged, and publication remains blocked
 
 The [AO2 coverage-source update](./PROJECT-PLAN.md#gate-a-coverage-increment-eight-native-definitions-still-unexecuted)
 added cross-thread contention, budget/unsupported-type matrices and ownership/
-abort checks. The subsequent [queue coverage update](./PROJECT-PLAN.md#gate-a-queue-coverage-eleven-native-definitions-still-unexecuted)
-brings the inventory to **eleven unexecuted native tests**, adding selection/
-name/row limits, effective value/count boundaries and exact malformed-request
-error bytes. Queue fixtures remain private and unlinked. **Ten package
+abort checks. The [queue coverage update](./PROJECT-PLAN.md#gate-a-queue-coverage-eleven-native-definitions-still-unexecuted)
+added selection/name/row limits, effective value/count boundaries and exact
+malformed-request error bytes. The subsequent [subordinate-lock update](./PROJECT-PLAN.md#gate-a-subordinate-locks-twelve-native-definitions-still-unexecuted)
+brings the inventory to **twelve unexecuted native tests**, defining real
+cross-thread queue/member contention, lock-release probes and recovery with
+zero/one prior row. Queue fixtures remain private and unlinked. **Ten package
 tests pass**; the validator also checks the native-test inventory against added
 definitions and registration pairs. Exact application/postimages are verified;
 production queue code is unchanged outside test fixtures/registration.

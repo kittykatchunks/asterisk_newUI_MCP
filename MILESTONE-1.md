@@ -2197,6 +2197,17 @@ match. Successful/error-after-sampling protocol, member ceilings, subordinate
 contention, lifecycle/profile schedules and native compilation/execution remain
 pending. A is not a verified exit; Gates B/C and AT/QO stay open.
 
+The subsequent [subordinate-lock coverage source](./PROJECT-PLAN.md#gate-a-subordinate-locks-twelve-native-definitions-still-unexecuted)
+brings the inventory to **twelve uncompiled/unexecuted native definitions**.
+One new test defines eight queue/member, selected/foreign and zero/one-prefix
+contention schedules, with real cross-thread holders and post-release probes
+to detect leaked reader locks without same-thread recursive-lock false
+positives. Recovery must append one row without changing the prefix.
+**Ten package tests pass**; exact preimages/application/postimages match and
+production implementation is unchanged outside test fixtures/registration.
+This does not pass native contention acceptance or open Gates B/C. Remaining
+protocol/lifecycle/profile coverage, native execution and all AT/QO stay open.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
