@@ -2911,6 +2911,73 @@ Both named scratch directories are removed after verification. No dependency
 install, native build/test, image build or PBX execution occurred. A's verified
 exit, Gates B/C, AT/QO, exact publication, full CP and M1-09 remain open.
 
+##### Gate A acceptance reconciliation: source coverage is not an exit
+
+This reconciliation applies to source candidate commit `4148a3e`, whose
+manifest lists **21 native definitions**, with no native compilation/execution.
+It adds no patch, test hook, dependency or runtime authority. Earlier sections
+record historical increments; the following matrix identifies current
+evidence and outstanding obligations, not passed acceptance checks.
+
+| Requirement | Current source assertions/evidence | Remaining before acceptance |
+|---|---|---|
+| AT-01 | `bounded_matrix`, `bounded_walk`, queue lock-kind/rejected-state fixtures cover argument/limit and actual unsupported container/lock kinds. | Instrument rejection-before-lock and wrapper behavior; compile/run all cases. |
+| AT-02 | `bounded_contention` uses a real cross-thread holder; queue contention/rejection fixtures probe original mutexes after reader return. | Exact acquisition/release counters, lock/unlock fault injection and nonrecursive-call/profile proof. |
+| AT-03 | `bounded_matrix` covers 1/53/64 buckets and 65-bucket preflight denial; retained-node fixtures deny empty-live shortcuts. | Owner-level zero-bucket inconsistency fixture and instrumented empty-chain step accounting without unsafe caller layout edits. |
+| AT-04 | `retained_nodes` defines actual empty retained-node cases at 127/128/129. | Execute with node-access/cleanup instrumentation to prove refusal before node 129 and no hidden cleanup walk. |
+| AT-05 | `bounded_walk` covers actual 64-object completion and 65-object preflight denial; `bounded_ownership` covers exact node limits. | Explicit 63-live-object case, mixed retained/live collisions, inconsistent live-count detection and comparator/hash-call instrumentation. |
+| AT-06 | `bounded_walk` checks invalid visitor return; `bounded_ownership` checks aborts at 1/32/64; queue protocol/status fixtures reject partial output. | Execute; exact ref/allocation/cursor/lock/mutation accounting on every exit. |
+| AT-07 | Ownership/destructor fixtures check selected object refs and fixture cleanup, including member-boundary destruction. | Node/container/object ref hooks, allocator/free/mutation hooks and retirement/unlink barriers. Current checks are not exhaustive instrumentation. |
+| AT-08 | Queue fixtures cover contention, selection/names, eight/nine rows, policy/count state, real member ceiling, actual traversal and exact JSON. | Exact 17-acquisition/visitor-work limits, no-backend/no-private-data instrumentation and actual handler/adapter integration. |
+| AT-09 | Lease, dispatch and completion definitions attempt all unload modes while callbacks are active; null-owner admission rejects. | All required lifecycle pause points, exact reader counts/release, denied admission, shutdown/start/unload-failure schedules and debug/ref/lock profile checks. |
+| AT-10 | Exact patch package/preimages/postimages and 11 JavaScript package tests are checked. | Native compile/link/tests, affected upstream regressions, full ABI-compatible runtime and immutable build/image/profile evidence. Package checks cannot substitute. |
+| QO-01 | Private CLI metadata/malformed-request fixtures, canonical name selection and source-owned command. | Real dispatch plus trusted adapter scope/authority checks and protocol negatives; CLI namespaces are not authentication. |
+| QO-02 | Private static/realtime/dead fixtures; borrowed visitor source; destructor/ownership assertions. | Instrument absence of loads/refreshes/file/DB/device/counter effects and every failure cleanup path. |
+| QO-03 | Lock-order source review, try-lock traversal and subordinate fixtures, active-callback unload veto assertions. | Deterministic retirement/replacement/lifetime schedules, exact lock/work/no-I/O accounting and native proof. |
+| QO-04 | `policy_snapshot_copy` uses timeout 2/7 and actual parser masks 0/35; value/protocol fixtures cover effective bounds. | Full condition-list/alias/unknown-bit/timer fixtures and owned loaded-versus-restored-disk proof. |
+| QO-05 | Selection, duplicate, foreign, row/count/list and actual member/traversal fixtures. | Expected/missing baseline-target comparison via host adapter; total-inventory bound integration and instrumented exposure checks. |
+| QO-06 | Exact responder/status/error bytes are asserted in native source. | Strict host 8 KiB parser/custom binding wiring and truncation/extra-stdout/unknown-field/mask/error-exit negatives with stock regressions. |
+| QO-07 | Source manifest pins the upstream commit, patch and file hashes, with honest false execution flags. | Gate B immutable dependency/builder/runtime/archive closure, licenses, ABI/module startup chain and enforced resources. No image/build manifest exists yet. |
+| QO-08 | No custom-runtime proof executed. Private fixtures are not two-customer isolation evidence. | Separately approved Gate C owned two-PBX proof and loaded/disk negative cases. |
+| QO-09 | Error-only response fixtures and source lifetime mechanisms; no publication authority added. | Outage/restart/concurrent-read/object-change/receipt-write failure schedules preserving prior evidence and uncertainty. |
+| QO-10 | Default stock runtime/inspector untouched; named source scratch cleaned after each published increment. | Focused stock regressions, custom full build/native functional/profile checks and owned runtime cleanup evidence. |
+
+**Critical lifecycle gap:** testing a callback while it is active does not
+prove the lease remains held through dispatcher usage/failure output and
+entry cleanup, nor that its final decrement happens exactly once. Successful
+unregister and `inuse == 0` do not measure `cli_readers`. The same tests do not
+prove denied admission when unload wins. These are safety prerequisites, not
+optional extra coverage to defer until after runtime enablement.
+
+**Next bounded A work:** design and review test-only synchronization and
+counters at the existing lookup-before-admission, admitted-before-handler,
+handler-before-output, output-before-entry-release and final-release points.
+The fixture needs a controller outside the unloadable target, explicit event
+ordering, exact admission/release/teardown counts and negative teardown-first
+schedules. Cover dispatch and completion without introducing a registry
+writer while a paused callback holds its read lock. Hooks must be disabled
+outside the native test profile, add no production CLI/public bypass and
+never allocate/wait/log inside the production bounded visitor. Define how
+the controller fails on missing events, joins workers and uses the external
+process watchdog. Do not unload executing test code to demonstrate success.
+If safe fixtures require broader source surfaces or changed production
+semantics, stop and obtain a scope decision before adding them.
+
+**Execution handoff remains blocked:** Gate B still needs immutable builder/
+runtime digests, exact package snapshot/versions/hashes and third-party archive
+closure, configure/menuselect/module and license manifests, a no-unrecorded-
+fetch command list, and enforceable CPU/memory/storage/time caps. Existing
+2 CPU/2 GiB/20 GiB/30-minute figures remain proposals, not approval or measured
+sufficiency; include the 65,536-object fixture and instrumented logging cost.
+Only an explicitly approved closed build environment may compile/run native
+tests. Gate C independently controls PBX proof after prerequisites. No new
+approval is inferred from this reconciliation or a plain continuation.
+
+No new tests are executed for this documentation-only increment; the recorded
+11 package passes and exact source checks belong to the preceding candidate.
+The patch and manifest remain unchanged. All AT/QO checks, A's verified exit,
+Gates B/C, exact publication, full CP and M1-09 remain open.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

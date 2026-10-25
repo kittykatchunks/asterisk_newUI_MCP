@@ -424,6 +424,13 @@ private and unlinked; request/traversal/locking logic is unchanged.
 This does not establish C compilation, native correctness or AT/QO acceptance;
 Gates B/C remain closed.
 
+The [acceptance reconciliation](./PROJECT-PLAN.md#gate-a-acceptance-reconciliation-source-coverage-is-not-an-exit)
+maps the current source assertions to every AT/QO requirement. All remain open.
+The critical next source work is deterministic lifecycle instrumentation with
+exact lease/teardown counters, not more test-count growth. Pinned build closure
+and enforced resources still require Gate B approval before any native run;
+Gate C separately controls owned PBX proof.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

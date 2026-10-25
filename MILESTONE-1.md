@@ -2281,6 +2281,16 @@ handler or demonstrate that actual containers produced every status.
 and all eight postimages match. Remaining native/global/lifecycle/profile
 acceptance, A's verified exit, AT/QO and Gates B/C remain open.
 
+The [Gate A acceptance reconciliation](./PROJECT-PLAN.md#gate-a-acceptance-reconciliation-source-coverage-is-not-an-exit)
+maps all ten AT and ten QO requirements to the current 21 native source
+definitions and their missing evidence. No acceptance check is passed by
+inventory size or package tests. The critical next A work is safe test-only
+lifecycle synchronization/exact counters, with a controller outside the
+unloadable target, covering admission versus teardown and final output/release.
+No new test execution or patch change accompanies this documentation-only
+reconciliation. Gate B still requires pinned dependency/build closure and
+enforced resources before compilation; Gate C independently gates PBX proof.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |
