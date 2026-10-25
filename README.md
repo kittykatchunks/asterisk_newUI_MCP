@@ -15,6 +15,117 @@ shortlist, upstream sources, and technical proof gates.
 Status: planning plus an initial local Asterisk runtime proof. No web application
 or production deployment exists yet.
 
+## Operator-only durable CEL history foundation
+
+The finite HF-01 through HF-08 foundation is implemented in
+[src/cel-history.ts](./src/cel-history.ts). This is a separate SQLite evidence store
+and trusted operator CLI, **not** an authenticated call-history API or UI. It
+does not activate phones or complete M1-06/07.
+
+Each source is identified by a stable operator-chosen source ID and an explicit
+generation. That pair is bound permanently to one customer and declared IANA time
+basis (for example `UTC` or `Europe/London`). Customer/source/generation IDs are
+lowercase, 1-96 characters, start with a letter or digit, and may then contain
+letters, digits, `.`, `_` or `-`. Use distinct source IDs for different PBXs.
+The operator, not CEL content, supplies the customer association.
+
+Imports consume complete records from a full append-only snapshot starting at
+byte zero, using the repository's exact eight-column
+[CEL mapping](./local/asterisk/cel_custom.conf):
+event, timestamp, channel, uniqueid, linkedid, context, extension and extra.
+The store preserves each original UTF-8 record including line endings, original
+timestamp text, source byte offsets, SHA-256 and a separate UTC ingestion timestamp.
+Source timestamps are **not** converted or sorted into UTC; an operator time-basis
+declaration does not resolve ambiguous local-clock/DST times.
+
+Quoted commas, doubled quotes, CRLF and embedded quoted newlines are supported.
+Malformed complete CSV/UTF-8, unsupported control characters and BOM-prefixed
+records fail explicitly. An unfinished trailing record is returned as
+`pendingBytes`, not inserted; supply a later full snapshot to finish it.
+Limits are **8 MiB per snapshot**, **64 KiB per record**, **50,000 new records per
+import**, and **1-200 entries per source/event page**. Bounds are checked, not
+silently truncated.
+
+New records and the consumed-prefix checkpoint commit in one transaction. Before
+append/replay, the full consumed prefix must match its SHA-256; changed/truncated
+prefixes fail. Exact replay inserts zero records, including after importer exit
+or restart. Identical rows at different byte offsets remain separate evidence.
+An explicitly new generation is required for operator-recognised replacement;
+there is no automatic rotation, overlap deduplication across generations or
+gap-free collection claim. A source exceeding the snapshot limit needs a future
+segmented collection workflow, not a silent reset of this checkpoint.
+
+### Operator commands
+
+Use Node.js 24 and **absolute paths** to a dedicated database and stable copied
+snapshot. Do not use the diagnostic, agent or simulation database. Import is the
+only writer; read commands require an existing supported database and open it
+read-only. Example paths below are placeholders:
+
+```powershell
+node .\scripts\Manage-CelHistory.ts import 'C:\proof\history.sqlite' customer-a pbx-a generation-1 UTC 'C:\proof\Master.csv'
+node .\scripts\Manage-CelHistory.ts sources 'C:\proof\history.sqlite' customer-a - - 100
+node .\scripts\Manage-CelHistory.ts events 'C:\proof\history.sqlite' customer-a pbx-a generation-1 -1 100
+node .\scripts\Manage-CelHistory.ts channel 'C:\proof\history.sqlite' customer-a pbx-a generation-1 '1792894637.0' -1 100
+```
+
+Commands emit JSON and fail nonzero on invalid input/storage/source continuity
+errors. `sources` returns `{sources,next}`; use `next.source`/`next.generation` in
+place of the two `-` arguments. Event/channel reads return `{source,events,
+nextAfterOffset}`; use that cursor in place of `-1` until it is `null`. Offsets are
+byte positions and page ordering is source-file order, not an inferred timeline.
+The `source` envelope includes the declared scope, time basis, consumed bytes,
+prefix hash and record count. A channel query still requires full
+customer/source/generation scope; uniqueid/linkedid collisions cannot join
+different runtimes. Missing/foreign source reads fail without returning evidence.
+
+This CLI is a **trusted operator tool**, not a tenant-login security boundary:
+anyone holding the database can read all its customers. Raw CEL may contain
+personal data and sensitive application extras. Restrict local filesystem access;
+do not publish the database/CLI output or treat it as a redacted export. Stored
+hash validation detects inconsistent evidence, not malicious database rewriting
+or external tampering. Production retention, backup and authenticated access
+remain unimplemented for this store.
+
+### Foundation verification
+
+```powershell
+npm run typecheck
+node --test .\tests\cel-history.test.ts
+.\scripts\Test-CelHistoryProof.ps1
+```
+
+The final command includes typecheck and focused tests, then uses the same locally
+available pinned Asterisk image as the outage proof below (`--pull never
+--no-build`). It creates a unique Compose project with independent credentials,
+networks and volumes; both PBXs explicitly use UTC. Short authenticated SIP/RTP
+probes generate fresh CEL without touching shared services or rerunning REFER.
+
+Recorded verification: typecheck and **13 focused tests pass**, including exact
+8-MiB/64-KiB/50,000-record boundaries, malformed input, quoted/multibyte pending
+tails, atomic rollback, two competing importer processes, uncommitted process
+death, persisted replay, read-only CLI and colliding customer/channel identifiers.
+The final isolated real proof (`run-3W2Yk6`, project `asterisk-history-3w2yk6`)
+imports **six records / 824 bytes per customer**, replays
+with **zero inserts**, then reads through newly opened stores and two-entry pages.
+All source bytes round-trip exactly; both calls have explicit Call-ID correlation
+and CHAN_START/ANSWER/HANGUP/CHAN_END evidence. Cross-customer reads are denied.
+
+Each run prints its ignored `.local-proof\cel-history\run-...\result.json` path.
+The synthetic `history.sqlite` is deliberately retained alongside the non-secret
+summary to inspect persisted evidence. Generated credential/snapshot directories
+and owned containers, networks and volumes are removed on pass or failure;
+cleanup errors fail the command and are recorded.
+Independent inspection of the final run found no owned containers, networks or
+volumes, and only the synthetic database and report in its run directory. A
+subsequent operator CLI process successfully read the retained source checkpoint.
+
+This is **channel evidence**, not reconstructed business journeys. No answered,
+unanswered, abandoned or transferred outcome classification, queue visits,
+journey totals, browser/history HTTP route, recording association, continuous
+collector, replay-health/gap reporting or production recovery claim is added.
+See the [finite HF contract](./MILESTONE-1.md#selected-next-increment-operator-only-durable-cel-foundation).
+
 ## Isolated management-outage continuity proof
 
 The finite MO-01 through MO-06 proof passes for **M1-10's local conventional

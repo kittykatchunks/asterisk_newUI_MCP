@@ -1,0 +1,19 @@
+services:
+  customer-a:
+    environment:
+      TZ: UTC
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned history directory required}/customer-a:/run/proof:ro
+  customer-b:
+    environment:
+      TZ: UTC
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned history directory required}/customer-b:/run/proof:ro
+  sip-test-a:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned history directory required}/customer-a:/run/proof:ro
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned history directory required}/customer-b:/run/foreign:ro
+  sip-test-b:
+    volumes:
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned history directory required}/customer-b:/run/proof:ro
+      - ${CEL_HISTORY_PROOF_DIRECTORY:?Owned history directory required}/customer-a:/run/foreign:ro

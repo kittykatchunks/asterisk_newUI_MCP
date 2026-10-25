@@ -529,6 +529,36 @@ incomplete. This does not authorise live voice/agent-phone activation or establi
 queue delivery, public-trunk availability, HA or production QoS. Stop after this
 verified increment rather than automatically expanding into those work packages.
 
+### Operator-only durable CEL foundation completion
+
+The user selected `history-foundation`, with the recommended operator-only
+boundary. HF-01 through HF-08 now provide a dedicated SQLite evidence store,
+bounded full-snapshot CEL imports and read-only customer/source/generation-scoped
+operator source/event/channel queries. Source/customer/time-basis association is
+explicit; original records, byte offsets, hashes and ingestion timestamps persist.
+Replay/restart deduplication uses consumed-prefix verification and an atomic
+record/checkpoint transaction. Changed/truncated prefixes fail rather than silently
+resetting; new generations require operator recognition of replacement.
+
+Typecheck and 13 focused tests pass, including parser/limit boundaries, SQL
+rollback, separate-process concurrency, uncommitted process death, persistence,
+corruption detection and cross-customer collisions. The isolated real proof
+imports six records (824 bytes) per customer, replays with zero inserts, reopens
+the database and verifies exact bytes and Call-ID/channel lifecycle evidence.
+Both PBXs use declared UTC; original timestamp text is not reinterpreted.
+The synthetic database/report remain local while owned services and generated
+credentials/snapshots are removed.
+
+Reproduce with `.\scripts\Test-CelHistoryProof.ps1`. See the
+[HF acceptance contract/evidence](./MILESTONE-1.md#selected-next-increment-operator-only-durable-cel-foundation)
+and [operator commands and limitations](./README.md#operator-only-durable-cel-history-foundation).
+No dependencies or web/permission surfaces were added, and REFER was not rerun.
+This is an evidence substrate, not a journey/outcome report. Queue ingestion,
+journey/leg/visit reconstruction and all four M1-06 outcomes, M1-07 continuous
+collector replay/health/gap reporting, authenticated HTTP/UI and production
+retention/backup are separate work. Live phones remain disabled.
+Stop at this verified foundation rather than automatically growing its scope.
+
 ## 6. Interface and roaming agents
 
 Proposed navigation:

@@ -767,7 +767,7 @@ The subsequent M1-10 local conventional-route result is recorded below; the othe
 | M1-03 | Separate networks/volumes, cross-customer credentials/API denial. | Concurrent active call/media plus history/recording disclosure checks in one correlated acceptance run. |
 | M1-04 | Frozen synthetic REFER transaction/media matrix. | Actual agent mute, hold/resume, receiver-verified keypad and authorised endpoint transfer controls. |
 | M1-05 | Session/device exclusivity, release/expiry, provisioning/registration fixtures. | Live queue offers after endpoint move and historical attribution across the move; no phone activation is implied by reservations. |
-| M1-06 | Fresh CEL/queue/WAV records and restart checks; transfer correlations in fixtures. | Durable application ingestion/history for all four outcomes with journey/leg/queue-visit accounting after restart. |
+| M1-06 | Fresh CEL/queue/WAV records and restart checks; transfer correlations in fixtures. Subsequent HF foundation adds durable operator-only CEL import, exact replay/reopen and scoped channel evidence reads. | Durable application ingestion/history for all four outcomes with journey/leg/queue-visit accounting after restart; HF does not reconstruct journeys or queue visits. |
 | M1-07 | Durable source logs and isolated AMI status outage tests. | History collector checkpoints/replay, deduplication and explicit stale/unrecoverable-gap reporting; AMI health is not history replay. |
 | M1-08 | Synthetic WAV payload/format checks and unchanged hashes across restart. | Journey-linked authorised playback and recording upload failure/recovery workflow. |
 | M1-09 | Revision/approval patterns for diagnostic reports and narrow provisioning. | Route/queue configuration publication, runtime verification and external-edit drift handling; report approval is not PBX publication. |
@@ -846,6 +846,67 @@ enable agent phones or establish queue delivery, identity outage resilience,
 trunk behaviour, HA/failover or production QoS. All other 17 gates retain their
 listed gaps. The frozen REFER matrix was not expanded or rerun. Stop here before
 selecting another finite increment.
+
+### Selected next increment: operator-only durable CEL foundation
+
+The user selected `history-foundation`, with the recommended operator-only
+boundary. Build the durable evidence substrate for M1-06, not a completed call
+history UI or M1-06/07 acceptance. Use a separate SQLite database and trusted
+operator import/read commands; no browser, HTTP ingestion endpoint, phone
+activation, new permission or automatic collector is authorised in this increment.
+
+| Check | Finite required evidence |
+|---|---|
+| HF-01 | Persist exact eight-field CEL CSV records, source/customer/generation identity, byte offsets, original source timestamp text, ingestion timestamps and hashes. Explicitly declare source time basis; do not invent UTC conversion. |
+| HF-02 | Bound snapshots to 8 MiB, records to 64 KiB, new records per import to 50,000 and source/event pages to 200 entries. Parse quoted CSV, doubled quotes, CRLF and embedded newlines without splitting events incorrectly; reject malformed complete records/UTF-8 explicitly. Report an unfinished trailing record as pending, never as ingested. |
+| HF-03 | Commit new records and source prefix checkpoint atomically. Exact replay inserts nothing; identical records at distinct offsets remain separate evidence. Restart/retry and competing writers must not duplicate records or advance checkpoints on failure. |
+| HF-04 | Bind each source/generation permanently to one customer and declared time basis. Verify previously consumed bytes by SHA-256; reject changed/truncated prefixes. Require an explicitly new generation for operator-recognised replacement; no silent rewind, rotation adoption or gap-free claim. |
+| HF-05 | Customer-scoped, bounded source/event/channel reads never return another customer's records, even when channel/linked identifiers collide. Keep source generation in every correlation. Channel lists are evidence, not business journeys or inferred outcomes. |
+| HF-06 | Dedicated database identity/version, strict input/stored-record validation and read-only operator reads fail explicitly on corruption, wrong database, invalid arguments or storage failure. Preserve existing app/storage behaviour. |
+| HF-07 | Focused parser/store/CLI tests and typecheck pass, including malformed input, partial-tail append, rollback, concurrency, process restart and cross-customer denial. |
+| HF-08 | Generate fresh CEL with short authenticated calls in an isolated two-customer deployment; import, replay and reopen the store, verifying exact lifecycle/correlation records. Retain a non-secret summary and clean owned services/credentials. Do not rerun REFER. |
+
+Stop after HF-01 through HF-08 or a documented blocker. Queue log ingestion,
+journey/leg/queue-visit reconstruction, unanswered/abandoned/transferred outcome
+classification, authenticated HTTP/UI, retention/backup policy and continuous
+collector replay/health/gap reporting remain separate. Linked IDs alone are not
+business journey IDs; this foundation must not expose misleading journey counts.
+The trusted operator supplies the source/customer association; these CLI reads
+are not a user authorisation boundary.
+
+#### Durable CEL foundation evidence
+
+HF-01 through HF-08 pass for the operator-only foundation. Typecheck and 13
+focused tests pass. Final run `run-3W2Yk6` (project `asterisk-history-3w2yk6`)
+imports six fresh CEL records
+(824 bytes) per customer, then separate importer processes replay with zero
+inserts and read-only stores reopen the evidence. Two-entry pages reproduce the
+complete source bytes exactly. Each call's named Call-ID event correlates one
+fresh channel with CHAN_START, ANSWER, HANGUP and CHAN_END. Channel IDs actually
+collided between the isolated runtimes; customer/source/generation-scoped reads
+kept them separate and foreign-customer requests failed.
+
+Tests cover exact byte/record/page limits, quoted CSV/multibyte pending tails,
+malformed records/UTF-8, changed/truncated prefixes, immutable source association,
+explicit replacement generations, distinct-offset identical rows, injected SQL
+failure with unchanged checkpoint, competing importer processes and process
+death during an uncommitted transaction. Reads validate stored raw record hashes,
+offset extents, channel indexes and ingestion timestamps; unsupported databases
+and invalid/read-only writer operations fail explicitly.
+
+Reproduce using `.\scripts\Test-CelHistoryProof.ps1`; the
+[README](./README.md#operator-only-durable-cel-history-foundation) documents
+operator command shapes, limits, source declarations and sensitive-data handling.
+The proof retains a synthetic history database and non-secret summary; it removes
+only its own Compose resources and generated credentials/snapshots.
+Independent final-run inspection found no owned containers, networks or volumes;
+only the synthetic database/report remained, and a subsequent CLI process read
+its persisted source checkpoint successfully.
+
+This is partial evidence toward M1-06, not completion of M1-06/07 or another broad
+milestone gate. The 17 remaining M1 gaps are unchanged. Do not use linked-ID or
+channel counts as inbound-journey totals. No automatic collector, queue/outcome
+reconstruction, HTTP/UI, phone activation or REFER rerun was added.
 
 ## 6. Proposed implementation backlog
 
