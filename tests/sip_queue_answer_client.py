@@ -15,10 +15,12 @@ UNANSWERED_PHASES = ("registered-both", "agent-ringing", "agent-cancelled",
                      "call-complete", "unregistered-both")
 ABANDON_PHASES = ("registered-both", "agent-ringing", "caller-abandoned",
                   "call-complete", "unregistered-both")
+BUSY_PHASES = ("registered-both", "agent-ringing", "agent-busy",
+               "queue-timeout", "call-complete", "unregistered-both")
 
 
 class Agent:
-    def __init__(self, probe, noanswer=False):
+    def __init__(self, probe, noanswer=False, busy=False):
         self.probe = probe
         self.dialog = None
         self.invite = None
@@ -28,6 +30,7 @@ class Agent:
         self.bye_ok = False
         self.bye = None
         self.noanswer = noanswer
+        self.busy_mode = busy
         self.cancel = None
         self.invite_start = None
 
@@ -86,14 +89,15 @@ class Agent:
                     and headers["from"] == self.dialog["from"]
                     and headers["to"] == [self.dialog["to"][0] + ";tag=" + self.tag],
                     "Unexpected agent ACK")
-            if self.noanswer:
-                require(self.cancel is not None and headers["via"] == self.dialog["via"]
+            if self.noanswer or self.busy_mode:
+                require((self.cancel is not None if self.noanswer else self.final is not None)
+                        and headers["via"] == self.dialog["via"]
                         and start == self.invite_start.replace("INVITE ", "ACK ", 1),
-                        "Non-2xx ACK requires cancelled INVITE transaction")
+                        "Non-2xx ACK requires original INVITE transaction")
             self.acked = True
 
     def answer(self):
-        require(not self.noanswer, "No-answer agent must not answer")
+        require(not (self.noanswer or self.busy_mode), "Non-answering agent must not answer")
         require(self.dialog is not None and self.final is None, "Agent answer requires one ringing dialog")
         ip, port = self.probe.ip, self.probe.rtp.getsockname()[1]
         sdp = (f"v=0\r\no=agent 1 1 IN IP4 {ip}\r\ns=synthetic-agent\r\n"
@@ -102,8 +106,15 @@ class Agent:
         self.final = self.response("200 OK", self.dialog, sdp)
         self.probe.sip.send(self.final)
 
+    def respond_busy(self):
+        require(self.busy_mode and self.dialog is not None and self.final is None,
+                "Busy response requires one ringing busy-mode dialog")
+        self.final = self.response("486 Busy Here", self.dialog)
+        self.probe.sip.send(self.final)
+
     def hangup(self):
-        require(not self.noanswer, "No-answer agent has no established dialog to hang up")
+        require(not (self.noanswer or self.busy_mode),
+                "Non-answering agent has no established dialog to hang up")
         require(self.acked and self.bye is None, "Agent hangup requires acknowledged dialog")
         contacts = self.dialog.get("contact", [])
         target = re.fullmatch(r"<([^>]+)>", contacts[0]) if len(contacts) == 1 else None
@@ -119,23 +130,25 @@ class Agent:
         self.probe.sip.send(self.bye)
 
 
-def execute_answer(host, control, noanswer=False, caller_abandon=False):
+def execute_answer(host, control, noanswer=False, caller_abandon=False, member_busy=False):
     secrets = [(control / name).read_text() for name in ("secret", "agent-secret")]
     require(all(re.fullmatch(r"[a-f0-9]{64}", value) for value in secrets)
             and secrets[0] != secrets[1], "Expected distinct private fixture credentials")
     caller = RegistrationProbe(host)
     agent_probe = RegistrationProbe(host, "proof-agent")
-    agent = Agent(agent_probe, noanswer=noanswer or caller_abandon)
+    agent = (Agent(agent_probe, noanswer=True) if noanswer or caller_abandon else
+             Agent(agent_probe, busy=True) if member_busy else Agent(agent_probe))
     report = dict(passed=False, registrationPassed=False, mediaPassed=False,
-                  answeredQueueRequested=not (noanswer or caller_abandon),
-                  unansweredQueueRequested=noanswer,
+                  answeredQueueRequested=not (noanswer or caller_abandon or member_busy),
+                  unansweredQueueRequested=noanswer, busyQueueRequested=member_busy,
                   phases=[], clientAddress=caller.ip,
                   clientPort=caller.port, agentPort=agent_probe.port, pbxAddress=caller.server[0])
     if caller_abandon:
         report["callerAbandonQueueRequested"] = True
     deadline = time.monotonic() + 60
     caller_receive = None
-    phases = ABANDON_PHASES if caller_abandon else UNANSWERED_PHASES if noanswer else PHASES
+    phases = (BUSY_PHASES if member_busy else ABANDON_PHASES if caller_abandon else
+              UNANSWERED_PHASES if noanswer else PHASES)
 
     def pump():
         sockets = [agent_probe.sip] + ([caller.sip] if caller_receive else [])
@@ -169,7 +182,8 @@ def execute_answer(host, control, noanswer=False, caller_abandon=False):
             require(code == 200, "Answered fixture registration failed")
             expiries.append(contact_expiry(headers))
         checkpoint("registered-both", contactExpirySeconds=expiries)
-        extension = "queue-abandon" if caller_abandon else "queue-unanswered" if noanswer else "queue-answer"
+        extension = ("queue-busy" if member_busy else "queue-abandon" if caller_abandon
+                     else "queue-unanswered" if noanswer else "queue-answer")
         caller.uri = f"sip:{extension}@{host}"
         caller.to_value = f"<{caller.uri}>"
         code, headers, sdp = caller.invite(secrets[0])
@@ -202,6 +216,13 @@ def execute_answer(host, control, noanswer=False, caller_abandon=False):
                 until(lambda: agent.acked, 5, agent.final)
                 checkpoint("agent-cancelled", cancelCode=200, inviteFinalCode=487,
                            transactionAckSeen=True, agentAnswered=False)
+            elif member_busy:
+                agent.respond_busy()
+                until(lambda: agent.acked, 5, agent.final)
+                checkpoint("agent-busy", inviteFinalCode=486,
+                           transactionAckSeen=True, agentAnswered=False)
+                checkpoint("queue-timeout", callerWaitObserved=True,
+                           queueStatus="TIMEOUT", answeredMilliseconds=0)
             else:
                 agent.answer()
                 until(lambda: agent.acked, 5, agent.final)

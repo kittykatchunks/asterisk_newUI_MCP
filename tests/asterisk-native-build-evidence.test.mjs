@@ -19,6 +19,43 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("SIP busy-member preparation remains offline-only and verifies 486 queue continuation", () => {
+  const record = read(`${directory}/sip-busy-preparation.json`);
+  assert.equal(record.stage, "synthetic-sip-busy-member-queue-implemented-offline-only");
+  assert.equal(record.runtimeAttemptsAuthorized, 0);
+  assert.equal(record.runtimeAttemptsExecuted, 0);
+  assert.equal(record.additionalApprovalFlagRequired, "--approve-sip-queue-busy");
+  assert.equal(record.baseApprovalFlagAlsoRequired, "--approve-isolated-sip-rtp-proof");
+  assert.equal(record.defaultEchoBehaviorRetained, true);
+  assert.equal(record.queueModesMutuallyExclusive, true);
+  assert.deepEqual(record.implementation.identities, ["proof-client", "proof-agent"]);
+  assert.equal(record.implementation.queueSeconds, 3);
+  assert.equal(record.implementation.timeoutpriority, "app");
+  assert.equal(record.implementation.rtpVerified, false);
+  assert.equal(record.offlineValidation.pythonTestsPassed, 102);
+  assert.equal(record.offlineValidation.sourceEvidenceTestsPassed, 42);
+  assert.equal(preparation.sipBusyPreparation.runtimePassed, false);
+  assert.equal(preparation.sipBusyPreparation.runtimeAttemptsAuthorized, 0);
+  assert.equal(preparation.sipBusyPreparation.runtimeAttemptsExecuted, 0);
+  assert.equal(preparation.sipBusyPreparation.newNetworkOrContainerStarted, false);
+  assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, true);
+  for (const flag of ["runtimeExecuted", "runtimePassed", "containerStartupAuthorized",
+    "networkCreationAuthorized", "sipTrafficAuthorized", "runtimeApplyAuthorized",
+    "gateAAcceptanceComplete", "gateCAuthorized", "redistributionApproved"]) {
+    assert.equal(record[flag], false, flag);
+  }
+  const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
+  assert.match(entrypoint, /parser\.add_argument\("--approve-sip-queue-busy", action="store_true"\)/);
+  assert.match(entrypoint, /queue_busy=False/);
+  assert.match(entrypoint, /runtime_sip_busy if queue_busy else/);
+  const host = bytes(`${directory}/${record.implementation.host}`).toString();
+  assert.match(host, /Queue\(proof-queue,r,,,3\)/);
+  assert.match(host, /inviteFinalCode"\) != 486/);
+  const client = bytes("tests/sip_queue_answer_client.py").toString();
+  assert.match(client, /486 Busy Here/);
+  assert.match(client, /checkpoint\("queue-timeout"/);
+});
+
 test("caller-abandon SIP queue preparation is explicit offline-only with mutually exclusive runtime mode", () => {
   const record = read(`${directory}/sip-abandon-preparation.json`);
   assert.equal(record.stage, "synthetic-sip-caller-abandon-queue-implemented-offline-only");
@@ -48,8 +85,8 @@ test("caller-abandon SIP queue preparation is explicit offline-only with mutuall
   }
   const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
   assert.match(entrypoint, /parser\.add_argument\("--approve-sip-queue-abandon", action="store_true"\)/);
-  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered, queue_abandon\)\) > 1:/);
-  assert.match(entrypoint, /member_fixture = \(runtime_sip_abandon if queue_abandon else/);
+  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered, queue_abandon, queue_busy\)\) > 1:/);
+  assert.match(entrypoint, /runtime_sip_abandon if queue_abandon else/);
   const host = bytes(`${directory}/${record.implementation.host}`).toString();
   assert.match(host, /Queue\(proof-queue,r,,,10\)/);
   assert.match(host, /callerByeCode/);
@@ -188,12 +225,12 @@ test("registered SIP no-answer preparation remains offline and requires explicit
   }
   const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
   assert.match(entrypoint, /parser\.add_argument\("--approve-sip-queue-unanswered", action="store_true"\)/);
-  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered, queue_abandon\)\) > 1:/);
+  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered, queue_abandon, queue_busy\)\) > 1:/);
   assert.match(entrypoint, /runtime_sip_unanswered if queue_unanswered else runtime_sip_answer/);
   const agent = bytes("tests/sip_queue_answer_client.py").toString();
   assert.match(agent, /487 Request Terminated/);
   assert.match(agent, /headers\["via"\] == self\.dialog\["via"\]/);
-  assert.match(agent, /No-answer agent must not answer/);
+  assert.match(agent, /Non-answering agent must not answer/);
 });
 
 test("answered SIP queue runtime binds dual registrations, bridged legs, measured continuation and cleanup", () => {

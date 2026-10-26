@@ -149,8 +149,10 @@ if __name__ == "__main__":
     parser.add_argument("--queue-answer", action="store_true")
     parser.add_argument("--queue-unanswered", action="store_true")
     parser.add_argument("--queue-abandon", action="store_true")
+    parser.add_argument("--queue-busy", action="store_true")
     args = parser.parse_args()
-    require(sum((args.queue_timeout, args.queue_answer, args.queue_unanswered, args.queue_abandon)) <= 1,
+    require(sum((args.queue_timeout, args.queue_answer, args.queue_unanswered,
+                 args.queue_abandon, args.queue_busy)) <= 1,
             "Select one queue fixture")
     socket.setdefaulttimeout(5)
     write_json(args.control / "python-ready.json", dict(pythonReady=True))
@@ -160,9 +162,9 @@ if __name__ == "__main__":
             sys.exit(0)
         require(time.monotonic() < ready_deadline, "Network preflight deadline expired")
         time.sleep(0.05)
-    if args.queue_answer or args.queue_unanswered or args.queue_abandon:
+    if args.queue_answer or args.queue_unanswered or args.queue_abandon or args.queue_busy:
         from sip_queue_answer_client import execute_answer
         execute_answer(args.host, args.control, noanswer=args.queue_unanswered,
-                       caller_abandon=args.queue_abandon)
+                       caller_abandon=args.queue_abandon, member_busy=args.queue_busy)
     else:
         execute(args.host, args.control, args.queue_timeout)

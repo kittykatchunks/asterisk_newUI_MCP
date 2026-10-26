@@ -2762,6 +2762,18 @@ claimed. The [preparation handoff](./PROJECT-PLAN.md#synthetic-sip-caller-abando
 defines acceptance and limits. A later isolated runtime requires separate
 approval.
 
+### Registered SIP busy-member fixture prepared offline only
+
+The new synthetic member first rings, then responds **486 Busy Here** and
+accepts the matching non-2xx ACK. Host validation requires the original
+caller to remain queued, then time out with zero answered time, no completed
+member calls, member removal and exact queue restoration.
+
+**102 offline Python and 42 source/evidence tests** pass, including existing
+SIP lifecycle and default echo regressions. No runtime attempt or SIP traffic
+is authorized or claimed. The [preparation handoff](./PROJECT-PLAN.md#synthetic-sip-busy-member-offline-only)
+defines bounded acceptance. A runtime attempt requires separate approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

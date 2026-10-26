@@ -17,6 +17,7 @@ import runtime_image as runtime
 import runtime_sip_queue
 import runtime_sip_answer
 import runtime_sip_abandon
+import runtime_sip_busy
 import runtime_sip_unanswered
 
 
@@ -87,7 +88,7 @@ def object_rows(output, kind, name):
 
 
 def check_limits(state, image, network, client=False, queue_timeout=False, queue_answer=False,
-                 queue_unanswered=False, queue_abandon=False):
+                 queue_unanswered=False, queue_abandon=False, queue_busy=False):
     host = state["HostConfig"]
     expected = dict(NetworkMode=network, ReadonlyRootfs=True, Privileged=False,
                     Memory=134217728 if client else 4294967296,
@@ -118,6 +119,8 @@ def check_limits(state, image, network, client=False, queue_timeout=False, queue
             expected_command.append("--queue-unanswered")
         if queue_abandon:
             expected_command.append("--queue-abandon")
+        if queue_busy:
+            expected_command.append("--queue-busy")
         if (state["Config"]["Entrypoint"] != ["python3"]
                 or state["Config"]["Cmd"] != expected_command):
             raise ValueError("Carrier must run Python only")
@@ -133,13 +136,14 @@ def sanitize(text, secret):
         else line for line in text.splitlines()) + "\n"
 
 
-def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False, queue_abandon=False):
-    if sum((queue_timeout, queue_answer, queue_unanswered, queue_abandon)) > 1:
+def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False,
+          queue_abandon=False, queue_busy=False):
+    if sum((queue_timeout, queue_answer, queue_unanswered, queue_abandon, queue_busy)) > 1:
         raise ValueError("Select one SIP queue fixture")
-    two_identities = queue_answer or queue_unanswered or queue_abandon
-    member_fixture = (runtime_sip_abandon if queue_abandon else
+    two_identities = queue_answer or queue_unanswered or queue_abandon or queue_busy
+    member_fixture = (runtime_sip_busy if queue_busy else runtime_sip_abandon if queue_abandon else
                       runtime_sip_unanswered if queue_unanswered else runtime_sip_answer)
-    member_result_key = ("sipQueueAbandon" if queue_abandon else
+    member_result_key = ("sipQueueBusy" if queue_busy else "sipQueueAbandon" if queue_abandon else
                          "sipQueueUnanswered" if queue_unanswered else "sipQueueAnswer")
     image, payload_path = desktop.verify_image()
     carrier = json.loads(desktop.command(["image", "inspect", CARRIER])[0])[0]
@@ -218,6 +222,9 @@ def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False,
         if queue_abandon:
             member_sources.append(runtime.HERE / "runtime_sip_abandon.py")
             member_sources.append(runtime.HERE / "runtime_unanswered_call.py")
+        if queue_busy:
+            member_sources.extend(runtime.HERE / name for name in (
+                "runtime_sip_busy.py", "runtime_local_call.py", "runtime_unanswered_call.py"))
         for path in member_sources:
             key = str(path.relative_to(runtime.HERE.parents[1]))
             report["toolHashes"][key] = runtime.digest(path)
@@ -332,12 +339,14 @@ def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False,
             client.append("--queue-unanswered")
         if queue_abandon:
             client.append("--queue-abandon")
+        if queue_busy:
+            client.append("--queue-busy")
         with lock:
             ids["client"] = call(client)[0].strip()
         if not re.fullmatch(r"[a-f0-9]{64}", ids["client"]):
             raise ValueError("Invalid preflight client container ID")
         check_limits(inspect(ids["client"]), CARRIER, "none", True, queue_timeout, queue_answer,
-                     queue_unanswered, queue_abandon)
+                     queue_unanswered, queue_abandon, queue_busy)
         call(["start", ids["client"]])
         ready_deadline = time.monotonic() + 15
         while not (control / "python-ready.json").exists():
@@ -378,7 +387,7 @@ def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False,
             state = inspect(ids[role])
             report.setdefault("limits", {})[role] = check_limits(
                 state, CARRIER if role == "client" else image, network, role == "client",
-                queue_timeout, queue_answer, queue_unanswered, queue_abandon)
+                queue_timeout, queue_answer, queue_unanswered, queue_abandon, queue_busy)
         report["containerIds"] = dict(ids)
         call(["start", ids["pbx"]])
         if query("core waitfullybooted") != "Asterisk has fully booted.\n":
@@ -529,7 +538,8 @@ if __name__ == "__main__":
     parser.add_argument("--approve-sip-queue-answer", action="store_true")
     parser.add_argument("--approve-sip-queue-unanswered", action="store_true")
     parser.add_argument("--approve-sip-queue-abandon", action="store_true")
+    parser.add_argument("--approve-sip-queue-busy", action="store_true")
     args = parser.parse_args()
     print(json.dumps(proof(args.work_dir.resolve(), args.approve_sip_queue_timeout,
                            args.approve_sip_queue_answer, args.approve_sip_queue_unanswered,
-                           args.approve_sip_queue_abandon), indent=2))
+                           args.approve_sip_queue_abandon, args.approve_sip_queue_busy), indent=2))

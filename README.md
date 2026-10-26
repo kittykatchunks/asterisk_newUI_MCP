@@ -681,6 +681,12 @@ the ringing agent's CANCEL/200 and INVITE/487/ACK, zero completed member calls
 and queue restoration. No runtime attempt, container/network creation or SIP
 traffic was authorized or executed for this preparation.
 
+**[Registered SIP busy-member queue mode is prepared offline only](./PROJECT-PLAN.md#synthetic-sip-busy-member-offline-only).**
+The fixture observes a ringing agent before sending **486 Busy Here**, verifies
+the non-2xx ACK, then requires the original caller to remain queued until
+TIMEOUT with zero answered time and no completed member calls. No runtime,
+container/network operation or SIP traffic was performed.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer

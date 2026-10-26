@@ -5637,6 +5637,49 @@ flags, plus answered, unanswered, empty-queue and default echo regressions.
 No RTP/media quality, real phone, human service or tenant-isolation claim is
 made. Separate approval is required before any runtime attempt.
 
+##### Synthetic SIP busy-member queue mode: offline only
+
+The registered SIP busy-member mode is implemented and tested offline only.
+The user selected this offline scope; **no runtime attempt is authorized or
+executed**. The busy identity first sends 180 so the host can confirm ringing,
+then returns **486 Busy Here** for the member INVITE and accepts only the
+correlated non-2xx ACK. The agent never sends 200 or creates an agent BYE
+dialog. This differs from caller abandonment: the caller remains on its
+answered dialog and in the queue until the application timeout.
+
+The opt-in `--approve-sip-queue-busy` requires the existing base approval flag
+and is mutually exclusive with other fixture modes. Private dialplan:
+`Answer -> Queue(proof-queue,r,,,3) -> Wait(10) -> Hangup`. Only `proof-queue`
+sets `timeoutpriority=app`, preventing the seven-second member timeout from
+overrunning the three-second application timeout. The client waits for host
+ringing acknowledgement before sending 486 and waits for host-validated
+timeout before caller BYE.
+
+Future runtime acceptance requires:
+
+- Two registrations with distinct credentials/ports and the exact expected
+  contacts; only `PJSIP/proof-agent` joins the private queue.
+- Host observes one Up caller in Queue, one Ringing member and one queued
+  caller before 486. Then observe the original caller alone still in Queue
+  with callerCount=1 after 486/ACK.
+- Require 486 and a matching non-2xx ACK for the member INVITE; the member
+  does not answer. The caller later remains alone Up in Wait, with
+  callerCount=0 and one capture of `QUEUESTATUS=TIMEOUT`,
+  **3000 <= QUEUEWAIT_MS < 4000**, `ANSWEREDTIME_MS=0`, `ABANDONED=TRUE`.
+- Caller BYE/200 drains channels; queue reports **C:0/A:1**, zero completed
+  agent calls, member removal and exact initial queue-policy restoration.
+- Both unregister operations return 200; no contacts/channels/callers/members
+  remain, processes exit zero, warmed bridge/inventory are unchanged and every
+  owned resource plus generated credential is removed.
+
+The [preparation record](./local/asterisk-build/sip-busy-preparation.json)
+records **102 offline Python and 42 source/evidence tests**. The tests cover
+486 retransmission/ACK correlation, rejection of answer/hangup, retained caller
+queue state, timeout/result variables, bounded progress and cleanup, mutually
+exclusive mode flags and mocked orchestration. Existing echo/answered/
+unanswered/caller-abandon regressions pass. No RTP quality, real phone,
+human-service, multi-PBX, Gate A/Gate C or deployment claim is made.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

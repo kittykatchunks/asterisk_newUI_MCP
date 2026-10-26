@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "stage": "synthetic-sip-busy-member-queue-implemented-offline-only",
+  "runtimeExecuted": false,
+  "runtimePassed": false,
+  "runtimeAttemptsAuthorized": 0,
+  "runtimeAttemptsExecuted": 0,
+  "containerStartupAuthorized": false,
+  "networkCreationAuthorized": false,
+  "sipTrafficAuthorized": false,
+  "latestExecutedQueueEvidence": "sip-unanswered-queue-validation.json",
+  "entrypoint": "sip-proof.py",
+  "additionalApprovalFlagRequired": "--approve-sip-queue-busy",
+  "baseApprovalFlagAlsoRequired": "--approve-isolated-sip-rtp-proof",
+  "defaultEchoBehaviorRetained": true,
+  "queueModesMutuallyExclusive": true,
+  "implementation": {
+    "host": "runtime_sip_busy.py",
+    "sharedHost": "runtime_sip_answer.py",
+    "client": "../../tests/sip_queue_answer_client.py",
+    "tests": "../../tests/asterisk-sip-busy.test.py",
+    "identities": ["proof-client", "proof-agent"],
+    "distinctPerRunSecretsRequired": true,
+    "member": "PJSIP/proof-agent",
+    "privateExtension": "queue-busy",
+    "queueSeconds": 3,
+    "timeoutpriority": "app",
+    "resultHoldSeconds": 10,
+    "clientDeadlineSeconds": 60,
+    "hostCheckpointAckSeconds": 10,
+    "agentExchangeDeadlineSeconds": 5,
+    "rtpVerified": false,
+    "humanAnsweringTested": false
+  },
+  "requiredFutureAcceptance": [
+    "Use one pinned custom PBX and pinned Python-only client; retain zero-exit network-free preflight, two-container internal networking, no published ports and all established isolation, resource, deadline, watchdog, warmed-inventory and owned-cleanup checks.",
+    "Register caller and agent using distinct ephemeral credentials; require exactly the two expected dynamic contacts and retain both endpoint/AOR configurations.",
+    "Add only PJSIP/proof-agent to the initially empty private queue and use timeoutpriority=app only in proof-queue.",
+    "Authenticated caller reaches private Answer -> Queue(proof-queue,r,,,3) -> Wait(10) -> Hangup. Host observes the caller Up in Queue and the agent Ringing before the agent is told to reply.",
+    "Agent sends 486 Busy Here for the correlated INVITE and requires matching non-2xx ACK; agent never answers and never establishes an agent BYE dialog.",
+    "Host observes only the original caller remaining in Queue with callerCount=1 after 486, then the original caller alone Up in Wait with callerCount=0, QUEUESTATUS=TIMEOUT, 3000 <= QUEUEWAIT_MS < 4000, ANSWEREDTIME_MS=0 and ABANDONED=TRUE.",
+    "Caller BYE returns 200 and drains all channels; require C:0/A:1, no completed agent calls, member removal and exact initial queue-policy restoration.",
+    "Both authenticated unregistrations return 200; require zero contacts/channels/callers/members, zero exits, unchanged warmed bridge/inventory and removal of all owned resources and generated credentials.",
+    "No retry, RTP/media-quality assertion, real phone interoperability, multi-PBX isolation, production use, Gate A/Gate C, deployment or redistribution authority."
+  ],
+  "offlineValidation": {
+    "pythonTestsPassed": 102,
+    "sourceEvidenceTestsPassed": 42,
+    "description": "Packet-state, client, host, timeout, mutually exclusive mode and mocked orchestration tests only. No runtime credentials, real sockets, Docker resources or SIP traffic used."
+  },
+  "limitations": [
+    "The agent's 486 and matching ACK path is implemented in a bounded synthetic SIP client and is not a complete SIP conformance or real-device test.",
+    "The three-second application timeout includes host checkpoint overhead; failure to observe the required phases must remain a failure.",
+    "The queue path proves no agent answer and no completed queue call only if the runtime counters and member state match; mocks are not runtime evidence.",
+    "No caller-abandon/busy runtime attempt has been authorized or executed. Any runtime requires separate explicit approval.",
+    "No RTP, human service, tenant isolation, Gate A/Gate C, deployment or redistribution claim."
+  ],
+  "runtimeApplyAuthorized": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}
