@@ -2748,6 +2748,20 @@ The [runtime handoff](./PROJECT-PLAN.md#synthetic-sip-unanswered-queue-runtime-p
 binds exact evidence and limits. No RTP quality, real phone, human service,
 Gate A/Gate C or deployment claim is made. Further runtime needs new approval.
 
+### SIP caller-abandon-during-ringing fixture prepared offline only
+
+The synthetic caller now has an opt-in abandonment path: after the host
+observes the agent ringing, the answered caller dialog sends BYE, and the
+never-answering agent must complete CANCEL/200 and INVITE/487/ACK. The host
+requires C:0/A:1, zero callers/channels, no completed agent calls, member
+removal and exact queue restoration.
+
+Implementation and mocked regressions are offline only; **96 offline Python
+and 41 source/evidence tests** pass. No runtime attempt is authorized or
+claimed. The [preparation handoff](./PROJECT-PLAN.md#synthetic-sip-caller-abandon-while-agent-rings-offline-only)
+defines acceptance and limits. A later isolated runtime requires separate
+approval.
+
 ## 6. Proposed implementation backlog
 
 | Order | Work package | Depends on | Exit |

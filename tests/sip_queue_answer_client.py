@@ -13,6 +13,8 @@ PHASES = ("registered-both", "agent-ringing", "agent-answered",
           "agent-ended", "call-complete", "unregistered-both")
 UNANSWERED_PHASES = ("registered-both", "agent-ringing", "agent-cancelled",
                      "call-complete", "unregistered-both")
+ABANDON_PHASES = ("registered-both", "agent-ringing", "caller-abandoned",
+                  "call-complete", "unregistered-both")
 
 
 class Agent:
@@ -117,20 +119,23 @@ class Agent:
         self.probe.sip.send(self.bye)
 
 
-def execute_answer(host, control, noanswer=False):
+def execute_answer(host, control, noanswer=False, caller_abandon=False):
     secrets = [(control / name).read_text() for name in ("secret", "agent-secret")]
     require(all(re.fullmatch(r"[a-f0-9]{64}", value) for value in secrets)
             and secrets[0] != secrets[1], "Expected distinct private fixture credentials")
     caller = RegistrationProbe(host)
     agent_probe = RegistrationProbe(host, "proof-agent")
-    agent = Agent(agent_probe, noanswer=True) if noanswer else Agent(agent_probe)
+    agent = Agent(agent_probe, noanswer=noanswer or caller_abandon)
     report = dict(passed=False, registrationPassed=False, mediaPassed=False,
-                  answeredQueueRequested=not noanswer, unansweredQueueRequested=noanswer,
+                  answeredQueueRequested=not (noanswer or caller_abandon),
+                  unansweredQueueRequested=noanswer,
                   phases=[], clientAddress=caller.ip,
                   clientPort=caller.port, agentPort=agent_probe.port, pbxAddress=caller.server[0])
+    if caller_abandon:
+        report["callerAbandonQueueRequested"] = True
     deadline = time.monotonic() + 60
     caller_receive = None
-    phases = UNANSWERED_PHASES if noanswer else PHASES
+    phases = ABANDON_PHASES if caller_abandon else UNANSWERED_PHASES if noanswer else PHASES
 
     def pump():
         sockets = [agent_probe.sip] + ([caller.sip] if caller_receive else [])
@@ -164,7 +169,8 @@ def execute_answer(host, control, noanswer=False):
             require(code == 200, "Answered fixture registration failed")
             expiries.append(contact_expiry(headers))
         checkpoint("registered-both", contactExpirySeconds=expiries)
-        caller.uri = f"sip:{'queue-unanswered' if noanswer else 'queue-answer'}@{host}"
+        extension = "queue-abandon" if caller_abandon else "queue-unanswered" if noanswer else "queue-answer"
+        caller.uri = f"sip:{extension}@{host}"
         caller.to_value = f"<{caller.uri}>"
         code, headers, sdp = caller.invite(secrets[0])
         require(code == 200, "Queue caller INVITE failed")
@@ -175,7 +181,23 @@ def execute_answer(host, control, noanswer=False):
             caller_receive = receive
             until(lambda: agent.dialog is not None, 5)
             checkpoint("agent-ringing", inviteSeen=True)
-            if noanswer:
+            if caller_abandon:
+                caller.to_value = headers["to"][0]
+                contact = re.fullmatch(r"<(sip:[^@;>\s]+@[^:;>\s]+:\d+)>", headers["contact"][0])
+                require(contact is not None
+                        and contact[1] == f"sip:proof-client@{caller.server[0]}:5060",
+                        "Unexpected caller dialog remote target")
+                caller.branch = "z9hG4bK" + uuid.uuid4().hex
+                caller.sip.send(caller.request("ACK", uri=contact[1]))
+                caller.cseq += 1
+                caller.branch = "z9hG4bK" + uuid.uuid4().hex
+                code, _, _ = caller.final_response(caller.request("BYE", uri=contact[1]), "BYE")
+                require(code == 200, f"Caller abandonment BYE failed: {code}")
+                until(lambda: agent.cancel is not None, 5)
+                until(lambda: agent.acked, 5, agent.final)
+                checkpoint("caller-abandoned", callerByeCode=200, cancelCode=200,
+                           inviteFinalCode=487, transactionAckSeen=True, agentAnswered=False)
+            elif noanswer:
                 until(lambda: agent.cancel is not None, 5)
                 until(lambda: agent.acked, 5, agent.final)
                 checkpoint("agent-cancelled", cancelCode=200, inviteFinalCode=487,
@@ -191,8 +213,12 @@ def execute_answer(host, control, noanswer=False):
                 checkpoint("agent-ended", byeCode=200, syntheticHoldSeconds=4)
             caller_receive = None
 
-        caller.echo(headers, sdp, hold)
-        checkpoint("call-complete", callerByeCode=200)
+        if caller_abandon:
+            hold(None, None, caller.call_id, None)
+            checkpoint("call-complete", callerByeCode=200, agentAnswered=False)
+        else:
+            caller.echo(headers, sdp, hold)
+            checkpoint("call-complete", callerByeCode=200)
         for probe, password in zip((caller, agent_probe), secrets):
             code, _, _ = probe.register(host, password, 0)
             require(code == 200, "Answered fixture unregistration failed")

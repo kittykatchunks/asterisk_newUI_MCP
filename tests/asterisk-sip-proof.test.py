@@ -232,14 +232,15 @@ class SipProofTests(unittest.TestCase):
         self.assertNotIn("secret", proof.sanitize("password=secret\nAuthorization: digest\nokay", "secret"))
 
     def test_mocked_orchestration_success_and_failures_cleanup(self):
-        for failure in (None, "unanswered-mode", "unanswered-observer", "answer-mode", "answer-observer", "queue-mode", "queue-observer", "limits", "preflight", "bridge-drift", "network", "contact", "contact-and-inventory",
+        for failure in (None, "abandon-mode", "abandon-observer", "unanswered-mode", "unanswered-observer", "answer-mode", "answer-observer", "queue-mode", "queue-observer", "limits", "preflight", "bridge-drift", "network", "contact", "contact-and-inventory",
                         "client", "stop", "ownership"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory) / "run"
                 queue_mode = failure in ("queue-mode", "queue-observer")
                 answer_mode = failure in ("answer-mode", "answer-observer")
                 unanswered_mode = failure in ("unanswered-mode", "unanswered-observer")
-                member_mode = answer_mode or unanswered_mode
+                abandon_mode = failure in ("abandon-mode", "abandon-observer")
+                member_mode = answer_mode or unanswered_mode or abandon_mode
                 states, created, calls = {}, {}, []
                 image = "sha256:" + "a" * 64
                 netid = "c" * 64
@@ -299,7 +300,8 @@ class SipProofTests(unittest.TestCase):
                                         Cmd=(["-B", "/client/sip_candidate_client.py", "--host=pbx", "--control=/control"]
                                              + (["--queue-timeout"] if "--queue-timeout" in args else [])
                                              + (["--queue-answer"] if "--queue-answer" in args else [])
-                                             + (["--queue-unanswered"] if "--queue-unanswered" in args else [])),
+                                             + (["--queue-unanswered"] if "--queue-unanswered" in args else [])
+                                             + (["--queue-abandon"] if "--queue-abandon" in args else [])),
                                         Labels={proof.LABEL: owner}),
                             State=dict(Running=False, ExitCode=0, OOMKilled=False, Status="created"))
                         removed.discard(identifier)
@@ -317,7 +319,8 @@ class SipProofTests(unittest.TestCase):
                             progress = dict(passed=True, registrationPassed=True, mediaPassed=not (queue_mode or member_mode),
                                             clientAddress=clientip, pbxAddress=pbxip, clientPort=4000, agentPort=4001,
                                             rtp=dict(sentDistinctFrames=100, echoedDistinctFrames=100), phases=[])
-                            phases = (proof.runtime_sip_unanswered.PHASES if unanswered_mode else
+                            phases = (proof.runtime_sip_abandon.PHASES if abandon_mode else
+                                      proof.runtime_sip_unanswered.PHASES if unanswered_mode else
                                       proof.runtime_sip_answer.PHASES if answer_mode else
                                       proof.QUEUE_PHASES if queue_mode else proof.PHASES)
                             for phase in phases:
@@ -358,7 +361,8 @@ class SipProofTests(unittest.TestCase):
                         return " Aor: proof-client 1\nObjects found: 1\n"
                     if text == "pjsip show contacts":
                         ack = len(list((root / "control").glob("*.ack")))
-                        if (member_mode and "b" * 64 in states and ack < (4 if unanswered_mode else 5)
+                        if (member_mode and "b" * 64 in states
+                                and ack < (4 if unanswered_mode or abandon_mode else 5)
                                 and states[created["client"]]["State"]["Running"]):
                             return (f" Contact: proof-client/sip:proof-client@{clientip}:4000 hash NonQual nan\n"
                                     f" Contact: proof-agent/sip:proof-agent@{clientip}:4001 hash NonQual nan\nObjects found: 2\n") if (root / "control/registered-both.json").exists() else "No objects found.\n"
@@ -372,7 +376,7 @@ class SipProofTests(unittest.TestCase):
                     raise AssertionError(text)
 
                 def fake_answer_phase(cli, stage, progress, result):
-                    if failure in ("answer-observer", "unanswered-observer"):
+                    if failure in ("answer-observer", "unanswered-observer", "abandon-observer"):
                         raise ValueError("answer observation failed")
                     if stage == "unregistered-both":
                         result["passed"] = True
@@ -386,16 +390,22 @@ class SipProofTests(unittest.TestCase):
                         patch.object(proof.runtime_sip_answer, "phase",
                                      side_effect=fake_answer_phase) as answer_observer, \
                         patch.object(proof.runtime_sip_unanswered, "phase",
-                                     side_effect=fake_answer_phase) as unanswered_observer:
-                    if failure in (None, "queue-mode", "answer-mode", "unanswered-mode"):
+                                     side_effect=fake_answer_phase) as unanswered_observer, \
+                        patch.object(proof.runtime_sip_abandon, "phase",
+                                     side_effect=fake_answer_phase) as abandon_observer:
+                    if failure in (None, "queue-mode", "answer-mode", "unanswered-mode", "abandon-mode"):
                         result = proof.proof(root, queue_timeout=queue_mode, queue_answer=answer_mode,
-                                             queue_unanswered=unanswered_mode)
+                                             queue_unanswered=unanswered_mode, queue_abandon=abandon_mode)
                         self.assertTrue(result["passed"])
                         self.assertTrue(result["registrationPassed"])
                         self.assertEqual(result["mediaPassed"], not (queue_mode or member_mode))
                         if unanswered_mode:
                             self.assertEqual(unanswered_observer.call_count, 5)
                             self.assertTrue(result["sipQueueUnanswered"]["passed"])
+                            self.assertFalse(result["mediaTested"])
+                        if abandon_mode:
+                            self.assertEqual(abandon_observer.call_count, 5)
+                            self.assertTrue(result["sipQueueAbandon"]["passed"])
                             self.assertFalse(result["mediaTested"])
                         if answer_mode:
                             self.assertEqual(answer_observer.call_count, 6)
@@ -411,11 +421,12 @@ class SipProofTests(unittest.TestCase):
                     else:
                         with self.assertRaises((ValueError, RuntimeError)) as caught:
                             proof.proof(root, queue_timeout=queue_mode, queue_answer=answer_mode,
-                                        queue_unanswered=unanswered_mode)
+                                        queue_unanswered=unanswered_mode, queue_abandon=abandon_mode)
                         if failure == "contact-and-inventory":
                             self.assertIn("Dynamic contact", str(caught.exception))
                 report = json.loads((root / "sip-proof-report.json").read_text())
-                self.assertEqual(report["passed"], failure in (None, "queue-mode", "answer-mode", "unanswered-mode"))
+                self.assertEqual(report["passed"], failure in (
+                    None, "queue-mode", "answer-mode", "unanswered-mode", "abandon-mode"))
                 if failure != "ownership":
                     self.assertEqual(set(states), removed)
                     self.assertFalse((root / "control/secret").exists())

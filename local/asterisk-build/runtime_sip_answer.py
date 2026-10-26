@@ -36,7 +36,8 @@ def contacts(output, address, caller_port, agent_port):
     return values
 
 
-def channels(output, extension="queue-answer", queue_data="proof-queue,rc,,,20"):
+def channels(output, extension="queue-answer", queue_data="proof-queue,rc,,,20",
+             wait_data="10"):
     rows = []
     for line in output.splitlines():
         fields = line.split("!")
@@ -44,7 +45,7 @@ def channels(output, extension="queue-answer", queue_data="proof-queue,rc,,,20")
             raise ValueError("Foreign or malformed answered SIP channel")
         if fields[0].startswith("PJSIP/proof-client-") and (
                 fields[1:3] != ["isolated-sip-proof", extension]
-                or fields[5:7] not in (["Queue", queue_data], ["Wait", "10"])):
+                or fields[5:7] not in (["Queue", queue_data], ["Wait", wait_data])):
             raise ValueError("Unexpected caller context or queue application")
         rows.append(dict(name=fields[0], state=fields[4], application=fields[5], data=fields[6]))
     if len(rows) != len({row["name"] for row in rows}):

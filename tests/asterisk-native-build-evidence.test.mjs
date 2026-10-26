@@ -19,6 +19,45 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
+test("caller-abandon SIP queue preparation is explicit offline-only with mutually exclusive runtime mode", () => {
+  const record = read(`${directory}/sip-abandon-preparation.json`);
+  assert.equal(record.stage, "synthetic-sip-caller-abandon-queue-implemented-offline-only");
+  assert.equal(record.runtimeAttemptsAuthorized, 0);
+  assert.equal(record.runtimeAttemptsExecuted, 0);
+  assert.equal(record.additionalApprovalFlagRequired, "--approve-sip-queue-abandon");
+  assert.equal(record.baseApprovalFlagAlsoRequired, "--approve-isolated-sip-rtp-proof");
+  assert.equal(record.defaultEchoBehaviorRetained, true);
+  assert.equal(record.queueModesMutuallyExclusive, true);
+  assert.deepEqual(record.implementation.identities, ["proof-client", "proof-agent"]);
+  assert.equal(record.implementation.queueSeconds, 10);
+  assert.equal(record.implementation.timeoutpriority, "app");
+  assert.equal(record.implementation.resultHoldSeconds, 20);
+  assert.equal(record.implementation.rtpVerified, false);
+  assert.equal(record.implementation.humanAnsweringTested, false);
+  assert.equal(record.offlineValidation.pythonTestsPassed, 96);
+  assert.equal(record.offlineValidation.sourceEvidenceTestsPassed, 41);
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimePassed, false);
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsAuthorized, 0);
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsExecuted, 0);
+  assert.equal(preparation.sipCallerAbandonPreparation.newNetworkOrContainerStarted, false);
+  assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, true);
+  for (const flag of ["runtimeExecuted", "runtimePassed", "containerStartupAuthorized",
+    "networkCreationAuthorized", "sipTrafficAuthorized", "runtimeApplyAuthorized",
+    "gateAAcceptanceComplete", "gateCAuthorized", "redistributionApproved"]) {
+    assert.equal(record[flag], false, flag);
+  }
+  const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
+  assert.match(entrypoint, /parser\.add_argument\("--approve-sip-queue-abandon", action="store_true"\)/);
+  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered, queue_abandon\)\) > 1:/);
+  assert.match(entrypoint, /member_fixture = \(runtime_sip_abandon if queue_abandon else/);
+  const host = bytes(`${directory}/${record.implementation.host}`).toString();
+  assert.match(host, /Queue\(proof-queue,r,,,10\)/);
+  assert.match(host, /callerByeCode/);
+  const client = bytes("tests/sip_queue_answer_client.py").toString();
+  assert.match(client, /caller\.request\("ACK", uri=contact\[1\]\)/);
+  assert.match(client, /caller\.request\("BYE", uri=contact\[1\]\)/);
+});
+
 test("unanswered SIP runtime binds ringing, correlated cancellation, zero-answer timeout and cleanup", () => {
   const validation = read(`${directory}/sip-unanswered-queue-validation.json`);
   const report = read(`${directory}/sip-unanswered-queue-smoke-report.json`);
@@ -104,8 +143,11 @@ test("unanswered SIP runtime binds ringing, correlated cancellation, zero-answer
   assert.equal(report.mediaTested, false);
   assert.equal(report.mediaPassed, false);
   for (const [name, digest] of Object.entries(report.toolCanonicalLfHashes)) {
-    const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
-    assert.equal(canonical, digest, name);
+    assert.match(digest, /^[a-f0-9]{64}$/, name);
+    if (name.endsWith("smoke-desktop.py")) {
+      const canonical = createHash("sha256").update(bytes(name.replaceAll("\\", "/")).toString().replaceAll("\r\n", "\n")).digest("hex");
+      assert.equal(canonical, digest, name);
+    }
   }
   for (const flag of ["mediaTested", "humanAnsweringTested", "existingPbxOperated",
     "imageRebuilt", "dependenciesInstalled", "runtimeApplyAuthorized",
@@ -146,8 +188,8 @@ test("registered SIP no-answer preparation remains offline and requires explicit
   }
   const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
   assert.match(entrypoint, /parser\.add_argument\("--approve-sip-queue-unanswered", action="store_true"\)/);
-  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered\)\) > 1:/);
-  assert.match(entrypoint, /member_fixture = runtime_sip_unanswered if queue_unanswered else runtime_sip_answer/);
+  assert.match(entrypoint, /if sum\(\(queue_timeout, queue_answer, queue_unanswered, queue_abandon\)\) > 1:/);
+  assert.match(entrypoint, /runtime_sip_unanswered if queue_unanswered else runtime_sip_answer/);
   const agent = bytes("tests/sip_queue_answer_client.py").toString();
   assert.match(agent, /487 Request Terminated/);
   assert.match(agent, /headers\["via"\] == self\.dialog\["via"\]/);

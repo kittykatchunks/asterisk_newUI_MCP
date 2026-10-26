@@ -5599,6 +5599,44 @@ interoperability, RTP quality, external trunks, load, encrypted transport,
 WebRTC, multi-PBX isolation, Gate A/Gate C, license closure or deployment.
 No retry or further runtime execution is authorized.
 
+##### Synthetic SIP caller abandon while agent rings: offline only
+
+The next isolated lifecycle fixture implements caller abandonment during
+agent ringing, **offline only**. The caller's original INVITE is already
+answered before `Queue`, so the correct caller-side in-dialog hangup is BYE,
+not a caller CANCEL. The PBX should cancel the still-ringing agent INVITE.
+This step has no runtime approval: it has not created containers/networks or
+sent SIP traffic, and successful mocks are not runtime evidence.
+
+The explicit `--approve-sip-queue-abandon` flag is mutually exclusive with
+the existing queue modes and still requires the base isolated-proof flag.
+It reuses the two synthetic identities, fresh distinct credentials, minimal
+no-answer agent, private queue member, standard resource limits and the
+owned-only cleanup path. Its private fixture is
+`Answer -> Queue(proof-queue,r,,,10) -> Wait(20) -> Hangup`; only
+`proof-queue` receives `timeoutpriority=app`, so the seven-second member
+timeout cannot race the application timeout.
+
+Future acceptance is:
+
+- Host first records one queued Up caller and one Ringing agent.
+- Caller ACKs its answered dialog and sends BYE to the PBX Contact; require
+  200. Agent must never answer. Require correlated CANCEL/200,
+  INVITE/487 and non-2xx ACK for the agent transaction.
+- Require zero active channels and callers, **C:0/A:1**, no completed
+  member calls, exact member removal and restoration of initial queue policy.
+- Both unregistrations return 200; zero contacts/channels/callers/members,
+  zero process exits, unchanged warmed bridge/inventory, and removal of all
+  owned resources and generated credentials.
+
+The [machine-readable preparation](./local/asterisk-build/sip-abandon-preparation.json)
+records **96 offline Python and 41 source/evidence tests**. Tests cover the
+caller BYE path after host acknowledgement, never-answer agent cancellation,
+queue accounting, private timeout priority, cleanup and mutually exclusive
+flags, plus answered, unanswered, empty-queue and default echo regressions.
+No RTP/media quality, real phone, human service or tenant-isolation claim is
+made. Separate approval is required before any runtime attempt.
+
 ## 8. AI assistance, MCP, reports, and wallboards
 
 Examples:

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "stage": "synthetic-sip-caller-abandon-queue-implemented-offline-only",
+  "runtimeExecuted": false,
+  "runtimePassed": false,
+  "runtimeAttemptsAuthorized": 0,
+  "runtimeAttemptsExecuted": 0,
+  "containerStartupAuthorized": false,
+  "networkCreationAuthorized": false,
+  "sipTrafficAuthorized": false,
+  "latestExecutedQueueEvidence": "sip-unanswered-queue-validation.json",
+  "entrypoint": "sip-proof.py",
+  "additionalApprovalFlagRequired": "--approve-sip-queue-abandon",
+  "baseApprovalFlagAlsoRequired": "--approve-isolated-sip-rtp-proof",
+  "defaultEchoBehaviorRetained": true,
+  "queueModesMutuallyExclusive": true,
+  "implementation": {
+    "host": "runtime_sip_abandon.py",
+    "sharedHost": "runtime_sip_answer.py",
+    "client": "../../tests/sip_queue_answer_client.py",
+    "tests": "../../tests/asterisk-sip-abandon.test.py",
+    "identities": ["proof-client", "proof-agent"],
+    "distinctPerRunSecretsRequired": true,
+    "member": "PJSIP/proof-agent",
+    "privateExtension": "queue-abandon",
+    "queueSeconds": 10,
+    "timeoutpriority": "app",
+    "resultHoldSeconds": 20,
+    "clientDeadlineSeconds": 60,
+    "hostCheckpointAckSeconds": 10,
+    "agentExchangeDeadlineSeconds": 5,
+    "rtpVerified": false,
+    "humanAnsweringTested": false
+  },
+  "requiredFutureAcceptance": [
+    "Retain one pinned custom PBX and pinned Python-only client carrier, network-free clean preflight, two-container internal network, no published ports and all existing resource, isolation, deadline, watchdog and exact-owned-cleanup checks.",
+    "Register caller and agent with distinct ephemeral credentials; verify only their expected contacts and retain both configured endpoint/AOR objects.",
+    "Add only PJSIP/proof-agent to the initially empty private queue.",
+    "Authenticated caller INVITE is answered into private Answer -> Queue(proof-queue,r,,,10) -> Wait(20) -> Hangup. Apply timeoutpriority=app only to proof-queue so the existing seven-second member timeout cannot race the ten-second application queue window.",
+    "Host first observes exactly one Up caller in Queue and one Ringing agent with one queued caller.",
+    "After the ringing checkpoint, caller sends ACK and correlated BYE to the PBX dialog target; require BYE 200. The caller hangup must cause agent CANCEL/200, INVITE/487 and a matching non-2xx ACK; the agent never answers.",
+    "Require all channels to drain, queue C:0/A:1, no callers, no completed member calls, member removal and exact original queue-policy restoration.",
+    "Require authenticated unregistration of both identities, zero contacts/channels/callers/members, zero exits, unchanged warmed bridge/inventory and removal of all owned resources and generated credentials.",
+    "No retry, RTP/media-quality claim, real phone interoperability, multi-PBX isolation, production operation, Gate A/Gate C acceptance, deployment or redistribution authority."
+  ],
+  "offlineValidation": {
+    "pythonTestsPassed": 96,
+    "sourceEvidenceTestsPassed": 41,
+    "description": "Unit and mocked client/host/orchestration checks only. No runtime credentials, real sockets, Docker resources or protocol traffic used."
+  },
+  "limitations": [
+    "Caller abandonment uses in-dialog BYE because the PBX has already answered the caller INVITE before entering Queue; it is not an INVITE CANCEL from the caller.",
+    "The client agent's CANCEL/200, INVITE/487 and non-2xx ACK handling is a bounded synthetic path, not a general SIP stack or complete conformance test.",
+    "The ten-second application queue timeout provides a bounded window; missing the ringing checkpoint or racing the application timeout must fail rather than relax acceptance.",
+    "No agent RTP is sent. PCMU SDP validation does not prove media quality or human service.",
+    "No caller-abandon runtime attempt has been authorized or executed. Future execution requires separate explicit approval."
+  ],
+  "runtimeApplyAuthorized": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}

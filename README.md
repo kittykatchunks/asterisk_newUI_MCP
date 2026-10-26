@@ -675,6 +675,12 @@ This is synthetic signalling/queue-lifecycle evidence, not media quality or
 real phone interoperability. No retry or further runtime is authorized.
 See [exact passing evidence](./local/asterisk-build/sip-unanswered-queue-validation.json).
 
+**[SIP caller-abandon-during-ringing mode is prepared offline only](./PROJECT-PLAN.md#synthetic-sip-caller-abandon-while-agent-rings-offline-only).**
+It uses the established caller dialog's BYE (not INVITE CANCEL), then checks
+the ringing agent's CANCEL/200 and INVITE/487/ACK, zero completed member calls
+and queue restoration. No runtime attempt, container/network creation or SIP
+traffic was authorized or executed for this preparation.
+
 ## Isolated PBX boot-epoch recovery proof
 
 The selected **BE-01 through BE-10** batch passes with a fresh owned two-customer
