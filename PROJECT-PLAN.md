@@ -3384,6 +3384,14 @@ increment. Test-definition counts are inventory, not an acceptance score.
 | Registration and protected unregister | Null-owner registration/admission rejection; older active-dispatch busy-unregister fixture. | Compile/run; full registration/startup failure cleanup and independent helpers-writer contention. Older self-module fixtures are not separate-target removal evidence. |
 | Shutdown | Production candidate has shutdown admission checks and leased-module skip logic. | Deterministic actual shutdown-before-admission and shutdown-after-admission schedules, process-exit ordering, cleanup and native evidence. No shutdown fixture exists merely because checks appear in source. |
 
+##### Gate A shutdown supervisor scaffold: design implemented, source application unverified
+
+An additive source supplement, [queue-policy-shutdown-v1.patch](./local/asterisk-patches/queue-policy-shutdown-v1.patch), is linked to the immutable parent candidate by [queue-policy-shutdown-v1.json](./local/asterisk-patches/queue-policy-shutdown-v1.json). The parent patch and its historical build/test evidence are unchanged.
+
+The `TEST_FRAMEWORK`-only hooks and [shutdown-supervisor.py](./local/asterisk-build/shutdown-supervisor.py) define a private Unix-domain control protocol and two disposable-child schedules. The before-admission schedule pauses at the real process shutdown boundary, sends a protected command, and requires denial from the global shutdown gate before module teardown. It does **not** claim `cli_closing`-specific denial. The after-admission schedule pauses a target dispatch after admission, requires `modules_shutdown()` to retain the leased target, resumes and observes final release, then retries shutdown in the test-only path before child exit. The original incomplete-shutdown result still selects the stock fast-shutdown cleanup behavior.
+
+The supervisor requires explicit `--approve-shutdown-fixture`, an unprivileged caller, a private case directory/configuration, disabled autoload, and disabled Manager/HTTP services. It starts only the supplied child and limits child output. Its control-protocol/coordinator tests are offline; Unix-socket integration tests are skipped on this Windows host. No child, PBX, native test, source application, or build was run for this increment. The supplement's unified-diff syntax and provenance are checked, but the source application, C compilation, `TEST_FRAMEWORK`-off parity, actual native shutdown ordering, and process cleanup remain unverified. Gate A acceptance remains open.
+
 **Other acceptance requirements remain open:**
 
 | Requirements | Remaining work not discharged by these lifecycle additions |

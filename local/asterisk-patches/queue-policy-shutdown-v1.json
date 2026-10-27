@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "stage": "source-only-shutdown-supervisor-scaffold",
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "parentManifest": "queue-policy-v1.json",
+  "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "patch": "queue-policy-shutdown-v1.patch",
+  "patchSha256": "1bb9b3a64418af8684c366a9681037d39587c6d8c8703ba94f6b7e4318aee1de",
+  "changedUpstreamPaths": [
+    "include/asterisk/module.h",
+    "main/loader.c",
+    "main/asterisk.c"
+  ],
+  "controlChannel": "private-unix-domain-socket",
+  "nativeCompiled": false,
+  "nativeTestsExecuted": false,
+  "patchApplicationVerified": false,
+  "runtimeApplyAuthorized": false,
+  "gatesBAndCApproved": false,
+  "acceptance": {
+    "beforeAdmission": "At the actual shutdown boundary, require the protected command to be rejected by ast_shutting_down before module teardown.",
+    "afterAdmission": "Require modules_shutdown to retain a leased target, release the dispatch, and complete a test-only retry before process exit.",
+    "limitations": [
+      "The before-admission schedule proves the global shutdown gate, not cli_closing-specific denial.",
+      "The supervisor protocol unit tests are offline and are not native Asterisk evidence.",
+      "Patch source application, compilation, profile transparency, and native execution remain unverified."
+    ]
+  }
+}

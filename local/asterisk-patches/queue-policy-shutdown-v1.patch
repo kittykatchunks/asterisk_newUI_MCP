@@ -1,0 +1,204 @@
+diff --git a/include/asterisk/module.h b/include/asterisk/module.h
+--- a/include/asterisk/module.h
++++ b/include/asterisk/module.h
+@@ -475,4 +475,9 @@ enum ast_cli_lease_test_event {
+ 	AST_CLI_LEASE_TEST_UNLOAD,
+ 	AST_CLI_LEASE_TEST_WORKER_DONE,
++	AST_CLI_LEASE_TEST_BEFORE_MODULE_SHUTDOWN,
++	AST_CLI_LEASE_TEST_SHUTDOWN_AFTER_MODULES,
++	AST_CLI_LEASE_TEST_SHUTDOWN_RETRY,
++	AST_CLI_LEASE_TEST_SHUTDOWN_DENIED,
++	AST_CLI_LEASE_TEST_SHUTDOWN_COMPLETE,
+ 	AST_CLI_LEASE_TEST_EVENTS,
+ };
+@@ -489,5 +495,6 @@ void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_tes
+ void ast_cli_lease_test_worker_done(void);
+ void ast_cli_lease_test_hold_loader(void);
++int ast_cli_lease_test_supervisor_event(enum ast_cli_lease_test_event event, int value, int wait);
+ int ast_cli_lease_test_deny_begin(void);
+ int ast_cli_lease_test_deny_end(void);
+ #endif
+diff --git a/main/loader.c b/main/loader.c
+--- a/main/loader.c
++++ b/main/loader.c
+@@ -38,2 +38,9 @@
+ #include <dirent.h>
+ #include <limits.h>
++#ifdef TEST_FRAMEWORK
++#include <errno.h>
++#include <sys/socket.h>
++#include <sys/time.h>
++#include <sys/un.h>
++#include <unistd.h>
++#endif
+@@ -2134,4 +2222,9 @@ void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_tes
+ {
++	if (event == AST_CLI_LEASE_TEST_ADMITTED && cli_lease_test_target(mod)
++		&& !strcmp(getenv("ASTERISK_CLI_LEASE_TEST_MODE") ?: "", "after-admission")) {
++		ast_cli_lease_test_supervisor_event(event,
++			ast_atomic_fetchadd_int(&mod->cli_readers, 0), 1);
++	}
+ 	if ((event == AST_CLI_LEASE_TEST_LOOKUP || event == AST_CLI_LEASE_TEST_ADMITTED
+ 		|| event == AST_CLI_LEASE_TEST_HANDLER
+ 		|| event == AST_CLI_LEASE_TEST_HANDLER_RETURNED || event == AST_CLI_LEASE_TEST_ENTRY_DONE
+@@ -2153,3 +2159,74 @@ void ast_cli_lease_test_hold_loader(void)
+ 	AST_DLLIST_UNLOCK(&module_list);
+ }
++
++static const char *cli_lease_test_supervisor_event_name(enum ast_cli_lease_test_event event)
++{
++	switch (event) {
++	case AST_CLI_LEASE_TEST_ADMITTED: return "dispatch-admitted";
++	case AST_CLI_LEASE_TEST_RELEASED: return "lease-released";
++	case AST_CLI_LEASE_TEST_BEFORE_MODULE_SHUTDOWN: return "before-module-shutdown";
++	case AST_CLI_LEASE_TEST_SHUTDOWN_AFTER_MODULES: return "shutdown-after-modules";
++	case AST_CLI_LEASE_TEST_SHUTDOWN_RETRY: return "shutdown-retry";
++	case AST_CLI_LEASE_TEST_SHUTDOWN_DENIED: return "shutdown-denied";
++	case AST_CLI_LEASE_TEST_SHUTDOWN_COMPLETE: return "shutdown-complete";
++	default: return NULL;
++	}
++}
++
++int ast_cli_lease_test_supervisor_event(enum ast_cli_lease_test_event event, int value, int wait)
++{
++	const char *path = getenv("ASTERISK_CLI_LEASE_TEST_SOCKET");
++	const char *name = cli_lease_test_supervisor_event_name(event);
++	struct sockaddr_un address = { .sun_family = AF_UNIX };
++	struct timeval timeout = { .tv_sec = 10, .tv_usec = 0 };
++	char message[128];
++	char response;
++	int fd = -1;
++	int length;
++	int sent = 0;
++	int result = -1;
++
++	if (ast_strlen_zero(path) || !name || strlen(path) >= sizeof(address.sun_path)) {
++		ast_log(LOG_ERROR, "Invalid protected CLI supervisor socket configuration\n");
++		return -1;
++	}
++	strcpy(address.sun_path, path);
++	length = snprintf(message, sizeof(message), "1 %s %d %d\n", name, value, !!wait);
++	if (length < 0 || length >= sizeof(message)) {
++		ast_log(LOG_ERROR, "Protected CLI supervisor event does not fit protocol buffer\n");
++		return -1;
++	}
++	fd = socket(AF_UNIX, SOCK_STREAM, 0);
++	if (fd < 0) {
++		goto done;
++	}
++	if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout))
++		|| setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout))
++		|| connect(fd, (struct sockaddr *)&address, sizeof(address))) {
++		goto done;
++	}
++	while (sent < length) {
++		int written = send(fd, message + sent, length - sent, MSG_NOSIGNAL);
++		if (written < 0 && errno == EINTR) {
++			continue;
++		}
++		if (written <= 0) {
++			goto done;
++		}
++		sent += written;
++	}
++	if (recv(fd, &response, sizeof(response), 0) != sizeof(response) || response != 'C') {
++		goto done;
++	}
++	result = 0;
++done:
++	if (fd >= 0) {
++		close(fd);
++	}
++	if (result) {
++		ast_log(LOG_ERROR, "Protected CLI supervisor event '%s' failed: %s\n",
++			name, strerror(errno));
++	}
++	return result;
++}
+ #endif
+@@ -2158,8 +2251,11 @@ int ast_module_cli_try_acquire(struct ast_module *mod)
+ {
+ 	int res = -1;
++#ifdef TEST_FRAMEWORK
++	int shutdown_denied = 0;
++#endif
+ 
+ 	if (!mod || AST_DLLIST_TRYLOCK(&module_list)) {
+ 		return -1;
+ 	}
+ 	if (mod->flags.running && !mod->flags.declined && !mod->cli_closing
+ 		&& !ast_shutting_down()
+@@ -2178,7 +2273,16 @@ int ast_module_cli_try_acquire(struct ast_module *mod)
+ 		cli_lease_test_record(AST_CLI_LEASE_TEST_CLOSING_DENIED,
+ 			ast_atomic_fetchadd_int(&mod->cli_readers, 0));
++	} else if (cli_lease_test_target(mod) && mod->flags.running && !mod->flags.declined
++		&& !mod->cli_closing && ast_shutting_down()
++		&& !strcmp(getenv("ASTERISK_CLI_LEASE_TEST_MODE") ?: "", "before-admission")) {
++		shutdown_denied = 1;
+ #endif
+ 	}
+ 	AST_DLLIST_UNLOCK(&module_list);
++#ifdef TEST_FRAMEWORK
++	if (shutdown_denied) {
++		ast_cli_lease_test_supervisor_event(AST_CLI_LEASE_TEST_SHUTDOWN_DENIED, 0, 0);
++	}
++#endif
+ 	return res;
+ }
+@@ -2198,3 +2328,7 @@ void ast_module_cli_release(struct ast_module *mod)
+ 	if (tracked) {
+ 		cli_lease_test_record(AST_CLI_LEASE_TEST_RELEASED, previous - 1);
++		if (!strcmp(getenv("ASTERISK_CLI_LEASE_TEST_MODE") ?: "", "after-admission")) {
++			ast_cli_lease_test_supervisor_event(AST_CLI_LEASE_TEST_RELEASED,
++				previous - 1, 0);
++		}
+ 	}
+diff --git a/main/asterisk.c b/main/asterisk.c
+--- a/main/asterisk.c
++++ b/main/asterisk.c
+@@ -1718,8 +1718,45 @@ static void really_quit(int num, shutdown_nice_t niceness, int restart)
+ 	int active_channels;
++#ifdef TEST_FRAMEWORK
++	int module_shutdown_result = 0;
++#endif
+ 	struct ast_json *json_object = NULL;
+ 	int run_cleanups = niceness >= SHUTDOWN_NICE;
+ 
++#ifdef TEST_FRAMEWORK
++	if (run_cleanups) {
++		const char *test_mode = getenv("ASTERISK_CLI_LEASE_TEST_MODE");
++		if (test_mode && !strcmp(test_mode, "before-admission")
++			&& ast_cli_lease_test_supervisor_event(
++				AST_CLI_LEASE_TEST_BEFORE_MODULE_SHUTDOWN, 0, 1)) {
++			_exit(1);
++		}
++		module_shutdown_result = modules_shutdown();
++		if (test_mode && !strcmp(test_mode, "after-admission")) {
++			int shutdown_retry_result;
++			if (ast_cli_lease_test_supervisor_event(
++				AST_CLI_LEASE_TEST_SHUTDOWN_AFTER_MODULES, module_shutdown_result, 1)
++				|| module_shutdown_result != 1) {
++				_exit(1);
++			}
++			shutdown_retry_result = modules_shutdown();
++			if (ast_cli_lease_test_supervisor_event(
++				AST_CLI_LEASE_TEST_SHUTDOWN_RETRY, shutdown_retry_result, 1)
++				|| shutdown_retry_result) {
++				_exit(1);
++			}
++		} else if (test_mode && !strcmp(test_mode, "before-admission")
++			&& ast_cli_lease_test_supervisor_event(
++				AST_CLI_LEASE_TEST_SHUTDOWN_COMPLETE, module_shutdown_result, 1)) {
++			_exit(1);
++		}
++		if (module_shutdown_result) {
++			ast_verb(0, "Some modules could not be unloaded, switching to fast shutdown\n");
++			run_cleanups = 0;
++		}
++	}
++#else
+ 	if (run_cleanups && modules_shutdown()) {
+ 		ast_verb(0, "Some modules could not be unloaded, switching to fast shutdown\n");
+ 		run_cleanups = 0;
+ 	}
++#endif
