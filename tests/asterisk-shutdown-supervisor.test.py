@@ -4,12 +4,14 @@ import pathlib
 import socket
 import socketserver
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 
 
 root = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(root / "local" / "asterisk-build"))
 module_spec = importlib.util.spec_from_file_location(
     "shutdown_supervisor", root / "local" / "asterisk-build" / "shutdown-supervisor.py"
 )
