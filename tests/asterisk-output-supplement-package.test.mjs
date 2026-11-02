@@ -85,6 +85,8 @@ test("CLI output supplement binds exact parents, source images and offline appli
     "local/asterisk-build/shutdown-supervisor.py",
     "local/asterisk-build/smoke-release.py",
     "local/asterisk-build/stage-runtime.py",
+    "local/asterisk-build/verify-full-startup.py",
+    "local/asterisk-build/verify-runtime.py",
   ]) {
     assert.match(bytes(consumer).toString(), /validate_cli_output_compile_report\(compile_report\)/);
   }

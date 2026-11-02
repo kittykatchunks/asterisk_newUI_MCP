@@ -2,6 +2,8 @@ import hashlib
 import json
 import pathlib
 
+from shutdown_compile_binding import validate_cli_output_compile_report
+
 
 home = pathlib.Path("/home/asterisk-build")
 root = home / "runtime-bundle-attempt-3"
@@ -11,6 +13,7 @@ smoke_path = home / "bundle-smoke-attempt-4/release-smoke-report.json"
 smoke = json.loads(smoke_path.read_text())
 compile_path = home / "native-build-attempt-4/compile-report.json"
 compile_report = json.loads(compile_path.read_text())
+validate_cli_output_compile_report(compile_report)
 profile = next(item for item in compile_report["profiles"] if item["name"] == "release")
 assert manifest["compileReportSha256"] == hashlib.sha256(compile_path.read_bytes()).hexdigest()
 assert smoke["compileReportSha256"] == manifest["compileReportSha256"]

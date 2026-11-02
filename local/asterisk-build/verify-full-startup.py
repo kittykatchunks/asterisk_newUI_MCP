@@ -4,11 +4,14 @@ import json
 import pathlib
 import xml.etree.ElementTree as ET
 
+from shutdown_compile_binding import validate_cli_output_compile_report
+
 
 home = pathlib.Path("/home/asterisk-build")
 build = home / "native-build-attempt-4"
 compile_path = build / "compile-report.json"
 compile_report = json.loads(compile_path.read_text())
+validate_cli_output_compile_report(compile_report)
 candidate = json.loads((home / "source-staging/queue-policy-v1.json").read_text())
 plan = json.loads((home / "source-staging/module-plan.json").read_text())
 for profile in compile_report["profiles"]:
