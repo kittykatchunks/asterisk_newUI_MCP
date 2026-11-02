@@ -20,6 +20,10 @@ function context(value: ConfigurationOperator): ConfigurationOperator {
 function integer(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0; }
 function positive(value: unknown): value is number { return integer(value) && value > 0; }
 function digest(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value); }
+function exactKeys(value: object, keys: readonly string[]) {
+  const actual = Object.keys(value).sort(), expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
 function timestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 }
@@ -159,7 +163,9 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
       .get(scope.customer, scope.runtime, id);
     if (!row) return undefined;
     const intent = unpack(row);
-    if (intent.customer !== scope.customer || intent.runtime !== scope.runtime || intent.operationId !== id ||
+    if (!exactKeys(intent, ["customer", "runtime", "operationId", "revision", "baseRevision", "draftSha256",
+      "approvalSha256", "createdAt", "attribution", "executorEnabled"]) ||
+        intent.customer !== scope.customer || intent.runtime !== scope.runtime || intent.operationId !== id ||
         !positive(intent.revision) || intent.revision !== row.revision || !timestamp(intent.createdAt) ||
         intent.executorEnabled !== false || intent.baseRevision !== 0) throw new Error("Corrupt configuration operation");
     const d = draft(scope, intent.revision), approval = receipt(scope, d.revision, "approved");
@@ -173,7 +179,8 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
     const events = rows.map((r, i) => {
       const e = unpack(r);
       configurationObject(e.attribution);
-      if (e.operationSha256 !== row.sha256 || e.state !== r.state || !timestamp(e.createdAt) ||
+      if (!positive(r.sequence) || !exactKeys(e, ["operationSha256", "state", "createdAt", "attribution"]) ||
+          e.operationSha256 !== row.sha256 || e.state !== r.state || !timestamp(e.createdAt) ||
           typeof e.attribution.operator !== "string" || typeof e.attribution.reason !== "string" ||
           (i === 0 ? e.state !== "claimed" : e.state !== "uncertain" && e.state !== "cancelled-before-effects")) throw new Error("Corrupt configuration operation event");
       context({ operator: e.attribution.operator, reason: e.attribution.reason });

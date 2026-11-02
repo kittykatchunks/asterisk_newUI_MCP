@@ -350,3 +350,34 @@ test("CF-15: kill inside the actual claim transaction rolls back intent, claim a
     assert.equal(store.claim(scope, 1, a.sha256, 0, id, actor).state, "claimed");
   });
 });
+
+test("CF-16: operation journal rejects checksummed unknown fields and invalid event sequences", async () => {
+  const rejects = async (change: (db: DatabaseSync) => void, expected: RegExp) => {
+    await fixture((store, path) => {
+      const { a } = approved(store);
+      store.claim(scope, 1, a.sha256, 0, id, actor);
+      const db = new DatabaseSync(path);
+      try { change(db); } finally { db.close(); }
+      assert.throws(() => store.operation(scope, id), expected);
+    });
+  };
+  await rejects((db) => {
+    const row = db.prepare("SELECT document FROM configuration_operations").get()!;
+    const value = JSON.parse(String(row.document));
+    value.unexpected = "unbound field";
+    const text = JSON.stringify(value);
+    db.prepare("UPDATE configuration_operations SET document=?,sha256=?")
+      .run(text, configurationHash(text));
+  }, /Corrupt configuration operation/);
+  await rejects((db) => {
+    const row = db.prepare("SELECT sequence,document FROM configuration_operation_events").get()!;
+    const value = JSON.parse(String(row.document));
+    value.unexpected = "unbound field";
+    const text = JSON.stringify(value);
+    db.prepare("UPDATE configuration_operation_events SET document=?,sha256=? WHERE sequence=?")
+      .run(text, configurationHash(text), row.sequence);
+  }, /Corrupt configuration operation event/);
+  await rejects((db) => {
+    db.prepare("UPDATE configuration_operation_events SET sequence=0").run();
+  }, /Corrupt configuration operation event/);
+});

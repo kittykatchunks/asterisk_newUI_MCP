@@ -1014,7 +1014,7 @@ Recommended sequence:
    runtime verification and conditional verified recovery. CP-01 through CP-10
    remain unverified as full checks. The strict compiler, immutable scoped
    drafts/validation/approval and durable offline operation fencing now have
-   CF-01 through CF-15 tests. The separate owned binding/read-only inspector
+   CF-01 through CF-16 tests. The separate owned binding/read-only inspector
    passes CI-01 through CI-10 on two fresh pinned PBXs. No executor exists;
    base remains zero and offline approvals do not acquire runtime authority.
 4. **Explicitly gate browser-agent activation**, then intended queue/media/
@@ -1286,7 +1286,7 @@ The exact ten-check [CP acceptance contract](./MILESTONE-1.md#selected-cp-design
 remains **unverified as full checks**. Implementation order:
 
 1. **Offline foundation implemented:** strict model/compiler and dedicated durable
-   revision/approval/operation store, CF-01 through CF-15; no runtime executor.
+   revision/approval/operation store, CF-01 through CF-16; no runtime executor.
 2. **Empty-baseline binding/read-only inspector implemented:** CI-01 through CI-10
    on two uniquely owned pinned PBXs; no nonempty published-state inspector.
 3. Scoped operator apply/recovery and pinned two-customer quiescent canaries;
@@ -1306,7 +1306,7 @@ M1-09 complete.
 
 [Compiler](./src/configuration-model.ts), [store](./src/configuration-store.ts),
 [CLI](./scripts/Manage-ConfigurationDraft.ts) and
-[15 CF acceptance tests](./tests/configuration-foundation.test.ts) now implement:
+[16 CF acceptance tests](./tests/configuration-foundation.test.ts) now implement:
 
 - Exact flat `schemaVersion:1, routeId, queueId, waitSeconds` JSON, 4096 UTF-8-byte
   input limit, selected slug/wait bounds, duplicate-key detection including
@@ -1330,7 +1330,9 @@ M1-09 complete.
   scope fencing and append-only operation events. Offline states are `claimed`,
   `cancelled-before-effects` or `uncertain`; these are not runtime `applying` or
   `verified`. Only still-claimed offline reservations can be cancelled. Uncertainty
-  cannot be cleared by this API; it persists across process startup.
+  cannot be cleared by this API; it persists across process startup. Operation and
+  event reads enforce exact document fields and positive event sequence numbers,
+  even when an unknown field is accompanied by a recomputed checksum.
 - Read-only existing-store inspection without creation/migration/runtime access,
   checksum/compiler/receipt-binding checks, and explicit errors for storage failure
   or foreign schemas. Real competing processes and kill inside/after the actual
