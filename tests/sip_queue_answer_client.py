@@ -31,13 +31,15 @@ class Agent:
         self.bye = None
         self.noanswer = noanswer
         self.busy_mode = busy
+        self.busy_transactions = []
         self.cancel = None
         self.invite_start = None
 
-    def response(self, status, headers, body=""):
+    def response(self, status, headers, body="", tag=None):
         to = headers["to"][0]
+        tag = self.tag if tag is None else tag
         if ";tag=" not in to:
-            to += ";tag=" + self.tag
+            to += ";tag=" + tag
         lines = [f"SIP/2.0 {status}", *("Via: " + value for value in headers["via"]),
                  "From: " + headers["from"][0], "To: " + to,
                  "Call-ID: " + headers["call-id"][0], "CSeq: " + headers["cseq"][0],
@@ -50,6 +52,9 @@ class Agent:
         start, headers, body = parse_message(packet)
         for name in ("via", "from", "to", "call-id", "cseq"):
             require(len(headers.get(name, [])) == 1, f"Agent missing/ambiguous {name}")
+        if self.busy_mode:
+            self.receive_busy(packet, start, headers, body)
+            return
         if start.startswith("SIP/2.0 "):
             require(self.bye is not None and headers["call-id"] == self.dialog["call-id"]
                     and headers["cseq"] == ["1 BYE"] and start.startswith("SIP/2.0 200 ")
@@ -96,6 +101,60 @@ class Agent:
                         "Non-2xx ACK requires original INVITE transaction")
             self.acked = True
 
+    def receive_busy(self, packet, start, headers, body):
+        method = start.split()[0]
+        if method == "INVITE":
+            transaction = next((item for item in self.busy_transactions
+                                if item["headers"]["call-id"] == headers["call-id"]
+                                and item["headers"]["cseq"] == headers["cseq"]), None)
+            if transaction:
+                require(headers == transaction["headers"] and packet == transaction["invite"],
+                        "Retried busy INVITE changed bytes")
+                response = transaction["final"] or self.response(
+                    "180 Ringing", headers, tag=transaction["tag"])
+                self.probe.sip.send(response)
+                return
+            require(not self.busy_transactions or self.busy_transactions[-1]["acked"],
+                    "Next busy INVITE requires the previous transaction ACK")
+            require(len(self.busy_transactions) < 8, "Busy queue exceeded eight INVITE transactions")
+            require(re.fullmatch(r"\d+ INVITE", headers["cseq"][0]) is not None,
+                    "Invalid busy INVITE sequence")
+            require(all(item["headers"]["call-id"] != headers["call-id"]
+                        for item in self.busy_transactions),
+                    "Busy queue retry reused an INVITE dialog")
+            validate_media(body, self.probe.server[0])
+            transaction = dict(headers=headers, invite=packet, invite_start=start,
+                               tag=uuid.uuid4().hex, final=None, final_code=None, acked=False)
+            self.busy_transactions.append(transaction)
+            self.dialog, self.invite, self.invite_start = headers, packet, start
+            self.tag, self.final, self.acked = transaction["tag"], None, False
+            self.probe.sip.send(self.response("180 Ringing", headers, tag=transaction["tag"]))
+            if len(self.busy_transactions) > 1:
+                self.respond_busy()
+        elif method == "ACK":
+            transaction = next((item for item in self.busy_transactions
+                                if item["headers"]["call-id"] == headers["call-id"]
+                                and headers["cseq"] == [
+                                    item["headers"]["cseq"][0].replace("INVITE", "ACK")]), None)
+            require(transaction is not None and transaction["final_code"] == 486,
+                    "Unexpected ACK for busy INVITE")
+            require(headers["via"] == transaction["headers"]["via"]
+                    and headers["from"] == transaction["headers"]["from"]
+                    and headers["to"] == [transaction["headers"]["to"][0]
+                                          + ";tag=" + transaction["tag"]]
+                    and start == transaction["invite_start"].replace("INVITE ", "ACK ", 1),
+                    "Busy ACK does not match its INVITE transaction")
+            transaction["acked"] = True
+            if transaction is self.busy_transactions[-1]:
+                self.acked = True
+        else:
+            raise RuntimeError(f"Unexpected busy-member request: {method}")
+
+    def busy_transaction_summary(self):
+        return [dict(inviteFinalCode=transaction["final_code"],
+                     transactionAckSeen=transaction["acked"], agentAnswered=False)
+                for transaction in self.busy_transactions]
+
     def answer(self):
         require(not (self.noanswer or self.busy_mode), "Non-answering agent must not answer")
         require(self.dialog is not None and self.final is None, "Agent answer requires one ringing dialog")
@@ -109,7 +168,11 @@ class Agent:
     def respond_busy(self):
         require(self.busy_mode and self.dialog is not None and self.final is None,
                 "Busy response requires one ringing busy-mode dialog")
-        self.final = self.response("486 Busy Here", self.dialog)
+        transaction = self.busy_transactions[-1]
+        require(transaction["final"] is None, "Busy INVITE already has a final response")
+        self.final = self.response("486 Busy Here", self.dialog, tag=transaction["tag"])
+        transaction["final"] = self.final
+        transaction["final_code"] = 486
         self.probe.sip.send(self.final)
 
     def hangup(self):
@@ -239,7 +302,12 @@ def execute_answer(host, control, noanswer=False, caller_abandon=False, member_b
             checkpoint("call-complete", callerByeCode=200, agentAnswered=False)
         else:
             caller.echo(headers, sdp, hold)
-            checkpoint("call-complete", callerByeCode=200)
+            if member_busy:
+                report["busyTransactions"] = agent.busy_transaction_summary()
+                checkpoint("call-complete", callerByeCode=200,
+                           busyTransactions=report["busyTransactions"])
+            else:
+                checkpoint("call-complete", callerByeCode=200)
         for probe, password in zip((caller, agent_probe), secrets):
             code, _, _ = probe.register(host, password, 0)
             require(code == 200, "Answered fixture unregistration failed")

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "attemptNumber": 3,
+  "stage": "synthetic-sip-busy-member-attempt-passed",
+  "authorization": {
+    "approvedAttemptsThisRun": 1,
+    "executedAttemptsThisRun": 1,
+    "scope": "Exactly one isolated synthetic busy-member proof with retry=1, pinned local images, private internal network, zero published ports, resource caps, and owned-resource cleanup; no existing PBX, external trunk, media test, or further retry."
+  },
+  "passed": true,
+  "report": "sip-busy-runtime-report-attempt-3.json",
+  "reportSha256": "a2c61426ae5dd0fc4ad63d065fd5a3a9dde6aac64d49a17742499c808756e254",
+  "previousAttemptValidations": [
+    "sip-busy-runtime-validation.json",
+    "sip-busy-runtime-validation-attempt-2.json"
+  ],
+  "sourceHashesAtExecution": {
+    "local\\asterisk-build\\sip-proof.py": "40542d14ae2f62319e675b4d37ee9c8f9be7b7eefe726048d3b90cd58eb8a5d8",
+    "local\\asterisk-build\\smoke-desktop.py": "928bcaa91d7aa0de85b2a6bb0062ec6adbf688535da310ddefc5158d5cf4edc6",
+    "tests\\sip_candidate_client.py": "b6eef8ee5a6b3bc6751b8b9d129e94e93484f82ade51c01ec1030716b3a5f437",
+    "tests\\sip_rtp_proof.py": "25c519e6d4bb4656dc8a63afdfdaa88638b2023a614083e7a0b1e3e0852fc186",
+    "local\\asterisk-build\\runtime_sip_answer.py": "4f3678a58e844e58d6c6a73d7d847547617ef83add0a690e029a08f461a34d72",
+    "local\\asterisk-build\\runtime_answer_call.py": "bc16bf4eb540766f7f0f8740a12317024f33dcbc05cea2088641fd3b3a927f7f",
+    "tests\\sip_queue_answer_client.py": "db76bca5e5f1398c1842fb0b00665afdb1f2c10ad4ec3be1a60347c6fb95888e",
+    "local\\asterisk-build\\runtime_sip_busy.py": "8e835e868c6cadbbc72cff4955f1ba7e2c2b39d1035f7e02b627b8e023cc9358",
+    "local\\asterisk-build\\runtime_local_call.py": "619c2a80d0b78815055eb2fba42a21da88b6f4ac1aebefaee90bb030a668e25b",
+    "local\\asterisk-build\\runtime_unanswered_call.py": "b96677c0679cad8d377d85dba13f2d3ce88e7bf97c75848cdaabbd5164f3959e"
+  },
+  "images": {
+    "pbx": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+    "pythonCarrier": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+    "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+    "payloadValidationSha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+  },
+  "acceptance": {
+    "pythonPreflightPassed": true,
+    "loadedModules": 41,
+    "twoDistinctContactsRegistered": true,
+    "callerObservedQueuedWhileAgentRinging": true,
+    "agentInviteFinalCode": 486,
+    "agentNon2xxAckSeen": true,
+    "agentAnswered": false,
+    "correlatedBusyTransactions": 2,
+    "allBusyTransactionsAckedAndUnanswered": true,
+    "hostObservedCallerUpInWait": true,
+    "hostObservedQueueCallerCountZero": true,
+    "clientObservedQueueTimeout": true,
+    "queueStatus": "TIMEOUT",
+    "queueWaitMilliseconds": 3000,
+    "expectedQueueWaitMinimumMilliseconds": 3000,
+    "expectedQueueWaitMaximumExclusiveMilliseconds": 4000,
+    "answeredMilliseconds": 0,
+    "abandoned": true,
+    "hostValidatedQueueTimeoutAndResultVariables": true,
+    "callerByeCode": 200,
+    "queueCompletedCalls": 0,
+    "queueAbandonedCalls": 1,
+    "memberRemovedAndQueuePolicyRestored": true,
+    "bothUnregistered": true,
+    "finalChannelsCallersMembersContactsZero": true,
+    "processExitCodes": {
+      "pbx": 0,
+      "client": 0
+    }
+  },
+  "isolation": {
+    "privateInternalNetwork": true,
+    "publishedPorts": 0,
+    "pbxCpuNanoCpus": 4000000000,
+    "pbxMemoryBytes": 4294967296,
+    "pbxPidsLimit": 256,
+    "clientCpuNanoCpus": 500000000,
+    "clientMemoryBytes": 134217728,
+    "clientPidsLimit": 32,
+    "existingPbxOperated": false,
+    "mediaTested": false
+  },
+  "preflightInventory": {
+    "containersUnchanged": true,
+    "networkNamesUnchanged": true,
+    "defaultBridgeIdentityChanged": true,
+    "initialVsFinalInventoryEqual": true,
+    "initialVsFinalBridgeEqual": true,
+    "note": "The Docker default bridge ID changed between the preflight inventory and the post-preflight runtime baseline; network names and container inventory were otherwise stable. The runtime baseline and final inventory/bridge snapshots matched. This same bridge-ID transition appears in the two earlier attempt reports."
+  },
+  "cleanup": {
+    "ownedContainersRemoved": true,
+    "ownedNetworkRemoved": true,
+    "ephemeralCredentialFilesRemoved": true,
+    "beforeAndAfterInventoryEqual": true,
+    "beforeAndAfterBridgeEqual": true,
+    "watchdogExpired": false,
+    "elapsedSeconds": 39.36
+  },
+  "retryAuthorized": false,
+  "runtimeApplyAuthorized": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}

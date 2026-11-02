@@ -19,41 +19,166 @@ const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
 const bundleSmoke = read(`${directory}/runtime-bundle-smoke-report.json`);
 
-test("SIP busy-member preparation remains offline-only and verifies 486 queue continuation", () => {
+test("SIP busy-member preparation and runtime evidence bind 486 queue continuation", () => {
   const record = read(`${directory}/sip-busy-preparation.json`);
-  assert.equal(record.stage, "synthetic-sip-busy-member-queue-implemented-offline-only");
-  assert.equal(record.runtimeAttemptsAuthorized, 0);
-  assert.equal(record.runtimeAttemptsExecuted, 0);
+  assert.equal(record.stage, "synthetic-sip-busy-member-queue-runtime-passed");
+  assert.equal(record.runtimeAttemptsAuthorized, 3);
+  assert.equal(record.runtimeAttemptsExecuted, 3);
   assert.equal(record.additionalApprovalFlagRequired, "--approve-sip-queue-busy");
   assert.equal(record.baseApprovalFlagAlsoRequired, "--approve-isolated-sip-rtp-proof");
   assert.equal(record.defaultEchoBehaviorRetained, true);
   assert.equal(record.queueModesMutuallyExclusive, true);
   assert.deepEqual(record.implementation.identities, ["proof-client", "proof-agent"]);
   assert.equal(record.implementation.queueSeconds, 3);
+  assert.equal(record.implementation.queueRetrySeconds, 1);
   assert.equal(record.implementation.timeoutpriority, "app");
   assert.equal(record.implementation.rtpVerified, false);
-  assert.equal(record.offlineValidation.pythonTestsPassed, 102);
-  assert.equal(record.offlineValidation.sourceEvidenceTestsPassed, 42);
-  assert.equal(preparation.sipBusyPreparation.runtimePassed, false);
-  assert.equal(preparation.sipBusyPreparation.runtimeAttemptsAuthorized, 0);
-  assert.equal(preparation.sipBusyPreparation.runtimeAttemptsExecuted, 0);
-  assert.equal(preparation.sipBusyPreparation.newNetworkOrContainerStarted, false);
+  assert.equal(record.offlineValidation.pythonTestsPassed, 105);
+  assert.equal(record.offlineValidation.sourceEvidenceTestsPassed, 45);
+  assert.equal(record.runtimeEvidence.passed, true);
+  assert.equal(record.runtimeEvidence.queueWaitMilliseconds, 3000);
   assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, true);
+  assert.equal(preparation.sipBusyPreparation.runtimePassed, true);
+  assert.equal(preparation.sipBusyPreparation.runtimeAttemptsAuthorized, 3);
+  assert.equal(preparation.sipBusyPreparation.runtimeAttemptsExecuted, 3);
+  assert.equal(preparation.sipBusyPreparation.newNetworkOrContainerStarted, true);
   for (const flag of ["runtimeExecuted", "runtimePassed", "containerStartupAuthorized",
-    "networkCreationAuthorized", "sipTrafficAuthorized", "runtimeApplyAuthorized",
-    "gateAAcceptanceComplete", "gateCAuthorized", "redistributionApproved"]) {
+    "networkCreationAuthorized", "sipTrafficAuthorized"]) {
+    assert.equal(record[flag], true, flag);
+  }
+  for (const flag of ["runtimeApplyAuthorized", "gateAAcceptanceComplete",
+    "gateCAuthorized", "redistributionApproved"]) {
     assert.equal(record[flag], false, flag);
   }
   const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
   assert.match(entrypoint, /parser\.add_argument\("--approve-sip-queue-busy", action="store_true"\)/);
   assert.match(entrypoint, /queue_busy=False/);
   assert.match(entrypoint, /runtime_sip_busy if queue_busy else/);
+  assert.match(entrypoint, /custom-image-isolated-sip-queue-busy-proof" if queue_busy else/);
+  assert.match(entrypoint, /sipQueueBusyRequested=queue_busy/);
   const host = bytes(`${directory}/${record.implementation.host}`).toString();
   assert.match(host, /Queue\(proof-queue,r,,,3\)/);
+  assert.match(host, /QUEUE_RETRY_SECONDS = 1/);
   assert.match(host, /inviteFinalCode"\) != 486/);
   const client = bytes("tests/sip_queue_answer_client.py").toString();
   assert.match(client, /486 Busy Here/);
+  assert.match(client, /len\(self\.busy_transactions\) < 8/);
+  assert.match(client, /busy_transaction_summary/);
   assert.match(client, /checkpoint\("queue-timeout"/);
+});
+
+test("single approved SIP busy attempt remains a failed, cleaned-up runtime proof", () => {
+  const validation = read(`${directory}/sip-busy-runtime-validation.json`);
+  const reportPath = `${directory}/${validation.report}`;
+  assert.equal(validation.approvedAttempts, 1);
+  assert.equal(validation.executedAttempts, 1);
+  assert.equal(validation.passed, false);
+  assert.equal(validation.reportedStageAtExecution, "custom-image-isolated-sip-rtp-proof");
+  assert.equal(validation.postAttemptStageLabelCorrection, true);
+  assert.equal(hash(reportPath), validation.reportSha256);
+  assert.equal(validation.acceptance.agentInviteFinalCode, 486);
+  assert.equal(validation.acceptance.agentNon2xxAckSeen, true);
+  assert.equal(validation.acceptance.agentAnswered, false);
+  assert.equal(validation.acceptance.clientObservedQueueTimeout, true);
+  assert.equal(validation.acceptance.hostValidatedQueueTimeoutAndResultVariables, false);
+  assert.equal(validation.cleanup.ownedContainersRemoved, true);
+  assert.equal(validation.cleanup.ownedNetworkRemoved, true);
+  assert.equal(validation.cleanup.ephemeralCredentialFilesRemoved, true);
+  assert.equal(validation.retryAuthorized, false);
+  assert.equal(preparation.sipBusyExecution.attemptHistory[0].passed, false);
+});
+
+test("third SIP busy attempt passes strict queue acceptance and preserves the full attempt history", () => {
+  const validation = read(`${directory}/sip-busy-runtime-validation-attempt-3.json`);
+  const report = read(`${directory}/${validation.report}`);
+  const execution = preparation.sipBusyExecution;
+  assert.equal(validation.attemptNumber, 3);
+  assert.equal(validation.authorization.approvedAttemptsThisRun, 1);
+  assert.equal(validation.authorization.executedAttemptsThisRun, 1);
+  assert.equal(validation.passed, true);
+  assert.equal(hash(`${directory}/${validation.report}`), validation.reportSha256);
+  assert.equal(report.passed, true);
+  assert.equal(report.sipQueueBusyRequested, true);
+  assert.equal(report.sipQueueBusy.configuredQueueRetrySeconds, 1);
+  assert.equal(report.sipQueueBusy.busyTransactions.length, 2);
+  assert.ok(report.sipQueueBusy.busyTransactions.every((transaction) =>
+    transaction.inviteFinalCode === 486
+      && transaction.transactionAckSeen
+      && !transaction.agentAnswered));
+  assert.deepEqual(report.sipQueueBusy.resultVariables, {
+    QUEUESTATUS: "TIMEOUT",
+    QUEUEWAIT_MS: "3000",
+    ANSWEREDTIME_MS: "0",
+    ABANDONED: "TRUE",
+  });
+  assert.equal(validation.acceptance.hostValidatedQueueTimeoutAndResultVariables, true);
+  assert.equal(validation.acceptance.callerByeCode, 200);
+  assert.equal(validation.acceptance.bothUnregistered, true);
+  assert.equal(validation.acceptance.queueCompletedCalls, 0);
+  assert.equal(validation.acceptance.queueAbandonedCalls, 1);
+  assert.equal(validation.cleanup.ownedContainersRemoved, true);
+  assert.equal(validation.cleanup.ownedNetworkRemoved, true);
+  assert.equal(validation.cleanup.ephemeralCredentialFilesRemoved, true);
+  assert.equal(validation.cleanup.beforeAndAfterInventoryEqual, true);
+  assert.equal(validation.cleanup.beforeAndAfterBridgeEqual, true);
+  assert.equal(validation.retryAuthorized, false);
+  assert.equal(execution.approvedBusyMemberAttempts, 3);
+  assert.equal(execution.executedBusyMemberAttempts, 3);
+  assert.equal(execution.attemptHistory.length, 3);
+  assert.equal(execution.attemptHistory[0].passed, false);
+  assert.equal(execution.attemptHistory[1].passed, false);
+  assert.equal(execution.attemptHistory[2].passed, true);
+  assert.equal(execution.diagnosisFixPreparedOffline.runtimeValidated, true);
+});
+
+test("second approved SIP busy attempt preserves timeout failure, source binding and cleanup", () => {
+  const validation = read(`${directory}/sip-busy-runtime-validation-attempt-2.json`);
+  const report = read(`${directory}/${validation.report}`);
+  const execution = preparation.sipBusyExecution;
+  assert.equal(validation.attemptNumber, 2);
+  assert.equal(validation.authorization.approvedAttemptsThisRun, 1);
+  assert.equal(validation.authorization.executedAttemptsThisRun, 1);
+  assert.equal(validation.passed, false);
+  assert.equal(hash(`${directory}/${validation.report}`), validation.reportSha256);
+  assert.equal(report.stage, "custom-image-isolated-sip-queue-busy-proof");
+  assert.equal(report.passed, false);
+  assert.equal(report.sipQueueBusyRequested, true);
+  assert.equal(report.sipQueueBusy.busyObservation.transaction.inviteFinalCode, 486);
+  assert.equal(report.sipQueueBusy.busyObservation.transaction.transactionAckSeen, true);
+  assert.equal(report.sipQueueBusy.busyObservation.transaction.agentAnswered, false);
+  assert.equal(report.sipQueueBusy.timeoutProgress.at(-1).channels[0].application, "Wait");
+  assert.equal(report.sipQueueBusy.timeoutProgress.at(-1).policy.callerCount, 0);
+  assert.equal(validation.acceptance.queueWaitMilliseconds, 6000);
+  assert.equal(validation.acceptance.hostValidatedQueueTimeoutAndResultVariables, false);
+  assert.equal(validation.acceptance.channelParserFailures, 0);
+  assert.equal(validation.acceptance.resultChannelDetailsPersisted, false);
+  assert.equal(validation.comparativeQueueTiming.emptyQueueQueueWaitMilliseconds, 3000);
+  assert.equal(validation.comparativeQueueTiming.unansweredSipQueueWaitMilliseconds, 3000);
+  assert.equal(validation.comparativeQueueTiming.causeEstablished, false);
+  assert.equal(validation.diagnosis.sourceCommit, compile.upstreamCommit);
+  assert.equal(validation.diagnosis.applicationTimeoutSeconds, 3);
+  assert.equal(validation.diagnosis.retryConfiguredForProofQueueAtExecution, false);
+  assert.equal(validation.diagnosis.upstreamDefaultRetrySeconds, 5);
+  assert.equal(validation.diagnosis.applicationTimeoutCheckedBetweenRetryCycles, true);
+  assert.equal(validation.diagnosis.retryWaitUsesFullConfiguredInterval, true);
+  assert.equal(validation.diagnosis.causeConfirmed, false);
+  assert.equal(read(`${directory}/sip-queue-timeout-smoke-report.json`)
+    .sipQueueTimeout.resultVariables.QUEUEWAIT_MS, "3000");
+  assert.equal(read(`${directory}/sip-unanswered-queue-smoke-report.json`)
+    .sipQueueUnanswered.resultVariables.QUEUEWAIT_MS, "3000");
+  assert.equal(validation.cleanup.ownedContainersRemoved, true);
+  assert.equal(validation.cleanup.ownedNetworkRemoved, true);
+  assert.equal(validation.cleanup.ephemeralCredentialFilesRemoved, true);
+  assert.equal(validation.cleanup.beforeAndAfterInventoryEqual, true);
+  assert.equal(validation.cleanup.beforeAndAfterBridgeEqual, true);
+  assert.equal(validation.retryAuthorized, false);
+  assert.equal(execution.approvedBusyMemberAttempts, 3);
+  assert.equal(execution.executedBusyMemberAttempts, 3);
+  assert.equal(execution.attemptHistory.length, 3);
+  assert.equal(execution.attemptHistory[1].queueWaitMilliseconds, 6000);
+  assert.equal(execution.diagnosisFixPreparedOffline.proofQueueRetrySeconds, 1);
+  assert.equal(execution.diagnosisFixPreparedOffline.maximumCorrelatedBusyInvites, 8);
+  assert.equal(execution.diagnosisFixPreparedOffline.runtimeValidated, true);
 });
 
 test("caller-abandon SIP queue preparation is explicit offline-only with mutually exclusive runtime mode", () => {

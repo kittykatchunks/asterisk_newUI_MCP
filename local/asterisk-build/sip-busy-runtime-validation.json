@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "stage": "synthetic-sip-busy-member-attempt-failed-at-timeout-observation",
+  "approvedAttempts": 1,
+  "executedAttempts": 1,
+  "passed": false,
+  "reportedStageAtExecution": "custom-image-isolated-sip-rtp-proof",
+  "postAttemptStageLabelCorrection": true,
+  "report": "sip-busy-runtime-report.json",
+  "reportSha256": "702ba6da73ca24bbee1d56f51ab1af2453832aec22c104ba531794bcae09220e",
+  "sourceHashesAtExecution": {
+    "sip-proof.py": "e7c1e893f59e11e916feda9e0128a1a40409f655275cde9bd6bf8939f7604aae",
+    "runtime_sip_answer.py": "4f3678a58e844e58d6c6a73d7d847547617ef83add0a690e029a08f461a34d72",
+    "runtime_sip_busy.py": "3f7825efe39f9065fda7322537a3cad562c363122194e1c1d3cd347c0134acd6",
+    "sip_queue_answer_client.py": "1ce02b77aee242bee18214d3fb8f7ac0e59dcdaf5cbb2170d14a5f21e4071116"
+  },
+  "images": {
+    "pbx": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+    "pythonCarrier": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+    "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88"
+  },
+  "acceptance": {
+    "pythonPreflightPassed": true,
+    "loadedModules": 41,
+    "twoDistinctContactsRegistered": true,
+    "callerObservedQueuedWhileAgentRinging": true,
+    "agentInviteFinalCode": 486,
+    "agentNon2xxAckSeen": true,
+    "agentAnswered": false,
+    "clientObservedQueueTimeout": true,
+    "clientAnsweredMilliseconds": 0,
+    "hostValidatedQueueTimeoutAndResultVariables": false,
+    "callerByeAndUnregistrationValidated": false,
+    "failure": "Duplicate SIP channel in the host's first channel snapshot after the client reported queue timeout"
+  },
+  "isolation": {
+    "privateInternalNetwork": true,
+    "publishedPorts": 0,
+    "pbxCpuNanoCpus": 4000000000,
+    "pbxMemoryBytes": 4294967296,
+    "pbxSwapBytes": 4294967296,
+    "pbxPidsLimit": 256,
+    "clientCpuNanoCpus": 500000000,
+    "clientMemoryBytes": 134217728,
+    "clientSwapBytes": 134217728,
+    "clientPidsLimit": 32,
+    "existingPbxOperated": false,
+    "mediaTested": false
+  },
+  "cleanup": {
+    "ownedContainersRemoved": true,
+    "ownedNetworkRemoved": true,
+    "ephemeralCredentialFilesRemoved": true,
+    "beforeAndAfterInventoryEqual": true,
+    "beforeAndAfterBridgeEqual": true,
+    "watchdogExpired": false
+  },
+  "retryAuthorized": false,
+  "runtimeApplyAuthorized": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}

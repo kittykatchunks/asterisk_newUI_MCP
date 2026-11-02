@@ -183,7 +183,8 @@ def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False,
     network = "asterisk-sip-" + owner[:12]
     names = {"pbx": network + "-pbx", "client": network + "-client"}
     report = dict(
-        schemaVersion=1, stage=("custom-image-isolated-sip-queue-abandon-proof" if queue_abandon else
+        schemaVersion=1, stage=("custom-image-isolated-sip-queue-busy-proof" if queue_busy else
+                               "custom-image-isolated-sip-queue-abandon-proof" if queue_abandon else
                                "custom-image-isolated-sip-queue-unanswered-proof" if queue_unanswered else
                                "custom-image-isolated-sip-queue-answer-proof" if queue_answer else
                                "custom-image-isolated-sip-queue-timeout-proof" if queue_timeout
@@ -192,6 +193,7 @@ def proof(root, queue_timeout=False, queue_answer=False, queue_unanswered=False,
         sipQueueAnswerRequested=queue_answer,
         sipQueueUnansweredRequested=queue_unanswered,
         sipQueueAbandonRequested=queue_abandon,
+        sipQueueBusyRequested=queue_busy,
         imageId=image, carrierImageId=CARRIER, bundleManifestSha256=runtime.MANIFEST_SHA256,
         payloadValidationSha256=runtime.digest(payload_path), owner=owner, networkName=network,
         diagnostics=[], cliObservations=[], phases=[], registrationPassed=False, mediaPassed=False,

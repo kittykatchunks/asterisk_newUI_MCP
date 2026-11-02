@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "attemptNumber": 2,
+  "stage": "synthetic-sip-busy-member-attempt-failed-at-queuewait-validation",
+  "authorization": {
+    "approvedAttemptsThisRun": 1,
+    "executedAttemptsThisRun": 1,
+    "scope": "One isolated synthetic busy-member retry using the same pinned images, private internal network, resource caps, and owned-resource cleanup; no media, external trunks, existing PBX, or further retries."
+  },
+  "passed": false,
+  "report": "sip-busy-runtime-report-attempt-2.json",
+  "reportSha256": "2e3ea5746bda0247aa7fe65d179a576807d0af4768446492b3642a516960aa75",
+  "firstAttemptValidation": "sip-busy-runtime-validation.json",
+  "firstAttemptReportSha256": "702ba6da73ca24bbee1d56f51ab1af2453832aec22c104ba531794bcae09220e",
+  "sourceHashesAtExecution": {
+    "sip-proof.py": "40542d14ae2f62319e675b4d37ee9c8f9be7b7eefe726048d3b90cd58eb8a5d8",
+    "runtime_sip_busy.py": "00ef3e9ce82c88017d3bcf77e1b506d67826352c3bfdeea7763c50a2f5c7e4c2",
+    "runtime_local_call.py": "619c2a80d0b78815055eb2fba42a21da88b6f4ac1aebefaee90bb030a668e25b",
+    "sip_queue_answer_client.py": "1ce02b77aee242bee18214d3fb8f7ac0e59dcdaf5cbb2170d14a5f21e4071116"
+  },
+  "images": {
+    "pbx": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+    "pythonCarrier": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+    "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88"
+  },
+  "acceptance": {
+    "pythonPreflightPassed": true,
+    "loadedModules": 41,
+    "twoDistinctContactsRegistered": true,
+    "callerObservedQueuedWhileAgentRinging": true,
+    "agentInviteFinalCode": 486,
+    "agentNon2xxAckSeen": true,
+    "agentAnswered": false,
+    "hostObservedCallerUpInWait": true,
+    "hostObservedQueueCallerCountZero": true,
+    "clientObservedQueueTimeout": true,
+    "queueStatus": "TIMEOUT",
+    "queueWaitMilliseconds": 6000,
+    "expectedQueueWaitMinimumMilliseconds": 3000,
+    "expectedQueueWaitMaximumExclusiveMilliseconds": 4000,
+    "answeredMilliseconds": 0,
+    "abandoned": true,
+    "hostValidatedQueueTimeoutAndResultVariables": false,
+    "channelParserFailures": 0,
+    "resultChannelDetailsPersisted": false,
+    "callerByeAndUnregistrationValidated": false,
+    "failure": "ValueError: Unexpected synthetic queue timeout result: QUEUESTATUS=TIMEOUT, QUEUEWAIT_MS=6000, ANSWEREDTIME_MS=0, ABANDONED=TRUE"
+  },
+  "comparativeQueueTiming": {
+    "emptyQueueTimeoutReport": "sip-queue-timeout-smoke-report.json",
+    "emptyQueueQueueWaitMilliseconds": 3000,
+    "unansweredSipQueueReport": "sip-unanswered-queue-smoke-report.json",
+    "unansweredSipQueueWaitMilliseconds": 3000,
+    "causeEstablished": false
+  },
+  "diagnosis": {
+    "sourceCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+    "applicationTimeoutSeconds": 3,
+    "retryConfiguredForProofQueueAtExecution": false,
+    "upstreamDefaultRetrySeconds": 5,
+    "applicationTimeoutCheckedBetweenRetryCycles": true,
+    "retryWaitUsesFullConfiguredInterval": true,
+    "assessment": "A full default retry wait after the busy response plausibly explains the 6000ms queue wait.",
+    "runtimeCycleTimingCaptured": false,
+    "causeConfirmed": false
+  },
+  "isolation": {
+    "privateInternalNetwork": true,
+    "publishedPorts": 0,
+    "pbxCpuNanoCpus": 4000000000,
+    "pbxMemoryBytes": 4294967296,
+    "pbxSwapBytes": 4294967296,
+    "pbxPidsLimit": 256,
+    "clientCpuNanoCpus": 500000000,
+    "clientMemoryBytes": 134217728,
+    "clientSwapBytes": 134217728,
+    "clientPidsLimit": 32,
+    "existingPbxOperated": false,
+    "mediaTested": false
+  },
+  "cleanup": {
+    "ownedContainersRemoved": true,
+    "ownedNetworkRemoved": true,
+    "ephemeralCredentialFilesRemoved": true,
+    "beforeAndAfterInventoryEqual": true,
+    "beforeAndAfterBridgeEqual": true,
+    "watchdogExpired": false,
+    "elapsedSeconds": 25.875
+  },
+  "resultDiagnosticCaptureFixedOfflineAfterAttempt": true,
+  "retryAuthorized": false,
+  "runtimeApplyAuthorized": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}

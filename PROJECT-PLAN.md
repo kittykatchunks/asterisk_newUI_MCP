@@ -5657,25 +5657,28 @@ flags, plus answered, unanswered, empty-queue and default echo regressions.
 No RTP/media quality, real phone, human service or tenant-isolation claim is
 made. Separate approval is required before any runtime attempt.
 
-##### Synthetic SIP busy-member queue mode: offline only
+##### Synthetic SIP busy-member queue: runtime validated
 
-The registered SIP busy-member mode is implemented and tested offline only.
-The user selected this offline scope; **no runtime attempt is authorized or
-executed**. The busy identity first sends 180 so the host can confirm ringing,
-then returns **486 Busy Here** for the member INVITE and accepts only the
-correlated non-2xx ACK. The agent never sends 200 or creates an agent BYE
-dialog. This differs from caller abandonment: the caller remains on its
-answered dialog and in the queue until the application timeout.
+The registered SIP busy-member mode has an offline implementation and test
+suite and has now passed one isolated synthetic runtime attempt. The first two
+separately approved attempts failed host validation; the third used the
+prepared one-second queue retry and passed every defined host acceptance
+criterion. The busy identity first sends 180 so the host can confirm ringing,
+then returns **486 Busy Here** for member INVITEs and accepts only correlated
+non-2xx ACKs. The agent never sends 200 or creates an agent BYE dialog. This
+differs from caller abandonment: the caller remains on its answered dialog and
+in the queue until the application timeout.
 
 The opt-in `--approve-sip-queue-busy` requires the existing base approval flag
 and is mutually exclusive with other fixture modes. Private dialplan:
 `Answer -> Queue(proof-queue,r,,,3) -> Wait(10) -> Hangup`. Only `proof-queue`
-sets `timeoutpriority=app`, preventing the seven-second member timeout from
-overrunning the three-second application timeout. The client waits for host
-ringing acknowledgement before sending 486 and waits for host-validated
-timeout before caller BYE.
+sets `timeoutpriority=app` and an explicit one-second `retry`, so the
+three-second application timeout is rechecked promptly rather than after the
+upstream five-second default retry sleep. The client waits for host ringing
+acknowledgement before sending 486, handles bounded repeated busy INVITEs,
+and waits for host-validated timeout before caller BYE.
 
-Future runtime acceptance requires:
+Runtime acceptance requires and, in attempt 3, observed:
 
 - Two registrations with distinct credentials/ports and the exact expected
   contacts; only `PJSIP/proof-agent` joins the private queue.
@@ -5683,8 +5686,9 @@ Future runtime acceptance requires:
   caller before 486. Then observe the original caller alone still in Queue
   with callerCount=1 after 486/ACK.
 - Require 486 and a matching non-2xx ACK for the member INVITE; the member
-  does not answer. The caller later remains alone Up in Wait, with
-  callerCount=0 and one capture of `QUEUESTATUS=TIMEOUT`,
+  does not answer. Any retry INVITE is capped at eight transactions and must
+  also receive a correlated 486/ACK. The caller later remains alone Up in Wait,
+  with callerCount=0 and one capture of `QUEUESTATUS=TIMEOUT`,
   **3000 <= QUEUEWAIT_MS < 4000**, `ANSWEREDTIME_MS=0`, `ABANDONED=TRUE`.
 - Caller BYE/200 drains channels; queue reports **C:0/A:1**, zero completed
   agent calls, member removal and exact initial queue-policy restoration.
@@ -5693,12 +5697,103 @@ Future runtime acceptance requires:
   owned resource plus generated credential is removed.
 
 The [preparation record](./local/asterisk-build/sip-busy-preparation.json)
-records **102 offline Python and 42 source/evidence tests**. The tests cover
-486 retransmission/ACK correlation, rejection of answer/hangup, retained caller
-queue state, timeout/result variables, bounded progress and cleanup, mutually
-exclusive mode flags and mocked orchestration. Existing echo/answered/
+records **105 offline Python and 45 source/evidence tests**. The tests cover
+bounded repeated 486/ACK correlation, rejection of answer/hangup, retained
+caller queue state, timeout/result variables, bounded progress and cleanup,
+mutually exclusive mode flags and mocked orchestration. Existing echo/answered/
 unanswered/caller-abandon regressions pass. No RTP quality, real phone,
 human-service, multi-PBX, Gate A/Gate C or deployment claim is made.
+
+##### Synthetic SIP busy-member queue attempt 1: failed at host timeout observation
+
+The user approved exactly one isolated attempt. Both pinned images were checked
+locally; the PBX booted with 41 modules and the two synthetic contacts
+registered on a private internal network with no published ports. The client
+observed an agent **486 Busy Here** and the correlated non-2xx ACK, with no
+agent answer. It then reported the caller's `QUEUESTATUS=TIMEOUT` and zero
+answered time. The host's first channel snapshot after that checkpoint failed
+with `Duplicate SIP channel`, before the host validated caller `Wait` state,
+queue counters/result variables, caller BYE, unregister, or final queue
+accounting. The attempt is a failure, not a partial pass.
+
+The [first failure record](./local/asterisk-build/sip-busy-runtime-validation.json)
+is hash-bound to its [sanitized runner report](./local/asterisk-build/sip-busy-runtime-report.json).
+It captured 486/ACK and client timeout but failed on a duplicate host channel
+row before validating the caller's Wait state or result variables. A bounded,
+hashed channel snapshot was added to capture that parser failure on a future
+run; the first attempt predates that diagnostic.
+
+##### Synthetic SIP busy-member queue attempt 2: failed queue-time validation
+
+A second, separately approved one-attempt retry used the same pinned images,
+private internal network with no published ports, resource caps and cleanup
+controls. It observed both registrations, caller queued while agent rang,
+agent 486 with the correlated non-2xx ACK, no agent answer, and the caller alone
+Up in `Wait` after the client reported `QUEUESTATUS=TIMEOUT`. No duplicate
+channel was observed in this run. The host then rejected `QUEUEWAIT_MS=6000`;
+the required range remains **3000 <= QUEUEWAIT_MS < 4000**, so this is a
+failure, not a pass. Answered time was zero and `ABANDONED=TRUE`. Caller BYE,
+unregistration, queue accounting and final host acceptance were not validated.
+For comparison, existing empty-queue and unanswered-SIP queue runtime reports
+recorded **3000 ms** under the same three-second application timeout. That
+isolates the discrepancy to the busy-member path. Offline inspection at the
+exact compiled upstream commit found that an omitted queue `retry` uses a
+five-second default; the `Queue()` application timeout is checked between
+queue timeout/retry cycles, and its retry wait uses the full configured
+interval. A full retry wait after the early 486 is therefore a plausible
+explanation for the observed 6000 ms. The attempt did not capture cycle timing,
+so this is not yet a runtime-confirmed cause and the acceptance range remains
+unchanged.
+
+The [second validation record](./local/asterisk-build/sip-busy-runtime-validation-attempt-2.json)
+is hash-bound to its
+[sanitized runner report](./local/asterisk-build/sip-busy-runtime-report-attempt-2.json).
+The timeout-progress snapshots show the original caller in `Wait` with
+callerCount=0. The host's result-variable validator threw before the channel
+detail was added to the report; I fixed that failure-evidence loss offline and
+added a bounded, hashed regression test.
+
+The offline fixture now sets `retry=1` only on `proof-queue`; the client accepts
+at most eight repeated busy INVITE/486/ACK transactions, and the host validates
+that each is correlated and unanswered. Focused offline tests passed before
+the final runtime attempt. The strict `3000 <= QUEUEWAIT_MS < 4000` acceptance
+range was not relaxed.
+
+##### Synthetic SIP busy-member queue attempt 3: passed
+
+A third, separately approved one-attempt run used the same pinned images,
+private internal network with zero published ports, resource caps and
+owned-resource cleanup. The Python-only preflight passed, all 41 expected
+modules loaded, and the two synthetic contacts registered. The host observed
+the caller queued while the member rang, then two bounded member INVITE
+transactions, each answered with **486 Busy Here** and its correlated ACK;
+the member did not answer.
+
+With `retry=1` on `proof-queue`, the host observed the caller alone Up in
+`Wait`, callerCount=0, and validated `QUEUESTATUS=TIMEOUT`,
+`QUEUEWAIT_MS=3000`, `ANSWEREDTIME_MS=0`, and `ABANDONED=TRUE`. The caller BYE
+returned 200. Queue accounting was **C:0/A:1**, no agent calls completed, the
+member was removed, and the original queue policy was restored. Both
+unregistrations returned 200; no contacts remained, both processes exited zero,
+and owned containers, network and ephemeral credentials were removed.
+
+The [third successful validation](./local/asterisk-build/sip-busy-runtime-validation-attempt-3.json)
+is hash-bound to its
+[runtime report](./local/asterisk-build/sip-busy-runtime-report-attempt-3.json).
+The post-preflight initial and final container/network inventories and default
+bridge snapshots matched. As in the previous two runs, the Docker default
+bridge ID differed between the inventory before Python preflight and the
+post-preflight baseline; container inventory and network names were stable.
+The runner captures its cleanup baseline after preflight and confirmed that
+baseline remained unchanged through cleanup. This bridge-ID transition is
+recorded rather than attributed to the SIP run.
+
+All three attempt-owned PBX/client pairs, private networks and ephemeral
+credentials were removed; no watchdog expired. **The three one-attempt
+approvals are consumed; no further runtime retry is authorized.** This proof
+is limited to the isolated synthetic queue path: no RTP/media quality, real
+devices, trunks, multi-PBX isolation, Gate A/Gate C, deployment or
+redistribution claim is made.
 
 ## 8. AI assistance, MCP, reports, and wallboards
 

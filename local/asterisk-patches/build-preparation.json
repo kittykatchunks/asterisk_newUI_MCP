@@ -2,12 +2,69 @@
   "schemaVersion": 1,
   "stage": "gate-b-custom-image-synthetic-sip-unanswered-queue-passed",
   "sipBusyPreparation": {
-    "stage": "offline-only-synthetic-sip-busy-member-implemented",
+    "stage": "synthetic-sip-busy-member-runtime-passed",
     "preparation": "../asterisk-build/sip-busy-preparation.json",
-    "runtimeAttemptsAuthorized": 0,
-    "runtimeAttemptsExecuted": 0,
-    "runtimePassed": false,
-    "newNetworkOrContainerStarted": false,
+    "runtimeAttemptsAuthorized": 3,
+    "runtimeAttemptsExecuted": 3,
+    "runtimePassed": true,
+    "newNetworkOrContainerStarted": true,
+    "runtimeApplyAuthorized": false,
+    "gateCAuthorized": false
+  },
+  "sipBusyExecution": {
+    "validation": "../asterisk-build/sip-busy-runtime-validation-attempt-3.json",
+    "report": "../asterisk-build/sip-busy-runtime-report-attempt-3.json",
+    "approvedBusyMemberAttempts": 3,
+    "executedBusyMemberAttempts": 3,
+    "attemptHistory": [
+      {
+        "attempt": 1,
+        "validation": "../asterisk-build/sip-busy-runtime-validation.json",
+        "report": "../asterisk-build/sip-busy-runtime-report.json",
+        "passed": false,
+        "failure": "Duplicate SIP channel in the first host snapshot after client timeout"
+      },
+      {
+        "attempt": 2,
+        "validation": "../asterisk-build/sip-busy-runtime-validation-attempt-2.json",
+        "report": "../asterisk-build/sip-busy-runtime-report-attempt-2.json",
+        "passed": false,
+        "queueWaitMilliseconds": 6000,
+        "expectedQueueWaitMinimumMilliseconds": 3000,
+        "expectedQueueWaitMaximumExclusiveMilliseconds": 4000,
+        "channelParserFailures": 0,
+        "resultChannelDetailsPersisted": false,
+        "likelyCause": "Queue application timeout is checked between retry cycles; proof-queue inherited the upstream 5-second retry interval."
+      },
+      {
+        "attempt": 3,
+        "validation": "../asterisk-build/sip-busy-runtime-validation-attempt-3.json",
+        "report": "../asterisk-build/sip-busy-runtime-report-attempt-3.json",
+        "passed": true,
+        "queueWaitMilliseconds": 3000,
+        "correlatedBusyTransactions": 2,
+        "callerByeCode": 200,
+        "bothUnregistered": true,
+        "queueAccounting": "C:0/A:1",
+        "preflightDefaultBridgeIdentityChanged": true,
+        "postPreflightInventoryAndBridgeRestored": true
+      }
+    ],
+    "passed": true,
+    "inviteFinalCode": 486,
+    "transactionAckSeen": true,
+    "agentAnswered": false,
+    "clientObservedQueueTimeout": true,
+    "hostValidatedQueueTimeout": true,
+    "queueWaitMilliseconds": 3000,
+    "diagnosisFixPreparedOffline": {
+      "proofQueueRetrySeconds": 1,
+      "maximumCorrelatedBusyInvites": 8,
+      "runtimeValidated": true
+    },
+    "ownedResourcesRemoved": true,
+    "credentialFilesRemoved": true,
+    "furtherRuntimeAuthorized": false,
     "runtimeApplyAuthorized": false,
     "gateCAuthorized": false
   },

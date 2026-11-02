@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import pathlib
@@ -57,10 +58,38 @@ class SipBusyTests(unittest.TestCase):
         self.assertEqual(probe.sip.send.call_args.args[0], response)
         agent.receive(packet("ACK", tag=";tag=" + agent.tag))
         self.assertTrue(agent.acked)
+        retry = packet(call="busy-call-2", branch="retry", sequence=43)
+        agent.receive(retry)
+        self.assertIn(b"SIP/2.0 180 Ringing", probe.sip.send.call_args_list[-2].args[0])
+        retry_response = probe.sip.send.call_args.args[0]
+        self.assertIn(b"SIP/2.0 486 Busy Here", retry_response)
+        with self.assertRaisesRegex(RuntimeError, "previous transaction ACK"):
+            agent.receive(packet(call="busy-call-3", branch="retry-2", sequence=44))
+        agent.receive(retry)
+        self.assertEqual(probe.sip.send.call_args.args[0], retry_response)
+        agent.receive(packet("ACK", call="busy-call-2", branch="retry", sequence=43,
+                             tag=";tag=" + agent.busy_transactions[-1]["tag"]))
+        self.assertTrue(agent.acked)
+        self.assertEqual(agent.busy_transaction_summary(), [
+            dict(inviteFinalCode=486, transactionAckSeen=True, agentAnswered=False),
+            dict(inviteFinalCode=486, transactionAckSeen=True, agentAnswered=False),
+        ])
         with self.assertRaisesRegex(RuntimeError, "must not answer"):
             agent.answer()
         with self.assertRaisesRegex(RuntimeError, "no established dialog"):
             agent.hangup()
+
+    def test_prepare_sets_one_second_retry_only_on_private_proof_queue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "fixture"
+            root.mkdir()
+            host.runtime.fixture(root)
+            host.prepare(root)
+
+            queues = (root / "etc/queues.conf").read_text()
+            self.assertIn("[proof-queue]\ntimeoutpriority=app\nretry=1\n", queues)
+            self.assertIn("[unrelated-queue]\nstrategy=ringall\ntimeout=99\n", queues)
+            self.assertEqual(queues.count("retry=1"), 1)
 
     def host_lifecycle(self, failure=None):
         members, stage = 0, ""
@@ -103,6 +132,12 @@ class SipBusyTests(unittest.TestCase):
         for stage in host.PHASES:
             progress = {"phases": [dict(phase=stage, inviteFinalCode=486,
                                         transactionAckSeen=True, agentAnswered=False)]}
+            if stage == "call-complete":
+                progress["phases"][0]["busyTransactions"] = [
+                    dict(inviteFinalCode=486, transactionAckSeen=True, agentAnswered=False),
+                    dict(inviteFinalCode=486,
+                         transactionAckSeen=failure != "missing-repeat-ack", agentAnswered=False),
+                ]
             if failure == "missing-ack":
                 progress["phases"][0]["transactionAckSeen"] = False
             if failure == "wrong-status":
@@ -119,6 +154,7 @@ class SipBusyTests(unittest.TestCase):
         self.assertEqual(report["busyObservation"]["policy"]["callerCount"], 1)
         self.assertEqual(report["resultVariables"]["QUEUESTATUS"], "TIMEOUT")
         self.assertEqual(report["resultVariables"]["QUEUEWAIT_MS"], "3000")
+        self.assertEqual(len(report["busyTransactions"]), 2)
         self.assertEqual(report["resultVariables"]["ANSWEREDTIME_MS"], "0")
         self.assertEqual(report["resultVariables"]["ABANDONED"], "TRUE")
         self.assertEqual(report["finalPolicy"], report["initialPolicy"])
@@ -126,9 +162,54 @@ class SipBusyTests(unittest.TestCase):
         self.assertEqual(calls.count("core show channel " + CALLER), 1)
 
     def test_host_rejects_invalid_busy_ack_answer_or_call_accounting(self):
-        for failure in ("missing-ack", "wrong-status", "agent-answer-ringing", "completed"):
+        for failure in ("missing-ack", "missing-repeat-ack", "wrong-status",
+                        "agent-answer-ringing", "completed"):
             with self.subTest(failure=failure), self.assertRaises((ValueError, TimeoutError)):
                 self.host_lifecycle(failure)
+
+    def test_channel_parser_failure_preserves_bounded_snapshot(self):
+        output = channel(CALLER, application="Wait", data="10") * 2
+        report = {"ringingObservation": {"channels": [{"name": CALLER}]}}
+        progress = {"phases": [dict(phase="queue-timeout")]}
+
+        with self.assertRaisesRegex(ValueError, "Duplicate SIP channel"):
+            host.phase(lambda command: output, "queue-timeout", progress, report)
+
+        failure, = report["channelParserFailures"]
+        self.assertEqual(failure["stage"], "queue-timeout")
+        self.assertEqual(failure["error"], "Duplicate SIP channel")
+        self.assertEqual(failure["outputBytes"], len(output.encode("utf-8")))
+        self.assertEqual(failure["outputSha256"], hashlib.sha256(output.encode()).hexdigest())
+        self.assertEqual(failure["output"], output)
+        self.assertFalse(failure["truncated"])
+
+    def test_result_variable_failure_preserves_bounded_channel_details(self):
+        detail = ("QUEUESTATUS=TIMEOUT\nQUEUEWAIT_MS=6000\n"
+                  "ANSWEREDTIME_MS=0\nABANDONED=TRUE\n" + "x" * 9000)
+        report = {"ringingObservation": {"channels": [{"name": CALLER}]}}
+        progress = {"phases": [dict(phase="queue-timeout")]}
+
+        def cli(command):
+            if command == "core show channels concise":
+                return channel(CALLER, application="Wait", data="10")
+            if command.startswith("queue policy snapshot"):
+                return ""
+            if command.startswith("core show channel "):
+                return detail
+            raise AssertionError(command)
+
+        with patch.object(host.shared.answered, "policy", return_value={"callerCount": 0}):
+            with self.assertRaisesRegex(ValueError, "QUEUEWAIT_MS.*6000"):
+                host.phase(cli, "queue-timeout", progress, report)
+
+        failure, = report["resultVariableFailures"]
+        self.assertEqual(failure["stage"], "queue-timeout")
+        self.assertIn("'QUEUEWAIT_MS': '6000'", failure["error"])
+        self.assertEqual(failure["outputBytes"], len(detail.encode("utf-8")))
+        self.assertEqual(failure["outputSha256"], hashlib.sha256(detail.encode()).hexdigest())
+        self.assertLessEqual(len(failure["output"].encode("utf-8")), 8192)
+        self.assertTrue(failure["truncated"])
+        self.assertEqual(len(report["timeoutProgress"]), 1)
 
     def test_host_timeout_deadline_retains_progress_and_requires_original_caller(self):
         progress = {"phases": [dict(phase="queue-timeout")]}
@@ -161,6 +242,8 @@ class SipBusyTests(unittest.TestCase):
                 return verify(None, None, "call", lambda: None)
             caller.echo.side_effect = echo
             agent = Mock(dialog={"id": "busy"}, acked=True, final=b"486")
+            agent.busy_transaction_summary.return_value = [
+                dict(inviteFinalCode=486, transactionAckSeen=True, agentAnswered=False)]
             with patch.object(client, "RegistrationProbe", side_effect=[caller, agent_probe]), \
                     patch.object(client, "Agent", return_value=agent) as make_agent:
                 report = client.execute_answer("pbx", control, member_busy=True)
@@ -171,6 +254,7 @@ class SipBusyTests(unittest.TestCase):
             self.assertEqual([phase["phase"] for phase in report["phases"]], list(client.BUSY_PHASES))
             self.assertEqual(report["phases"][2]["inviteFinalCode"], 486)
             self.assertEqual(report["phases"][3]["queueStatus"], "TIMEOUT")
+            self.assertEqual(report["busyTransactions"], agent.busy_transaction_summary.return_value)
             agent.respond_busy.assert_called_once()
             agent.answer.assert_not_called()
             agent.hangup.assert_not_called()
