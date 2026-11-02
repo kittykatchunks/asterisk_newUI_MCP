@@ -1,0 +1,211 @@
+diff --git a/include/asterisk/astobj2.h b/include/asterisk/astobj2.h
+--- a/include/asterisk/astobj2.h
++++ b/include/asterisk/astobj2.h
+@@ -485,11 +485,31 @@
+ 	unsigned int max_objects;
+ };
+ 
++#ifdef TEST_FRAMEWORK
++struct ao2_bounded_work_counters {
++	unsigned int ref_calls;
++	unsigned int allocations;
++	unsigned int links;
++	unsigned int unlinks;
++	unsigned int lock_attempts;
++	unsigned int lock_acquisitions;
++	unsigned int unlock_attempts;
++	unsigned int bucket_reads;
++	unsigned int node_reads;
++};
++
++extern __thread struct ao2_bounded_work_counters *ao2_bounded_work_active;
++extern __thread int ao2_bounded_work_suspended;
++#endif
++
+ struct ao2_bounded_result {
+ 	enum ao2_bounded_status status;
+ 	unsigned int buckets;
+ 	unsigned int nodes;
+ 	unsigned int objects;
++#ifdef TEST_FRAMEWORK
++	struct ao2_bounded_work_counters test_work;
++#endif
+ };
+ 
+ /*! Borrowed visitor: return 0 to continue, 1 to abort; no ownership changes. */
+diff --git a/main/astobj2.c b/main/astobj2.c
+--- a/main/astobj2.c
++++ b/main/astobj2.c
+@@ -508,6 +508,14 @@
+ 	struct ao2_weakproxy *weakproxy = NULL;
+ 	const char *lock_state;
+ 
++#ifdef TEST_FRAMEWORK
++	if (ao2_bounded_work_active && !ao2_bounded_work_suspended) {
++		++ao2_bounded_work_active->ref_calls;
++		if (delta) {
++			return -1;
++		}
++	}
++#endif
+ 	if (obj == NULL) {
+ 		if (ref_log && user_data) {
+ 			fprintf(ref_log, "%p,%d,%d,%s,%d,%s,**invalid**,%s\n",
+@@ -768,12 +776,24 @@
+ void *__ao2_alloc(size_t data_size, ao2_destructor_fn destructor_fn, unsigned int options,
+ 	const char *tag, const char *file, int line, const char *func)
+ {
++#ifdef TEST_FRAMEWORK
++	if (ao2_bounded_work_active && !ao2_bounded_work_suspended) {
++		++ao2_bounded_work_active->allocations;
++		return NULL;
++	}
++#endif
+ 	return internal_ao2_alloc(data_size, destructor_fn, options, NULL, tag, file, line, func);
+ }
+ 
+ void *__ao2_alloc_with_lockobj(size_t data_size, ao2_destructor_fn destructor_fn, void *lockobj,
+ 	const char *tag, const char *file, int line, const char *func)
+ {
++#ifdef TEST_FRAMEWORK
++	if (ao2_bounded_work_active && !ao2_bounded_work_suspended) {
++		++ao2_bounded_work_active->allocations;
++		return NULL;
++	}
++#endif
+ 	return internal_ao2_alloc(data_size, destructor_fn, AO2_ALLOC_OPT_LOCK_OBJ, lockobj,
+ 		tag, file, line, func);
+ }
+diff --git a/main/astobj2_container.c b/main/astobj2_container.c
+--- a/main/astobj2_container.c
++++ b/main/astobj2_container.c
+@@ -98,6 +98,12 @@
+ 	enum ao2_lock_req orig_lock;
+ 	struct ao2_container_node *node;
+ 
++#ifdef TEST_FRAMEWORK
++	if (ao2_bounded_work_active && !ao2_bounded_work_suspended) {
++		++ao2_bounded_work_active->links;
++		return 0;
++	}
++#endif
+ 	if (!__is_ao2_object(obj_new, file, line, func)
+ 		|| !__is_ao2_object(self, file, line, func)) {
+ 		return 0;
+@@ -175,6 +181,12 @@
+ void *__ao2_unlink(struct ao2_container *c, void *user_data, int flags,
+ 	const char *tag, const char *file, int line, const char *func)
+ {
++#ifdef TEST_FRAMEWORK
++	if (ao2_bounded_work_active && !ao2_bounded_work_suspended) {
++		++ao2_bounded_work_active->unlinks;
++		return NULL;
++	}
++#endif
+ 	if (!__is_ao2_object(user_data, file, line, func)) {
+ 		/* Sanity checks. */
+ 		return NULL;
+diff --git a/main/astobj2_hash.c b/main/astobj2_hash.c
+--- a/main/astobj2_hash.c
++++ b/main/astobj2_hash.c
+@@ -1016,6 +1016,25 @@
+ #endif	/* defined(AO2_DEBUG) */
+ };
+ 
++#ifdef TEST_FRAMEWORK
++__thread struct ao2_bounded_work_counters *ao2_bounded_work_active;
++__thread int ao2_bounded_work_suspended;
++
++static void ao2_bounded_work_finish(struct ao2_bounded_result *result, int acquired)
++{
++	struct ao2_bounded_work_counters *work = &result->test_work;
++
++	ao2_bounded_work_active = NULL;
++	ao2_bounded_work_suspended = 0;
++	if (work->lock_attempts != 1 || work->lock_acquisitions != (unsigned int) acquired
++		|| work->unlock_attempts != (unsigned int) acquired
++		|| work->bucket_reads != result->buckets || work->node_reads != result->nodes
++		|| work->ref_calls || work->allocations || work->links || work->unlinks) {
++		result->status = AO2_BOUNDED_INTERNAL;
++	}
++}
++#endif
++
+ enum ao2_bounded_status ao2_container_visit_bounded_v1(
+ 	struct ao2_container *container, const struct ao2_bounded_limits *limits,
+ 	ao2_bounded_visitor visitor, void *context, struct ao2_bounded_result *result)
+@@ -1037,10 +1056,24 @@
+ 		|| (ao2_options_get(container) & AO2_ALLOC_OPT_LOCK_MASK) != AO2_ALLOC_OPT_LOCK_MUTEX) {
+ 		return result->status = AO2_BOUNDED_UNSUPPORTED;
+ 	}
++#ifdef TEST_FRAMEWORK
++	if (ao2_bounded_work_active) {
++		return result->status = AO2_BOUNDED_INTERNAL;
++	}
++	ao2_bounded_work_active = &result->test_work;
++	++result->test_work.lock_attempts;
++#endif
+ 	lock_result = ao2_trylock(container);
+ 	if (lock_result) {
+-		return result->status = lock_result == EBUSY ? AO2_BOUNDED_BUSY : AO2_BOUNDED_INTERNAL;
+-	}
++		result->status = lock_result == EBUSY ? AO2_BOUNDED_BUSY : AO2_BOUNDED_INTERNAL;
++#ifdef TEST_FRAMEWORK
++		ao2_bounded_work_finish(result, 0);
++#endif
++		return result->status;
++	}
++#ifdef TEST_FRAMEWORK
++	++result->test_work.lock_acquisitions;
++#endif
+ 	self = (struct ao2_container_hash *) container;
+ 	expected = ao2_container_count(container);
+ 	result->status = AO2_BOUNDED_INTERNAL;
+@@ -1056,6 +1089,9 @@
+ 		struct hash_bucket_node *node;
+ 
+ 		++result->buckets;
++#ifdef TEST_FRAMEWORK
++		++result->test_work.bucket_reads;
++#endif
+ 		node = AST_DLLIST_FIRST(&self->buckets[bucket].list);
+ 		while (node) {
+ 			int response;
+@@ -1064,12 +1100,21 @@
+ 				goto done;
+ 			}
+ 			++result->nodes;
++#ifdef TEST_FRAMEWORK
++			++result->test_work.node_reads;
++#endif
+ 			if (node->common.obj) {
+ 				if (result->objects == limits->max_objects) {
+ 					goto done;
+ 				}
+ 				++result->objects;
++#ifdef TEST_FRAMEWORK
++				ao2_bounded_work_suspended = 1;
++#endif
+ 				response = visitor(node->common.obj, context);
++#ifdef TEST_FRAMEWORK
++				ao2_bounded_work_suspended = 0;
++#endif
+ 				if (response) {
+ 					result->status = response == 1 ? AO2_BOUNDED_ABORTED : AO2_BOUNDED_INTERNAL;
+ 					goto done;
+@@ -1081,9 +1126,15 @@
+ 	result->status = result->objects == (unsigned int) expected
+ 		? AO2_BOUNDED_COMPLETE : AO2_BOUNDED_INTERNAL;
+ done:
++#ifdef TEST_FRAMEWORK
++	++result->test_work.unlock_attempts;
++#endif
+ 	if (ao2_unlock(container)) {
+ 		result->status = AO2_BOUNDED_INTERNAL;
+ 	}
++#ifdef TEST_FRAMEWORK
++	ao2_bounded_work_finish(result, 1);
++#endif
+ 	return result->status;
+ }
+ 

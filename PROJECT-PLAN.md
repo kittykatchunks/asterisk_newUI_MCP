@@ -3489,6 +3489,29 @@ passing regression. This is fixture evidence only: internal ref/allocator/
 mutation/no-I/O instrumentation, retirement concurrency and broader Gate A
 acceptance remain open. No Gate C or production authority follows.
 
+##### Gate A test-framework-only AO2 work-accounting supplement prepared
+
+The source-only
+[AO2 accounting supplement](./local/asterisk-patches/queue-policy-accounting-v1.json)
+adds a fourth hash-bound layer after the tested base, shutdown and CLI-output
+supplements. It tracks AO2 reference calls, standard and lock-object
+allocations, container link/unlink attempts, the walk's lock attempt/acquire/
+unlock counts, bucket reads and physical node reads. The counters and result
+fields exist only under `TEST_FRAMEWORK`; unexpected internal AO2 operations
+fail closed in that test build. Visitor execution is excluded from the walk's
+internal counters. The release-profile struct layout and behavior are not
+changed by this source patch.
+
+The patch is pinned to the passing output-v1 compile and native reports,
+applied with zero fuzz/offset to a temporary copy, and its per-file preimages
+and postimages are hash-bound. The profile compiler and offline evidence
+consumers now validate and preserve this fourth layer. This remains source
+preparation only: the new source has **not** been compiled or executed, and no
+new Gate B execution was authorized. Non-AO2 allocators and I/O are not
+instrumented; retirement concurrency, profile proof and broader AT/QO
+acceptance remain open. No Asterisk startup, runtime apply, Gate C or
+production/deployment action occurred.
+
 ##### Gate A mixed AO2 nodes: twenty-nine definitions, source checkpoint
 
 The next bounded source task identified in the preceding handoff was

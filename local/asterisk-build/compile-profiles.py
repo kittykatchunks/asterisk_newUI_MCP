@@ -7,8 +7,11 @@ import shutil
 import subprocess
 
 from shutdown_compile_binding import (
+    load_ao2_accounting_supplement,
     load_cli_output_supplement,
     load_shutdown_supplement,
+    verify_ao2_accounting_basis,
+    verify_ao2_accounting_postimages,
     verify_cli_output_basis,
     verify_cli_output_postimages,
 )
@@ -19,11 +22,14 @@ parser.add_argument("--approve-native-compile", action="store_true")
 parser.add_argument("--attempt", type=int, required=True)
 parser.add_argument("--shutdown-supplement-manifest")
 parser.add_argument("--cli-output-supplement-manifest")
+parser.add_argument("--ao2-accounting-supplement-manifest")
 args = parser.parse_args()
 if not args.approve_native_compile or args.attempt < 1 or os.geteuid() == 0:
     raise SystemExit("Requires an unprivileged user and explicit --approve-native-compile")
 if args.cli_output_supplement_manifest and not args.shutdown_supplement_manifest:
     raise SystemExit("CLI output supplement requires --shutdown-supplement-manifest")
+if args.ao2_accounting_supplement_manifest and not args.cli_output_supplement_manifest:
+    raise SystemExit("AO2 accounting supplement requires --cli-output-supplement-manifest")
 home = pathlib.Path("/home/asterisk-build")
 staging = home / "source-staging"
 source_lock = json.loads((staging / "source-lock.json").read_text())
@@ -38,6 +44,10 @@ cli_output_supplement = None
 cli_output_supplement_patch = None
 cli_output_supplement_hash = None
 cli_output_supplement_manifest_hash = None
+ao2_accounting_supplement = None
+ao2_accounting_supplement_patch = None
+ao2_accounting_supplement_hash = None
+ao2_accounting_supplement_manifest_hash = None
 if args.shutdown_supplement_manifest:
     (
         shutdown_supplement,
@@ -56,6 +66,20 @@ if args.cli_output_supplement_manifest:
         candidate,
         shutdown_supplement,
         shutdown_supplement_manifest_hash,
+    )
+if args.ao2_accounting_supplement_manifest:
+    (
+        ao2_accounting_supplement,
+        ao2_accounting_supplement_patch,
+        ao2_accounting_supplement_hash,
+        ao2_accounting_supplement_manifest_hash,
+    ) = load_ao2_accounting_supplement(
+        args.ao2_accounting_supplement_manifest,
+        candidate,
+        shutdown_supplement,
+        shutdown_supplement_manifest_hash,
+        cli_output_supplement,
+        cli_output_supplement_manifest_hash,
     )
 if hashlib.sha256(patch.read_bytes()).hexdigest() != candidate["patchSha256"]:
     raise ValueError("Patch SHA256 differs from approved candidate")
@@ -98,6 +122,20 @@ if cli_output_supplement is not None:
     report["cliOutputSupplementParentSupplementManifestSha256"] = (
         shutdown_supplement_manifest_hash
     )
+if ao2_accounting_supplement is not None:
+    report["ao2AccountingSupplementPatchSha256"] = ao2_accounting_supplement_hash
+    report["ao2AccountingSupplementManifestSha256"] = ao2_accounting_supplement_manifest_hash
+    report["ao2AccountingSupplementParentPatchSha256"] = candidate["patchSha256"]
+    report["ao2AccountingSupplementParentSupplementPatchSha256"] = shutdown_supplement_hash
+    report["ao2AccountingSupplementParentSupplementManifestSha256"] = (
+        shutdown_supplement_manifest_hash
+    )
+    report["ao2AccountingSupplementParentOutputSupplementPatchSha256"] = (
+        cli_output_supplement_hash
+    )
+    report["ao2AccountingSupplementParentOutputSupplementManifestSha256"] = (
+        cli_output_supplement_manifest_hash
+    )
 for profile in ["instrumented", "release"]:
     tree = build_root / profile
     shutil.copytree(pristine, tree)
@@ -136,6 +174,17 @@ for profile in ["instrumented", "release"]:
             patchSha256=cli_output_supplement_hash,
             appliedWithZeroFuzz=True,
             postimages=verify_cli_output_postimages(tree, cli_output_supplement),
+        )
+    ao2_accounting_application = None
+    if ao2_accounting_supplement is not None:
+        verify_ao2_accounting_basis(tree, ao2_accounting_supplement)
+        run(["patch", "--batch", "--fuzz=0", "--dry-run", "-p1",
+             "-i", ao2_accounting_supplement_patch])
+        run(["patch", "--batch", "--fuzz=0", "-p1", "-i", ao2_accounting_supplement_patch])
+        ao2_accounting_application = dict(
+            patchSha256=ao2_accounting_supplement_hash,
+            appliedWithZeroFuzz=True,
+            postimages=verify_ao2_accounting_postimages(tree, ao2_accounting_supplement),
         )
     configure = [
         "./configure",
@@ -217,6 +266,8 @@ for profile in ["instrumented", "release"]:
         profile_record["shutdownSupplement"] = supplement_application
     if cli_output_application is not None:
         profile_record["cliOutputSupplement"] = cli_output_application
+    if ao2_accounting_application is not None:
+        profile_record["ao2AccountingSupplement"] = ao2_accounting_application
     report["profiles"].append(profile_record)
     (build_root / "compile-report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"COMPILED_PROFILE={profile} REQUIRED_OUTPUTS={len(binaries)}", flush=True)

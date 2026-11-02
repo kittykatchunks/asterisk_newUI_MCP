@@ -515,6 +515,13 @@ bind the output supplement to the base candidate and shutdown successor.
 No release-profile startup, image export, runtime apply or PBX operation
 occurred; Gate A acceptance and Gate C remain open.
 
+**[AO2 work-accounting source supplement prepared offline](./PROJECT-PLAN.md#gate-a-test-framework-only-ao2-work-accounting-supplement-prepared).**
+The test-framework-only fourth supplement adds internal AO2 ref/allocation/
+mutation/lock and bucket/node work counters. It is hash-bound and wired into
+future profile application and evidence validation, but it has not been
+compiled or run. Non-AO2 allocation and I/O accounting, broader Gate A
+acceptance, Gate C and production work remain open.
+
 **[Release loaded-state smoke also passes](./PROJECT-PLAN.md#release-profile-loaded-state-smoke-passed).**
 All 44 release outputs resolve their shared libraries in the builder, and
 the disposable release core exposes no test command. Five exact getter

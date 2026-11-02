@@ -126,6 +126,8 @@ for name in [
     "queue-policy-shutdown-v1.json",
     "queue-policy-output-v1.patch",
     "queue-policy-output-v1.json",
+    "queue-policy-accounting-v1.patch",
+    "queue-policy-accounting-v1.json",
     "source-lock.json",
     "module-plan.json",
     "compile-profiles.py",

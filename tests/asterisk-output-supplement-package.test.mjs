@@ -12,6 +12,7 @@ const hash = (file) => createHash("sha256").update(bytes(file)).digest("hex");
 
 const manifestPath = "local/asterisk-patches/queue-policy-output-v1.json";
 const supplement = read(manifestPath);
+const accounting = read("local/asterisk-patches/queue-policy-accounting-v1.json");
 const parent = read("local/asterisk-patches/queue-policy-v1.json");
 const shutdown = read("local/asterisk-patches/queue-policy-shutdown-v1.json");
 const preparation = read("local/asterisk-patches/build-preparation.json");
@@ -129,4 +130,106 @@ test("CLI output fixture patch has only test-scoped, declared Asterisk paths", (
   assert.match(patch, /partial-output/);
   assert.match(patch, /AST_CLI_LEASE_TEST_HANDLER_RETURNED/);
   assert.equal(supplement.fixtures.testFrameworkOnly, true);
+});
+
+test("AO2 accounting supplement binds its four-layer source lineage offline", () => {
+  const expectedAccountingPaths = [
+    "include/asterisk/astobj2.h",
+    "main/astobj2.c",
+    "main/astobj2_container.c",
+    "main/astobj2_hash.c",
+  ];
+  assert.equal(accounting.stage, "source-only-ao2-work-accounting-prepared");
+  assert.equal(accounting.upstreamCommit, parent.upstreamCommit);
+  assert.equal(accounting.parentPatchSha256, parent.patchSha256);
+  assert.equal(accounting.parentSupplementManifestSha256,
+    hash("local/asterisk-patches/queue-policy-shutdown-v1.json"));
+  assert.equal(accounting.parentSupplementPatchSha256, shutdown.patchSha256);
+  assert.equal(accounting.parentOutputSupplementManifestSha256,
+    hash(manifestPath));
+  assert.equal(accounting.parentOutputSupplementPatchSha256, supplement.patchSha256);
+  assert.equal(accounting.basisCompileReportSha256,
+    hash("local/asterisk-build/compile-report-output-v1.json"));
+  assert.equal(accounting.basisNativeReportSha256,
+    hash("local/asterisk-build/native-test-report-output-v1.json"));
+  assert.equal(hash(`local/asterisk-patches/${accounting.patch}`), accounting.patchSha256);
+  assert.deepEqual(accounting.changedUpstreamPaths, expectedAccountingPaths);
+  assert.deepEqual(Object.keys(accounting.basisSourceSha256), expectedAccountingPaths);
+  assert.deepEqual(
+    Object.keys(accounting.applicationVerification.postimageSha256),
+    expectedAccountingPaths,
+  );
+  assert.equal(accounting.applicationVerification.patchDryRunSucceeded, true);
+  assert.equal(accounting.applicationVerification.zeroFuzz, true);
+  assert.equal(accounting.applicationVerification.zeroOffset, true);
+  assert.equal(accounting.applicationVerification.originalSuccessorSourceModified, false);
+  assert.equal(accounting.instrumentation.testFrameworkOnly, true);
+  assert.equal(accounting.instrumentation.nativeDefinitionsAdded, 0);
+  assert.deepEqual(accounting.instrumentation.workCounters, [
+    "AO2 reference calls",
+    "AO2 allocations",
+    "AO2 container links",
+    "AO2 container unlinks",
+    "mutex lock attempts and acquisitions",
+    "unlock attempts",
+    "bucket reads",
+    "physical node reads",
+  ]);
+  assert.equal(accounting.instrumentation.visitorCallsExcludedFromInternalCounters, true);
+  assert.equal(accounting.instrumentation.nonAo2AllocatorsAndIoInstrumented, false);
+  assert.equal(accounting.instrumentation.gateAAcceptanceComplete, false);
+  assert.equal(accounting.nativeCompileAuthorized, false);
+  assert.equal(accounting.nativeCompiled, false);
+  assert.equal(accounting.nativeTestsExecuted, false);
+  assert.equal(accounting.asteriskStarted, false);
+  assert.equal(accounting.runtimeApplyAuthorized, false);
+  assert.equal(accounting.gatesBAndCApproved, false);
+  assert.equal(accounting.compilerApplicationSupport.implemented, true);
+  assert.equal(accounting.compilerApplicationSupport.offlineValidated, true);
+  assert.equal(preparation.ao2AccountingSupplement.patchSha256, accounting.patchSha256);
+  assert.equal(preparation.ao2AccountingSupplement.manifestSha256,
+    hash("local/asterisk-patches/queue-policy-accounting-v1.json"));
+  assert.equal(preparation.ao2AccountingSupplement.nativeCompiled, false);
+  assert.equal(preparation.ao2AccountingSupplement.gateAAcceptanceComplete, false);
+  const compiler = bytes("local/asterisk-build/compile-profiles.py").toString();
+  const binding = bytes("local/asterisk-build/shutdown_compile_binding.py").toString();
+  assert.match(compiler, /--ao2-accounting-supplement-manifest/);
+  assert.match(compiler, /requires --cli-output-supplement-manifest/);
+  assert.match(compiler, /verify_ao2_accounting_basis/);
+  assert.match(compiler, /verify_ao2_accounting_postimages/);
+  assert.match(compiler, /ao2AccountingSupplementManifestSha256/);
+  assert.match(binding, /def load_ao2_accounting_supplement\(/);
+  assert.match(binding, /AO2 accounting supplement source preimage mismatch/);
+  assert.match(binding, /AO2 accounting supplement source postimage mismatch/);
+  const stageRuntime = bytes("local/asterisk-build/stage-runtime.py").toString();
+  for (const buildRecord of [
+    "queue-policy-accounting-v1.patch",
+    "queue-policy-accounting-v1.json",
+  ]) {
+    assert.ok(stageRuntime.includes(`"${buildRecord}"`), `Missing staged build record: ${buildRecord}`);
+  }
+  assert.ok(
+    compiler.indexOf('"-i", cli_output_supplement_patch])') <
+      compiler.indexOf("verify_ao2_accounting_basis(tree"),
+  );
+  assert.ok(
+    compiler.indexOf("verify_ao2_accounting_basis(tree") <
+      compiler.indexOf('"-i", ao2_accounting_supplement_patch'),
+  );
+});
+
+test("AO2 accounting source patch is test-framework-only and scope-limited", () => {
+  const patch = bytes(`local/asterisk-patches/${accounting.patch}`).toString("utf8");
+  const paths = [...patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)]
+    .map((match) => {
+      assert.equal(match[1], match[2]);
+      return match[1];
+    });
+  assert.deepEqual(paths, accounting.changedUpstreamPaths);
+  assert.match(patch, /#ifdef TEST_FRAMEWORK/);
+  assert.match(patch, /ao2_bounded_work_finish/);
+  assert.match(patch, /ao2_bounded_work_suspended/);
+  assert.match(patch, /__ao2_alloc_with_lockobj/);
+  assert.match(patch, /result->test_work\.node_reads/);
+  assert.match(patch, /return NULL;/);
 });

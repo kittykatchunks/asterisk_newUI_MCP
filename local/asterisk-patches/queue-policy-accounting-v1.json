@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "stage": "source-only-ao2-work-accounting-prepared",
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "parentManifest": "queue-policy-v1.json",
+  "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "parentSupplementManifest": "queue-policy-shutdown-v1.json",
+  "parentSupplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+  "parentSupplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+  "parentOutputSupplementManifest": "queue-policy-output-v1.json",
+  "parentOutputSupplementManifestSha256": "ca410d4bed58db93cb3eb141a2e9a9359d4b7db841b4d4fb35d683c93e3c8e5c",
+  "parentOutputSupplementPatchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
+  "basisCompileReport": "../asterisk-build/compile-report-output-v1.json",
+  "basisCompileReportSha256": "1f15c6998f92007e35f1034e4670d1c5812be3fa5eed46395fdafe8ce19289e7",
+  "basisNativeReport": "../asterisk-build/native-test-report-output-v1.json",
+  "basisNativeReportSha256": "8eec86035f16d9fc31b33693497fe4c30c1247369d3495ea062117a586a8c3cc",
+  "patch": "queue-policy-accounting-v1.patch",
+  "patchSha256": "b35e40104a558be7815e435abe219b9ab723cb5376aa0207e4507d5d422f5ef5",
+  "changedUpstreamPaths": [
+    "include/asterisk/astobj2.h",
+    "main/astobj2.c",
+    "main/astobj2_container.c",
+    "main/astobj2_hash.c"
+  ],
+  "basisSourceSha256": {
+    "include/asterisk/astobj2.h": "53d13793fb4a69365029b54152ffa02c46fe7f5ab9af2e15d3980dcda87df6a5",
+    "main/astobj2.c": "4d4f255a00c8409c135a9b33e6147540bd0804c4a3463ed7b84d9a3adcdbfd0a",
+    "main/astobj2_container.c": "ccf2ae264764df1392b8fb3f57abc1eb741cdeb74232f8dc3a03d333351d8a72",
+    "main/astobj2_hash.c": "0bafb8fba93513b8c4d046294383396dc1af9d40dfd03d53a9045d4242ac1e5b"
+  },
+  "applicationVerification": {
+    "patchDryRunSucceeded": true,
+    "zeroFuzz": true,
+    "zeroOffset": true,
+    "appliedToTemporarySourceCopy": true,
+    "originalSuccessorSourceModified": false,
+    "postimageSha256": {
+      "include/asterisk/astobj2.h": "bcc49470e2797ac933b708d47e1420cb517fd2a790d4ce068cbf2c22dc5785c5",
+      "main/astobj2.c": "35f29fe2e036c4995d5e2b844c5aae5e6cd0c331f88f38b254d952428b0bfdeb",
+      "main/astobj2_container.c": "389fa9b7f07b2befb713564e05c31d9b446e8667befe61c44afbc97dca41f534",
+      "main/astobj2_hash.c": "7266415b40583b8325bca9468bcfd7c1af290028a6787310e7afe170017bb3ca"
+    }
+  },
+  "instrumentation": {
+    "testFrameworkOnly": true,
+    "nativeDefinitionsAdded": 0,
+    "workCounters": [
+      "AO2 reference calls",
+      "AO2 allocations",
+      "AO2 container links",
+      "AO2 container unlinks",
+      "mutex lock attempts and acquisitions",
+      "unlock attempts",
+      "bucket reads",
+      "physical node reads"
+    ],
+    "visitorCallsExcludedFromInternalCounters": true,
+    "nonAo2AllocatorsAndIoInstrumented": false,
+    "gateAAcceptanceComplete": false
+  },
+  "compilerApplicationSupport": {
+    "implemented": true,
+    "offlineValidated": true,
+    "support": "compile-profiles.py accepts this hash-bound fourth supplement only after the base, shutdown, and CLI-output supplements, applies it with zero fuzz to both profile trees, and verifies its preimages and postimages."
+  },
+  "nativeCompileAuthorized": false,
+  "nativeCompiled": false,
+  "nativeTestsExecuted": false,
+  "asteriskStarted": false,
+  "runtimeApplyAuthorized": false,
+  "gatesBAndCApproved": false
+}
