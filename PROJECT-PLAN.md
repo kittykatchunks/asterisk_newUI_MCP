@@ -1014,7 +1014,7 @@ Recommended sequence:
    runtime verification and conditional verified recovery. CP-01 through CP-10
    remain unverified as full checks. The strict compiler, immutable scoped
    drafts/validation/approval and durable offline operation fencing now have
-   CF-01 through CF-19 tests. The separate owned binding/read-only inspector
+   CF-01 through CF-20 tests. The separate owned binding/read-only inspector
    passes CI-01 through CI-10 on two fresh pinned PBXs. No executor exists;
    base remains zero and offline approvals do not acquire runtime authority.
 4. **Explicitly gate browser-agent activation**, then intended queue/media/
@@ -1286,7 +1286,7 @@ The exact ten-check [CP acceptance contract](./MILESTONE-1.md#selected-cp-design
 remains **unverified as full checks**. Implementation order:
 
 1. **Offline foundation implemented:** strict model/compiler and dedicated durable
-   revision/approval/operation store, CF-01 through CF-19; no runtime executor.
+   revision/approval/operation store, CF-01 through CF-20; no runtime executor.
 2. **Empty-baseline binding/read-only inspector implemented:** CI-01 through CI-10
    on two uniquely owned pinned PBXs; no nonempty published-state inspector.
 3. Scoped operator apply/recovery and pinned two-customer quiescent canaries;
@@ -1306,7 +1306,7 @@ M1-09 complete.
 
 [Compiler](./src/configuration-model.ts), [store](./src/configuration-store.ts),
 [CLI](./scripts/Manage-ConfigurationDraft.ts) and
-[19 CF acceptance tests](./tests/configuration-foundation.test.ts) now implement:
+[20 CF acceptance tests](./tests/configuration-foundation.test.ts) now implement:
 
 - Exact flat `schemaVersion:1, routeId, queueId, waitSeconds` JSON, 4096 UTF-8-byte
   input limit, selected slug/wait bounds, duplicate-key detection including
@@ -1333,8 +1333,8 @@ M1-09 complete.
   cannot be cleared by this API; it persists across process startup. Operation and
   event and receipt reads enforce exact document fields, including nested
   attribution objects, the canonical non-runtime validation impact statement,
-  positive sequence numbers and claim-event attribution binding, even when
-  unknown fields are accompanied by recomputed checksums.
+  positive and correctly ordered sequence numbers, claim-event attribution
+  binding, even when unknown fields are accompanied by recomputed checksums.
 - Read-only existing-store inspection without creation/migration/runtime access,
   checksum/compiler/receipt-binding checks, and explicit errors for storage failure
   or foreign schemas. Real competing processes and kill inside/after the actual

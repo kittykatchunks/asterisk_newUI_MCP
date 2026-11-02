@@ -442,3 +442,14 @@ test("CF-19: initial claim event attribution is bound to the operation intent", 
     assert.throws(() => store.operation(scope, id), /Corrupt configuration operation claim attribution/);
   });
 });
+
+test("CF-20: approval receipt sequence must follow its validated receipt", async () => {
+  await fixture((store, path) => {
+    approved(store);
+    const db = new DatabaseSync(path);
+    try {
+      db.prepare("UPDATE configuration_receipts SET sequence=1000 WHERE kind='validated'").run();
+    } finally { db.close(); }
+    assert.throws(() => store.read(scope, 1), /Corrupt configuration approval/);
+  });
+});

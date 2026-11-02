@@ -144,9 +144,11 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
         }))) throw new Error("Corrupt configuration validation");
     if (kind === "approved") {
       const validation = receipt(scope, revision, "validated");
-      if (!validation || value.validationSha256 !== validation.sha256 ||
+      if (!validation || Number(row.sequence) <= validation.sequence || value.validationSha256 !== validation.sha256 ||
           value.sameAuthorPermitted !== true || value.sameAuthor !== (value.attribution.operator === d.attribution.operator) ||
-          value.runtimeApplyAuthorized !== false || value.identityBasis !== "trusted-local-operator-reference") throw new Error("Corrupt configuration approval");
+          value.runtimeApplyAuthorized !== false || value.identityBasis !== "trusted-local-operator-reference") {
+        throw new Error("Corrupt configuration approval");
+      }
       if (value.inspectionReview !== undefined) {
         const review = parseConfigurationReview(value.inspectionReview);
         if (review.customer !== scope.customer || review.runtime !== scope.runtime) throw new Error("Corrupt approval inspection scope");
