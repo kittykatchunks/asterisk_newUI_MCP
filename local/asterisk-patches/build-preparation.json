@@ -723,7 +723,7 @@
     "authorization": "User selected the test-only source fixture implementation; compilation and native execution were excluded.",
     "manifest": "../asterisk-patches/queue-policy-output-v1.json",
     "patch": "../asterisk-patches/queue-policy-output-v1.patch",
-    "patchSha256": "c0fe750cdc8dc3958f01d5b3d74efdcb1cfc6f855259a875be9f0f4bed8e19c0",
+    "patchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
     "basisCompileReportSha256": "dbede4ae6177173656d3a5f31f05e1c3e01d0d888bbfea6d74a165c24ab09514",
     "basisNativeReportSha256": "22b54b08151e83975191204e9541c1ca8d6669f669fa89c65dee7ace8fbe2c49",
     "patchDryRunSucceeded": true,
