@@ -3395,9 +3395,16 @@ that exact patch and records 46 instrumented and 44 release outputs. The
 [`native-test-report.json`](./local/asterisk-build/native-test-report.json)
 binds that compile report, runs the exact current 30-test inventory, passes all
 30 tests, and records that all owned processes stopped. These committed
-reports were reused; no new compile or native-test attempt was made for this
-authorization. This result is for the approved substitute, not the distinct
-`72c5ef0` candidate, and does not close broader Gate A acceptance.
+reports were initially reused rather than rerun. After the user explicitly
+authorized one fresh attempt on the substitute, compile attempt 12 built 46
+instrumented and 44 release outputs; native-test attempt 8 passed the exact
+30-test inventory. The fresh compile/native reports, command logs, and 30
+hash-bound per-test XML results are recorded in
+[`build-preparation.json`](./local/asterisk-patches/build-preparation.json).
+All owned test processes stopped. No image, export, registry push, production
+or shared-PBX activity occurred. This result is for the approved substitute,
+not the distinct `72c5ef0` candidate, and does not close broader Gate A
+acceptance.
 
 **Lifecycle delta since the earlier matrix (AT-09/QO-03):**
 

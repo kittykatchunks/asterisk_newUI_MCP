@@ -1,0 +1,2108 @@
+RUN instrumented: patch --batch --fuzz=0 --dry-run -p1 -i /home/asterisk-build/source-staging/queue-policy-v1.patch
+checking file apps/app_queue.c
+checking file include/asterisk/astobj2.h
+checking file include/asterisk/cli.h
+checking file include/asterisk/module.h
+checking file main/astobj2_hash.c
+checking file main/cli.c
+checking file main/loader.c
+checking file tests/test_bounded_queue_policy.c
+checking file tests/test_protected_cli_target.c
+RUN instrumented: patch --batch --fuzz=0 -p1 -i /home/asterisk-build/source-staging/queue-policy-v1.patch
+patching file apps/app_queue.c
+patching file include/asterisk/astobj2.h
+patching file include/asterisk/cli.h
+patching file include/asterisk/module.h
+patching file main/astobj2_hash.c
+patching file main/cli.c
+patching file main/loader.c
+patching file tests/test_bounded_queue_policy.c
+patching file tests/test_protected_cli_target.c
+RUN instrumented: ./configure --prefix=/home/asterisk-build/install/instrumented --with-pjproject-bundled --without-jansson-bundled --without-libjwt-bundled --without-libjwt --with-externals-cache=/home/asterisk-build/source-staging --disable-xmldoc --enable-dev-mode
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables...
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... none needed
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking for wchar.h... yes
+checking for minix/config.h... no
+checking for sys/param.h... yes
+checking for sys/select.h... yes
+checking for sys/socket.h... yes
+checking for utime.h... yes
+checking whether it is safe to define __EXTENSIONS__... yes
+checking whether _XOPEN_SOURCE should be defined... no
+checking whether char is unsigned... no
+checking for uname... /usr/bin/uname
+checking for g++... g++
+checking whether the compiler supports GNU C++... yes
+checking whether g++ accepts -g... yes
+checking for g++ option to enable C++11 features... none needed
+checking how to run the C preprocessor... gcc -E
+checking how to run the C++ preprocessor... g++ -E
+checking whether g++ supports C++11 features by default... yes
+checking whether g++ supports C++14 features by default... yes
+checking whether g++ supports C++17 features by default... yes
+checking whether g++ supports C++20 features by default... no
+checking whether g++ supports C++20 features with -std=gnu++20... yes
+checking whether g++ supports C++23 features by default... no
+checking whether g++ supports C++23 features with -std=gnu++23... no
+checking whether g++ supports C++23 features with -std=c++23... no
+checking whether g++ supports C++23 features with +std=c++23... no
+checking whether g++ supports C++23 features with -h std=c++23... no
+checking whether g++ supports C++23 features with -std:c++23... no
+configure: No compiler with C++23 support was found
+checking for a sed that does not truncate output... /usr/bin/sed
+checking for egrep... grep -E
+checking for ld used by gcc... /usr/bin/ld
+checking if the linker (/usr/bin/ld) is GNU ld... yes
+checking for gawk... gawk
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether ln -s works... yes
+checking for ranlib... ranlib
+checking for GNU make... make
+checking for grep that handles long lines and -e... /usr/bin/grep
+checking for egrep... /usr/bin/grep -E
+checking for strip... strip
+checking for ar... ar
+checking for bison... /usr/bin/bison
+checking for cmp... /usr/bin/cmp
+checking for cat... /usr/bin/cat
+checking for cut... /usr/bin/cut
+checking for flex... /usr/bin/flex
+checking for grep... (cached) /usr/bin/grep
+checking for python2.7... no
+checking for python2... no
+checking for python... no
+checking for python3... /usr/bin/python3
+checking for find... /usr/bin/find
+checking for basename... /usr/bin/basename
+checking for dirname... /usr/bin/dirname
+checking for sh... /bin/bash
+checking for ln... /usr/bin/ln
+checking for doxygen... :
+checking for dot... :
+checking for wget... /usr/bin/wget
+checking for curl... /usr/bin/curl
+checking for xmllint... :
+checking for xmlstarlet... /usr/bin/xmlstarlet
+checking for bash... /bin/bash
+checking for git... /usr/bin/git
+checking for alembic... :
+checking for bzip2... /usr/bin/bzip2
+checking for tar... /usr/bin/tar
+checking for patch... /usr/bin/patch
+checking for sed... (cached) /usr/bin/sed
+checking for nm... /usr/bin/nm
+checking for realpath... /usr/bin/realpath
+checking for ldconfig... /usr/sbin/ldconfig
+checking for sha1sum... /usr/bin/sha1sum
+checking for openssl... /usr/bin/openssl
+checking for pkg-config... /usr/bin/pkg-config
+checking pkg-config is at least version 0.9.0... yes
+checking for bison that supports parse-param... /usr/bin/bison
+checking for soxmix... no
+checking for md5... no
+checking for md5sum... md5sum
+checking for a sed that does not truncate output... (cached) /usr/bin/sed
+checking for egrep -e... (cached) /usr/bin/grep -E
+checking whether gcc is Clang... no
+checking whether pthreads work with "-pthread" and "-lpthread"... yes
+checking for joinable pthread attribute... PTHREAD_CREATE_JOINABLE
+checking whether more special flags are required for pthreads... no
+checking for PTHREAD_PRIO_INHERIT... yes
+checking for RAII support... checking for gcc -fnested-functions... no
+checking for clang strsep/strcmp optimization... no
+configure: checking OPENSSL with pkg-config
+configure: checking whether system openssl > 1.1.0
+checking for openssl >= 1.1.0... yes
+checking for embedded pjproject (may have to download)... configuring
+[pjproject]  Verifying /home/asterisk-build/source-staging/pjproject-2.17.tar.bz2
+[pjproject]  Verify successful
+[pjproject]  Unpacking /home/asterisk-build/source-staging/pjproject-2.17.tar.bz2
+[pjproject]  Applying patches /home/asterisk-build/native-build-attempt-12/instrumented/third-party/pjproject/patches /home/asterisk-build/native-build-attempt-12/instrumented/third-party/pjproject/source
+[pjproject]  Applying user.mak
+[pjproject]  Rebuilding
+[pjproject]  Applying custom include file patches/asterisk_malloc_debug.h
+[pjproject]  Applying custom include file patches/config_site.h
+[pjproject]  Configuring with --with-ssl --prefix=/opt/pjproject --disable-speex-codec --disable-speex-aec --disable-bcg729 --disable-gsm-codec --disable-ilbc-codec --disable-l16-codec --disable-g722-codec --disable-g7221-codec --disable-opencore-amr --disable-silk --disable-opus --disable-video --disable-v4l2 --disable-sound --disable-ext-sound --disable-sdl --disable-libyuv --disable-ffmpeg --disable-openh264 --disable-ipp --disable-libwebrtc --disable-libsrtp --disable-upnp --without-external-pa --without-external-srtp --enable-epoll CFLAGS=-DPJ_HAS_LINUX_EPOLL=1
+checking for bundled pjproject... yes
+checking for gawk... (cached) gawk
+checking for curl-config... /usr/bin/curl-config
+checking for the version of libcurl... 8.5.0
+checking for libcurl >= version 7.10.1... yes
+checking whether libcurl is usable... yes
+checking for curl_free... yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for dirent.h that defines DIR... yes
+checking for library containing opendir... none required
+checking for sys/wait.h that is POSIX.1 compatible... yes
+checking for sys/types.h... (cached) yes
+checking for netinet/in.h... yes
+checking for arpa/nameser.h... yes
+checking for netdb.h... yes
+checking for resolv.h... yes
+checking for arpa/nameser.h... (cached) yes
+checking for assert.h... yes
+checking for ctype.h... yes
+checking for dlfcn.h... yes
+checking for errno.h... yes
+checking for fcntl.h... yes
+checking for float.h... yes
+checking for grp.h... yes
+checking for inttypes.h... (cached) yes
+checking for limits.h... yes
+checking for locale.h... yes
+checking for math.h... yes
+checking for pwd.h... yes
+checking for netinet/in.h... (cached) yes
+checking for regex.h... yes
+checking for sched.h... yes
+checking for stdarg.h... yes
+checking for stdint.h... (cached) yes
+checking for stdio.h... (cached) yes
+checking for stdlib.h... (cached) yes
+checking for string.h... (cached) yes
+checking for syslog.h... yes
+checking for sys/file.h... yes
+checking for sys/ioctl.h... yes
+checking for sys/param.h... (cached) yes
+checking for sys/resource.h... yes
+checking for sys/socket.h... (cached) yes
+checking for sys/stat.h... (cached) yes
+checking for sys/time.h... yes
+checking for sys/types.h... (cached) yes
+checking for sys/un.h... yes
+checking for termios.h... yes
+checking for time.h... yes
+checking for unistd.h... (cached) yes
+checking for arpa/inet.h... yes
+checking for libintl.h... yes
+checking for malloc.h... yes
+checking for netdb.h... (cached) yes
+checking for stddef.h... yes
+checking for strings.h... (cached) yes
+checking for sys/event.h... no
+checking for utime.h... (cached) yes
+checking for libedit... yes
+checking for Testing for libedit unicode support... yes
+checking for uuid_generate_random in -luuid... yes
+checking for uuid/uuid.h... yes
+checking for jansson >= 2.11... yes
+checking for clock_gettime in -lrt... yes
+checking for libxml-2.0... yes
+checking for uriParseUriA in -luriparser... no
+checking for xsltLoadStylesheetPI in -lxslt... no
+checking for xsltCleanupGlobals in -lxslt... no
+checking for xlocale.h... no
+checking for winsock.h... no
+checking for winsock2.h... no
+checking for sys/poll.h... yes
+checking for gcc option to enable large file support... none needed
+checking for _Bool... yes
+checking for stdbool.h that conforms to C99 or later... yes
+checking for an ANSI C-conforming const... yes
+checking for uid_t... yes
+checking for gid_t... yes
+checking for inline... inline
+checking for long double with more range or precision than double... yes
+checking for mode_t... yes
+checking for off_t... yes
+checking for pid_t... yes
+checking for size_t... (cached) yes
+checking for struct stat.st_blksize... yes
+checking for struct ucred.uid... yes
+checking for struct ucred.cr_uid... no
+checking for struct sockpeercred.uid... no
+checking for struct ifreq.ifr_ifru.ifru_hwaddr... yes
+checking whether struct tm is in sys/time.h or time.h... time.h
+checking for working volatile... yes
+checking for ptrdiff_t... yes
+checking for struct stat.st_mtim... yes
+checking for struct stat.st_mtimensec... no
+checking for struct stat.st_mtimespec... no
+checking for struct sockaddr_in6.sin6_len... no
+checking for struct sockaddr_in.sin_len... no
+checking for working chown... yes
+checking whether closedir returns void... no
+checking for error_at_line... yes
+checking for vfork.h... no
+checking for fork... yes
+checking for vfork... yes
+checking for working fork... yes
+checking for working vfork... (cached) yes
+checking for declarations of fseeko and ftello... yes
+checking for working memcmp... yes
+checking for getpagesize... yes
+checking for vprintf... yes
+checking for working mmap... yes
+checking types of arguments for select... int,fd_set *,struct timeval *
+checking whether lstat correctly handles trailing slash... yes
+checking whether stat accepts an empty string... no
+checking for working strcoll... yes
+checking for strftime... yes
+checking for working strnlen... yes
+checking for working strtod... yes
+checking whether utime accepts a null argument... yes
+checking for asprintf... yes
+checking for atexit... yes
+checking for closefrom... yes
+checking for dup2... yes
+checking for eaccess... yes
+checking for endpwent... yes
+checking for euidaccess... yes
+checking for ffsll... yes
+checking for ftruncate... yes
+checking for getcwd... yes
+checking for gethostbyname... yes
+checking for gethostname... yes
+checking for getloadavg... yes
+checking for gettimeofday... yes
+checking for glob... yes
+checking for ioperm... yes
+checking for inet_ntoa... yes
+checking for isascii... yes
+checking for memchr... yes
+checking for memmove... yes
+checking for memset... yes
+checking for mkdir... yes
+checking for mkdtemp... yes
+checking for munmap... yes
+checking for newlocale... yes
+checking for pipe2... yes
+checking for ppoll... yes
+checking for putenv... yes
+checking for re_comp... yes
+checking for regcomp... yes
+checking for select... yes
+checking for setenv... yes
+checking for socket... yes
+checking for strcasecmp... yes
+checking for strcasestr... yes
+checking for strchr... yes
+checking for strcspn... yes
+checking for strdup... yes
+checking for strerror... yes
+checking for strlcat... yes
+checking for strlcpy... yes
+checking for strncasecmp... yes
+checking for strndup... yes
+checking for strnlen... yes
+checking for strrchr... yes
+checking for strsep... yes
+checking for strspn... yes
+checking for strstr... yes
+checking for strtod... (cached) yes
+checking for strtol... yes
+checking for strtold... yes
+checking for strtoq... yes
+checking for unsetenv... yes
+checking for uselocale... yes
+checking for utime... yes
+checking for vasprintf... yes
+checking for getpeereid... no
+checking for sysctl... no
+checking for swapctl... no
+checking for malloc_trim... yes
+checking for htonll... no
+checking for ntohll... no
+checking for sqrt in -lm... yes
+checking for exp2... yes
+checking for log2... yes
+checking for exp10... yes
+checking for log10... yes
+checking for sin... yes
+checking for cos... yes
+checking for tan... yes
+checking for asin... yes
+checking for acos... yes
+checking for atan... yes
+checking for atan2... yes
+checking for pow... yes
+checking for rint... yes
+checking for exp... yes
+checking for log... yes
+checking for remainder... yes
+checking for fmod... yes
+checking for round... yes
+checking for roundf... yes
+checking for trunc... yes
+checking for floor... yes
+checking for ceil... yes
+checking for exp2l... yes
+checking for log2l... yes
+checking for exp10l... yes
+checking for log10l... yes
+checking for sinl... yes
+checking for cosl... yes
+checking for tanl... yes
+checking for asinl... yes
+checking for acosl... yes
+checking for atanl... yes
+checking for atan2l... yes
+checking for powl... yes
+checking for sqrtl... yes
+checking for rintl... yes
+checking for expl... yes
+checking for logl... yes
+checking for remainderl... yes
+checking for fmodl... yes
+checking for roundl... yes
+checking for truncl... yes
+checking for floorl... yes
+checking for ceill... yes
+checking for LLONG_MAX in limits.h... yes
+checking for timersub in time.h... yes
+checking for a version of GNU ld that supports the --dynamic-list flag... yes
+checking for sys/poll.h... (cached) yes
+checking for inet_aton... yes
+checking for IP_PKTINFO... yes
+checking for gcc options needed to detect all undeclared functions... none needed
+checking whether gethostbyname_r is declared... yes
+checking for library containing gethostbyname_r... none required
+checking for gethostbyname_r with 6 arguments... yes
+checking for gethostbyname_r with 5 arguments... no
+checking for byteswap.h... yes
+checking for __swap16 variant of <sys/endian.h> byteswapping macros... no
+checking for bswap16 variant of <sys/endian.h> byteswapping macros... no
+checking for locale_t in locale.h... yes
+checking for O_EVTONLY in fcntl.h... no
+checking for O_SYMLINK in fcntl.h... no
+checking for PTHREAD_RWLOCK_INITIALIZER in pthread.h... yes
+checking for PTHREAD_RWLOCK_PREFER_WRITER_NP in pthread.h... yes
+checking for PTHREAD_MUTEX_RECURSIVE_NP in pthread.h... yes
+checking for PTHREAD_MUTEX_ADAPTIVE_NP in pthread.h... yes
+checking for pthread_spinlock_t in pthread.h... yes
+checking for pthread_rwlock_timedwrlock() in pthread.h... yes
+checking for working unnamed semaphores... yes
+checking if PTHREAD_ONCE_INIT needs braces... no
+checking for PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP in pthread.h... yes
+checking whether we can compare a mutex to its initial value... no
+checking for compiler sync operations... yes
+checking for compiler atomic operations... yes
+checking if your system printf is NULL-safe.... (null)yes
+checking if socket() accepts SOCK_NONBLOCK... yes
+checking if setsockopt() accepts the IPV6_V6ONLY socket option... yes
+checking if we can increase the maximum select-able file descriptor... no
+checking if we have usable eventfd support... yes
+checking for compiler 'attribute pure' support... yes
+checking for compiler 'attribute malloc' support... yes
+checking for compiler 'attribute const' support... yes
+checking for compiler 'attribute unused' support... yes
+checking for compiler 'attribute always_inline' support... no
+checking for compiler 'attribute deprecated' support... yes
+checking for compiler 'attribute sentinel' support... yes
+checking for compiler 'attribute warn_unused_result' support... yes
+checking for compiler 'attribute may_alias' support... yes
+checking for compiler 'attribute constructor' support... yes
+checking for compiler 'attribute destructor' support... yes
+checking for compiler 'attribute noreturn' support... yes
+checking for -fsanitize=address support... yes
+checking for -fsanitize=thread support... yes
+checking for -fsanitize=leak support... yes
+checking for -fsanitize=undefined support... yes
+checking for -Wdeclaration-after-statement support... yes
+checking for -Wtrampolines support... yes
+checking for _FORTIFY_SOURCE support... yes
+checking for -fno-strict-overflow... yes
+checking for -Wno-format-truncation... yes
+checking for -Wno-format-y2k... yes
+checking for -Wno-stringop-truncation... yes
+checking for -Wshadow... yes
+checking for -march=native support... yes
+checking whether to use rpath... checking for sysinfo... yes
+checking for library containing res_9_ninit... no
+checking for res_ninit... yes
+checking for library containing res_9_ndestroy... no
+checking for res_ndestroy... no
+checking for library containing res_9_close... no
+checking for res_close... no
+checking for struct __res_state._u._ext.nsaddrs... yes
+checking for BIND_8_COMPAT required... no
+checking for GLOB_NOMAGIC in glob.h... yes
+checking for GLOB_BRACE in glob.h... yes
+checking for FNM_CASEFOLD in fnmatch.h... yes
+checking for RTLD_NOLOAD in dlfcn.h... yes
+checking for IP_MTU_DISCOVER in netinet/in.h... yes
+checking size of int... 4
+checking size of long... 8
+checking size of long long... 8
+checking size of char *... 8
+checking size of long... (cached) 8
+checking size of long long... (cached) 8
+checking size of fd_set.fds_bits... (cached) 8
+checking for dladdr in dlfcn.h... yes
+checking for bfd_openr in -lbfd... no
+checking for bfd_openr in -lbfd... (cached) no
+checking for bfd_openr in -lbfd... (cached) no
+checking for cap_from_text in -lcap... yes
+checking for sys/capability.h... yes
+checking for DAHDI_RESET_COUNTERS in dahdi/user.h... no
+checking for DAHDI_DEFAULT_MTU_MRU in dahdi/user.h... no
+checking for DAHDI_CODE in dahdi/user.h... no
+checking for DAHDI_POLICY_HALF_FULL in dahdi/user.h... no
+checking for enhanced dahdi vmwi support... no
+checking if "int foo = DAHDI_ECHOCANCEL_FAX_MODE" compiles using dahdi/user.h... no
+checking for getifaddrs() support... yes
+checking for timerfd support... yes
+checking for gsm_create in -lgsm... no
+checking for libilbc < 3... no
+checking for iconv_open in -liconv... no
+checking for libiconv_open in -liconv... no
+checking for iconv_close in -lc... yes
+checking for iconv.h... yes
+checking for icaltimezone_get_utc_timezone in -lical... no
+checking for iks_start_sasl in -liksemel... no
+checking for UW IMAP Toolkit c-client library... no
+checking for system c-client library...... no
+checking for SQLConnect in -liodbc... no
+checking for inotify_init in -lc... yes
+checking for sys/inotify.h... yes
+checking for jack_activate in -ljack... no
+checking for kqueue in -lc... no
+checking for kevent64... no
+checking for ldap_initialize in -lldap... no
+checking for mysql_config... no
+checking for neon-config... no
+checking for neon-config... no
+checking for netsnmp-agent... no
+checking for net-snmp-config... no
+checking for newtBell in -lnewt... no
+checking for ub_ctx_delete in -lunbound... no
+checking for SQLConnect in -lodbc... no
+checking for ogg_stream_init in -logg... no
+checking for backtrace in -lexecinfo... no
+checking for backtrace in -lc... yes
+checking for execinfo.h... yes
+checking for ba2str in -lbluetooth... no
+checking for bs_version in -lbeanstalk... no
+checking for pg_config... no
+checking for poptStrerror in -lpopt... no
+checking for portaudio-2.0... no
+checking for Pa_GetDeviceCount in -lportaudio... no
+checking for pri_connected_line_update in -lpri... no
+checking for resample_open in -lresample... yes
+checking for libresample.h... yes
+checking for fftw_malloc in -lfftw3... no
+checking for sf_open in -lsndfile... no
+checking for minimum version of SpanDSP... no
+checking for ss7_set_isup_timer in -lss7... no
+checking for openr2_chan_new in -lopenr2... no
+checking for opus_encoder_create in -lopus... no
+checking for op_open_callbacks in -lopusfile... no
+checking for luaL_newstate in -llua5.4... no
+checking for luaL_newstate in -llua5.3... no
+checking for luaL_newstate in -llua5.2... no
+checking for luaL_newstate in -llua5.1... no
+checking for luaL_newstate in -llua... no
+checking for rc_read_config in -lfreeradius-client... no
+checking for rc_read_config in -lradiusclient-ng... no
+checking for rc_read_config in -lradcli... no
+checking for codec2_create in -lcodec2... no
+checking for cpg_join in -lcpg... no
+checking for corosync_cfg_state_track in -lcfg... no
+checking for speex_encode in -lspeex... no
+checking for speex_preprocess_ctl in -lspeex... no
+checking for speex_preprocess_ctl in -lspeexdsp... yes
+checking for speex/speex.h... no
+checking for sqlite3_open in -lsqlite3... yes
+checking for sqlite3.h... yes
+checking for crypt in -lcrypt... yes
+checking for crypt.h... yes
+checking for crypt... no
+checking for crypt_r in -lcrypt... yes
+checking for srtp_init in -lsrtp2... yes
+checking for srtp2/srtp.h... yes
+checking for the ability of -lsrtp2 to be linked in a shared object... yes
+checking for srtp_crypto_policy_set_aes_cm_256_hmac_sha1_80 in -lsrtp2... yes
+checking for srtp_crypto_policy_set_aes_cm_192_hmac_sha1_80 in -lsrtp2... yes
+checking for srtp_crypto_policy_set_aes_gcm_128_8_auth in -lsrtp2... yes
+checking for srtp_shutdown in -lsrtp2... yes
+checking for srtp2/srtp.h... (cached) yes
+checking for srtp_get_version_string in -lsrtp2... yes
+checking for srtp2/srtp.h... (cached) yes
+checking for gmime-3.0... no
+checking for gmime-2.6... no
+checking for gmime-2.4... no
+checking for gmime-2.2... no
+checking for gmime-2.0... no
+checking for malloc in -lhoard... no
+checking for dbinit in -lsybdb... no
+checking for tone_zone_find_by_num in -ltonezone... no
+checking for tone_zone_find in -ltonezone... no
+checking for vorbis_info_init in -lvorbis... no
+checking for OV_CALLBACKS_NOCLOSE declared in vorbis/vorbisfile.h... no
+checking for compress in -lz... yes
+checking for zlib.h... yes
+checking for linux/compiler.h... no
+checking for sdl-config... no
+checking for IMG_Load in -lSDL_image... no
+checking for sws_getContext in -lavcodec... no
+checking for linux/videodev.h... no
+checking for XOpenDisplay in -lX11... no
+checking for XOpenDisplay in -lX11... (cached) no
+checking for /sbin/launchd... no
+checking for gtk+-2.0... no
+checking for libsystemd... no
+checking for LOG_AUTH in syslog.h... yes
+checking for LOG_AUTHPRIV in syslog.h... yes
+checking for LOG_CRON in syslog.h... yes
+checking for LOG_DAEMON in syslog.h... yes
+checking for LOG_FTP in syslog.h... yes
+checking for LOG_KERN in syslog.h... yes
+checking for LOG_LPR in syslog.h... yes
+checking for LOG_MAIL in syslog.h... yes
+checking for LOG_NEWS in syslog.h... yes
+checking for LOG_SYSLOG in syslog.h... yes
+checking for LOG_UUCP in syslog.h... yes
+checking for bridges/bridge_softmix/include/hrirs.h... yes
+checking for mandatory modules:  PJPROJECT... ok
+configure: creating ./config.status
+config.status: creating build_tools/menuselect-deps
+config.status: creating makeopts
+config.status: creating include/asterisk/autoconfig.h
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables...
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... none needed
+checking for GNU make... make
+checking for pkg-config... /usr/bin/pkg-config
+checking pkg-config is at least version 0.9.0... yes
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for asprintf... yes
+checking for getloadavg... yes
+checking for setenv... yes
+checking for strcasestr... yes
+checking for strndup... yes
+checking for strnlen... yes
+checking for strsep... yes
+checking for unsetenv... yes
+checking for vasprintf... yes
+checking for newtBell in -lnewt... no
+checking for initscr in -lncurses... yes
+checking for ncurses.h... yes
+checking for keypad in -ltinfo... yes
+checking for ncurses.h... (cached) yes
+checking for a sed that does not truncate output... /usr/bin/sed
+checking for libxml-2.0... yes
+checking for gtk+-2.0... no
+configure: creating ./config.status
+config.status: creating makeopts
+config.status: creating autoconfig.h
+configure: Menuselect build configuration successfully completed
+
+               .$$$$$$$$$$$$$$$=..
+            .$7$7..          .7$$7:.
+          .$$:.                 ,$7.7
+        .$7.     7$$$$           .$$77
+     ..$$.       $$$$$            .$$$7
+    ..7$   .?.   $$$$$   .?.       7$$$.
+   $.$.   .$$$7. $$$$7 .7$$$.      .$$$.
+ .777.   .$$$$$$77$$$77$$$$$7.      $$$,
+ $$$~      .7$$$$$$$$$$$$$7.       .$$$.
+.$$7          .7$$$$$$$7:          ?$$$.
+$$$          ?7$$$$$$$$$$I        .$$$7
+$$$       .7$$$$$$$$$$$$$$$$      :$$$.
+$$$       $$$$$$7$$$$$$$$$$$$    .$$$.
+$$$        $$$   7$$$7  .$$$    .$$$.
+$$$$             $$$$7         .$$$.
+7$$$7            7$$$$        7$$$
+ $$$$$                        $$$
+  $$$$7.                       $$  (TM)
+   $$$$$$$.           .7$$$$$$  $$
+     $$$$$$$$$$$$7$$$$$$$$$.$$$$$$
+       $$$$$$$$$$$$$$$$.
+
+configure: Package configured for:
+configure: OS type  : linux-gnu
+configure: Host CPU : x86_64
+configure: build-cpu:vendor:os: x86_64 : pc : linux-gnu :
+configure: host-cpu:vendor:os: x86_64 : pc : linux-gnu :
+RUN instrumented: make menuselect.makeopts
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented'
+[jansson]  Cleaning
+[pjproject]  Cleaning
+[libjwt]  Cleaning
+rm -f defaults.h
+rm -f include/asterisk/build.h
+rm -f main/version.c
+rm -f doc/core-en_US.xml
+rm -f doc/full-en_US.xml
+rm -f doc/rest-api/*.wiki
+rm -f doxygen.log
+rm -rf latex
+rm -f rest-api-templates/*.pyc
+make[2]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+rm -f menuselect cmenuselect gmenuselect nmenuselect menuselect.o strcompat.o menuselect_stub.o menuselect_curses.o
+make[2]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+cp -f .cleancount .lastclean
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" makeopts
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+make[1]: 'makeopts' is up to date.
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" menuselect
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES -I/usr/include/libxml2   -c -o menuselect.o menuselect.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o strcompat.o strcompat.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o menuselect_stub.o menuselect_stub.c
+gcc  -o menuselect menuselect.o strcompat.o menuselect_stub.o -lxml2
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+Generating input for menuselect ...
+menuselect/menuselect --check-deps menuselect.makeopts
+menuselect/menuselect --check-deps menuselect.makeopts
+RUN instrumented: menuselect/menuselect --disable-all --enable OPTIONAL_API --enable TEST_FRAMEWORK --enable app_celgenuserevent --enable app_dial --enable app_echo --enable app_mixmonitor --enable app_playtones --enable app_queue --enable app_stack --enable app_waitforsilence --enable bridge_native_rtp --enable bridge_simple --enable bridge_softmix --enable cel_custom --enable chan_pjsip --enable codec_alaw --enable codec_resample --enable codec_ulaw --enable format_wav --enable func_callerid --enable func_channel --enable func_strings --enable pbx_config --enable res_cdrel_custom --enable res_clioriginate --enable res_crypto --enable res_http_websocket --enable res_pjproject --enable res_pjsip --enable res_pjsip_authenticator_digest --enable res_pjsip_endpoint_identifier_user --enable res_pjsip_header_funcs --enable res_pjsip_pubsub --enable res_pjsip_registrar --enable res_pjsip_sdp_rtp --enable res_pjsip_session --enable res_pjsip_transport_websocket --enable res_rtp_asterisk --enable res_sorcery_astdb --enable res_sorcery_config --enable res_sorcery_memory --enable res_srtp --enable res_timing_timerfd --enable test_bounded_queue_policy --enable test_protected_cli_target menuselect.makeopts
+RUN instrumented: menuselect/menuselect --check-deps menuselect.makeopts
+RUN instrumented: make -j4 all
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented'
+[jansson]  Cleaning
+[libjwt]  Cleaning
+[pjproject]  Cleaning
+rm -f defaults.h
+rm -f include/asterisk/build.h
+rm -f main/version.c
+rm -f doc/core-en_US.xml
+rm -f doc/full-en_US.xml
+rm -f doc/rest-api/*.wiki
+rm -f doxygen.log
+rm -rf latex
+rm -f rest-api-templates/*.pyc
+make[2]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+rm -f menuselect cmenuselect gmenuselect nmenuselect menuselect.o strcompat.o menuselect_stub.o menuselect_curses.o
+make[2]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+cp -f .cleancount .lastclean
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" makeopts
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+make[1]: 'makeopts' is up to date.
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" menuselect
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES -I/usr/include/libxml2   -c -o menuselect.o menuselect.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o strcompat.o strcompat.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o menuselect_stub.o menuselect_stub.c
+gcc  -o menuselect menuselect.o strcompat.o menuselect_stub.o -lxml2
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/instrumented/menuselect'
+menuselect/menuselect --check-deps menuselect.makeopts
+menuselect/menuselect --check-deps menuselect.makeopts
+[pjproject]  Rebuilding
+[pjproject]  Configuring with --with-ssl --prefix=/opt/pjproject --disable-speex-codec --disable-speex-aec --disable-bcg729 --disable-gsm-codec --disable-ilbc-codec --disable-l16-codec --disable-g722-codec --disable-g7221-codec --disable-opencore-amr --disable-silk --disable-opus --disable-video --disable-v4l2 --disable-sound --disable-ext-sound --disable-sdl --disable-libyuv --disable-ffmpeg --disable-openh264 --disable-ipp --disable-libwebrtc --disable-libsrtp --disable-upnp --without-external-pa --without-external-srtp --enable-epoll CFLAGS=-DPJ_HAS_LINUX_EPOLL=1
+[pjproject]  Copying patches/asterisk_malloc_debug.c to source/pjsip-apps/src/asterisk_malloc_debug.c
+[pjproject]  Compiling asterisk debug malloc stubs
+[pjproject]  Creating archive libasterisk_malloc_debug.a
+[pjproject]  Compiling libpj-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjlib-util-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsua-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsip-ua-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsip-simple-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsip-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-codec-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-videodev-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-audiodev-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjnath-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libresample-x86_64-pc-linux-gnu.a
+[pjproject]  Generating symbols
+[pjproject]  Compiling pjsua
+   [CC] chan_pjsip.c -> chan_pjsip.o
+   [CC] pjsip/cli_commands.c -> pjsip/cli_commands.o
+   [CC] pjsip/dialplan_functions.c -> pjsip/dialplan_functions.o
+   [LD] chan_pjsip.o pjsip/cli_commands.o pjsip/dialplan_functions.o -> chan_pjsip.so
+   [CC] pbx_config.c -> pbx_config.o
+   [LD] pbx_config.o -> pbx_config.so
+   [CC] app_dial.c -> app_dial.o
+   [CC] app_celgenuserevent.c -> app_celgenuserevent.o
+   [CC] app_echo.c -> app_echo.o
+   [CC] app_mixmonitor.c -> app_mixmonitor.o
+   [CC] app_playtones.c -> app_playtones.o
+   [CC] app_queue.c -> app_queue.o
+   [CC] app_stack.c -> app_stack.o
+   [CC] app_waitforsilence.c -> app_waitforsilence.o
+   [LD] app_celgenuserevent.o -> app_celgenuserevent.so
+   [LD] app_echo.o -> app_echo.so
+   [LD] app_mixmonitor.o -> app_mixmonitor.so
+   [LD] app_playtones.o -> app_playtones.so
+   [LD] app_stack.o -> app_stack.so
+   [LD] app_waitforsilence.o -> app_waitforsilence.so
+   [LD] app_dial.o -> app_dial.so
+   [LD] app_queue.o -> app_queue.so
+   [CC] codec_alaw.c -> codec_alaw.o
+   [CC] codec_resample.c -> codec_resample.o
+   [CC] speex/resample.c -> speex/resample.o
+   [CC] codec_ulaw.c -> codec_ulaw.o
+   [LD] codec_ulaw.o -> codec_ulaw.so
+   [LD] codec_alaw.o -> codec_alaw.so
+   [LD] codec_resample.o speex/resample.o -> codec_resample.so
+   [CC] format_wav.c -> format_wav.o
+   [LD] format_wav.o -> format_wav.so
+   [CC] cel_custom.c -> cel_custom.o
+   [LD] cel_custom.o -> cel_custom.so
+   [CC] bridge_native_rtp.c -> bridge_native_rtp.o
+   [CC] bridge_softmix.c -> bridge_softmix.o
+   [CC] bridge_simple.c -> bridge_simple.o
+   [CC] bridge_softmix/bridge_softmix_binaural.c -> bridge_softmix/bridge_softmix_binaural.o
+   [LD] bridge_simple.o -> bridge_simple.so
+   [LD] bridge_native_rtp.o -> bridge_native_rtp.so
+   [LD] bridge_softmix.o bridge_softmix/bridge_softmix_binaural.o -> bridge_softmix.so
+   [CC] func_channel.c -> func_channel.o
+   [CC] func_callerid.c -> func_callerid.o
+   [CC] func_strings.c -> func_strings.o
+   [LD] func_channel.o -> func_channel.so
+   [LD] func_callerid.o -> func_callerid.so
+   [LD] func_strings.o -> func_strings.so
+   [CC] test_bounded_queue_policy.c -> test_bounded_queue_policy.o
+   [CC] test_protected_cli_target.c -> test_protected_cli_target.o
+   [LD] test_protected_cli_target.o -> test_protected_cli_target.so
+   [LD] test_bounded_queue_policy.o -> test_bounded_queue_policy.so
+   [CC] abstract_jb.c -> abstract_jb.o
+   [CC] acl.c -> acl.o
+   [CC] adsi.c -> adsi.o
+   [CC] alaw.c -> alaw.o
+   [CC] alertpipe.c -> alertpipe.o
+   [CC] aoc.c -> aoc.o
+   [CC] app.c -> app.o
+   [CC] ast_expr2.c -> ast_expr2.o
+   [CC] ast_expr2f.c -> ast_expr2f.o
+   [CC] asterisk.c -> asterisk.o
+   [CC] astfd.c -> astfd.o
+   [CC] astmm.c -> astmm.o
+   [CC] astobj2.c -> astobj2.o
+   [CC] astobj2_container.c -> astobj2_container.o
+   [CC] astobj2_global.c -> astobj2_global.o
+   [CC] astobj2_hash.c -> astobj2_hash.o
+   [CC] astobj2_rbtree.c -> astobj2_rbtree.o
+   [CC] audiohook.c -> audiohook.o
+   [CC] autochan.c -> autochan.o
+   [CC] autoservice.c -> autoservice.o
+   [CC] backtrace.c -> backtrace.o
+   [CC] bridge.c -> bridge.o
+   [CC] bridge_after.c -> bridge_after.o
+   [CC] bridge_basic.c -> bridge_basic.o
+   [CC] bridge_channel.c -> bridge_channel.o
+   [CC] bridge_roles.c -> bridge_roles.o
+   [CC] bucket.c -> bucket.o
+   [CC] callerid.c -> callerid.o
+   [CC] channel.c -> channel.o
+   [CC] channel_internal_api.c -> channel_internal_api.o
+   [CC] channelstorage.c -> channelstorage.o
+   [CC] channelstorage_ao2_legacy.c -> channelstorage_ao2_legacy.o
+   [CC] chanvars.c -> chanvars.o
+   [CC] cli.c -> cli.o
+   [CC] codec.c -> codec.o
+   [CC] codec_builtin.c -> codec_builtin.o
+   [CC] config_options.c -> config_options.o
+   [CC] conversions.c -> conversions.o
+   [CC] core_local.c -> core_local.o
+   [CC] core_unreal.c -> core_unreal.o
+   [CC] crypt.c -> crypt.o
+   [CC] data_buffer.c -> data_buffer.o
+   [CC] datastore.c -> datastore.o
+   [CC] db.c -> db.o
+   [CC] devicestate.c -> devicestate.o
+   [CC] dial.c -> dial.o
+   [CC] dns.c -> dns.o
+   [CC] dns_core.c -> dns_core.o
+   [CC] dns_naptr.c -> dns_naptr.o
+   [CC] dns_query_set.c -> dns_query_set.o
+   [CC] dns_recurring.c -> dns_recurring.o
+   [CC] dns_srv.c -> dns_srv.o
+   [CC] dns_system_resolver.c -> dns_system_resolver.o
+   [CC] dns_test.c -> dns_test.o
+   [CC] dns_tlsa.c -> dns_tlsa.o
+   [CC] dns_txt.c -> dns_txt.o
+   [CC] editline_compat.c -> editline_compat.o
+   [CC] endpoints.c -> endpoints.o
+   [CC] event.c -> event.o
+   [CC] extension_state.c -> extension_state.o
+   [CC] extension_state_autohints.c -> extension_state_autohints.o
+   [CC] extension_state_legacy.c -> extension_state_legacy.o
+   [CC] features_config.c -> features_config.o
+   [CC] file.c -> file.o
+   [CC] fixedjitterbuf.c -> fixedjitterbuf.o
+   [CC] format.c -> format.o
+   [CC] format_cache.c -> format_cache.o
+   [CC] format_cap.c -> format_cap.o
+   [CC] format_compatibility.c -> format_compatibility.o
+   [CC] frame.c -> frame.o
+   [CC] framehook.c -> framehook.o
+   [CC] fskmodem.c -> fskmodem.o
+   [CC] global_datastores.c -> global_datastores.o
+   [CC] hashtab.c -> hashtab.o
+   [CC] heap.c -> heap.o
+   [CC] image.c -> image.o
+   [CC] io.c -> io.o
+   [CC] iostream.c -> iostream.o
+   [CC] jitterbuf.c -> jitterbuf.o
+   [CC] json.c -> json.o
+   [CC] loader.c -> loader.o
+   [CC] lock.c -> lock.o
+   [CC] logger_category.c -> logger_category.o
+   [CC] manager_bridges.c -> manager_bridges.o
+   [CC] manager_channels.c -> manager_channels.o
+   [CC] manager_endpoints.c -> manager_endpoints.o
+   [CC] manager_mwi.c -> manager_mwi.o
+   [CC] manager_system.c -> manager_system.o
+   [CC] max_forwards.c -> max_forwards.o
+   [CC] md5.c -> md5.o
+   [CC] media_cache.c -> media_cache.o
+   [CC] media_index.c -> media_index.o
+   [CC] message.c -> message.o
+   [CC] mixmonitor.c -> mixmonitor.o
+   [CC] mwi.c -> mwi.o
+   [CC] named_locks.c -> named_locks.o
+   [CC] netsock2.c -> netsock2.o
+   [CC] optional_api.c -> optional_api.o
+   [CC] options.c -> options.o
+   [CC] parking.c -> parking.o
+   [CC] pbx.c -> pbx.o
+   [CC] pbx_app.c -> pbx_app.o
+   [CC] pbx_builtins.c -> pbx_builtins.o
+   [CC] pbx_functions.c -> pbx_functions.o
+   [CC] pbx_hangup_handler.c -> pbx_hangup_handler.o
+   [CC] pbx_ignorepat.c -> pbx_ignorepat.o
+   [CC] pbx_include.c -> pbx_include.o
+   [CC] pbx_sw.c -> pbx_sw.o
+   [CC] pbx_switch.c -> pbx_switch.o
+   [CC] pbx_timing.c -> pbx_timing.o
+   [CC] pbx_variables.c -> pbx_variables.o
+   [CC] pickup.c -> pickup.o
+   [CC] poll.c -> poll.o
+   [CC] presencestate.c -> presencestate.o
+   [CC] privacy.c -> privacy.o
+   [CC] refer.c -> refer.o
+   [CC] rtp_engine.c -> rtp_engine.o
+   [CC] say.c -> say.o
+   [CC] sched.c -> sched.o
+   [CC] sdp_srtp.c -> sdp_srtp.o
+   [CC] security_events.c -> security_events.o
+   [CC] sem.c -> sem.o
+   [CC] serializer.c -> serializer.o
+   [CC] serializer_shutdown_group.c -> serializer_shutdown_group.o
+   [CC] sha1.c -> sha1.o
+   [CC] sip_api.c -> sip_api.o
+   [CC] slinfactory.c -> slinfactory.o
+   [CC] smoother.c -> smoother.o
+   [CC] sorcery.c -> sorcery.o
+   [CC] srv.c -> srv.o
+   [CC] stasis.c -> stasis.o
+   [CC] stasis_bridges.c -> stasis_bridges.o
+   [CC] stasis_cache.c -> stasis_cache.o
+   [CC] stasis_cache_pattern.c -> stasis_cache_pattern.o
+   [CC] stasis_channels.c -> stasis_channels.o
+   [CC] stasis_endpoints.c -> stasis_endpoints.o
+   [CC] stasis_message.c -> stasis_message.o
+   [CC] stasis_message_router.c -> stasis_message_router.o
+   [CC] stasis_state.c -> stasis_state.o
+   [CC] stasis_system.c -> stasis_system.o
+   [CC] stdtime/localtime.c -> stdtime/localtime.o
+   [CC] strcompat.c -> strcompat.o
+   [CC] stream.c -> stream.o
+   [CC] stringfields.c -> stringfields.o
+   [CC] strings.c -> strings.o
+   [CC] stun.c -> stun.o
+   [CC] syslog.c -> syslog.o
+   [CC] taskpool.c -> taskpool.o
+   [CC] taskprocessor.c -> taskprocessor.o
+   [CC] tcptls.c -> tcptls.o
+   [CC] tdd.c -> tdd.o
+   [CC] term.c -> term.o
+   [CC] test.c -> test.o
+   [CC] threadpool.c -> threadpool.o
+   [CC] threadstorage.c -> threadstorage.o
+   [CC] time.c -> time.o
+   [CC] timing.c -> timing.o
+   [CC] translate.c -> translate.o
+   [CC] ulaw.c -> ulaw.o
+   [CC] uri.c -> uri.o
+   [CC] utf8.c -> utf8.o
+   [CC] utils.c -> utils.o
+   [CC] uuid.c -> uuid.o
+   [CC] version.c -> version.o
+   [CC] xml.c -> xml.o
+   [CC] xmldoc.c -> xmldoc.o
+   [CC] ccss.c -> ccss.o
+   [CC] cdr.c -> cdr.o
+   [CC] cel.c -> cel.o
+   [CC] config.c -> config.o
+   [CC] dnsmgr.c -> dnsmgr.o
+   [CC] dsp.c -> dsp.o
+   [CC] enum.c -> enum.o
+   [CC] features.c -> features.o
+   [CC] http.c -> http.o
+   [CC] indications.c -> indications.o
+   [CC] logger.c -> logger.o
+   [CC] manager.c -> manager.o
+   [CC] named_acl.c -> named_acl.o
+   [CC] plc.c -> plc.o
+   [CC] sounds.c -> sounds.o
+   [CC] udptl.c -> udptl.o
+   [CC] libasteriskssl.c -> libasteriskssl.o
+   [CC] libasteriskpj.c -> libasteriskpj.o
+   [GENERATE] libasteriskpj.exports
+   [LD] libasteriskssl.o -> libasteriskssl.so.1
+   [LD] libasteriskpj.o -> libasteriskpj.so.2
+   [LN] libasteriskssl.so.1 -> libasteriskssl.so
+   [LN] libasteriskpj.so.2 -> libasteriskpj.so
+   [LD] abstract_jb.o acl.o adsi.o alaw.o alertpipe.o aoc.o app.o ast_expr2.o ast_expr2f.o asterisk.o astfd.o astmm.o astobj2.o astobj2_container.o astobj2_global.o astobj2_hash.o astobj2_rbtree.o audiohook.o autochan.o autoservice.o backtrace.o bridge.o bridge_after.o bridge_basic.o bridge_channel.o bridge_roles.o bucket.o callerid.o channel.o channel_internal_api.o channelstorage.o channelstorage_ao2_legacy.o chanvars.o cli.o codec.o codec_builtin.o config_options.o conversions.o core_local.o core_unreal.o crypt.o data_buffer.o datastore.o db.o devicestate.o dial.o dns.o dns_core.o dns_naptr.o dns_query_set.o dns_recurring.o dns_srv.o dns_system_resolver.o dns_test.o dns_tlsa.o dns_txt.o editline_compat.o endpoints.o event.o extension_state.o extension_state_autohints.o extension_state_legacy.o features_config.o file.o fixedjitterbuf.o format.o format_cache.o format_cap.o format_compatibility.o frame.o framehook.o fskmodem.o global_datastores.o hashtab.o heap.o image.o io.o iostream.o jitterbuf.o json.o loader.o lock.o logger_category.o manager_bridges.o manager_channels.o manager_endpoints.o manager_mwi.o manager_system.o max_forwards.o md5.o media_cache.o media_index.o message.o mixmonitor.o mwi.o named_locks.o netsock2.o optional_api.o options.o parking.o pbx.o pbx_app.o pbx_builtins.o pbx_functions.o pbx_hangup_handler.o pbx_ignorepat.o pbx_include.o pbx_sw.o pbx_switch.o pbx_timing.o pbx_variables.o pickup.o poll.o presencestate.o privacy.o refer.o rtp_engine.o say.o sched.o sdp_srtp.o security_events.o sem.o serializer.o serializer_shutdown_group.o sha1.o sip_api.o slinfactory.o smoother.o sorcery.o srv.o stasis.o stasis_bridges.o stasis_cache.o stasis_cache_pattern.o stasis_channels.o stasis_endpoints.o stasis_message.o stasis_message_router.o stasis_state.o stasis_system.o stdtime/localtime.o strcompat.o stream.o stringfields.o strings.o stun.o syslog.o taskpool.o taskprocessor.o tcptls.o tdd.o term.o test.o threadpool.o threadstorage.o time.o timing.o translate.o ulaw.o uri.o utf8.o utils.o uuid.o version.o xml.o xmldoc.o ccss.o cdr.o cel.o config.o dnsmgr.o dsp.o enum.o features.o http.o indications.o logger.o manager.o named_acl.o plc.o sounds.o udptl.o -> asterisk
+   [CC] res_cdrel_custom.c -> res_cdrel_custom.o
+   [CC] cdrel_custom/config.c -> cdrel_custom/config.o
+   [CC] cdrel_custom/getters_cdr.c -> cdrel_custom/getters_cdr.o
+   [CC] cdrel_custom/formatters.c -> cdrel_custom/formatters.o
+   [CC] cdrel_custom/getters_cel.c -> cdrel_custom/getters_cel.o
+   [CC] cdrel_custom/loggers.c -> cdrel_custom/loggers.o
+   [CC] cdrel_custom/registry.c -> cdrel_custom/registry.o
+   [CC] cdrel_custom/writers.c -> cdrel_custom/writers.o
+   [CC] res_clioriginate.c -> res_clioriginate.o
+   [CC] res_crypto.c -> res_crypto.o
+   [CC] res_http_websocket.c -> res_http_websocket.o
+   [CC] res_pjproject.c -> res_pjproject.o
+   [CC] res_pjsip.c -> res_pjsip.o
+   [CC] res_pjsip/config_auth.c -> res_pjsip/config_auth.o
+   [CC] res_pjsip/config_domain_aliases.c -> res_pjsip/config_domain_aliases.o
+   [CC] res_pjsip/config_global.c -> res_pjsip/config_global.o
+   [CC] res_pjsip/config_system.c -> res_pjsip/config_system.o
+   [CC] res_pjsip/config_transport.c -> res_pjsip/config_transport.o
+   [CC] res_pjsip/location.c -> res_pjsip/location.o
+   [CC] res_pjsip/pjsip_cli.c -> res_pjsip/pjsip_cli.o
+   [CC] res_pjsip/pjsip_configuration.c -> res_pjsip/pjsip_configuration.o
+   [CC] res_pjsip/pjsip_distributor.c -> res_pjsip/pjsip_distributor.o
+   [CC] res_pjsip/pjsip_global_headers.c -> res_pjsip/pjsip_global_headers.o
+   [CC] res_pjsip/pjsip_message_filter.c -> res_pjsip/pjsip_message_filter.o
+   [CC] res_pjsip/pjsip_options.c -> res_pjsip/pjsip_options.o
+   [CC] res_pjsip/pjsip_resolver.c -> res_pjsip/pjsip_resolver.o
+   [CC] res_pjsip/pjsip_scheduler.c -> res_pjsip/pjsip_scheduler.o
+   [CC] res_pjsip/pjsip_session.c -> res_pjsip/pjsip_session.o
+   [CC] res_pjsip/pjsip_transport_events.c -> res_pjsip/pjsip_transport_events.o
+   [CC] res_pjsip/pjsip_transport_management.c -> res_pjsip/pjsip_transport_management.o
+   [CC] res_pjsip/presence_xml.c -> res_pjsip/presence_xml.o
+   [CC] res_pjsip/redirect.c -> res_pjsip/redirect.o
+   [CC] res_pjsip/security_agreements.c -> res_pjsip/security_agreements.o
+   [CC] res_pjsip/security_events.c -> res_pjsip/security_events.o
+   [CC] res_pjsip_authenticator_digest.c -> res_pjsip_authenticator_digest.o
+   [CC] res_pjsip_endpoint_identifier_user.c -> res_pjsip_endpoint_identifier_user.o
+   [CC] res_pjsip_header_funcs.c -> res_pjsip_header_funcs.o
+   [CC] res_pjsip_pubsub.c -> res_pjsip_pubsub.o
+   [CC] res_pjsip_registrar.c -> res_pjsip_registrar.o
+   [CC] res_pjsip_sdp_rtp.c -> res_pjsip_sdp_rtp.o
+   [CC] res_pjsip_session.c -> res_pjsip_session.o
+   [CC] res_pjsip_session/pjsip_session_caps.c -> res_pjsip_session/pjsip_session_caps.o
+   [CC] res_pjsip_session/pjsip_session_reason_header.c -> res_pjsip_session/pjsip_session_reason_header.o
+   [CC] res_pjsip_transport_websocket.c -> res_pjsip_transport_websocket.o
+   [CC] res_rtp_asterisk.c -> res_rtp_asterisk.o
+   [CC] res_sorcery_astdb.c -> res_sorcery_astdb.o
+   [CC] res_sorcery_config.c -> res_sorcery_config.o
+   [CC] res_sorcery_memory.c -> res_sorcery_memory.o
+   [CC] res_srtp.c -> res_srtp.o
+   [CC] res_timing_timerfd.c -> res_timing_timerfd.o
+   [LD] res_cdrel_custom.o cdrel_custom/config.o cdrel_custom/formatters.o cdrel_custom/getters_cdr.o cdrel_custom/getters_cel.o cdrel_custom/loggers.o cdrel_custom/registry.o cdrel_custom/writers.o -> res_cdrel_custom.so
+   [LD] res_clioriginate.o -> res_clioriginate.so
+   [LD] res_crypto.o -> res_crypto.so
+   [LD] res_http_websocket.o -> res_http_websocket.so
+   [LD] res_pjproject.o -> res_pjproject.so
+   [LD] res_pjsip.o res_pjsip/config_auth.o res_pjsip/config_domain_aliases.o res_pjsip/config_global.o res_pjsip/config_system.o res_pjsip/config_transport.o res_pjsip/location.o res_pjsip/pjsip_cli.o res_pjsip/pjsip_configuration.o res_pjsip/pjsip_distributor.o res_pjsip/pjsip_global_headers.o res_pjsip/pjsip_message_filter.o res_pjsip/pjsip_options.o res_pjsip/pjsip_resolver.o res_pjsip/pjsip_scheduler.o res_pjsip/pjsip_session.o res_pjsip/pjsip_transport_events.o res_pjsip/pjsip_transport_management.o res_pjsip/presence_xml.o res_pjsip/redirect.o res_pjsip/security_agreements.o res_pjsip/security_events.o -> res_pjsip.so
+   [LD] res_pjsip_authenticator_digest.o -> res_pjsip_authenticator_digest.so
+   [LD] res_pjsip_endpoint_identifier_user.o -> res_pjsip_endpoint_identifier_user.so
+   [LD] res_pjsip_header_funcs.o -> res_pjsip_header_funcs.so
+   [LD] res_pjsip_pubsub.o -> res_pjsip_pubsub.so
+   [LD] res_pjsip_registrar.o -> res_pjsip_registrar.so
+   [LD] res_pjsip_sdp_rtp.o -> res_pjsip_sdp_rtp.so
+   [LD] res_pjsip_transport_websocket.o -> res_pjsip_transport_websocket.so
+   [LD] res_sorcery_astdb.o -> res_sorcery_astdb.so
+   [LD] res_sorcery_config.o -> res_sorcery_config.so
+   [LD] res_sorcery_memory.o -> res_sorcery_memory.so
+   [LD] res_srtp.o -> res_srtp.so
+   [LD] res_timing_timerfd.o -> res_timing_timerfd.so
+   [LD] res_rtp_asterisk.o -> res_rtp_asterisk.so
+   [LD] res_pjsip_session.o res_pjsip_session/pjsip_session_caps.o res_pjsip_session/pjsip_session_reason_header.o -> res_pjsip_session.so
+ +--------- Asterisk Build Complete ---------+
+ + Asterisk has successfully been built, and +
+ + can be installed by running:              +
+ +                                           +
+ +                make install               +
+ +-------------------------------------------+
+COMPILED_PROFILE=instrumented REQUIRED_OUTPUTS=46
+RUN release: patch --batch --fuzz=0 --dry-run -p1 -i /home/asterisk-build/source-staging/queue-policy-v1.patch
+checking file apps/app_queue.c
+checking file include/asterisk/astobj2.h
+checking file include/asterisk/cli.h
+checking file include/asterisk/module.h
+checking file main/astobj2_hash.c
+checking file main/cli.c
+checking file main/loader.c
+checking file tests/test_bounded_queue_policy.c
+checking file tests/test_protected_cli_target.c
+RUN release: patch --batch --fuzz=0 -p1 -i /home/asterisk-build/source-staging/queue-policy-v1.patch
+patching file apps/app_queue.c
+patching file include/asterisk/astobj2.h
+patching file include/asterisk/cli.h
+patching file include/asterisk/module.h
+patching file main/astobj2_hash.c
+patching file main/cli.c
+patching file main/loader.c
+patching file tests/test_bounded_queue_policy.c
+patching file tests/test_protected_cli_target.c
+RUN release: ./configure --prefix=/home/asterisk-build/install/release --with-pjproject-bundled --without-jansson-bundled --without-libjwt-bundled --without-libjwt --with-externals-cache=/home/asterisk-build/source-staging --disable-xmldoc
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables...
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... none needed
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking for wchar.h... yes
+checking for minix/config.h... no
+checking for sys/param.h... yes
+checking for sys/select.h... yes
+checking for sys/socket.h... yes
+checking for utime.h... yes
+checking whether it is safe to define __EXTENSIONS__... yes
+checking whether _XOPEN_SOURCE should be defined... no
+checking whether char is unsigned... no
+checking for uname... /usr/bin/uname
+checking for g++... g++
+checking whether the compiler supports GNU C++... yes
+checking whether g++ accepts -g... yes
+checking for g++ option to enable C++11 features... none needed
+checking how to run the C preprocessor... gcc -E
+checking how to run the C++ preprocessor... g++ -E
+checking whether g++ supports C++11 features by default... yes
+checking whether g++ supports C++14 features by default... yes
+checking whether g++ supports C++17 features by default... yes
+checking whether g++ supports C++20 features by default... no
+checking whether g++ supports C++20 features with -std=gnu++20... yes
+checking whether g++ supports C++23 features by default... no
+checking whether g++ supports C++23 features with -std=gnu++23... no
+checking whether g++ supports C++23 features with -std=c++23... no
+checking whether g++ supports C++23 features with +std=c++23... no
+checking whether g++ supports C++23 features with -h std=c++23... no
+checking whether g++ supports C++23 features with -std:c++23... no
+configure: No compiler with C++23 support was found
+checking for a sed that does not truncate output... /usr/bin/sed
+checking for egrep... grep -E
+checking for ld used by gcc... /usr/bin/ld
+checking if the linker (/usr/bin/ld) is GNU ld... yes
+checking for gawk... gawk
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether ln -s works... yes
+checking for ranlib... ranlib
+checking for GNU make... make
+checking for grep that handles long lines and -e... /usr/bin/grep
+checking for egrep... /usr/bin/grep -E
+checking for strip... strip
+checking for ar... ar
+checking for bison... /usr/bin/bison
+checking for cmp... /usr/bin/cmp
+checking for cat... /usr/bin/cat
+checking for cut... /usr/bin/cut
+checking for flex... /usr/bin/flex
+checking for grep... (cached) /usr/bin/grep
+checking for python2.7... no
+checking for python2... no
+checking for python... no
+checking for python3... /usr/bin/python3
+checking for find... /usr/bin/find
+checking for basename... /usr/bin/basename
+checking for dirname... /usr/bin/dirname
+checking for sh... /bin/bash
+checking for ln... /usr/bin/ln
+checking for doxygen... :
+checking for dot... :
+checking for wget... /usr/bin/wget
+checking for curl... /usr/bin/curl
+checking for xmllint... :
+checking for xmlstarlet... /usr/bin/xmlstarlet
+checking for bash... /bin/bash
+checking for git... /usr/bin/git
+checking for alembic... :
+checking for bzip2... /usr/bin/bzip2
+checking for tar... /usr/bin/tar
+checking for patch... /usr/bin/patch
+checking for sed... (cached) /usr/bin/sed
+checking for nm... /usr/bin/nm
+checking for realpath... /usr/bin/realpath
+checking for ldconfig... /usr/sbin/ldconfig
+checking for sha1sum... /usr/bin/sha1sum
+checking for openssl... /usr/bin/openssl
+checking for pkg-config... /usr/bin/pkg-config
+checking pkg-config is at least version 0.9.0... yes
+checking for bison that supports parse-param... /usr/bin/bison
+checking for soxmix... no
+checking for md5... no
+checking for md5sum... md5sum
+checking for a sed that does not truncate output... (cached) /usr/bin/sed
+checking for egrep -e... (cached) /usr/bin/grep -E
+checking whether gcc is Clang... no
+checking whether pthreads work with "-pthread" and "-lpthread"... yes
+checking for joinable pthread attribute... PTHREAD_CREATE_JOINABLE
+checking whether more special flags are required for pthreads... no
+checking for PTHREAD_PRIO_INHERIT... yes
+checking for RAII support... checking for gcc -fnested-functions... no
+checking for clang strsep/strcmp optimization... no
+configure: checking OPENSSL with pkg-config
+configure: checking whether system openssl > 1.1.0
+checking for openssl >= 1.1.0... yes
+checking for embedded pjproject (may have to download)... configuring
+[pjproject]  Verifying /home/asterisk-build/source-staging/pjproject-2.17.tar.bz2
+[pjproject]  Verify successful
+[pjproject]  Unpacking /home/asterisk-build/source-staging/pjproject-2.17.tar.bz2
+[pjproject]  Applying patches /home/asterisk-build/native-build-attempt-12/release/third-party/pjproject/patches /home/asterisk-build/native-build-attempt-12/release/third-party/pjproject/source
+[pjproject]  Applying user.mak
+[pjproject]  Rebuilding
+[pjproject]  Applying custom include file patches/asterisk_malloc_debug.h
+[pjproject]  Applying custom include file patches/config_site.h
+[pjproject]  Configuring with --with-ssl --prefix=/opt/pjproject --disable-speex-codec --disable-speex-aec --disable-bcg729 --disable-gsm-codec --disable-ilbc-codec --disable-l16-codec --disable-g722-codec --disable-g7221-codec --disable-opencore-amr --disable-silk --disable-opus --disable-video --disable-v4l2 --disable-sound --disable-ext-sound --disable-sdl --disable-libyuv --disable-ffmpeg --disable-openh264 --disable-ipp --disable-libwebrtc --disable-libsrtp --disable-upnp --without-external-pa --without-external-srtp --disable-resample --disable-g711-codec --enable-epoll CFLAGS=-DPJ_HAS_LINUX_EPOLL=1
+checking for bundled pjproject... yes
+checking for gawk... (cached) gawk
+checking for curl-config... /usr/bin/curl-config
+checking for the version of libcurl... 8.5.0
+checking for libcurl >= version 7.10.1... yes
+checking whether libcurl is usable... yes
+checking for curl_free... yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for dirent.h that defines DIR... yes
+checking for library containing opendir... none required
+checking for sys/wait.h that is POSIX.1 compatible... yes
+checking for sys/types.h... (cached) yes
+checking for netinet/in.h... yes
+checking for arpa/nameser.h... yes
+checking for netdb.h... yes
+checking for resolv.h... yes
+checking for arpa/nameser.h... (cached) yes
+checking for assert.h... yes
+checking for ctype.h... yes
+checking for dlfcn.h... yes
+checking for errno.h... yes
+checking for fcntl.h... yes
+checking for float.h... yes
+checking for grp.h... yes
+checking for inttypes.h... (cached) yes
+checking for limits.h... yes
+checking for locale.h... yes
+checking for math.h... yes
+checking for pwd.h... yes
+checking for netinet/in.h... (cached) yes
+checking for regex.h... yes
+checking for sched.h... yes
+checking for stdarg.h... yes
+checking for stdint.h... (cached) yes
+checking for stdio.h... (cached) yes
+checking for stdlib.h... (cached) yes
+checking for string.h... (cached) yes
+checking for syslog.h... yes
+checking for sys/file.h... yes
+checking for sys/ioctl.h... yes
+checking for sys/param.h... (cached) yes
+checking for sys/resource.h... yes
+checking for sys/socket.h... (cached) yes
+checking for sys/stat.h... (cached) yes
+checking for sys/time.h... yes
+checking for sys/types.h... (cached) yes
+checking for sys/un.h... yes
+checking for termios.h... yes
+checking for time.h... yes
+checking for unistd.h... (cached) yes
+checking for arpa/inet.h... yes
+checking for libintl.h... yes
+checking for malloc.h... yes
+checking for netdb.h... (cached) yes
+checking for stddef.h... yes
+checking for strings.h... (cached) yes
+checking for sys/event.h... no
+checking for utime.h... (cached) yes
+checking for libedit... yes
+checking for Testing for libedit unicode support... yes
+checking for uuid_generate_random in -luuid... yes
+checking for uuid/uuid.h... yes
+checking for jansson >= 2.11... yes
+checking for clock_gettime in -lrt... yes
+checking for libxml-2.0... yes
+checking for uriParseUriA in -luriparser... no
+checking for xsltLoadStylesheetPI in -lxslt... no
+checking for xsltCleanupGlobals in -lxslt... no
+checking for xlocale.h... no
+checking for winsock.h... no
+checking for winsock2.h... no
+checking for sys/poll.h... yes
+checking for gcc option to enable large file support... none needed
+checking for _Bool... yes
+checking for stdbool.h that conforms to C99 or later... yes
+checking for an ANSI C-conforming const... yes
+checking for uid_t... yes
+checking for gid_t... yes
+checking for inline... inline
+checking for long double with more range or precision than double... yes
+checking for mode_t... yes
+checking for off_t... yes
+checking for pid_t... yes
+checking for size_t... (cached) yes
+checking for struct stat.st_blksize... yes
+checking for struct ucred.uid... yes
+checking for struct ucred.cr_uid... no
+checking for struct sockpeercred.uid... no
+checking for struct ifreq.ifr_ifru.ifru_hwaddr... yes
+checking whether struct tm is in sys/time.h or time.h... time.h
+checking for working volatile... yes
+checking for ptrdiff_t... yes
+checking for struct stat.st_mtim... yes
+checking for struct stat.st_mtimensec... no
+checking for struct stat.st_mtimespec... no
+checking for struct sockaddr_in6.sin6_len... no
+checking for struct sockaddr_in.sin_len... no
+checking for working chown... yes
+checking whether closedir returns void... no
+checking for error_at_line... yes
+checking for vfork.h... no
+checking for fork... yes
+checking for vfork... yes
+checking for working fork... yes
+checking for working vfork... (cached) yes
+checking for declarations of fseeko and ftello... yes
+checking for working memcmp... yes
+checking for getpagesize... yes
+checking for vprintf... yes
+checking for working mmap... yes
+checking types of arguments for select... int,fd_set *,struct timeval *
+checking whether lstat correctly handles trailing slash... yes
+checking whether stat accepts an empty string... no
+checking for working strcoll... yes
+checking for strftime... yes
+checking for working strnlen... yes
+checking for working strtod... yes
+checking whether utime accepts a null argument... yes
+checking for asprintf... yes
+checking for atexit... yes
+checking for closefrom... yes
+checking for dup2... yes
+checking for eaccess... yes
+checking for endpwent... yes
+checking for euidaccess... yes
+checking for ffsll... yes
+checking for ftruncate... yes
+checking for getcwd... yes
+checking for gethostbyname... yes
+checking for gethostname... yes
+checking for getloadavg... yes
+checking for gettimeofday... yes
+checking for glob... yes
+checking for ioperm... yes
+checking for inet_ntoa... yes
+checking for isascii... yes
+checking for memchr... yes
+checking for memmove... yes
+checking for memset... yes
+checking for mkdir... yes
+checking for mkdtemp... yes
+checking for munmap... yes
+checking for newlocale... yes
+checking for pipe2... yes
+checking for ppoll... yes
+checking for putenv... yes
+checking for re_comp... yes
+checking for regcomp... yes
+checking for select... yes
+checking for setenv... yes
+checking for socket... yes
+checking for strcasecmp... yes
+checking for strcasestr... yes
+checking for strchr... yes
+checking for strcspn... yes
+checking for strdup... yes
+checking for strerror... yes
+checking for strlcat... yes
+checking for strlcpy... yes
+checking for strncasecmp... yes
+checking for strndup... yes
+checking for strnlen... yes
+checking for strrchr... yes
+checking for strsep... yes
+checking for strspn... yes
+checking for strstr... yes
+checking for strtod... (cached) yes
+checking for strtol... yes
+checking for strtold... yes
+checking for strtoq... yes
+checking for unsetenv... yes
+checking for uselocale... yes
+checking for utime... yes
+checking for vasprintf... yes
+checking for getpeereid... no
+checking for sysctl... no
+checking for swapctl... no
+checking for malloc_trim... yes
+checking for htonll... no
+checking for ntohll... no
+checking for sqrt in -lm... yes
+checking for exp2... yes
+checking for log2... yes
+checking for exp10... yes
+checking for log10... yes
+checking for sin... yes
+checking for cos... yes
+checking for tan... yes
+checking for asin... yes
+checking for acos... yes
+checking for atan... yes
+checking for atan2... yes
+checking for pow... yes
+checking for rint... yes
+checking for exp... yes
+checking for log... yes
+checking for remainder... yes
+checking for fmod... yes
+checking for round... yes
+checking for roundf... yes
+checking for trunc... yes
+checking for floor... yes
+checking for ceil... yes
+checking for exp2l... yes
+checking for log2l... yes
+checking for exp10l... yes
+checking for log10l... yes
+checking for sinl... yes
+checking for cosl... yes
+checking for tanl... yes
+checking for asinl... yes
+checking for acosl... yes
+checking for atanl... yes
+checking for atan2l... yes
+checking for powl... yes
+checking for sqrtl... yes
+checking for rintl... yes
+checking for expl... yes
+checking for logl... yes
+checking for remainderl... yes
+checking for fmodl... yes
+checking for roundl... yes
+checking for truncl... yes
+checking for floorl... yes
+checking for ceill... yes
+checking for LLONG_MAX in limits.h... yes
+checking for timersub in time.h... yes
+checking for a version of GNU ld that supports the --dynamic-list flag... yes
+checking for sys/poll.h... (cached) yes
+checking for inet_aton... yes
+checking for IP_PKTINFO... yes
+checking for gcc options needed to detect all undeclared functions... none needed
+checking whether gethostbyname_r is declared... yes
+checking for library containing gethostbyname_r... none required
+checking for gethostbyname_r with 6 arguments... yes
+checking for gethostbyname_r with 5 arguments... no
+checking for byteswap.h... yes
+checking for __swap16 variant of <sys/endian.h> byteswapping macros... no
+checking for bswap16 variant of <sys/endian.h> byteswapping macros... no
+checking for locale_t in locale.h... yes
+checking for O_EVTONLY in fcntl.h... no
+checking for O_SYMLINK in fcntl.h... no
+checking for PTHREAD_RWLOCK_INITIALIZER in pthread.h... yes
+checking for PTHREAD_RWLOCK_PREFER_WRITER_NP in pthread.h... yes
+checking for PTHREAD_MUTEX_RECURSIVE_NP in pthread.h... yes
+checking for PTHREAD_MUTEX_ADAPTIVE_NP in pthread.h... yes
+checking for pthread_spinlock_t in pthread.h... yes
+checking for pthread_rwlock_timedwrlock() in pthread.h... yes
+checking for working unnamed semaphores... yes
+checking if PTHREAD_ONCE_INIT needs braces... no
+checking for PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP in pthread.h... yes
+checking whether we can compare a mutex to its initial value... no
+checking for compiler sync operations... yes
+checking for compiler atomic operations... yes
+checking if your system printf is NULL-safe.... (null)yes
+checking if socket() accepts SOCK_NONBLOCK... yes
+checking if setsockopt() accepts the IPV6_V6ONLY socket option... yes
+checking if we can increase the maximum select-able file descriptor... no
+checking if we have usable eventfd support... yes
+checking for compiler 'attribute pure' support... yes
+checking for compiler 'attribute malloc' support... yes
+checking for compiler 'attribute const' support... yes
+checking for compiler 'attribute unused' support... yes
+checking for compiler 'attribute always_inline' support... no
+checking for compiler 'attribute deprecated' support... yes
+checking for compiler 'attribute sentinel' support... yes
+checking for compiler 'attribute warn_unused_result' support... yes
+checking for compiler 'attribute may_alias' support... yes
+checking for compiler 'attribute constructor' support... yes
+checking for compiler 'attribute destructor' support... yes
+checking for compiler 'attribute noreturn' support... yes
+checking for -fsanitize=address support... yes
+checking for -fsanitize=thread support... yes
+checking for -fsanitize=leak support... yes
+checking for -fsanitize=undefined support... yes
+checking for -Wdeclaration-after-statement support... yes
+checking for -Wtrampolines support... yes
+checking for _FORTIFY_SOURCE support... yes
+checking for -fno-strict-overflow... yes
+checking for -Wno-format-truncation... yes
+checking for -Wno-format-y2k... yes
+checking for -Wno-stringop-truncation... yes
+checking for -Wshadow... yes
+checking for -march=native support... yes
+checking whether to use rpath... checking for sysinfo... yes
+checking for library containing res_9_ninit... no
+checking for res_ninit... yes
+checking for library containing res_9_ndestroy... no
+checking for res_ndestroy... no
+checking for library containing res_9_close... no
+checking for res_close... no
+checking for struct __res_state._u._ext.nsaddrs... yes
+checking for BIND_8_COMPAT required... no
+checking for GLOB_NOMAGIC in glob.h... yes
+checking for GLOB_BRACE in glob.h... yes
+checking for FNM_CASEFOLD in fnmatch.h... yes
+checking for RTLD_NOLOAD in dlfcn.h... yes
+checking for IP_MTU_DISCOVER in netinet/in.h... yes
+checking size of int... 4
+checking size of long... 8
+checking size of long long... 8
+checking size of char *... 8
+checking size of long... (cached) 8
+checking size of long long... (cached) 8
+checking size of fd_set.fds_bits... (cached) 8
+checking for dladdr in dlfcn.h... yes
+checking for bfd_openr in -lbfd... no
+checking for bfd_openr in -lbfd... (cached) no
+checking for bfd_openr in -lbfd... (cached) no
+checking for cap_from_text in -lcap... yes
+checking for sys/capability.h... yes
+checking for DAHDI_RESET_COUNTERS in dahdi/user.h... no
+checking for DAHDI_DEFAULT_MTU_MRU in dahdi/user.h... no
+checking for DAHDI_CODE in dahdi/user.h... no
+checking for DAHDI_POLICY_HALF_FULL in dahdi/user.h... no
+checking for enhanced dahdi vmwi support... no
+checking if "int foo = DAHDI_ECHOCANCEL_FAX_MODE" compiles using dahdi/user.h... no
+checking for getifaddrs() support... yes
+checking for timerfd support... yes
+checking for gsm_create in -lgsm... no
+checking for libilbc < 3... no
+checking for iconv_open in -liconv... no
+checking for libiconv_open in -liconv... no
+checking for iconv_close in -lc... yes
+checking for iconv.h... yes
+checking for icaltimezone_get_utc_timezone in -lical... no
+checking for iks_start_sasl in -liksemel... no
+checking for UW IMAP Toolkit c-client library... no
+checking for system c-client library...... no
+checking for SQLConnect in -liodbc... no
+checking for inotify_init in -lc... yes
+checking for sys/inotify.h... yes
+checking for jack_activate in -ljack... no
+checking for kqueue in -lc... no
+checking for kevent64... no
+checking for ldap_initialize in -lldap... no
+checking for mysql_config... no
+checking for neon-config... no
+checking for neon-config... no
+checking for netsnmp-agent... no
+checking for net-snmp-config... no
+checking for newtBell in -lnewt... no
+checking for ub_ctx_delete in -lunbound... no
+checking for SQLConnect in -lodbc... no
+checking for ogg_stream_init in -logg... no
+checking for backtrace in -lexecinfo... no
+checking for backtrace in -lc... yes
+checking for execinfo.h... yes
+checking for ba2str in -lbluetooth... no
+checking for bs_version in -lbeanstalk... no
+checking for pg_config... no
+checking for poptStrerror in -lpopt... no
+checking for portaudio-2.0... no
+checking for Pa_GetDeviceCount in -lportaudio... no
+checking for pri_connected_line_update in -lpri... no
+checking for resample_open in -lresample... yes
+checking for libresample.h... yes
+checking for fftw_malloc in -lfftw3... no
+checking for sf_open in -lsndfile... no
+checking for minimum version of SpanDSP... no
+checking for ss7_set_isup_timer in -lss7... no
+checking for openr2_chan_new in -lopenr2... no
+checking for opus_encoder_create in -lopus... no
+checking for op_open_callbacks in -lopusfile... no
+checking for luaL_newstate in -llua5.4... no
+checking for luaL_newstate in -llua5.3... no
+checking for luaL_newstate in -llua5.2... no
+checking for luaL_newstate in -llua5.1... no
+checking for luaL_newstate in -llua... no
+checking for rc_read_config in -lfreeradius-client... no
+checking for rc_read_config in -lradiusclient-ng... no
+checking for rc_read_config in -lradcli... no
+checking for codec2_create in -lcodec2... no
+checking for cpg_join in -lcpg... no
+checking for corosync_cfg_state_track in -lcfg... no
+checking for speex_encode in -lspeex... no
+checking for speex_preprocess_ctl in -lspeex... no
+checking for speex_preprocess_ctl in -lspeexdsp... yes
+checking for speex/speex.h... no
+checking for sqlite3_open in -lsqlite3... yes
+checking for sqlite3.h... yes
+checking for crypt in -lcrypt... yes
+checking for crypt.h... yes
+checking for crypt... no
+checking for crypt_r in -lcrypt... yes
+checking for srtp_init in -lsrtp2... yes
+checking for srtp2/srtp.h... yes
+checking for the ability of -lsrtp2 to be linked in a shared object... yes
+checking for srtp_crypto_policy_set_aes_cm_256_hmac_sha1_80 in -lsrtp2... yes
+checking for srtp_crypto_policy_set_aes_cm_192_hmac_sha1_80 in -lsrtp2... yes
+checking for srtp_crypto_policy_set_aes_gcm_128_8_auth in -lsrtp2... yes
+checking for srtp_shutdown in -lsrtp2... yes
+checking for srtp2/srtp.h... (cached) yes
+checking for srtp_get_version_string in -lsrtp2... yes
+checking for srtp2/srtp.h... (cached) yes
+checking for gmime-3.0... no
+checking for gmime-2.6... no
+checking for gmime-2.4... no
+checking for gmime-2.2... no
+checking for gmime-2.0... no
+checking for malloc in -lhoard... no
+checking for dbinit in -lsybdb... no
+checking for tone_zone_find_by_num in -ltonezone... no
+checking for tone_zone_find in -ltonezone... no
+checking for vorbis_info_init in -lvorbis... no
+checking for OV_CALLBACKS_NOCLOSE declared in vorbis/vorbisfile.h... no
+checking for compress in -lz... yes
+checking for zlib.h... yes
+checking for linux/compiler.h... no
+checking for sdl-config... no
+checking for IMG_Load in -lSDL_image... no
+checking for sws_getContext in -lavcodec... no
+checking for linux/videodev.h... no
+checking for XOpenDisplay in -lX11... no
+checking for XOpenDisplay in -lX11... (cached) no
+checking for /sbin/launchd... no
+checking for gtk+-2.0... no
+checking for libsystemd... no
+checking for LOG_AUTH in syslog.h... yes
+checking for LOG_AUTHPRIV in syslog.h... yes
+checking for LOG_CRON in syslog.h... yes
+checking for LOG_DAEMON in syslog.h... yes
+checking for LOG_FTP in syslog.h... yes
+checking for LOG_KERN in syslog.h... yes
+checking for LOG_LPR in syslog.h... yes
+checking for LOG_MAIL in syslog.h... yes
+checking for LOG_NEWS in syslog.h... yes
+checking for LOG_SYSLOG in syslog.h... yes
+checking for LOG_UUCP in syslog.h... yes
+checking for bridges/bridge_softmix/include/hrirs.h... yes
+checking for mandatory modules:  PJPROJECT... ok
+configure: creating ./config.status
+config.status: creating build_tools/menuselect-deps
+config.status: creating makeopts
+config.status: creating include/asterisk/autoconfig.h
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables...
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to enable C11 features... none needed
+checking for GNU make... make
+checking for pkg-config... /usr/bin/pkg-config
+checking pkg-config is at least version 0.9.0... yes
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking for asprintf... yes
+checking for getloadavg... yes
+checking for setenv... yes
+checking for strcasestr... yes
+checking for strndup... yes
+checking for strnlen... yes
+checking for strsep... yes
+checking for unsetenv... yes
+checking for vasprintf... yes
+checking for newtBell in -lnewt... no
+checking for initscr in -lncurses... yes
+checking for ncurses.h... yes
+checking for keypad in -ltinfo... yes
+checking for ncurses.h... (cached) yes
+checking for a sed that does not truncate output... /usr/bin/sed
+checking for libxml-2.0... yes
+checking for gtk+-2.0... no
+configure: creating ./config.status
+config.status: creating makeopts
+config.status: creating autoconfig.h
+configure: Menuselect build configuration successfully completed
+
+               .$$$$$$$$$$$$$$$=..
+            .$7$7..          .7$$7:.
+          .$$:.                 ,$7.7
+        .$7.     7$$$$           .$$77
+     ..$$.       $$$$$            .$$$7
+    ..7$   .?.   $$$$$   .?.       7$$$.
+   $.$.   .$$$7. $$$$7 .7$$$.      .$$$.
+ .777.   .$$$$$$77$$$77$$$$$7.      $$$,
+ $$$~      .7$$$$$$$$$$$$$7.       .$$$.
+.$$7          .7$$$$$$$7:          ?$$$.
+$$$          ?7$$$$$$$$$$I        .$$$7
+$$$       .7$$$$$$$$$$$$$$$$      :$$$.
+$$$       $$$$$$7$$$$$$$$$$$$    .$$$.
+$$$        $$$   7$$$7  .$$$    .$$$.
+$$$$             $$$$7         .$$$.
+7$$$7            7$$$$        7$$$
+ $$$$$                        $$$
+  $$$$7.                       $$  (TM)
+   $$$$$$$.           .7$$$$$$  $$
+     $$$$$$$$$$$$7$$$$$$$$$.$$$$$$
+       $$$$$$$$$$$$$$$$.
+
+configure: Package configured for:
+configure: OS type  : linux-gnu
+configure: Host CPU : x86_64
+configure: build-cpu:vendor:os: x86_64 : pc : linux-gnu :
+configure: host-cpu:vendor:os: x86_64 : pc : linux-gnu :
+RUN release: make menuselect.makeopts
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/release'
+[jansson]  Cleaning
+[pjproject]  Cleaning
+[libjwt]  Cleaning
+rm -f defaults.h
+rm -f include/asterisk/build.h
+rm -f main/version.c
+rm -f doc/core-en_US.xml
+rm -f doc/full-en_US.xml
+rm -f doc/rest-api/*.wiki
+rm -f doxygen.log
+rm -rf latex
+rm -f rest-api-templates/*.pyc
+make[2]: Entering directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+rm -f menuselect cmenuselect gmenuselect nmenuselect menuselect.o strcompat.o menuselect_stub.o menuselect_curses.o
+make[2]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+cp -f .cleancount .lastclean
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" makeopts
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+make[1]: 'makeopts' is up to date.
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" menuselect
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES -I/usr/include/libxml2   -c -o menuselect.o menuselect.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o strcompat.o strcompat.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o menuselect_stub.o menuselect_stub.c
+gcc  -o menuselect menuselect.o strcompat.o menuselect_stub.o -lxml2
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+Generating input for menuselect ...
+menuselect/menuselect --check-deps menuselect.makeopts
+menuselect/menuselect --check-deps menuselect.makeopts
+RUN release: menuselect/menuselect --disable-all --enable OPTIONAL_API --enable app_celgenuserevent --enable app_dial --enable app_echo --enable app_mixmonitor --enable app_playtones --enable app_queue --enable app_stack --enable app_waitforsilence --enable bridge_native_rtp --enable bridge_simple --enable bridge_softmix --enable cel_custom --enable chan_pjsip --enable codec_alaw --enable codec_resample --enable codec_ulaw --enable format_wav --enable func_callerid --enable func_channel --enable func_strings --enable pbx_config --enable res_cdrel_custom --enable res_clioriginate --enable res_crypto --enable res_http_websocket --enable res_pjproject --enable res_pjsip --enable res_pjsip_authenticator_digest --enable res_pjsip_endpoint_identifier_user --enable res_pjsip_header_funcs --enable res_pjsip_pubsub --enable res_pjsip_registrar --enable res_pjsip_sdp_rtp --enable res_pjsip_session --enable res_pjsip_transport_websocket --enable res_rtp_asterisk --enable res_sorcery_astdb --enable res_sorcery_config --enable res_sorcery_memory --enable res_srtp --enable res_timing_timerfd menuselect.makeopts
+RUN release: menuselect/menuselect --check-deps menuselect.makeopts
+RUN release: make -j4 all
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/release'
+[jansson]  Cleaning
+[libjwt]  Cleaning
+[pjproject]  Cleaning
+rm -f defaults.h
+rm -f include/asterisk/build.h
+rm -f main/version.c
+rm -f doc/core-en_US.xml
+rm -f doc/full-en_US.xml
+rm -f doc/rest-api/*.wiki
+rm -f doxygen.log
+rm -rf latex
+rm -f rest-api-templates/*.pyc
+make[2]: Entering directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+rm -f menuselect cmenuselect gmenuselect nmenuselect menuselect.o strcompat.o menuselect_stub.o menuselect_curses.o
+make[2]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+cp -f .cleancount .lastclean
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" makeopts
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+make[1]: 'makeopts' is up to date.
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+CC="cc" CXX="g++" LD="" AR="" RANLIB="" CFLAGS="" LDFLAGS="" make -C menuselect CONFIGURE_SILENT="--silent" menuselect
+make[1]: Entering directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES -I/usr/include/libxml2   -c -o menuselect.o menuselect.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o strcompat.o strcompat.c
+gcc -g -D_GNU_SOURCE -Wall -Wno-deprecated-declarations -DHAVE_NCURSES   -c -o menuselect_stub.o menuselect_stub.c
+gcc  -o menuselect menuselect.o strcompat.o menuselect_stub.o -lxml2
+make[1]: Leaving directory '/home/asterisk-build/native-build-attempt-12/release/menuselect'
+menuselect/menuselect --check-deps menuselect.makeopts
+menuselect/menuselect --check-deps menuselect.makeopts
+[pjproject]  Rebuilding
+[pjproject]  Configuring with --with-ssl --prefix=/opt/pjproject --disable-speex-codec --disable-speex-aec --disable-bcg729 --disable-gsm-codec --disable-ilbc-codec --disable-l16-codec --disable-g722-codec --disable-g7221-codec --disable-opencore-amr --disable-silk --disable-opus --disable-video --disable-v4l2 --disable-sound --disable-ext-sound --disable-sdl --disable-libyuv --disable-ffmpeg --disable-openh264 --disable-ipp --disable-libwebrtc --disable-libsrtp --disable-upnp --without-external-pa --without-external-srtp --disable-resample --disable-g711-codec --enable-epoll CFLAGS=-DPJ_HAS_LINUX_EPOLL=1
+[pjproject]  Compiling libpj-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjlib-util-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsua-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsip-ua-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsip-simple-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjsip-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-codec-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-videodev-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjmedia-audiodev-x86_64-pc-linux-gnu.a
+[pjproject]  Compiling libpjnath-x86_64-pc-linux-gnu.a
+[pjproject]  Generating symbols
+   [CC] chan_pjsip.c -> chan_pjsip.o
+   [CC] pjsip/cli_commands.c -> pjsip/cli_commands.o
+   [CC] pjsip/dialplan_functions.c -> pjsip/dialplan_functions.o
+   [LD] chan_pjsip.o pjsip/cli_commands.o pjsip/dialplan_functions.o -> chan_pjsip.so
+   [CC] pbx_config.c -> pbx_config.o
+   [LD] pbx_config.o -> pbx_config.so
+   [CC] app_celgenuserevent.c -> app_celgenuserevent.o
+   [CC] app_dial.c -> app_dial.o
+   [CC] app_echo.c -> app_echo.o
+   [CC] app_mixmonitor.c -> app_mixmonitor.o
+   [CC] app_playtones.c -> app_playtones.o
+   [CC] app_queue.c -> app_queue.o
+   [CC] app_stack.c -> app_stack.o
+   [CC] app_waitforsilence.c -> app_waitforsilence.o
+   [LD] app_celgenuserevent.o -> app_celgenuserevent.so
+   [LD] app_echo.o -> app_echo.so
+   [LD] app_mixmonitor.o -> app_mixmonitor.so
+   [LD] app_playtones.o -> app_playtones.so
+   [LD] app_stack.o -> app_stack.so
+   [LD] app_waitforsilence.o -> app_waitforsilence.so
+   [LD] app_dial.o -> app_dial.so
+   [LD] app_queue.o -> app_queue.so
+   [CC] codec_alaw.c -> codec_alaw.o
+   [CC] codec_resample.c -> codec_resample.o
+   [CC] speex/resample.c -> speex/resample.o
+   [CC] codec_ulaw.c -> codec_ulaw.o
+   [LD] codec_alaw.o -> codec_alaw.so
+   [LD] codec_ulaw.o -> codec_ulaw.so
+   [LD] codec_resample.o speex/resample.o -> codec_resample.so
+   [CC] format_wav.c -> format_wav.o
+   [LD] format_wav.o -> format_wav.so
+   [CC] cel_custom.c -> cel_custom.o
+   [LD] cel_custom.o -> cel_custom.so
+   [CC] bridge_native_rtp.c -> bridge_native_rtp.o
+   [CC] bridge_simple.c -> bridge_simple.o
+   [CC] bridge_softmix.c -> bridge_softmix.o
+   [CC] bridge_softmix/bridge_softmix_binaural.c -> bridge_softmix/bridge_softmix_binaural.o
+   [LD] bridge_simple.o -> bridge_simple.so
+   [LD] bridge_native_rtp.o -> bridge_native_rtp.so
+   [LD] bridge_softmix.o bridge_softmix/bridge_softmix_binaural.o -> bridge_softmix.so
+   [CC] func_channel.c -> func_channel.o
+   [CC] func_callerid.c -> func_callerid.o
+   [CC] func_strings.c -> func_strings.o
+   [LD] func_channel.o -> func_channel.so
+   [LD] func_callerid.o -> func_callerid.so
+   [LD] func_strings.o -> func_strings.so
+   [CC] acl.c -> acl.o
+   [CC] abstract_jb.c -> abstract_jb.o
+   [CC] adsi.c -> adsi.o
+   [CC] alaw.c -> alaw.o
+   [CC] alertpipe.c -> alertpipe.o
+   [CC] aoc.c -> aoc.o
+   [CC] app.c -> app.o
+   [CC] ast_expr2.c -> ast_expr2.o
+   [CC] ast_expr2f.c -> ast_expr2f.o
+   [CC] asterisk.c -> asterisk.o
+   [CC] astfd.c -> astfd.o
+   [CC] astmm.c -> astmm.o
+   [CC] astobj2.c -> astobj2.o
+   [CC] astobj2_container.c -> astobj2_container.o
+   [CC] astobj2_global.c -> astobj2_global.o
+   [CC] astobj2_hash.c -> astobj2_hash.o
+   [CC] astobj2_rbtree.c -> astobj2_rbtree.o
+   [CC] audiohook.c -> audiohook.o
+   [CC] autochan.c -> autochan.o
+   [CC] autoservice.c -> autoservice.o
+   [CC] backtrace.c -> backtrace.o
+   [CC] bridge.c -> bridge.o
+   [CC] bridge_after.c -> bridge_after.o
+   [CC] bridge_basic.c -> bridge_basic.o
+   [CC] bridge_channel.c -> bridge_channel.o
+   [CC] bridge_roles.c -> bridge_roles.o
+   [CC] bucket.c -> bucket.o
+   [CC] callerid.c -> callerid.o
+   [CC] channel.c -> channel.o
+   [CC] channel_internal_api.c -> channel_internal_api.o
+   [CC] channelstorage.c -> channelstorage.o
+   [CC] channelstorage_ao2_legacy.c -> channelstorage_ao2_legacy.o
+   [CC] chanvars.c -> chanvars.o
+   [CC] cli.c -> cli.o
+   [CC] codec.c -> codec.o
+   [CC] codec_builtin.c -> codec_builtin.o
+   [CC] config_options.c -> config_options.o
+   [CC] conversions.c -> conversions.o
+   [CC] core_local.c -> core_local.o
+   [CC] core_unreal.c -> core_unreal.o
+   [CC] crypt.c -> crypt.o
+   [CC] data_buffer.c -> data_buffer.o
+   [CC] datastore.c -> datastore.o
+   [CC] db.c -> db.o
+   [CC] devicestate.c -> devicestate.o
+   [CC] dial.c -> dial.o
+   [CC] dns.c -> dns.o
+   [CC] dns_core.c -> dns_core.o
+   [CC] dns_naptr.c -> dns_naptr.o
+   [CC] dns_query_set.c -> dns_query_set.o
+   [CC] dns_recurring.c -> dns_recurring.o
+   [CC] dns_srv.c -> dns_srv.o
+   [CC] dns_system_resolver.c -> dns_system_resolver.o
+   [CC] dns_test.c -> dns_test.o
+   [CC] dns_txt.c -> dns_txt.o
+   [CC] dns_tlsa.c -> dns_tlsa.o
+   [CC] editline_compat.c -> editline_compat.o
+   [CC] endpoints.c -> endpoints.o
+   [CC] event.c -> event.o
+   [CC] extension_state.c -> extension_state.o
+   [CC] extension_state_autohints.c -> extension_state_autohints.o
+   [CC] extension_state_legacy.c -> extension_state_legacy.o
+   [CC] features_config.c -> features_config.o
+   [CC] file.c -> file.o
+   [CC] fixedjitterbuf.c -> fixedjitterbuf.o
+   [CC] format.c -> format.o
+   [CC] format_cache.c -> format_cache.o
+   [CC] format_cap.c -> format_cap.o
+   [CC] format_compatibility.c -> format_compatibility.o
+   [CC] frame.c -> frame.o
+   [CC] framehook.c -> framehook.o
+   [CC] fskmodem.c -> fskmodem.o
+   [CC] global_datastores.c -> global_datastores.o
+   [CC] hashtab.c -> hashtab.o
+   [CC] heap.c -> heap.o
+   [CC] image.c -> image.o
+   [CC] io.c -> io.o
+   [CC] iostream.c -> iostream.o
+   [CC] jitterbuf.c -> jitterbuf.o
+   [CC] json.c -> json.o
+   [CC] loader.c -> loader.o
+   [CC] lock.c -> lock.o
+   [CC] logger_category.c -> logger_category.o
+   [CC] manager_bridges.c -> manager_bridges.o
+   [CC] manager_channels.c -> manager_channels.o
+   [CC] manager_endpoints.c -> manager_endpoints.o
+   [CC] manager_mwi.c -> manager_mwi.o
+   [CC] manager_system.c -> manager_system.o
+   [CC] max_forwards.c -> max_forwards.o
+   [CC] md5.c -> md5.o
+   [CC] media_cache.c -> media_cache.o
+   [CC] media_index.c -> media_index.o
+   [CC] message.c -> message.o
+   [CC] mixmonitor.c -> mixmonitor.o
+   [CC] mwi.c -> mwi.o
+   [CC] named_locks.c -> named_locks.o
+   [CC] netsock2.c -> netsock2.o
+   [CC] optional_api.c -> optional_api.o
+   [CC] options.c -> options.o
+   [CC] parking.c -> parking.o
+   [CC] pbx.c -> pbx.o
+   [CC] pbx_app.c -> pbx_app.o
+   [CC] pbx_builtins.c -> pbx_builtins.o
+   [CC] pbx_functions.c -> pbx_functions.o
+   [CC] pbx_hangup_handler.c -> pbx_hangup_handler.o
+   [CC] pbx_ignorepat.c -> pbx_ignorepat.o
+   [CC] pbx_include.c -> pbx_include.o
+   [CC] pbx_sw.c -> pbx_sw.o
+   [CC] pbx_switch.c -> pbx_switch.o
+   [CC] pbx_timing.c -> pbx_timing.o
+   [CC] pbx_variables.c -> pbx_variables.o
+   [CC] pickup.c -> pickup.o
+   [CC] poll.c -> poll.o
+   [CC] presencestate.c -> presencestate.o
+   [CC] privacy.c -> privacy.o
+   [CC] refer.c -> refer.o
+   [CC] rtp_engine.c -> rtp_engine.o
+   [CC] say.c -> say.o
+   [CC] sched.c -> sched.o
+   [CC] sdp_srtp.c -> sdp_srtp.o
+   [CC] security_events.c -> security_events.o
+   [CC] sem.c -> sem.o
+   [CC] serializer.c -> serializer.o
+   [CC] serializer_shutdown_group.c -> serializer_shutdown_group.o
+   [CC] sha1.c -> sha1.o
+   [CC] sip_api.c -> sip_api.o
+   [CC] slinfactory.c -> slinfactory.o
+   [CC] smoother.c -> smoother.o
+   [CC] sorcery.c -> sorcery.o
+   [CC] srv.c -> srv.o
+   [CC] stasis.c -> stasis.o
+   [CC] stasis_bridges.c -> stasis_bridges.o
+   [CC] stasis_cache.c -> stasis_cache.o
+   [CC] stasis_cache_pattern.c -> stasis_cache_pattern.o
+   [CC] stasis_channels.c -> stasis_channels.o
+   [CC] stasis_endpoints.c -> stasis_endpoints.o
+   [CC] stasis_message.c -> stasis_message.o
+   [CC] stasis_message_router.c -> stasis_message_router.o
+   [CC] stasis_state.c -> stasis_state.o
+   [CC] stasis_system.c -> stasis_system.o
+   [CC] stdtime/localtime.c -> stdtime/localtime.o
+   [CC] strcompat.c -> strcompat.o
+   [CC] stream.c -> stream.o
+   [CC] stringfields.c -> stringfields.o
+   [CC] strings.c -> strings.o
+   [CC] stun.c -> stun.o
+   [CC] syslog.c -> syslog.o
+   [CC] taskpool.c -> taskpool.o
+   [CC] taskprocessor.c -> taskprocessor.o
+   [CC] tcptls.c -> tcptls.o
+   [CC] tdd.c -> tdd.o
+   [CC] term.c -> term.o
+   [CC] test.c -> test.o
+   [CC] threadpool.c -> threadpool.o
+   [CC] threadstorage.c -> threadstorage.o
+   [CC] time.c -> time.o
+   [CC] timing.c -> timing.o
+   [CC] translate.c -> translate.o
+   [CC] ulaw.c -> ulaw.o
+   [CC] uri.c -> uri.o
+   [CC] utf8.c -> utf8.o
+   [CC] utils.c -> utils.o
+   [CC] uuid.c -> uuid.o
+   [CC] version.c -> version.o
+   [CC] xml.c -> xml.o
+   [CC] xmldoc.c -> xmldoc.o
+   [CC] ccss.c -> ccss.o
+   [CC] cdr.c -> cdr.o
+   [CC] cel.c -> cel.o
+   [CC] config.c -> config.o
+   [CC] dnsmgr.c -> dnsmgr.o
+   [CC] dsp.c -> dsp.o
+   [CC] enum.c -> enum.o
+   [CC] features.c -> features.o
+   [CC] http.c -> http.o
+   [CC] indications.c -> indications.o
+   [CC] logger.c -> logger.o
+   [CC] manager.c -> manager.o
+   [CC] named_acl.c -> named_acl.o
+   [CC] plc.c -> plc.o
+   [CC] sounds.c -> sounds.o
+   [CC] udptl.c -> udptl.o
+   [CC] libasteriskssl.c -> libasteriskssl.o
+   [CC] libasteriskpj.c -> libasteriskpj.o
+   [GENERATE] libasteriskpj.exports
+   [LD] libasteriskssl.o -> libasteriskssl.so.1
+   [LN] libasteriskssl.so.1 -> libasteriskssl.so
+   [LD] libasteriskpj.o -> libasteriskpj.so.2
+   [LN] libasteriskpj.so.2 -> libasteriskpj.so
+   [LD] abstract_jb.o acl.o adsi.o alaw.o alertpipe.o aoc.o app.o ast_expr2.o ast_expr2f.o asterisk.o astfd.o astmm.o astobj2.o astobj2_container.o astobj2_global.o astobj2_hash.o astobj2_rbtree.o audiohook.o autochan.o autoservice.o backtrace.o bridge.o bridge_after.o bridge_basic.o bridge_channel.o bridge_roles.o bucket.o callerid.o channel.o channel_internal_api.o channelstorage.o channelstorage_ao2_legacy.o chanvars.o cli.o codec.o codec_builtin.o config_options.o conversions.o core_local.o core_unreal.o crypt.o data_buffer.o datastore.o db.o devicestate.o dial.o dns.o dns_core.o dns_naptr.o dns_query_set.o dns_recurring.o dns_srv.o dns_system_resolver.o dns_test.o dns_tlsa.o dns_txt.o editline_compat.o endpoints.o event.o extension_state.o extension_state_autohints.o extension_state_legacy.o features_config.o file.o fixedjitterbuf.o format.o format_cache.o format_cap.o format_compatibility.o frame.o framehook.o fskmodem.o global_datastores.o hashtab.o heap.o image.o io.o iostream.o jitterbuf.o json.o loader.o lock.o logger_category.o manager_bridges.o manager_channels.o manager_endpoints.o manager_mwi.o manager_system.o max_forwards.o md5.o media_cache.o media_index.o message.o mixmonitor.o mwi.o named_locks.o netsock2.o optional_api.o options.o parking.o pbx.o pbx_app.o pbx_builtins.o pbx_functions.o pbx_hangup_handler.o pbx_ignorepat.o pbx_include.o pbx_sw.o pbx_switch.o pbx_timing.o pbx_variables.o pickup.o poll.o presencestate.o privacy.o refer.o rtp_engine.o say.o sched.o sdp_srtp.o security_events.o sem.o serializer.o serializer_shutdown_group.o sha1.o sip_api.o slinfactory.o smoother.o sorcery.o srv.o stasis.o stasis_bridges.o stasis_cache.o stasis_cache_pattern.o stasis_channels.o stasis_endpoints.o stasis_message.o stasis_message_router.o stasis_state.o stasis_system.o stdtime/localtime.o strcompat.o stream.o stringfields.o strings.o stun.o syslog.o taskpool.o taskprocessor.o tcptls.o tdd.o term.o test.o threadpool.o threadstorage.o time.o timing.o translate.o ulaw.o uri.o utf8.o utils.o uuid.o version.o xml.o xmldoc.o ccss.o cdr.o cel.o config.o dnsmgr.o dsp.o enum.o features.o http.o indications.o logger.o manager.o named_acl.o plc.o sounds.o udptl.o -> asterisk
+   [CC] res_cdrel_custom.c -> res_cdrel_custom.o
+   [CC] cdrel_custom/config.c -> cdrel_custom/config.o
+   [CC] cdrel_custom/formatters.c -> cdrel_custom/formatters.o
+   [CC] cdrel_custom/getters_cdr.c -> cdrel_custom/getters_cdr.o
+   [CC] cdrel_custom/getters_cel.c -> cdrel_custom/getters_cel.o
+   [CC] cdrel_custom/loggers.c -> cdrel_custom/loggers.o
+   [CC] cdrel_custom/registry.c -> cdrel_custom/registry.o
+   [CC] cdrel_custom/writers.c -> cdrel_custom/writers.o
+   [CC] res_clioriginate.c -> res_clioriginate.o
+   [CC] res_crypto.c -> res_crypto.o
+   [CC] res_http_websocket.c -> res_http_websocket.o
+   [CC] res_pjproject.c -> res_pjproject.o
+   [CC] res_pjsip.c -> res_pjsip.o
+   [CC] res_pjsip/config_auth.c -> res_pjsip/config_auth.o
+   [CC] res_pjsip/config_domain_aliases.c -> res_pjsip/config_domain_aliases.o
+   [CC] res_pjsip/config_global.c -> res_pjsip/config_global.o
+   [CC] res_pjsip/config_system.c -> res_pjsip/config_system.o
+   [CC] res_pjsip/config_transport.c -> res_pjsip/config_transport.o
+   [CC] res_pjsip/location.c -> res_pjsip/location.o
+   [CC] res_pjsip/pjsip_cli.c -> res_pjsip/pjsip_cli.o
+   [CC] res_pjsip/pjsip_configuration.c -> res_pjsip/pjsip_configuration.o
+   [CC] res_pjsip/pjsip_distributor.c -> res_pjsip/pjsip_distributor.o
+   [CC] res_pjsip/pjsip_global_headers.c -> res_pjsip/pjsip_global_headers.o
+   [CC] res_pjsip/pjsip_message_filter.c -> res_pjsip/pjsip_message_filter.o
+   [CC] res_pjsip/pjsip_options.c -> res_pjsip/pjsip_options.o
+   [CC] res_pjsip/pjsip_resolver.c -> res_pjsip/pjsip_resolver.o
+   [CC] res_pjsip/pjsip_scheduler.c -> res_pjsip/pjsip_scheduler.o
+   [CC] res_pjsip/pjsip_session.c -> res_pjsip/pjsip_session.o
+   [CC] res_pjsip/pjsip_transport_events.c -> res_pjsip/pjsip_transport_events.o
+   [CC] res_pjsip/pjsip_transport_management.c -> res_pjsip/pjsip_transport_management.o
+   [CC] res_pjsip/presence_xml.c -> res_pjsip/presence_xml.o
+   [CC] res_pjsip/redirect.c -> res_pjsip/redirect.o
+   [CC] res_pjsip/security_agreements.c -> res_pjsip/security_agreements.o
+   [CC] res_pjsip/security_events.c -> res_pjsip/security_events.o
+   [CC] res_pjsip_authenticator_digest.c -> res_pjsip_authenticator_digest.o
+   [CC] res_pjsip_endpoint_identifier_user.c -> res_pjsip_endpoint_identifier_user.o
+   [CC] res_pjsip_header_funcs.c -> res_pjsip_header_funcs.o
+   [CC] res_pjsip_pubsub.c -> res_pjsip_pubsub.o
+   [CC] res_pjsip_registrar.c -> res_pjsip_registrar.o
+   [CC] res_pjsip_sdp_rtp.c -> res_pjsip_sdp_rtp.o
+   [CC] res_pjsip_session.c -> res_pjsip_session.o
+   [CC] res_pjsip_session/pjsip_session_caps.c -> res_pjsip_session/pjsip_session_caps.o
+   [CC] res_pjsip_session/pjsip_session_reason_header.c -> res_pjsip_session/pjsip_session_reason_header.o
+   [CC] res_pjsip_transport_websocket.c -> res_pjsip_transport_websocket.o
+   [CC] res_rtp_asterisk.c -> res_rtp_asterisk.o
+   [CC] res_sorcery_astdb.c -> res_sorcery_astdb.o
+   [CC] res_sorcery_config.c -> res_sorcery_config.o
+   [CC] res_sorcery_memory.c -> res_sorcery_memory.o
+   [CC] res_srtp.c -> res_srtp.o
+   [CC] res_timing_timerfd.c -> res_timing_timerfd.o
+   [LD] res_cdrel_custom.o cdrel_custom/config.o cdrel_custom/formatters.o cdrel_custom/getters_cdr.o cdrel_custom/getters_cel.o cdrel_custom/loggers.o cdrel_custom/registry.o cdrel_custom/writers.o -> res_cdrel_custom.so
+   [LD] res_clioriginate.o -> res_clioriginate.so
+   [LD] res_crypto.o -> res_crypto.so
+   [LD] res_http_websocket.o -> res_http_websocket.so
+   [LD] res_pjproject.o -> res_pjproject.so
+   [LD] res_pjsip.o res_pjsip/config_auth.o res_pjsip/config_domain_aliases.o res_pjsip/config_global.o res_pjsip/config_system.o res_pjsip/config_transport.o res_pjsip/location.o res_pjsip/pjsip_cli.o res_pjsip/pjsip_configuration.o res_pjsip/pjsip_distributor.o res_pjsip/pjsip_global_headers.o res_pjsip/pjsip_message_filter.o res_pjsip/pjsip_options.o res_pjsip/pjsip_resolver.o res_pjsip/pjsip_scheduler.o res_pjsip/pjsip_session.o res_pjsip/pjsip_transport_events.o res_pjsip/pjsip_transport_management.o res_pjsip/presence_xml.o res_pjsip/redirect.o res_pjsip/security_agreements.o res_pjsip/security_events.o -> res_pjsip.so
+   [LD] res_pjsip_authenticator_digest.o -> res_pjsip_authenticator_digest.so
+   [LD] res_pjsip_endpoint_identifier_user.o -> res_pjsip_endpoint_identifier_user.so
+   [LD] res_pjsip_header_funcs.o -> res_pjsip_header_funcs.so
+   [LD] res_pjsip_pubsub.o -> res_pjsip_pubsub.so
+   [LD] res_pjsip_registrar.o -> res_pjsip_registrar.so
+   [LD] res_pjsip_sdp_rtp.o -> res_pjsip_sdp_rtp.so
+   [LD] res_pjsip_transport_websocket.o -> res_pjsip_transport_websocket.so
+   [LD] res_sorcery_astdb.o -> res_sorcery_astdb.so
+   [LD] res_sorcery_config.o -> res_sorcery_config.so
+   [LD] res_sorcery_memory.o -> res_sorcery_memory.so
+   [LD] res_srtp.o -> res_srtp.so
+   [LD] res_timing_timerfd.o -> res_timing_timerfd.so
+   [LD] res_pjsip_session.o res_pjsip_session/pjsip_session_caps.o res_pjsip_session/pjsip_session_reason_header.o -> res_pjsip_session.so
+   [LD] res_rtp_asterisk.o -> res_rtp_asterisk.so
+ +--------- Asterisk Build Complete ---------+
+ + Asterisk has successfully been built, and +
+ + can be installed by running:              +
+ +                                           +
+ +                make install               +
+ +-------------------------------------------+
+COMPILED_PROFILE=release REQUIRED_OUTPUTS=44
+BOTH_PROFILES_COMPILED_NO_ASTERISK_RUNTIME_OR_NATIVE_TEST_EXECUTION

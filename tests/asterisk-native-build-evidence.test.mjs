@@ -9,6 +9,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bytes = (file) => readFileSync(path.join(root, ...file.split("/")));
 const read = (file) => JSON.parse(bytes(file));
 const hash = (file) => createHash("sha256").update(bytes(file)).digest("hex");
+const canonicalHash = (file) => createHash("sha256")
+  .update(bytes(file).toString("utf8").replace(/\r\n/g, "\n")).digest("hex");
 const directory = "local/asterisk-build";
 const preparation = read("local/asterisk-patches/build-preparation.json");
 const candidate = read("local/asterisk-patches/queue-policy-v1.json");
@@ -1239,6 +1241,67 @@ test("approved Gate A substitute reuses exact native evidence without closing ac
   assert.equal(native.results.filter((result) => result.result === "passed").length, 30);
   assert.equal(native.completed, true);
   assert.equal(native.allOwnedProcessesStopped, true);
+});
+
+test("fresh Gate A substitute run binds both profiles, all native results and cleanup", () => {
+  const evidence = preparation.gateANativeFreshExecution;
+  const compilePath = path.posix.normalize(path.posix.join(
+    "local/asterisk-patches", evidence.compileReport,
+  ));
+  const nativePath = path.posix.normalize(path.posix.join(
+    "local/asterisk-patches", evidence.nativeTestReport,
+  ));
+  const compileLogPath = path.posix.normalize(path.posix.join(
+    "local/asterisk-patches", evidence.compileLog,
+  ));
+  const nativeLogPath = path.posix.normalize(path.posix.join(
+    "local/asterisk-patches", evidence.nativeTestLog,
+  ));
+  const xmlDirectory = path.posix.normalize(path.posix.join(
+    "local/asterisk-patches", evidence.nativeTestResultsDirectory,
+  ));
+  const freshCompile = read(compilePath);
+  const freshNative = read(nativePath);
+  assert.equal(evidence.candidateManifestSha256, hash("local/asterisk-patches/queue-policy-v1.json"));
+  assert.equal(evidence.candidatePatchSha256, candidate.patchSha256);
+  assert.equal(evidence.compileReportSha256, hash(compilePath));
+  assert.equal(evidence.nativeTestReportSha256, hash(nativePath));
+  assert.equal(evidence.compileLogNormalization,
+    "canonical-LF-with-trailing-horizontal-whitespace-removed");
+  assert.equal(evidence.compileLogSha256, canonicalHash(compileLogPath));
+  assert.equal(evidence.nativeTestLogSha256, canonicalHash(nativeLogPath));
+  assert.equal(evidence.compileRunnerSha256, canonicalHash(`${directory}/compile-profiles.py`));
+  assert.equal(evidence.nativeTestRunnerSha256, canonicalHash(`${directory}/run-native-tests.py`));
+  assert.equal(evidence.bindingHelperSha256,
+    canonicalHash(`${directory}/shutdown_compile_binding.py`));
+  assert.equal(freshCompile.patchSha256, candidate.patchSha256);
+  assert.deepEqual(evidence.compileProfiles, { instrumentedOutputs: 46, releaseOutputs: 44 });
+  assert.deepEqual(freshCompile.profiles.map((profile) => ({
+    name: profile.name,
+    outputCount: profile.outputs.length,
+  })), [
+    { name: "instrumented", outputCount: 46 },
+    { name: "release", outputCount: 44 },
+  ]);
+  assert.equal(freshNative.patchSha256, candidate.patchSha256);
+  assert.equal(freshNative.compileReportSha256, evidence.compileReportSha256);
+  assert.deepEqual(freshNative.results.map((result) => result.name), candidate.nativeTests);
+  assert.equal(freshNative.results.length, evidence.nativeTestCount);
+  assert.equal(freshNative.results.filter((result) => result.result === "passed").length,
+    evidence.nativeTestsPassed);
+  assert.equal(freshNative.results.filter((result) => result.result !== "passed").length,
+    evidence.nativeTestsFailed);
+  for (const result of freshNative.results) {
+    assert.equal(canonicalHash(`${xmlDirectory}/${result.name}.xml`), result.xmlSha256, result.name);
+  }
+  assert.equal(evidence.nativeTestXmlCount, freshNative.results.length);
+  assert.equal(evidence.nativeTestsExecuted, true);
+  assert.equal(evidence.allOwnedProcessesStopped, freshNative.allOwnedProcessesStopped);
+  assert.equal(evidence.attemptsConsumedForThisAuthorization.compile, 1);
+  assert.equal(evidence.attemptsConsumedForThisAuthorization.nativeTests, 1);
+  assert.equal(evidence.runtimeApplyAuthorized, false);
+  assert.equal(evidence.productionOrSharedRuntimeAccessed, false);
+  assert.equal(evidence.gateAAcceptanceComplete, false);
 });
 
 test("current corrected build restores upstream optional API and binds all new evidence", () => {
