@@ -27,7 +27,7 @@
   "basisSourceSha256": {
     "include/asterisk/module.h": "e4324bc2662c70771376a5eaeb50bda8f558bd7390c8c31fcbca40aed32010b4",
     "main/loader.c": "103e09d9ebfc3a156768a9846a0e728041831ca37b5f37ca16e8feb3de07c79d",
-    "tests/test_bounded_queue_policy.c": "746f83cda39f48caac8f360dfd4eaa7df7708e57c2ba5c1fbcf6d55e4f2dc3b8"
+    "tests/test_bounded_queue_policy.c": "746f83cda39f48a1dcf0c9d9d8541a7d50047900cc8fab9b6c1e9ac1653777cd"
   },
   "applicationVerification": {
     "patchDryRunSucceeded": true,

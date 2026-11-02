@@ -1,0 +1,20 @@
+Started asterisk-native-compile-attempt-9.service - /usr/bin/python3 /home/asterisk-build/source-staging/compile-profiles.py --approve-native-compile --attempt 9 --shutdown-supplement-manifest /home/asterisk-build/asterisk-patches/queue-policy-shutdown-v1.json --cli-output-supplement-manifest /home/asterisk-build/asterisk-patches/queue-policy-output-v1.json --ao2-accounting-supplement-manifest /home/asterisk-build/asterisk-patches/queue-policy-accounting-v1.json --loader-lifecycle-supplement-manifest /home/asterisk-build/asterisk-patches/queue-policy-loader-v1.json.
+Traceback (most recent call last):
+  File "/home/asterisk-build/source-staging/compile-profiles.py", line 86, in <module>
+    ) = load_ao2_accounting_supplement(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/asterisk-build/source-staging/shutdown_compile_binding.py", line 254, in load_ao2_accounting_supplement
+    if not validate_cli_output_compile_report(basis_compile_report):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/asterisk-build/source-staging/shutdown_compile_binding.py", line 514, in validate_cli_output_compile_report
+    parent_manifest = json.loads((patches / "queue-policy-v1.json").read_text())
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1029, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/local/asterisk-patches/queue-policy-v1.json'
+asterisk-native-compile-attempt-9.service: Main process exited, code=exited, status=1/FAILURE
+asterisk-native-compile-attempt-9.service: Failed with result 'exit-code'.

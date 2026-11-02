@@ -437,9 +437,39 @@ class LoaderLifecycleSupplementBindingTests(unittest.TestCase):
         self.assertEqual(
             manifest["changedUpstreamPaths"], binding.EXPECTED_LOADER_LIFECYCLE_PATHS
         )
+        self.assertEqual(
+            manifest["basisSourceSha256"]["tests/test_bounded_queue_policy.c"],
+            self.output["applicationVerification"]["postimageSha256"][
+                "tests/test_bounded_queue_policy.c"
+            ],
+        )
         self.assertTrue(manifest["fixtures"]["successfulRemovalWhileLookupPausedCovered"])
         self.assertFalse(manifest["nativeCompiled"])
         self.assertFalse(manifest["nativeTestsExecuted"])
+
+    def test_rejects_loader_preimage_that_does_not_match_output_postimage(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            patches = root / "local" / "asterisk-patches"
+            builds = root / "local" / "asterisk-build"
+            patches.mkdir(parents=True)
+            builds.mkdir(parents=True)
+            manifest = json.loads(self.manifest_path.read_text())
+            manifest["basisSourceSha256"]["tests/test_bounded_queue_policy.c"] = "0" * 64
+            copied_manifest = patches / self.manifest_path.name
+            copied_manifest.write_text(json.dumps(manifest))
+            shutil.copyfile(
+                self.manifest_path.parent / manifest["patch"],
+                patches / manifest["patch"],
+            )
+            for name in [
+                "compile-report-accounting-v1.json",
+                "native-test-report-accounting-v1.json",
+            ]:
+                shutil.copyfile(ROOT / "local" / "asterisk-build" / name, builds / name)
+
+            with self.assertRaisesRegex(ValueError, "does not match the CLI output postimage"):
+                self.load_loader(copied_manifest)
 
     def test_rejects_modified_loader_patch_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:

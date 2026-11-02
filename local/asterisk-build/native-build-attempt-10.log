@@ -1,0 +1,55 @@
+Started asterisk-native-compile-attempt-10.service - /usr/bin/python3 /home/asterisk-build/source-staging/compile-profiles.py --approve-native-compile --attempt 10 --shutdown-supplement-manifest /home/local/asterisk-patches/queue-policy-shutdown-v1.json --cli-output-supplement-manifest /home/local/asterisk-patches/queue-policy-output-v1.json --ao2-accounting-supplement-manifest /home/local/asterisk-patches/queue-policy-accounting-v1.json --loader-lifecycle-supplement-manifest /home/local/asterisk-patches/queue-policy-loader-v1.json.
+RUN instrumented: patch --batch --fuzz=0 --dry-run -p1 -i /home/asterisk-build/source-staging/queue-policy-v1.patch
+checking file apps/app_queue.c
+checking file include/asterisk/astobj2.h
+checking file include/asterisk/cli.h
+checking file include/asterisk/module.h
+checking file main/astobj2_hash.c
+checking file main/cli.c
+checking file main/loader.c
+checking file tests/test_bounded_queue_policy.c
+checking file tests/test_protected_cli_target.c
+RUN instrumented: patch --batch --fuzz=0 -p1 -i /home/asterisk-build/source-staging/queue-policy-v1.patch
+patching file apps/app_queue.c
+patching file include/asterisk/astobj2.h
+patching file include/asterisk/cli.h
+patching file include/asterisk/module.h
+patching file main/astobj2_hash.c
+patching file main/cli.c
+patching file main/loader.c
+patching file tests/test_bounded_queue_policy.c
+patching file tests/test_protected_cli_target.c
+RUN instrumented: patch --batch --fuzz=0 --dry-run -p1 -i /home/local/asterisk-patches/queue-policy-shutdown-v1.patch
+checking file include/asterisk/module.h
+checking file main/loader.c
+checking file main/asterisk.c
+RUN instrumented: patch --batch --fuzz=0 -p1 -i /home/local/asterisk-patches/queue-policy-shutdown-v1.patch
+patching file include/asterisk/module.h
+patching file main/loader.c
+patching file main/asterisk.c
+RUN instrumented: patch --batch --fuzz=0 --dry-run -p1 -i /home/local/asterisk-patches/queue-policy-output-v1.patch
+checking file apps/app_queue.c
+checking file tests/test_bounded_queue_policy.c
+checking file tests/test_protected_cli_target.c
+RUN instrumented: patch --batch --fuzz=0 -p1 -i /home/local/asterisk-patches/queue-policy-output-v1.patch
+patching file apps/app_queue.c
+patching file tests/test_bounded_queue_policy.c
+patching file tests/test_protected_cli_target.c
+RUN instrumented: patch --batch --fuzz=0 --dry-run -p1 -i /home/local/asterisk-patches/queue-policy-accounting-v1.patch
+checking file include/asterisk/astobj2.h
+checking file main/astobj2.c
+checking file main/astobj2_container.c
+checking file main/astobj2_hash.c
+RUN instrumented: patch --batch --fuzz=0 -p1 -i /home/local/asterisk-patches/queue-policy-accounting-v1.patch
+patching file include/asterisk/astobj2.h
+patching file main/astobj2.c
+patching file main/astobj2_container.c
+patching file main/astobj2_hash.c
+Traceback (most recent call last):
+  File "/home/asterisk-build/source-staging/compile-profiles.py", line 241, in <module>
+    verify_loader_lifecycle_basis(tree, loader_lifecycle_supplement)
+  File "/home/asterisk-build/source-staging/shutdown_compile_binding.py", line 479, in verify_loader_lifecycle_basis
+    raise ValueError(f"Loader lifecycle supplement source preimage mismatch: {relative}")
+ValueError: Loader lifecycle supplement source preimage mismatch: tests/test_bounded_queue_policy.c
+asterisk-native-compile-attempt-10.service: Main process exited, code=exited, status=1/FAILURE
+asterisk-native-compile-attempt-10.service: Failed with result 'exit-code'.

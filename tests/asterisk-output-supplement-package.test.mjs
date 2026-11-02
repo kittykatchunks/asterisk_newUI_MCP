@@ -138,6 +138,10 @@ test("loader lifecycle supplement binds the fifth source layer without executing
     hash("local/asterisk-build/compile-report-accounting-v1.json"));
   assert.equal(loader.basisNativeReportSha256,
     hash("local/asterisk-build/native-test-report-accounting-v1.json"));
+  assert.equal(
+    loader.basisSourceSha256["tests/test_bounded_queue_policy.c"],
+    supplement.applicationVerification.postimageSha256["tests/test_bounded_queue_policy.c"],
+  );
   assert.equal(hash(`local/asterisk-patches/${loader.patch}`), loader.patchSha256);
   assert.deepEqual(loader.changedUpstreamPaths, expectedLoaderPaths);
   assert.deepEqual(Object.keys(loader.basisSourceSha256), expectedLoaderPaths);

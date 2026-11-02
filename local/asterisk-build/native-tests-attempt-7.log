@@ -1,0 +1,34 @@
+Started asterisk-native-regression-attempt-7.service - /usr/bin/python3 /home/asterisk-build/source-staging/run-native-tests.py --approve-native-tests --attempt 7 --build-attempt 11.
+NATIVE_TEST bounded_walk passed
+NATIVE_TEST retained_nodes passed
+NATIVE_TEST protected_lease passed
+NATIVE_TEST protected_dispatch passed
+NATIVE_TEST bounded_matrix passed
+NATIVE_TEST bounded_contention passed
+NATIVE_TEST bounded_ownership passed
+NATIVE_TEST policy_snapshot_copy passed
+NATIVE_TEST policy_snapshot_selection passed
+NATIVE_TEST policy_snapshot_values passed
+NATIVE_TEST policy_snapshot_invalid_request passed
+NATIVE_TEST policy_snapshot_contention passed
+NATIVE_TEST policy_snapshot_protocol passed
+NATIVE_TEST policy_snapshot_output_failure passed
+NATIVE_TEST protected_completion passed
+NATIVE_TEST protected_registration passed
+NATIVE_TEST policy_snapshot_rejected_state passed
+NATIVE_TEST policy_snapshot_traversal passed
+NATIVE_TEST policy_snapshot_queue_lock_kind passed
+NATIVE_TEST policy_snapshot_member_boundary passed
+NATIVE_TEST policy_snapshot_status_mapping passed
+NATIVE_TEST protected_target_lifecycle passed
+NATIVE_TEST protected_target_completion passed
+NATIVE_TEST protected_target_closing passed
+NATIVE_TEST protected_target_lookup passed
+NATIVE_TEST protected_target_loader_busy passed
+NATIVE_TEST protected_target_permission passed
+NATIVE_TEST protected_target_refresh passed
+NATIVE_TEST bounded_mixed_nodes passed
+NATIVE_TEST bounded_callback_work passed
+NATIVE_BATCH passed=30 failed=0
+asterisk-native-regression-attempt-7.service: Deactivated successfully.
+asterisk-native-regression-attempt-7.service: Consumed 1.597s CPU time, 1.7M memory peak, 0B memory swap peak.

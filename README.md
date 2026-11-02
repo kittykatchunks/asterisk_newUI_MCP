@@ -527,15 +527,25 @@ Non-AO2 allocation and I/O accounting, retirement concurrency and broader
 Gate A acceptance remain open. No release-profile startup, runtime apply,
 Gate C or production/deployment work occurred.
 
-**[Loader lifecycle successful-removal fixture prepared, not executed](./PROJECT-PLAN.md#successful-removal-during-a-paused-protected-lookup-is-prepared-as-a-test-only-source-supplement).**
-The fifth source layer adds a schedule to the existing protected-lookup native
-definition: pause after lookup, begin a successful unload, resume the lookup,
-and require denial before handler execution plus target removal. The denial is
-due to loader-lock contention while unregister waits for the registry reader;
-it does not assert the `cli_closing`-specific branch. Patch application and
-hash-bound compiler support were validated offline. No native compile/test,
-Asterisk startup, PBX operation, Gate C proof, or deployment was performed for
-this layer; the earlier 30/30 result does not include it.
+**[Loader lifecycle supplement compiles and passes the 30-test Gate B suite](./PROJECT-PLAN.md#successful-removal-during-a-paused-protected-lookup-source-supplement-and-bounded-gate-b-execution).**
+After separate authorization, compile attempt 11 built both profiles (46
+instrumented and 44 release outputs), and native-test attempt 7 passed all 30
+definitions in fresh isolated instrumented processes. The
+[compile report](./local/asterisk-build/compile-report-loader-v1.json),
+[native report](./local/asterisk-build/native-test-report-loader-v1.json),
+[aggregate XML](./local/asterisk-build/native-test-results-loader-v1.xml) and
+bounded attempt logs are hash-bound in the build-preparation record. A stale
+source preimage discovered before configure was corrected and is now rejected
+by offline lineage validation if it diverges from the prior layer.
+
+The successful-removal schedule pauses after lookup, begins target unload,
+resumes dispatch, and requires denial before handler execution plus target
+removal. That denial is due to loader-lock contention while unregister waits
+for the registry reader; it does not assert `cli_closing`-specific denial.
+Focused offline checks passed 19 Python binding tests and 41 Node tests. This
+Gate B slice does not close Gate A; no release-profile startup, runtime image,
+binary export, runtime apply, shared PBX operation, Gate C proof or deployment
+occurred.
 
 **[Release loaded-state smoke also passes](./PROJECT-PLAN.md#release-profile-loaded-state-smoke-passed).**
 All 44 release outputs resolve their shared libraries in the builder, and

@@ -1363,3 +1363,107 @@ test("AO2 accounting supplement Gate B evidence binds both profiles and all nati
   assert.equal(accounting.nativeCompiled, false);
   assert.equal(accounting.nativeTestsExecuted, false);
 });
+
+test("loader lifecycle Gate B evidence binds both profiles and all native results", () => {
+  const execution = preparation.loaderLifecycleSupplementExecution;
+  const loader = read("local/asterisk-patches/queue-policy-loader-v1.json");
+  const compilePath = `${directory}/compile-report-loader-v1.json`;
+  const nativePath = `${directory}/native-test-report-loader-v1.json`;
+  const aggregatePath = `${directory}/native-test-results-loader-v1.xml`;
+  const compileLog = `${directory}/native-build-attempt-11.log`;
+  const nativeLog = `${directory}/native-tests-attempt-7.log`;
+  const buildPath = (relative) => relative.replace("../asterisk-build/", `${directory}/`);
+
+  assert.equal(execution.stage, "both-profiles-compiled-and-30-native-definitions-passed");
+  assert.equal(execution.compileAttempt, 11);
+  assert.equal(execution.compileAttemptsForThisIncrement, 3);
+  assert.equal(execution.compileAttemptLimit, 10);
+  assert.equal(execution.nativeTestAttempt, 7);
+  assert.equal(execution.compileServiceResult, "success");
+  assert.equal(execution.nativeServiceResult, "success");
+  assert.equal(hash(buildPath(execution.compileRunner)), execution.compileRunnerSha256);
+  assert.equal(hash(buildPath(execution.nativeRunner)), execution.nativeRunnerSha256);
+  assert.equal(hash(buildPath(execution.bindingHelper)), execution.bindingHelperSha256);
+  assert.equal(execution.sourceManifestSha256,
+    hash("local/asterisk-patches/queue-policy-loader-v1.json"));
+  assert.equal(execution.sourcePatchSha256, loader.patchSha256);
+  assert.equal(execution.bothProfilesCompiled, true);
+  assert.deepEqual(execution.profileOutputCounts, { instrumented: 46, release: 44 });
+  assert.deepEqual(execution.offlineValidation, {
+    pythonBindingTestsPassed: 19,
+    nodeEvidenceAndPackageTestsPassed: 41,
+  });
+  assert.equal(hash(compilePath), execution.compileReportSha256);
+  assert.equal(hash(nativePath), execution.nativeReportSha256);
+  assert.equal(hash(aggregatePath), execution.aggregateXmlSha256);
+  assert.equal(hash(compileLog), execution.compileLogSha256);
+  assert.equal(hash(nativeLog), execution.nativeTestLogSha256);
+  assert.equal(bytes(compileLog).length, execution.compileLogBytes);
+  assert.equal(bytes(nativeLog).length, execution.nativeTestLogBytes);
+  assert(bytes(compileLog).length <= 16 * 1024 * 1024);
+  assert(bytes(nativeLog).length <= 16 * 1024 * 1024);
+
+  const compileReport = read(compilePath);
+  assert.equal(compileReport.loaderLifecycleSupplementPatchSha256, loader.patchSha256);
+  assert.equal(compileReport.loaderLifecycleSupplementManifestSha256,
+    execution.sourceManifestSha256);
+  assert.equal(compileReport.nativeTestsExecuted, false);
+  assert.equal(compileReport.asteriskStarted, false);
+  assert.equal(compileReport.runtimeApplyAuthorized, false);
+  const expectedPostimages = Object.entries(loader.applicationVerification.postimageSha256)
+    .map(([path, sha256]) => ({ path, sha256 }));
+  for (const profile of compileReport.profiles) {
+    const instrumented = profile.name === "instrumented";
+    assert.equal(profile.loaderLifecycleSupplement.appliedWithZeroFuzz, true);
+    assert.equal(profile.loaderLifecycleSupplement.patchSha256, loader.patchSha256);
+    assert.deepEqual(profile.loaderLifecycleSupplement.postimages, expectedPostimages);
+    assert.equal(profile.outputs.length, instrumented ? 46 : 44);
+    assert.equal(profile.enabledOptions.includes("TEST_FRAMEWORK"), instrumented);
+  }
+
+  const nativeReport = read(nativePath);
+  assert.equal(nativeReport.attempt, 7);
+  assert.equal(nativeReport.compileReportSha256, execution.compileReportSha256);
+  assert.equal(nativeReport.completed, true);
+  assert.equal(nativeReport.passed, 30);
+  assert.equal(nativeReport.failed, 0);
+  assert.equal(nativeReport.allOwnedProcessesStopped, true);
+  assert.equal(nativeReport.runtimeApplyAuthorized, false);
+  assert.deepEqual(nativeReport.results.map((item) => item.name), candidate.nativeTests);
+  assert(nativeReport.results.every((item) =>
+    item.result === "passed" && item.failure === null));
+  assert.equal(
+    nativeReport.results.find((item) => item.name === "protected_target_lookup").result,
+    "passed",
+  );
+
+  const xml = bytes(aggregatePath).toString("utf8");
+  const testNames = [...xml.matchAll(/<testcase\b[^>]*\bname="([^"]+)"/g)]
+    .map((match) => match[1]);
+  assert.match(xml, /<testsuites tests="30" failures="0" errors="0" skipped="0">/);
+  assert.deepEqual(testNames, candidate.nativeTests);
+  assert.equal(execution.privateNetworkNamespace, true);
+  assert.equal(execution.noNewPrivileges, true);
+  assert.equal(execution.resourceBoundary.cpuQuota, "400%");
+  assert.equal(execution.resourceBoundary.memoryMaxBytes, 4294967296);
+  assert.equal(execution.resourceBoundary.memorySwapMaxBytes, 0);
+  assert.equal(execution.resourceBoundary.tasksMax, 256);
+  assert.equal(execution.instrumentedAsteriskStartedForNativeTests, true);
+  assert.equal(execution.releaseProfileStarted, false);
+  assert.equal(execution.allOwnedProcessesStopped, true);
+  assert.equal(execution.existingPbxOperated, false);
+  assert.equal(execution.runtimeImageBuilt, false);
+  assert.equal(execution.binaryExported, false);
+  assert.equal(execution.runtimeApplyAuthorized, false);
+  assert.equal(execution.gateAAcceptanceComplete, false);
+  assert.equal(execution.gateCAuthorized, false);
+  assert.equal(loader.nativeCompiled, false);
+  assert.equal(loader.nativeTestsExecuted, false);
+
+  assert.deepEqual(execution.attemptHistory.map((item) => item.attempt), [9, 10]);
+  for (const attempt of execution.attemptHistory) {
+    const logPath = buildPath(attempt.log);
+    assert.equal(hash(logPath), attempt.logSha256);
+    assert(bytes(logPath).length <= 16 * 1024 * 1024);
+  }
+});

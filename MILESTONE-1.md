@@ -2936,10 +2936,16 @@ pauses a dispatch after registry lookup, observes the target unload callback,
 then verifies the resumed dispatch fails without handler execution and that
 the target is removed. This schedule observes loader-lock contention, not
 `cli_closing`-specific denial. The patch applies to an isolated source copy
-with zero fuzz and exact postimage hashes; compiler preparation is wired but
-has not been compiled or run. The prior 30/30 native result predates this
-layer. No Gate B authorization for this supplement, Asterisk startup, PBX
-operation, Gate C proof, or deployment is claimed.
+with zero fuzz and exact postimage hashes. After separate Gate B authorization,
+compile attempt 11 built both profiles and native-test attempt 7 passed all 30
+definitions in fresh isolated instrumented processes, including the extended
+protected-lookup test. Reports and bounded logs are hash-bound in the
+[build-preparation record](./local/asterisk-patches/build-preparation.json).
+A stale test-source preimage detected before configure was corrected and is
+now checked against the prior CLI-output postimage by the offline validator.
+This closes only the authorized compile/native-test slice: Gate A acceptance,
+broader lifecycle coverage, Gate C, runtime-image creation, shared PBX
+operation and deployment remain open.
 
 The agent console now has an explicit, authenticated, read-only snapshot for
 the signed-in agent's assigned PBX extension. It returns only that endpoint's

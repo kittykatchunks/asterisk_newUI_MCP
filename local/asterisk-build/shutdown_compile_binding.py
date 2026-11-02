@@ -425,6 +425,13 @@ def load_loader_lifecycle_supplement(
                for value in hashes.values())
     ):
         raise ValueError("Loader lifecycle supplement has invalid basisSourceSha256")
+    output_postimages = output_manifest["applicationVerification"]["postimageSha256"]
+    if hashes["tests/test_bounded_queue_policy.c"] != output_postimages[
+        "tests/test_bounded_queue_policy.c"
+    ]:
+        raise ValueError(
+            "Loader lifecycle source preimage does not match the CLI output postimage"
+        )
     application = manifest.get("applicationVerification")
     postimages = application.get("postimageSha256") if isinstance(application, dict) else None
     if (
