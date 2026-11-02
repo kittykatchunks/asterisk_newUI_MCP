@@ -3474,12 +3474,27 @@ This run installed no dependencies; the dedicated build distribution is
 stopped. All AT/QO gates, A's verified exit, Gate C, exact publication, full CP
 and M1-09 remain open.
 
-##### Gate A mixed AO2 nodes: twenty-nine definitions, still unexecuted
+##### Current execution reconciliation: Gate A source fixture inventory passed
 
-The next bounded source task identified in the preceding handoff is now
+The source-preparation subsections immediately following preserve the state
+and exact scope at each historical checkpoint; their then-current
+"uncompiled/unexecuted" labels are superseded by the later Gate B run. The
+hash-bound [compile report](./local/asterisk-build/compile-report-output-v1.json)
+and [native report](./local/asterisk-build/native-test-report-output-v1.json)
+record both profiles compiled and all 30 declared instrumented definitions
+passed, including `bounded_mixed_nodes` and `bounded_callback_work`.
+The 16 mixed-node and 33 callback-work walk schedules each performed their
+independent foreign-thread lock probe, for 49 successful probe checks in the
+passing regression. This is fixture evidence only: internal ref/allocator/
+mutation/no-I/O instrumentation, retirement concurrency and broader Gate A
+acceptance remain open. No Gate C or production authority follows.
+
+##### Gate A mixed AO2 nodes: twenty-nine definitions, source checkpoint
+
+The next bounded source task identified in the preceding handoff was
 defined as `bounded_mixed_nodes`. The same nine-path package contains **29
-uncompiled/unexecuted native definitions**. Only the existing native controller
-fixture changes; all eight other source postimages are unchanged.
+native definitions at that source checkpoint**. Only the existing native
+controller fixture changes; all eight other source postimages are unchanged.
 
 The fixture uses a real mutex-protected one-bucket AO2 list, default tail
 insertion, and the existing owned-object destructor/borrowed-visitor helpers.
@@ -3527,11 +3542,11 @@ Both named scratch directories are removed after verification. No dependency
 install, native build/test, image build, module load or PBX operation occurred.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
-##### Gate A mixed-node abort and recovery: inventory unchanged, still unexecuted
+##### Gate A mixed-node abort and recovery: source checkpoint
 
 The existing `bounded_mixed_nodes` definition now includes **seven additional
 walk assertions**, not seven new test definitions. The inventory stays at
-**29 uncompiled/unexecuted native definitions** on the same nine paths.
+**29 native definitions** on the same nine paths.
 Only the native controller postimage changes; all eight other source
 postimages remain byte-for-byte unchanged.
 
@@ -3569,10 +3584,10 @@ Both named scratch directories are removed after verification. No dependency
 install, native build/test, image build, module load or PBX operation occurred.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
-##### Gate A mixed-node failure paths: inventory unchanged, still unexecuted
+##### Gate A mixed-node failure paths: source checkpoint
 
 Five additional walk assertions extend `bounded_mixed_nodes`; the inventory
-remains **29 uncompiled/unexecuted native definitions** on the same nine paths.
+remains **29 native definitions** on the same nine paths.
 Only the controller postimage changes. The shared owned-object visitor gains
 an optional invalid-return position; zero-initialized existing callers retain
 their previous behavior.
@@ -3603,11 +3618,11 @@ No dependency install, native compile/test, image build, module load or PBX
 operation occurred. A's verified exit, all AT/QO gates, Gates B/C, exact
 publication, full CP and M1-09 remain open.
 
-##### Gate A owner callback work: thirty definitions, still unexecuted
+##### Gate A owner callback work: thirty-definition source checkpoint
 
 `bounded_callback_work` adds eight walk schedules in one new definition.
-The inventory is **30 uncompiled/unexecuted native definitions** on the same
-nine source paths. Only the controller fixture postimage changes; production
+The inventory is **30 native definitions** on the same nine source paths.
+Only the controller fixture postimage changes; production
 AO2, queue, CLI, loader, headers and separate target are unchanged.
 
 The real sorted mutex-protected hash container has **53 buckets**, with all
@@ -3642,8 +3657,9 @@ in the bounded-walk callback claim.
 This narrows the AT-05 callback-work source gap and complements existing
 ownership/error/abort fixtures. It does not instrument every allocator,
 internal ref/mutation/lock operation, prove native no-I/O behavior, establish
-concurrent retirement or clear debug/ref/profile acceptance. Counts are source
-assertions until the actual compiled test executes. All AT/QO gates stay open.
+concurrent retirement or clear debug/ref/profile acceptance. The later
+hash-bound output-v1 regression executes the named test, but these broader
+acceptance gaps remain open.
 
 **Twelve package tests pass**, with JavaScript syntax, whitespace and added
 documentation links checked. Seven exact preimages/application dry run and
@@ -3653,12 +3669,12 @@ container-owner review download are removed after verification. No dependency
 install, native compile/test, image build, module load or PBX operation occurs.
 A's verified exit, Gates B/C, exact publication, full CP and M1-09 remain open.
 
-##### Gate A sparse bucket accounting: inventory unchanged, still unexecuted
+##### Gate A sparse bucket accounting: source checkpoint
 
 The existing `bounded_callback_work` definition now runs its eight-case matrix
 with collision chains in buckets **0, 26 and 52** of real sorted 53-bucket
 containers. This makes **24 walk schedules**, not 24 test definitions; the
-inventory remains **30 uncompiled/unexecuted native definitions** on the same
+inventory remains **30 native definitions** on the same
 nine paths. Only the controller fixture postimage changes.
 
 The original calibrated setup/walk/cleanup is extracted into a private fixture
@@ -3690,13 +3706,13 @@ No dependency install, native compile/test, image build, module load or PBX
 operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
 M1-09 remain open.
 
-##### Gate A distributed hard ceilings: inventory unchanged, still unexecuted
+##### Gate A distributed hard ceilings: source checkpoint
 
 The existing `bounded_callback_work` definition now adds a fourth real
 container layout: **64 distinct live objects, one in each of 64 buckets**.
 The fixture hash returns each object's key rather than a shared collision
-bucket for this layout. The inventory remains **30 uncompiled/unexecuted
-native definitions**, now with **33 walk schedules** inside this definition:
+bucket for this layout. The inventory remains **30 native definitions**, now
+with **33 walk schedules** inside this definition:
 the preceding 24 sparse-collision walks and nine distributed walks.
 Only the controller postimage changes within the same nine approved paths.
 
@@ -3723,8 +3739,9 @@ from their nonzero baselines, borrowed reference count one, unchanged 64-live
 container count, sole container reference and zero destructors until cleanup.
 The failure diagnostic identifies whether the layout was distributed.
 
-These are additional AT-03/AT-05/AT-06/AT-07 source assertions, not native
-execution, exhaustive work/ref instrumentation or concurrency/profile proof.
+These are additional AT-03/AT-05/AT-06/AT-07 source assertions. Their native
+execution is recorded in the later output-v1 report; they are not exhaustive
+work/ref instrumentation or concurrency/profile proof.
 All AT/QO acceptance gates remain open.
 
 **Twelve package tests pass**, with JavaScript syntax, whitespace and added
@@ -3735,12 +3752,12 @@ No dependency install, native compile/test, image build, module load or PBX
 operation occurs. A's verified exit, Gates B/C, exact publication, full CP and
 M1-09 remain open.
 
-##### Gate A independent lock-exit probes: inventory unchanged, still unexecuted
+##### Gate A independent lock-exit probes: source checkpoint; later regression passed
 
 Every successful assertion in the mixed-node fixture's **16 walks** and the
 callback-work fixture's **33 walks** now starts a separate lock-probe thread
-before the next fixture action. The inventory remains **30 uncompiled/
-unexecuted native definitions**; only the existing controller postimage changes
+before the next fixture action. The inventory remains **30 native definitions**;
+only the existing controller postimage changes
 within the same nine-path package.
 
 The private probe performs one `ao2_trylock` on the **actual measured
@@ -3760,7 +3777,9 @@ object/bucket/node limits, abort and invalid-visitor outcomes, mixed retained
 nodes and release recovery, sparse collision chains and distributed buckets.
 Probes occur after bounded traversal returns, outside its work budget.
 
-These assertions narrow AT-02/AT-06/AT-07 lock-cleanup source gaps; they do not
+All 49 probes passed as part of the later hash-bound 30-definition
+output-v1 regression. These assertions narrow AT-02/AT-06/AT-07 lock-cleanup
+source gaps; they do not
 count all internal lock attempts, cover lock-wrapper failures, prove no other
 lock is leaked, or establish native latency/profile/concurrency behavior.
 The existing cross-thread busy-container fixture is unchanged. A lock safety
