@@ -1785,7 +1785,8 @@ is implied by approval to build a local proof image.
 
 ##### Planned QO acceptance and implementation stop
 
-The following is a proposed bounded batch, **all planned/unexecuted**:
+The following are acceptance criteria. The separately approved QO-08 runtime
+proof is now recorded; the remaining rows are still open:
 
 | Check | Required measurable result |
 |---|---|
@@ -1796,17 +1797,25 @@ The following is a proposed bounded batch, **all planned/unexecuted**:
 | QO-05 | Inventory tests cover empty reserved namespace, expected queue, extra matching queue, missing baseline/target, duplicate/unsafe names, total/selected traversal bounds, nonzero members/callers and count/list inconsistency. No foreign identifiers or credentials in output/error. |
 | QO-06 | Host parser enforces 8 KiB single-document shape, known protocol/mapping, complete success/error distinction and exact values. Truncation, unknown masks, malformed fields, extra stdout and successful CLI exit with error/absent JSON never verify. Stock unsupported reports remain unchanged. |
 | QO-07 | Separate source/build/image gate produces an auditable pinned manifest, ABI-compatible full runtime and immutable module startup chain. A mismatched build/module/image/start binding fails; no stock binding auto-upgrade, default Compose change or reproducibility claim without evidence. |
-| QO-08 | Two uniquely owned custom-image PBXs show selected static baseline/queue facts and other-customer isolation with no reload, call, apply or production/shared runtime access. Disk-only and loaded-only negative fixtures stay distinguishable; metadata/version alone cannot pass policy comparison. |
+| QO-08 | Two uniquely owned custom-image PBXs show selected static baseline/queue facts and other-customer isolation with no reload, call, apply or production/shared runtime access. Disk-only and loaded-only negative fixtures stay distinguishable; metadata/version alone cannot pass policy comparison. **Passed in isolated attempt 2**; see the [hash-bound Gate C report](./local/asterisk-build/gate-c-two-pbx-attempt-2.json). |
 | QO-09 | Outage, restart, concurrent getter requests, busy locks, observed object changes and receipt/write failures preserve immutable prior evidence and explicit uncertainty. No automatic retry-to-green/rebind/resume. Getter command does not allocate a publication claim or move a verified pointer. |
 | QO-10 | Focused stock regressions plus custom-image build/functional/locking/data-exposure checks pass with exact output facts. Owned resources, generated credentials/config and build helpers are cleaned; named source/patch/image/manifests retained intentionally. No excluded endpoint/member/ordinary-route edits, REFER rerun or new web/AMI/ARI authority. |
 
-Documentation-only validation for this increment is consistency/diff hygiene;
-no QO runtime or build result is claimed. **M1-09 and all full CP gates remain
-open**, as does exact loaded-policy verification. Next requires a separate
-implementation/build authorization after lock feasibility, dependency/image
-provenance and these acceptance bounds are agreed. If any of those cannot be
-met, stop or explicitly revise the design; do not weaken exact verification
-implicitly or expand the getter into a general-purpose queue editor.
+QO-08 executed with two disposable, no-network PBXs on the pinned local image:
+both returned the exact static target and baseline facts, each other-customer
+query returned only the baseline, and disk-only versus loaded-only fixtures
+remained distinct without reload. Both processes exited zero; containers and
+fixture configuration were removed. The [runner](./local/asterisk-build/runtime-two-pbx-gate-c.py)
+and [execution record](./local/asterisk-patches/build-preparation.json) retain
+the bounded scope and attempt history.
+
+The image is exactly bound to its earlier pinned compile (44/44 release outputs)
+but is not byte-identical to the newer Gate B compile (0/44 direct output-hash
+matches). The report records this limitation; QO-08 does not close QO-07's
+latest-build identity question or imply reproducibility, deployment, or
+publication authority. **M1-09, Gate A and QO-01–07/QO-09–10 remain open.**
+Continue only with their separately bounded evidence; do not weaken exact
+verification or expand the getter into a general-purpose queue editor.
 
 ##### Read-only feasibility review: implementation not cleared
 

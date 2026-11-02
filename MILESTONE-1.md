@@ -2958,3 +2958,24 @@ disabled or unverified. Browser race coverage confirms that a late snapshot cann
 restore data after assignment refresh. Focused API/browser tests and typecheck
 passed; this source-only increment did not run Asterisk or change PBX/runtime
 configuration.
+
+##### Gate C QO-08 two-PBX runtime proof passed
+
+After separate authorization, Gate C attempt 2 started two uniquely owned
+PBXs from the existing immutable local image. Both ran all 41 modules in
+network-isolated containers with no published ports, read-only roots/fixtures,
+private tmpfs state, and bounded 2 GiB/2 CPU resources. Exact policy snapshots
+returned each tenant's static target plus baseline; cross-customer namespace
+queries returned baseline only. Disk-only queues did not appear in loaded
+snapshots, while queues removed from fixture files remained loaded, without
+reload. All eight exact observations passed; both processes exited zero and
+the containers and fixture configuration were removed.
+
+The [attempt report](./local/asterisk-build/gate-c-two-pbx-attempt-2.json),
+[runner](./local/asterisk-build/runtime-two-pbx-gate-c.py), and
+[hash-bound execution record](./local/asterisk-patches/build-preparation.json)
+preserve the scope and attempt history. The image is bound 44/44 to its earlier
+compile but not byte-identical to the newer Gate B outputs (0/44 direct hash
+matches). This closes only the bounded QO-08 runtime proof; the latest-build
+identity question, Gate A acceptance, broader QO acceptance, deployment and
+redistribution remain open.

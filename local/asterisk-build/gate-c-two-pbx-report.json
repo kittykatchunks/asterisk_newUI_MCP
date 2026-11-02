@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "stage": "two-pbx-static-queue-policy-gate-c-proof",
+  "attempt": 1,
+  "passed": false,
+  "evidenceFileHashNormalization": "Raw file bytes from this Windows worktree; CRLF files differ from LF-normalized Git blobs.",
+  "authorization": "User approved two uniquely owned disposable custom-image PBXs; no build, export, push, reload, call, apply or shared-PBX access.",
+  "imageLineage": {
+    "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+    "localTag": "asterisk-local-verified:nss-1",
+    "sourcePatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+    "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+    "bundleCompileReportSha256": "29537418a32f531dd26ece0f76b7afc14099ebfbd06d59763ec92cba9311ce48",
+    "originalCompileReportSha256": "29537418a32f531dd26ece0f76b7afc14099ebfbd06d59763ec92cba9311ce48",
+    "originalReleaseOutputs": 44,
+    "originalReleaseOutputsMatched": 44,
+    "latestGateBCompileReportSha256": "7d4bfe77e25b1178ae62df66234d02445f6acee65875f7c98f06e16d924c3a0f",
+    "latestGateBReleaseOutputs": 44,
+    "latestGateBReleaseOutputsMatchedToExistingBundle": 0,
+    "latestGateBOutputMatchNote": "The existing image is bound to the earlier source-candidate compile; its outputs are not byte-identical to the newer Gate B compile.",
+    "imagePayloadValidationSha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3",
+    "imageBuildValidationSha256": "33f0b26971195635565b452659a99b49bb9cb6dc6eb09ecfb8142dcdbd613798",
+    "imageStartupValidationSha256": "4639b0b9c9750f4bd97a1014ad9565812e23264e88d2dd0fbc0dd06c882e9c94",
+    "imagePayloadSha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+  },
+  "containers": [
+    {
+      "customer": "customer-a",
+      "containerName": "asterisk-gate-c-e5f5be5d6fc4-a",
+      "containerId": "32be2017aca6445a145ae7f0f3e962e9552c76e5009049627c3247cb9d8af300",
+      "ownerLabel": "e5f5be5d6fc44425941f27192fb668d7",
+      "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+      "inspection": {
+        "networkMode": "none",
+        "portBindings": {},
+        "readOnlyRootFilesystem": true,
+        "fixtureMountReadOnly": true,
+        "stateTmpfs": "rw,noexec,nosuid,size=67108864,uid=10001,gid=10001,mode=0700"
+      }
+    }
+  ],
+  "observations": [],
+  "actions": {
+    "queueReloadIssued": false,
+    "callIssued": false,
+    "runtimeApplyIssued": false,
+    "productionOrSharedRuntimeAccessed": false,
+    "imageBuiltOrExported": false,
+    "registryPushed": false
+  },
+  "exitCodes": {},
+  "allOwnedContainersRemoved": true,
+  "fixtureConfigurationRemoved": true,
+  "removedContainerNames": [
+    "asterisk-gate-c-e5f5be5d6fc4-a"
+  ],
+  "cleanupResolution": {
+    "manualCleanupAfterHarnessFailure": true,
+    "stopSucceeded": true,
+    "containerRemoved": true,
+    "remainingOwnerLabelMatches": 0,
+    "ownedFixtureDirectoriesRemoved": true,
+    "queueQueriesIssued": false,
+    "reloadIssued": false,
+    "callIssued": false,
+    "runtimeApplyIssued": false
+  },
+  "runtimeApplyAuthorized": false,
+  "existingPbxOperated": false,
+  "callsOrMediaTested": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "gateAAcceptanceComplete": false,
+  "dockerDaemon": {
+    "osType": "linux",
+    "architecture": "x86_64",
+    "context": "desktop-linux"
+  },
+  "failure": "ValueError('Container mounts do not match its private read-only fixture and tmpfs state')",
+  "cleanupErrors": [
+    "AttributeError(\"'tuple' object has no attribute 'splitlines'\")"
+  ]
+}

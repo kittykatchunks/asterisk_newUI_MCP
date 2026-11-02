@@ -542,10 +542,28 @@ The successful-removal schedule pauses after lookup, begins target unload,
 resumes dispatch, and requires denial before handler execution plus target
 removal. That denial is due to loader-lock contention while unregister waits
 for the registry reader; it does not assert `cli_closing`-specific denial.
-Focused offline checks passed 19 Python binding tests and 41 Node tests. This
-Gate B slice does not close Gate A; no release-profile startup, runtime image,
-binary export, runtime apply, shared PBX operation, Gate C proof or deployment
-occurred.
+Focused offline checks passed 19 Python binding tests and 41 Node tests. That
+compile/native-test slice did not itself run a release profile, runtime image,
+binary export, runtime apply, shared PBX operation or deployment.
+
+**[Gate C QO-08 two-PBX runtime proof passed](./local/asterisk-build/gate-c-two-pbx-attempt-2.json).**
+After separate authorization, two uniquely owned PBXs ran concurrently from
+the immutable local image with no network or published ports, read-only root
+and fixture mounts, 2 GiB/2 CPU limits, and private tmpfs state. Each loaded
+all 41 modules and returned exact static target/baseline policy facts; the
+other-customer namespace returned only the baseline. In both PBXs, a disk-only
+queue stayed absent from the live snapshot and a loaded-only queue stayed
+visible after its fixture file was edited, all without reload. Both exited 0;
+owned containers and fixture configuration were removed. No call, reload,
+apply, shared-PBX access, image build/export/push, or deployment occurred.
+
+The image is exactly bound to its earlier pinned compile (44/44 release
+outputs), but none of the newer Gate B release output hashes matched it
+(0/44); the reports preserve this build-identity limitation. This proves the
+bounded QO-08 runtime behavior, not latest-build bit identity, broader Gate A
+acceptance, redistribution, or production readiness. See the
+[reusable runner](./local/asterisk-build/runtime-two-pbx-gate-c.py) and
+[hash-bound execution record](./local/asterisk-patches/build-preparation.json).
 
 **[Release loaded-state smoke also passes](./PROJECT-PLAN.md#release-profile-loaded-state-smoke-passed).**
 All 44 release outputs resolve their shared libraries in the builder, and

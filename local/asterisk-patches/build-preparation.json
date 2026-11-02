@@ -1317,11 +1317,83 @@
     },
     "cleanupPolicy": "On failure stop only the newly owned distribution and report its exact name and paths; destructive unregister/disk deletion requires explicit approval and ownership verification."
   },
+  "gateCTwoPbxProof": {
+    "stage": "two-pbx-static-queue-policy-gate-c-proof-passed",
+    "authorization": "User approved two uniquely owned disposable PBXs using the existing immutable local image; no image rebuild/export/push, reload, call, apply or shared-PBX access.",
+    "runner": "../asterisk-build/runtime-two-pbx-gate-c.py",
+    "runnerCurrentSha256": "0ebdfc4fb137da118fa90d0afe87851c250728aef23ef3ac271ee3ff8b6125a1",
+    "runnerCurrentSha256Normalization": "canonical-LF",
+    "reportSha256Normalization": "canonical-LF",
+    "currentRunnerIncludesPostRunCleanupHardening": true,
+    "maximumAttemptsPerItem": 10,
+    "attempts": [
+      {
+        "attempt": 1,
+        "passed": false,
+        "result": "Harness mount validation failed before any queue-policy query.",
+        "containerCreated": true,
+        "manualOwnedContainerCleanupVerified": true,
+        "fixtureConfigurationRemoved": true,
+        "report": "../asterisk-build/gate-c-two-pbx-report.json",
+        "reportSha256": "d971f877c5985b86cdf406936c6aaea57b133404967d3165adac0ee6de7f1e1e"
+      },
+      {
+        "attempt": 2,
+        "passed": true,
+        "runnerSha256": "209972488c650effe77556067c12fd4662d956300cd3ae22c38da43e86abc5bc",
+        "runnerSha256Normalization": "raw-execution-file-bytes",
+        "report": "../asterisk-build/gate-c-two-pbx-attempt-2.json",
+        "reportSha256": "d49021596ad9d8af427d2a26675823d8a4897a56d8eff7660d5390e351b9cefa"
+      }
+    ],
+    "imageId": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+    "localTag": "asterisk-local-verified:nss-1",
+    "sourcePatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+    "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+    "pinnedCompileReportSha256": "29537418a32f531dd26ece0f76b7afc14099ebfbd06d59763ec92cba9311ce48",
+    "pinnedReleaseOutputsMatched": 44,
+    "latestGateBCompileReportSha256": "7d4bfe77e25b1178ae62df66234d02445f6acee65875f7c98f06e16d924c3a0f",
+    "latestGateBReleaseOutputsMatched": 0,
+    "latestGateBIdentityLimitationRecorded": true,
+    "customers": 2,
+    "exactPolicyObservations": 8,
+    "ownStaticQueueFacts": 2,
+    "crossCustomerIsolationChecks": 2,
+    "diskOnlyNegativeChecks": 2,
+    "loadedOnlyNegativeChecks": 2,
+    "runtimeModulesRunningPerPbx": 41,
+    "pjsipEndpointsAndTransportsAbsent": true,
+    "containerLimits": {
+      "network": "none",
+      "portsPublished": false,
+      "rootFilesystemReadOnly": true,
+      "fixtureConfigurationReadOnly": true,
+      "memoryBytesEach": 2147483648,
+      "cpuLimitEach": 2,
+      "pidsLimitEach": 256,
+      "privateTmpfsBytesEach": 67108864
+    },
+    "queueReloadIssued": false,
+    "callsIssued": false,
+    "runtimeApplyIssued": false,
+    "productionOrSharedRuntimeAccessed": false,
+    "ownedContainersRemoved": true,
+    "fixtureConfigurationRemoved": true,
+    "processExitCodes": {
+      "customer-a": 0,
+      "customer-b": 0
+    },
+    "imageBuiltOrExported": false,
+    "registryPushed": false,
+    "runtimeApplyAuthorized": false,
+    "gateAAcceptanceComplete": false,
+    "deploymentAuthorized": false
+  },
   "unresolvedPrerequisites": [
     "Complete regression, shutdown/output/recursive lifecycle/AO2 instrumentation obligations and Gate A acceptance evidence; the current 30-definition runtime batch passes but does not close broader acceptance gaps.",
-    "The CLI output supplement now has bound compile and native regression evidence, but end-to-end queue-snapshot output and protected unregister remain uncovered.",
+    "Gate C now exercises the end-to-end queue-snapshot command on the pinned local image; protected unregister and broader Gate A lifecycle coverage remain uncovered.",
     "Retain production configuration acceptance separately from successful private 41-module startup; no endpoints, transports, calls or media were exercised.",
     "Prepare matching release runtime packaging with full shared-library closure, license/copyright/source obligations and separate approval before any export or redistribution.",
-    "Keep Gate C closed until independently approved; no stock/custom ABI mixing or runtime publication authority is enabled."
+    "The successful Gate C run used the existing image, bound to its earlier compile report; it is not byte-identical to the newer Gate B release outputs. Do not treat it as latest-build identity, deployment approval or publication authority."
   ]
 }
