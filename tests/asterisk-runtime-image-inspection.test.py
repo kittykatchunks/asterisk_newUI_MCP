@@ -151,6 +151,36 @@ class ImageInspectionTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         inspector.inspect_archive(archive, image_id)
 
+    def test_attempt15_payload_followup_is_hash_bound_and_local_only(self):
+        evidence = ROOT / "local/asterisk-build/image-payload-validation-unregister-attempt-15-export-verification.json"
+        preparation = json.loads(
+            (ROOT / "local/asterisk-patches/build-preparation.json").read_text()
+        )["attempt15ImagePayloadFollowup"]
+        report_bytes = evidence.read_bytes()
+        report = json.loads(report_bytes)
+        self.assertEqual(hashlib.sha256(report_bytes).hexdigest(), preparation["reportSha256"])
+        validator = ROOT / "local/asterisk-build/inspect-runtime-image.py"
+        self.assertEqual(
+            hashlib.sha256(validator.read_bytes()).hexdigest(),
+            preparation["validatorSha256"],
+        )
+        self.assertEqual(report["imageId"], preparation["imageId"])
+        self.assertEqual(report["imageArchiveSha256"], preparation["temporaryArchive"]["sha256"])
+        self.assertEqual(report["bundleManifestSha256"], preparation["bundleManifestSha256"])
+        self.assertEqual(report["payloadFilesVerified"], 406)
+        self.assertEqual(report["moduleAliasesVerified"], 41)
+        self.assertEqual(report["imageLayersVerified"], 3)
+        self.assertTrue(report["allPayloadHashesSizesModesAndOwnershipVerified"])
+        self.assertTrue(report["exactNonDirectoryImageInventoryVerified"])
+        self.assertTrue(report["imageConfigurationMatchesRecipe"])
+        self.assertTrue(preparation["temporaryArchive"]["deletedAfterVerification"])
+        self.assertFalse(preparation["temporaryArchive"]["retainedInRepository"])
+        self.assertEqual(preparation["authorizationChoice"], "local_image_payload")
+        self.assertTrue(preparation["qo07LocalImageLineagePassed"])
+        for flag in ["imageRuntimeExecuted", "runtimeApplyAuthorized", "existingPbxOperated",
+                     "registryPushed", "redistributionApproved", "licenseClosureComplete"]:
+            self.assertFalse(report[flag], flag)
+
     def test_image_identity_cannot_be_substituted(self):
         with tempfile.TemporaryDirectory() as directory:
             archive, _ = self.archive(directory)

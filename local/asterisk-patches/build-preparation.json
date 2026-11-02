@@ -1680,7 +1680,7 @@
       "runtimeApplyIssued": false,
       "productionOrSharedRuntimeAccessed": false
     },
-    "attempt15ImagePayloadQO07Status": "open-independent-image-payload-verification-not-performed",
+    "attempt15ImagePayloadQO07Status": "passed-in-separate-local-only-image-payload-followup",
     "runtimeApplyAuthorized": false,
     "deploymentAuthorized": false,
     "registryPushed": false,
@@ -1688,11 +1688,48 @@
     "licenseClosureComplete": false,
     "gateAAcceptanceComplete": false
   },
+  "attempt15ImagePayloadFollowup": {
+    "stage": "attempt-15-local-image-payload-independently-verified",
+    "authorizationChoice": "local_image_payload",
+    "authorization": "User separately authorized a temporary local-only Docker image archive export for payload verification; no registry push, redistribution, runtime execution, runtime apply, shared-PBX activity, or deployment was authorized.",
+    "imageId": "sha256:5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+    "localTag": "asterisk-local-verified:unregister-attempt-15",
+    "bundleManifest": "../asterisk-build/runtime-bundle-manifest-unregister-attempt-15.json",
+    "bundleManifestSha256": "6dfb8fe7f3989637ae0fc1c6ae4d735f0655a6b95b89680fb246223e536b892a",
+    "validator": "../asterisk-build/inspect-runtime-image.py",
+    "validatorSha256": "a68f3d15aface5f980fdd4d0457c1ab8866f326534a672eaa543e4dbcea48d75",
+    "validatorSha256Normalization": "raw-file-bytes",
+    "report": "../asterisk-build/image-payload-validation-unregister-attempt-15-export-verification.json",
+    "reportSha256": "d1ecca6f1b536550f9fd107d2ccd6889029eed57208568e3b1a14b1bf67cadcc",
+    "temporaryArchive": {
+      "location": "%LOCALAPPDATA%\\AsteriskNativeBuild\\attempt15-image-payload-verification-1\\image.tar",
+      "bytes": 66478592,
+      "sha256": "462432562848e3f1df460ff522c356fed2e31ee70c58356abfd6d9c4361501a5",
+      "exportedForInspection": true,
+      "deletedAfterVerification": true,
+      "retainedInRepository": false
+    },
+    "imageConfigSha256": "5a03731fadde018d1fef4e6fcf5af7d4b9bfc51d3d49606e5796d89cd1ddcd5e",
+    "payloadFilesVerified": 406,
+    "moduleAliasesVerified": 41,
+    "imageLayersVerified": 3,
+    "allPayloadHashesSizesModesAndOwnershipVerified": true,
+    "exactNonDirectoryImageInventoryVerified": true,
+    "imageConfigurationMatchesRecipe": true,
+    "imageRuntimeExecuted": false,
+    "runtimeApplyAuthorized": false,
+    "existingPbxOperated": false,
+    "registryPushed": false,
+    "redistributionApproved": false,
+    "licenseClosureComplete": false,
+    "deploymentAuthorized": false,
+    "qo07LocalImageLineagePassed": true,
+    "gateAAcceptanceComplete": false
+  },
   "unresolvedPrerequisites": [
     "Complete regression, shutdown/output/recursive lifecycle/AO2 instrumentation obligations and Gate A acceptance evidence; the current 30-definition runtime batch passes but does not close broader acceptance gaps.",
     "Gate C now exercises the end-to-end queue-snapshot command on the pinned local image; the separate-target busy-unregister fixture passed the bounded native suite, while broader Gate A lifecycle coverage remains open.",
     "Retain production configuration acceptance separately from successful private 41-module startup; no endpoints, transports, calls or media were exercised.",
-    "Prepare matching release runtime packaging with full shared-library closure, license/copyright/source obligations and separate approval before any export or redistribution.",
-    "Attempt 3 Gate C uses the attempt-15 image and matches all 44 selected Gate B release outputs; however the image archive was not exported, so its payload was not independently re-read. Keep QO-07 open for independent image-payload verification and do not infer deployment, redistribution or publication authority."
+    "Prepare matching release runtime packaging with full shared-library closure, license/copyright/source obligations and separate approval before any redistribution."
   ]
 }
