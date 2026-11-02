@@ -3496,7 +3496,10 @@ The source-only
 adds a fourth hash-bound layer after the tested base, shutdown and CLI-output
 supplements. It tracks AO2 reference calls, standard and lock-object
 allocations, container link/unlink attempts, the walk's lock attempt/acquire/
-unlock counts, bucket reads and physical node reads. The counters and result
+unlock counts and successful unlock result, bucket reads and physical node
+reads. Lock values are counted inside AO2's actual `__ao2_trylock` and
+`__ao2_unlock` wrappers rather than inferred from the traversal's control flow.
+The counters and result
 fields exist only under `TEST_FRAMEWORK`; unexpected internal AO2 operations
 fail closed in that test build. Visitor execution is excluded from the walk's
 internal counters. The release-profile struct layout and behavior are not

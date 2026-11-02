@@ -2918,7 +2918,8 @@ Gate C remain open.
 The [AO2 work-accounting supplement](./local/asterisk-patches/queue-policy-accounting-v1.json)
 is now prepared as a test-framework-only fourth source layer. It adds
 hash-bound counters for AO2 ref/allocation/link/unlink operations, lock
-attempt/acquire/unlock counts, bucket reads and physical node reads, and is
+attempt/acquire/unlock/success values counted in the actual AO2 mutex wrappers,
+bucket reads and physical node reads, and is
 wired into future profile application, downstream report validation and
 runtime-bundle records. Offline patch application and lineage checks pass; this
 supplement has not been compiled or run. It does not instrument non-AO2

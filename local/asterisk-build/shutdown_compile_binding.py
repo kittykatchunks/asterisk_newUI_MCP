@@ -27,7 +27,7 @@ EXPECTED_ACCOUNTING_WORK_COUNTERS = [
     "AO2 container links",
     "AO2 container unlinks",
     "mutex lock attempts and acquisitions",
-    "unlock attempts",
+    "unlock attempts and successes",
     "bucket reads",
     "physical node reads",
 ]

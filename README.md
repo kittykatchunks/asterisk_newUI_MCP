@@ -517,7 +517,7 @@ occurred; Gate A acceptance and Gate C remain open.
 
 **[AO2 work-accounting source supplement prepared offline](./PROJECT-PLAN.md#gate-a-test-framework-only-ao2-work-accounting-supplement-prepared).**
 The test-framework-only fourth supplement adds internal AO2 ref/allocation/
-mutation/lock and bucket/node work counters. It is hash-bound and wired into
+link/unlink, actual lock-wrapper, and bucket/node work counters. It is hash-bound and wired into
 future profile application and evidence validation, but it has not been
 compiled or run. Non-AO2 allocation and I/O accounting, broader Gate A
 acceptance, Gate C and production work remain open.

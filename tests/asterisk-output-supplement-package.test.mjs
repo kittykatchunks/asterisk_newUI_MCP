@@ -171,7 +171,7 @@ test("AO2 accounting supplement binds its four-layer source lineage offline", ()
     "AO2 container links",
     "AO2 container unlinks",
     "mutex lock attempts and acquisitions",
-    "unlock attempts",
+    "unlock attempts and successes",
     "bucket reads",
     "physical node reads",
   ]);
@@ -232,4 +232,17 @@ test("AO2 accounting source patch is test-framework-only and scope-limited", () 
   assert.match(patch, /__ao2_alloc_with_lockobj/);
   assert.match(patch, /result->test_work\.node_reads/);
   assert.match(patch, /return NULL;/);
+  const ao2Core = patch.slice(
+    patch.indexOf("diff --git a/main/astobj2.c"),
+    patch.indexOf("diff --git a/main/astobj2_container.c"),
+  );
+  assert.match(ao2Core, /ao2_bounded_work_active->lock_attempts/);
+  assert.match(ao2Core, /ao2_bounded_work_active->lock_acquisitions/);
+  assert.match(ao2Core, /ao2_bounded_work_active->unlock_attempts/);
+  assert.match(ao2Core, /ao2_bounded_work_active->unlock_successes/);
+  const walk = patch.slice(patch.indexOf("diff --git a/main/astobj2_hash.c"));
+  assert.match(walk, /work->unlock_successes != \(unsigned int\) acquired/);
+  assert.doesNotMatch(walk, /\+\s*\+\+result->test_work\.lock_attempts/);
+  assert.doesNotMatch(walk, /\+\s*\+\+result->test_work\.lock_acquisitions/);
+  assert.doesNotMatch(walk, /\+\s*\+\+result->test_work\.unlock_attempts/);
 });
