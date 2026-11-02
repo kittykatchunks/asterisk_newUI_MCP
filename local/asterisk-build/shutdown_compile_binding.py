@@ -158,7 +158,12 @@ def validate_cli_output_compile_report(report):
     if not isinstance(report, dict):
         raise ValueError("Compile report must be an object")
     present_fields = [field in report for field in CLI_OUTPUT_REPORT_FIELDS]
-    if not any(present_fields):
+    profiles = report.get("profiles")
+    profile_claims_supplement = isinstance(profiles, list) and any(
+        isinstance(profile, dict) and "cliOutputSupplement" in profile
+        for profile in profiles
+    )
+    if not any(present_fields) and not profile_claims_supplement:
         return False
     if not all(present_fields):
         raise ValueError("Compile report has incomplete CLI output supplement bindings")
@@ -187,7 +192,6 @@ def validate_cli_output_compile_report(report):
     if any(report.get(field) != digest for field, digest in expected_bindings.items()):
         raise ValueError("Compile report does not bind the pinned CLI output supplement")
 
-    profiles = report.get("profiles")
     if not isinstance(profiles, list) or len(profiles) != 2:
         raise ValueError("Compile report has invalid profiles for the CLI output supplement")
     profiles_by_name = {profile.get("name"): profile for profile in profiles

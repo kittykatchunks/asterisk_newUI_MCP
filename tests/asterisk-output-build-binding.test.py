@@ -163,6 +163,13 @@ class OutputSupplementBindingTests(unittest.TestCase):
         report["profiles"][1]["cliOutputSupplement"]["postimages"][0]["sha256"] = "0" * 64
         with self.assertRaisesRegex(ValueError, "does not bind the CLI output supplement"):
             binding.validate_cli_output_compile_report(report)
+        report_without_report_bindings = {
+            key: value
+            for key, value in report.items()
+            if key not in binding.CLI_OUTPUT_REPORT_FIELDS
+        }
+        with self.assertRaisesRegex(ValueError, "incomplete CLI output supplement bindings"):
+            binding.validate_cli_output_compile_report(report_without_report_bindings)
 
     def test_rejects_partial_output_bindings_and_preserves_legacy_reports(self):
         self.assertFalse(binding.validate_cli_output_compile_report({"profiles": []}))
