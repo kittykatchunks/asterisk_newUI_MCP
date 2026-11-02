@@ -2849,3 +2849,24 @@ Historical "selected next" paragraphs above describe completed finite increments
 they are not instructions to repeat simulation or activate phones. The recommended
 next work is an explicitly authorized read-only history workspace, not more
 synthetic event cases or automatic voice/dispatch activation.
+
+## Current Gate A/Gate B checkpoint
+
+The Gate A source candidate's **30 native definitions passed** in the separately
+approved disposable run. The report is bound to the candidate and compile hashes
+in [the native evidence](./local/asterisk-build/native-test-report.json). This
+does not close Gate A: lifecycle, output, recursive teardown, broader regression,
+work-accounting and production-profile obligations remain open.
+
+The additive shutdown successor has since compiled in both instrumented and
+release profiles with verified output hashes. Its bounded instrumented startup
+passed the two approved shutdown schedules, and all ten Unix-socket supervisor
+tests passed. The [build-preparation record](./local/asterisk-patches/build-preparation.json)
+and [Gate A shutdown evidence](./PROJECT-PLAN.md#gate-a-shutdown-supervisor-scaffold-two-profile-compile-and-bounded-shutdown-fixtures-passed-broader-acceptance-remains-open)
+detail those separate scopes. The shutdown successor's broader native suite was
+not run; its approval covered compilation and the two schedules only.
+
+These are private fixture results, not production readiness or deployment
+evidence. No binaries were exported, no runtime image was published, and Gate C
+remains closed. Any additional disposable Asterisk startup or native suite needs
+separate explicit approval; the previous approvals do not extend to it.
