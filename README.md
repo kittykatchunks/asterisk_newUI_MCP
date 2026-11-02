@@ -505,6 +505,16 @@ evidence. No existing PBX was operated; the dedicated builder is stopped.
 This does not close broader shutdown/output/recursive teardown/AO2 acceptance
 gaps or authorize Gate C.
 
+**[The CLI output fixture supplement now compiles and passes native regression](./PROJECT-PLAN.md#gate-a-source-only-cli-output-fixtures-both-profiles-compiled-and-30-of-30-native-definitions-pass-broader-acceptance-remains-open).**
+The authorized Gate B run compiled both profiles and passed all 30 instrumented
+native definitions in fresh, isolated processes. The
+[compile report](./local/asterisk-build/compile-report-output-v1.json),
+[native report](./local/asterisk-build/native-test-report-output-v1.json) and
+[aggregate XML](./local/asterisk-build/native-test-results-output-v1.xml)
+bind the output supplement to the base candidate and shutdown successor.
+No release-profile startup, image export, runtime apply or PBX operation
+occurred; Gate A acceptance and Gate C remain open.
+
 **[Release loaded-state smoke also passes](./PROJECT-PLAN.md#release-profile-loaded-state-smoke-passed).**
 All 44 release outputs resolve their shared libraries in the builder, and
 the disposable release core exposes no test command. Five exact getter

@@ -2883,14 +2883,14 @@ the corrected attempt passed 30/30, with hashes and cleanup independently checke
 
 These are private fixture results, not production readiness or deployment
 evidence. No binaries were exported, no runtime image was published, and Gate C
-remains closed. Any additional disposable Asterisk startup or native suite needs
-separate explicit approval; the previous approvals do not extend to it.
+remains closed. Any further disposable Asterisk startup or native suite still
+needs separate explicit approval.
 
 The [CLI output failure and lease-through-output fixture supplement](./local/asterisk-patches/queue-policy-output-v1.json),
 with its [additive patch](./local/asterisk-patches/queue-policy-output-v1.patch),
 now has an offline-validated hash-bound third-supplement path in the profile
-compiler. [Implementation notes](./PROJECT-PLAN.md#gate-a-source-only-cli-output-fixtures-prepared-compiler-path-implemented-uncompiled-and-unexecuted)
-cover the fixture scope and remaining compile boundary. It applies the base
+compiler. [Implementation notes](./PROJECT-PLAN.md#gate-a-source-only-cli-output-fixtures-both-profiles-compiled-and-30-of-30-native-definitions-pass-broader-acceptance-remains-open)
+cover the fixture scope and compile/test evidence. It applies the base
 candidate, shutdown supplement, and output supplement in order to both profile
 trees, verifying the output supplement's per-tree source preimages/postimages
 and binding the parent/patch/manifest hashes in the report. Downstream offline report consumers now validate the third-supplement lineage
@@ -2900,10 +2900,20 @@ accept earlier reports that do not declare the supplement. Partial or
 mismatched bindings are rejected. The runtime-bundle staging recipe retains
 the complete source patch/manifest chain and shared binding helper as build
 records; existing historical bundle evidence is not rewritten. The
-temporary-copy application
-evidence remains unchanged; no native compile, test, Asterisk startup, or
-runtime application occurred. Any native compilation still needs separate
-explicit approval.
+temporary-copy application evidence remains unchanged.
+
+The separately authorized Gate B run compiled both profiles and passed all 30
+declared instrumented native definitions in fresh processes. See the
+[compile report](./local/asterisk-build/compile-report-output-v1.json),
+[native report](./local/asterisk-build/native-test-report-output-v1.json),
+[aggregate XML](./local/asterisk-build/native-test-results-output-v1.xml),
+[compile log](./local/asterisk-build/native-build-attempt-7.log), [test log](./local/asterisk-build/native-tests-attempt-5.log)
+and [build-preparation evidence](./local/asterisk-patches/build-preparation.json).
+The historical false execution flags in the source-preparation manifest were
+preserved; actual compile/test results are recorded separately. No release
+profile was started, runtime image or binary was exported, runtime apply was
+performed, or PBX was operated. The builder is stopped; Gate A acceptance and
+Gate C remain open.
 
 The agent console now has an explicit, authenticated, read-only snapshot for
 the signed-in agent's assigned PBX extension. It returns only that endpoint's

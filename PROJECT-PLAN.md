@@ -3436,7 +3436,7 @@ output and ref/work instrumentation need a concrete safe fixture design and a
 scope decision before changing source or production behavior. More definitions
 alone cannot clear A's verified exit.
 
-##### Gate A source-only CLI output fixtures: compiler path implemented; uncompiled and unexecuted
+##### Gate A source-only CLI output fixtures: both profiles compiled and 30 of 30 native definitions pass; broader acceptance remains open
 
 The test-only source increment is packaged in the [output fixture manifest](./local/asterisk-patches/queue-policy-output-v1.json) and [additive patch](./local/asterisk-patches/queue-policy-output-v1.patch). It is based on the exact shutdown-successor instrumented source files, bound to their preimage hashes and the prior compile/native reports. A zero-fuzz, zero-offset dry run and application to disposable copies succeeded; the hash-bound build tree and earlier patches/reports were not modified. The postimage hashes are recorded in the manifest.
 
@@ -3446,36 +3446,33 @@ The supplement extends the existing native test definitions without changing rel
 2. A `TEST_FRAMEWORK`-only one-shot seam writes an exact eight-byte prefix through `ast_carefulwrite`, resets its state, and then deterministically returns `CLI_FAILURE`. The responder test requires precisely that prefix for both response classes, with no appended response envelope. This tests response-layer failure propagation, not a real `EPIPE`, kernel-write atomicity, or `ast_carefulwrite` internals.
 3. The protected-target lifecycle fixture now captures a partial-output command in a nonblocking pipe. The target emits a prefix and returns failure; the core pauses at `HANDLER_RETURNED`, before its ordinary CLI failure diagnostic. While paused, unload/refresh attempts must refuse and the reader lease remains active. After resume, the test requires the exact prefix-plus-diagnostic bytes, one completion/release sequence, and successful target unload after the worker finishes. This is a separate dispatcher-lifetime test, not an end-to-end queue-snapshot command test; protected unregister is not asserted.
 
-The fixtures close owned descriptors, restore the one-shot field, and join the worker on all paths. The lifecycle test never closes the pipe reader while the writer is active. The profile compiler now accepts this supplement only when its pinned shutdown parent is also supplied, applies the supplements in order to both instrumented and release trees with zero fuzz, verifies source preimages and postimages, and binds all supplement and parent hashes into the compile report. Offline build-report consumers now validate this lineage before native-test execution, shutdown fixtures, release smoke, runtime staging, and the full-startup/runtime evidence reconciliations; legacy reports without the third supplement remain supported, but partial or mismatched bindings are rejected. The runtime-bundle staging recipe now retains both supplement manifests/patches and the shared binding helper with its build records so the compiler lineage remains inspectable. Focused offline binding/postimage tests and the packaging assertions pass. No native compile, native test, Asterisk startup, runtime application, or production behavior change occurred. Any native compilation or execution of the expanded inventory still needs separate explicit approval.
+The fixtures close owned descriptors, restore the one-shot field, and join the worker on all paths. The lifecycle test never closes the pipe reader while the writer is active. The profile compiler accepts this supplement only with its pinned shutdown parent, applies the patches in order to both profiles with zero fuzz, verifies source preimages/postimages, and binds all supplement and parent hashes in the compile report. Offline build-report consumers validate the lineage before native-test execution, shutdown fixtures, release smoke, runtime staging, and full-startup/runtime reconciliation; legacy reports remain supported, while partial or mismatched bindings are rejected. The runtime-bundle staging recipe retains both supplement manifests/patches and the shared binding helper. Focused offline binding/postimage tests and packaging assertions passed.
 
-**Build handoff remains a separate decision, not the next automatic command:**
+The separately authorized Gate B slice compiled both profiles and ran the
+30-definition instrumented regression. The
+[compile report](./local/asterisk-build/compile-report-output-v1.json) records
+46 instrumented and 44 release outputs; its third-supplement postimages and
+parent lineage independently validate. All 30 fresh-process native cases
+passed; the [native report](./local/asterisk-build/native-test-report-output-v1.json)
+and [aggregate XML](./local/asterisk-build/native-test-results-output-v1.xml)
+were independently checked. The [build-preparation record](./local/asterisk-patches/build-preparation.json)
+preserves service limits, attempt identifiers, hashes and cleanup results.
+The output supplement's historical source-preparation flags remain false and
+unchanged; the execution reports record the actual compile, native tests and
+instrumented Asterisk startup.
 
-1. Select and verify immutable builder/runtime digests and architecture,
-   package snapshot with exact versions/hashes, third-party source archive
-   hashes and license/source obligations. Version strings and the prior stock
-   runtime digest are not a source/toolchain closure.
-2. Pin configure/menuselect/module and test/release profile manifests, the
-   transitive runtime dependency/startup chain and exact no-unrecorded-fetch
-   commands. Distinguish instrumented test artifacts from release artifacts.
-3. Present enforceable CPU/memory/storage/time/PID/log/network limits, cleanup
-   ownership and stop behavior before approval. The old 2 CPU/2 GiB/20 GiB/
-   30-minute proposal is neither measured sufficiency nor approved capacity;
-   account for the 65,536-member fixture and debug/ref logging.
-4. Obtain explicit Gate B approval for that closed environment before any
-   dependency installation, compilation or native test. If storage or another
-   required cap cannot be enforced, stop rather than silently weakening it.
-5. Retain actual command/results/hashes and native/regression/profile evidence
-   before claiming A's verified exit. Only a separate Gate C decision can then
-   authorize the owned two-PBX proof; neither stage enables stock fallback,
-   automatic binding promotion or publication authority.
+This completes only the authorized compile/native-test slice. No release-profile
+startup, release smoke for this supplement, runtime image, binary export,
+runtime apply or PBX operation occurred. Broader Gate A lifecycle/output/AO2
+acceptance remains open, including end-to-end queue-snapshot output and
+protected unregister coverage. Gate C remains unauthorized; no stock fallback,
+automatic binding promotion or publication authority is enabled.
 
-The preceding source candidate recorded twelve package passes, seven exact
-preimages/application dry run and all nine independent postimages. Those
-results are not rerun or promoted by this documentation-only reconciliation.
-Documentation links/whitespace and unchanged patch/manifest are checked.
-No dependency install, native build/test, image build, module load or PBX
-operation occurs. All AT/QO gates, A's verified exit, Gates B/C, exact
-publication, full CP and M1-09 remain open.
+The preceding source candidate's twelve package passes, exact preimages,
+application dry run and independent postimages remain preparation evidence.
+This run installed no dependencies; the dedicated build distribution is
+stopped. All AT/QO gates, A's verified exit, Gate C, exact publication, full CP
+and M1-09 remain open.
 
 ##### Gate A mixed AO2 nodes: twenty-nine definitions, still unexecuted
 
