@@ -5619,10 +5619,11 @@ interoperability, RTP quality, external trunks, load, encrypted transport,
 WebRTC, multi-PBX isolation, Gate A/Gate C, license closure or deployment.
 No retry or further runtime execution is authorized.
 
-##### Synthetic SIP caller abandon while agent rings: runtime attempt failed
+##### Synthetic SIP caller abandon while agent rings: runtime validated
 
 The isolated lifecycle fixture implements caller abandonment during agent
-ringing. The caller's original INVITE is already answered before `Queue`, so
+ringing and has passed its bounded synthetic runtime acceptance. The caller's
+original INVITE is already answered before `Queue`, so
 the correct caller-side in-dialog hangup is BYE, not a caller CANCEL. The PBX
 should cancel the still-ringing agent INVITE.
 
@@ -5635,7 +5636,7 @@ owned-only cleanup path. Its private fixture is
 `proof-queue` receives `timeoutpriority=app`, so the seven-second member
 timeout cannot race the application timeout.
 
-Future acceptance is:
+Runtime acceptance contract:
 
 - Host first records one queued Up caller and one Ringing agent.
 - Caller ACKs its answered dialog and sends BYE to the PBX Contact; require
@@ -5668,16 +5669,40 @@ single bracketed or bare URI directed to the pinned PBX host and UDP port
 5060, with either no user or a bounded user component and an optional
 `transport=udp` parameter.
 Regression coverage rejects other hosts, ports, schemes, transports and
-ambiguous Contact headers. This fix has not been runtime-tested.
+ambiguous Contact headers.
 
 The failed run's owned containers, private network and ephemeral credentials
 were removed, the watchdog did not expire, and the post-preflight initial and
 final inventory and bridge snapshots matched. No media was tested and no
 existing PBX was operated. The [machine-readable preparation](./local/asterisk-build/sip-abandon-preparation.json)
-records **97 offline Python and 41 source/evidence tests**. **The one approved
-attempt is consumed; no further runtime retry is authorized.** No RTP/media
-quality, real phone, human service, tenant-isolation, Gate A/Gate C, deployment
-or redistribution claim is made.
+records **97 offline Python and 41 source/evidence tests**.
+
+###### Caller-abandon runtime attempt 2: passed
+
+The user then authorized continuing this same item under the workspace's
+maximum-ten-attempt policy. The second isolated attempt used the same pinned
+images, private internal network, zero published ports, resource caps and
+owned-only cleanup. Preflight passed and all 41 expected PBX modules loaded.
+The host observed one queued Up caller and one Ringing agent. The corrected
+client ACKed the caller's answered dialog and sent BYE to the validated PBX
+Contact; caller BYE returned **200**. The still-ringing agent transaction
+returned **CANCEL/200**, **INVITE/487** and a correlated non-2xx **ACK**; the
+agent never answered.
+
+All channels drained. Queue output showed **C:0/A:1**, no callers and no
+completed agent calls. The agent member was removed and the exact initial
+queue policy restored. Both identities unregistered with **200**, no contacts
+remained, and both processes exited zero. Owned containers, private network
+and ephemeral credentials were removed; the watchdog did not expire and
+post-preflight inventory and bridge snapshots matched.
+
+The [attempt-2 validation](./local/asterisk-build/sip-abandon-runtime-validation-attempt-2.json)
+is hash-bound to the [runner report](./local/asterisk-build/sip-abandon-runtime-report-attempt-2.json).
+This closes the **bounded synthetic caller-abandon runtime acceptance** after
+one failed and one successful attempt. The item stopped at attempt 2 of the
+maximum 10; no more attempt is needed or authorized. It does not establish
+RTP/media quality, real phone interoperability, human service, tenant
+isolation, Gate A/Gate C, deployment or redistribution.
 
 ##### Synthetic SIP busy-member queue: runtime validated
 

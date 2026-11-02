@@ -69,31 +69,55 @@
     "gateCAuthorized": false
   },
   "sipCallerAbandonPreparation": {
-    "stage": "synthetic-sip-caller-abandon-attempt-failed-contact-validation",
+    "stage": "synthetic-sip-caller-abandon-runtime-passed",
     "preparation": "../asterisk-build/sip-abandon-preparation.json",
-    "runtimeAttemptsAuthorized": 1,
-    "runtimeAttemptsExecuted": 1,
-    "runtimePassed": false,
+    "runtimeAttemptsAuthorized": 10,
+    "runtimeAttemptsExecuted": 2,
+    "runtimePassed": true,
     "newNetworkOrContainerStarted": true,
     "runtimeApplyAuthorized": false,
     "gateCAuthorized": false
   },
   "sipCallerAbandonExecution": {
-    "validation": "../asterisk-build/sip-abandon-runtime-validation-attempt-1.json",
-    "report": "../asterisk-build/sip-abandon-runtime-report-attempt-1.json",
-    "clientLog": "../asterisk-build/sip-abandon-runtime-client-log-attempt-1.txt",
-    "approvedCallerAbandonAttempts": 1,
-    "executedCallerAbandonAttempts": 1,
-    "passed": false,
+    "validation": "../asterisk-build/sip-abandon-runtime-validation-attempt-2.json",
+    "report": "../asterisk-build/sip-abandon-runtime-report-attempt-2.json",
+    "attemptLimitPerItem": 10,
+    "approvedCallerAbandonAttempts": 10,
+    "executedCallerAbandonAttempts": 2,
+    "passed": true,
+    "attemptHistory": [
+      {
+        "attempt": 1,
+        "validation": "../asterisk-build/sip-abandon-runtime-validation-attempt-1.json",
+        "report": "../asterisk-build/sip-abandon-runtime-report-attempt-1.json",
+        "passed": false,
+        "failure": "Client rejected the PBX Contact before caller ACK/BYE; raw Contact was not retained."
+      },
+      {
+        "attempt": 2,
+        "validation": "../asterisk-build/sip-abandon-runtime-validation-attempt-2.json",
+        "report": "../asterisk-build/sip-abandon-runtime-report-attempt-2.json",
+        "passed": true,
+        "callerByeCode": 200,
+        "agentCancelCode": 200,
+        "agentInviteFinalCode": 487,
+        "agentAckSeen": true,
+        "queueAccounting": "C:0/A:1"
+      }
+    ],
     "callerObservedQueuedWhileAgentRinging": true,
-    "callerByeAttempted": false,
-    "failure": "Client rejected the PBX caller-dialog Contact before ACK/BYE; raw Contact was not retained.",
+    "callerByeCode": 200,
+    "agentCancelCode": 200,
+    "agentInviteFinalCode": 487,
+    "agentAckSeen": true,
+    "agentAnswered": false,
+    "queueAccounting": "C:0/A:1",
     "diagnosisFixPreparedOffline": {
       "privatePbxHostAndPortRequired": true,
       "bracketedOrBareContactUriAllowed": true,
       "optionalContactUserAllowed": true,
       "optionalUdpTransportParameterAllowed": true,
-      "runtimeValidated": false
+      "runtimeValidated": true
     },
     "ownedResourcesRemoved": true,
     "credentialFilesRemoved": true,

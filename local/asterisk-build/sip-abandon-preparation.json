@@ -1,20 +1,25 @@
 {
   "schemaVersion": 1,
-  "stage": "synthetic-sip-caller-abandon-runtime-failed-before-bye",
+  "stage": "synthetic-sip-caller-abandon-runtime-passed",
+  "attemptLimitPerItem": 10,
   "runtimeExecuted": true,
-  "runtimePassed": false,
-  "runtimeAttemptsAuthorized": 1,
-  "runtimeAttemptsExecuted": 1,
+  "runtimePassed": true,
+  "runtimeAttemptsAuthorized": 10,
+  "runtimeAttemptsExecuted": 2,
   "containerStartupAuthorized": true,
   "networkCreationAuthorized": true,
   "sipTrafficAuthorized": true,
-  "latestExecutedQueueEvidence": "sip-abandon-runtime-validation-attempt-1.json",
+  "latestExecutedQueueEvidence": "sip-abandon-runtime-validation-attempt-2.json",
   "runtimeEvidence": {
-    "validation": "sip-abandon-runtime-validation-attempt-1.json",
-    "report": "sip-abandon-runtime-report-attempt-1.json",
-    "clientLog": "sip-abandon-runtime-client-log-attempt-1.txt",
-    "passed": false,
-    "failure": "Client rejected the PBX caller-dialog Contact before ACK/BYE."
+    "validation": "sip-abandon-runtime-validation-attempt-2.json",
+    "report": "sip-abandon-runtime-report-attempt-2.json",
+    "passed": true,
+    "callerByeCode": 200,
+    "agentCancelCode": 200,
+    "agentInviteFinalCode": 487,
+    "agentAckSeen": true,
+    "agentAnswered": false,
+    "queueAccounting": "C:0/A:1"
   },
   "entrypoint": "sip-proof.py",
   "additionalApprovalFlagRequired": "--approve-sip-queue-abandon",
@@ -48,7 +53,7 @@
     "After the ringing checkpoint, caller sends ACK and correlated BYE to the PBX dialog target; require BYE 200. The caller hangup must cause agent CANCEL/200, INVITE/487 and a matching non-2xx ACK; the agent never answers.",
     "Require all channels to drain, queue C:0/A:1, no callers, no completed member calls, member removal and exact original queue-policy restoration.",
     "Require authenticated unregistration of both identities, zero contacts/channels/callers/members, zero exits, unchanged warmed bridge/inventory and removal of all owned resources and generated credentials.",
-    "No retry, RTP/media-quality claim, real phone interoperability, multi-PBX isolation, production operation, Gate A/Gate C acceptance, deployment or redistribution authority."
+    "At most ten runner invocations are permitted for this item; stop at the first strict acceptance pass. Attempt 2 passed, so no additional attempt is needed or authorized. No RTP/media-quality claim, real phone interoperability, multi-PBX isolation, production operation, Gate A/Gate C acceptance, deployment or redistribution authority."
   ],
   "offlineValidation": {
     "pythonTestsPassed": 97,
@@ -60,7 +65,7 @@
     "The client agent's CANCEL/200, INVITE/487 and non-2xx ACK handling is a bounded synthetic path, not a general SIP stack or complete conformance test.",
     "The ten-second application queue timeout provides a bounded window; missing the ringing checkpoint or racing the application timeout must fail rather than relax acceptance.",
     "No agent RTP is sent. PCMU SDP validation does not prove media quality or human service.",
-    "The one authorized runtime attempt failed before caller ACK/BYE because the synthetic client rejected the PBX Contact. The raw Contact value was not retained, so the exact format mismatch is unconfirmed. Offline validation now allows only the pinned PBX host/UDP port, with bracketed or bare URI syntax, an optional user, and optional transport=udp; this fix is not runtime-validated. No further attempt is authorized."
+    "Attempt 1 failed before caller ACK/BYE because the synthetic client rejected the PBX Contact. The raw Contact value was not retained, so the exact format mismatch is unconfirmed. Offline validation was updated to allow only the pinned PBX host/UDP port, with bracketed or bare URI syntax, an optional user, and optional transport=udp. Attempt 2 passed the complete caller-abandon acceptance contract with that fix. No further attempt is needed or authorized."
   ],
   "runtimeApplyAuthorized": false,
   "gateAAcceptanceComplete": false,

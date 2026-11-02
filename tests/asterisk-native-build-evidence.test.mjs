@@ -181,14 +181,17 @@ test("second approved SIP busy attempt preserves timeout failure, source binding
   assert.equal(execution.diagnosisFixPreparedOffline.runtimeValidated, true);
 });
 
-test("caller-abandon SIP runtime failure is preserved and its offline Contact fix stays isolated", () => {
+test("caller-abandon SIP attempt history binds the failure and successful retry", () => {
   const record = read(`${directory}/sip-abandon-preparation.json`);
-  const validation = read(`${directory}/sip-abandon-runtime-validation-attempt-1.json`);
+  const firstValidation = read(`${directory}/sip-abandon-runtime-validation-attempt-1.json`);
+  const firstReport = read(`${directory}/${firstValidation.report}`);
+  const validation = read(`${directory}/sip-abandon-runtime-validation-attempt-2.json`);
   const report = read(`${directory}/${validation.report}`);
   const execution = preparation.sipCallerAbandonExecution;
-  assert.equal(record.stage, "synthetic-sip-caller-abandon-runtime-failed-before-bye");
-  assert.equal(record.runtimeAttemptsAuthorized, 1);
-  assert.equal(record.runtimeAttemptsExecuted, 1);
+  assert.equal(record.stage, "synthetic-sip-caller-abandon-runtime-passed");
+  assert.equal(record.attemptLimitPerItem, 10);
+  assert.equal(record.runtimeAttemptsAuthorized, 10);
+  assert.equal(record.runtimeAttemptsExecuted, 2);
   assert.equal(record.additionalApprovalFlagRequired, "--approve-sip-queue-abandon");
   assert.equal(record.baseApprovalFlagAlsoRequired, "--approve-isolated-sip-rtp-proof");
   assert.equal(record.defaultEchoBehaviorRetained, true);
@@ -201,35 +204,61 @@ test("caller-abandon SIP runtime failure is preserved and its offline Contact fi
   assert.equal(record.implementation.humanAnsweringTested, false);
   assert.equal(record.offlineValidation.pythonTestsPassed, 97);
   assert.equal(record.offlineValidation.sourceEvidenceTestsPassed, 41);
-  assert.equal(preparation.sipCallerAbandonPreparation.runtimePassed, false);
-  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsAuthorized, 1);
-  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsExecuted, 1);
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimePassed, true);
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsAuthorized, 10);
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsExecuted, 2);
   assert.equal(preparation.sipCallerAbandonPreparation.newNetworkOrContainerStarted, true);
-  assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, false);
-  assert.equal(validation.attemptNumber, 1);
-  assert.equal(validation.passed, false);
+  assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, true);
+  assert.equal(firstValidation.attemptNumber, 1);
+  assert.equal(firstValidation.passed, false);
+  assert.equal(hash(`${directory}/${firstValidation.report}`), firstValidation.reportSha256);
+  assert.equal(hash(`${directory}/${firstValidation.clientLog}`), firstValidation.clientLogSha256);
+  assert.equal(firstReport.sipQueueAbandonRequested, true);
+  assert.equal(firstReport.lastClientProgress.phases.at(-1).phase, "agent-ringing");
+  assert.equal(firstValidation.acceptance.callerByeAttempted, false);
+  assert.equal(firstValidation.cleanup.ownedContainersRemoved, true);
+  assert.equal(firstValidation.cleanup.ownedNetworkRemoved, true);
+  assert.equal(firstValidation.cleanup.ephemeralCredentialFilesRemoved, true);
+  assert.equal(validation.attemptNumber, 2);
+  assert.equal(validation.attemptLimitPerItem, 10);
+  assert.equal(validation.passed, true);
   assert.equal(hash(`${directory}/${validation.report}`), validation.reportSha256);
-  assert.equal(hash(`${directory}/${validation.clientLog}`), validation.clientLogSha256);
   assert.equal(report.sipQueueAbandonRequested, true);
-  assert.equal(report.passed, false);
-  assert.equal(report.lastClientProgress.phases.at(-1).phase, "agent-ringing");
-  assert.equal(validation.acceptance.callerByeAttempted, false);
+  assert.equal(report.passed, true);
+  assert.equal(report.sipQueueAbandon.abandonment.callerByeCode, 200);
+  assert.equal(report.sipQueueAbandon.abandonment.cancelCode, 200);
+  assert.equal(report.sipQueueAbandon.abandonment.inviteFinalCode, 487);
+  assert.equal(report.sipQueueAbandon.abandonment.transactionAckSeen, true);
+  assert.equal(report.sipQueueAbandon.abandonment.agentAnswered, false);
+  assert.equal(report.sipQueueAbandon.completedQueueOutput.match(/\bC:0\b/)?.[0], "C:0");
+  assert.equal(report.sipQueueAbandon.completedQueueOutput.match(/\bA:1\b/)?.[0], "A:1");
+  assert.equal(report.sipQueueAbandon.memberRemoved, true);
+  assert.deepEqual(report.sipQueueAbandon.initialPolicy, report.sipQueueAbandon.finalPolicy);
+  assert.equal(validation.cleanup.beforeAndAfterInventoryEqual, true);
+  assert.equal(validation.cleanup.beforeAndAfterBridgeEqual, true);
+  assert.equal(validation.acceptance.bothUnregistered, true);
+  assert.equal(validation.acceptance.processExitCodes.pbx, 0);
+  assert.equal(validation.acceptance.processExitCodes.client, 0);
   assert.equal(validation.cleanup.ownedContainersRemoved, true);
   assert.equal(validation.cleanup.ownedNetworkRemoved, true);
   assert.equal(validation.cleanup.ephemeralCredentialFilesRemoved, true);
   assert.equal(validation.cleanup.beforeAndAfterInventoryEqual, true);
   assert.equal(validation.cleanup.beforeAndAfterBridgeEqual, true);
   assert.equal(validation.retryAuthorized, false);
-  assert.equal(execution.approvedCallerAbandonAttempts, 1);
-  assert.equal(execution.executedCallerAbandonAttempts, 1);
-  assert.equal(execution.passed, false);
-  assert.equal(execution.diagnosisFixPreparedOffline.runtimeValidated, false);
+  assert.equal(execution.approvedCallerAbandonAttempts, 10);
+  assert.equal(execution.executedCallerAbandonAttempts, 2);
+  assert.equal(execution.attemptHistory.length, 2);
+  assert.equal(execution.attemptHistory[0].passed, false);
+  assert.equal(execution.attemptHistory[1].passed, true);
+  assert.equal(execution.passed, true);
+  assert.equal(execution.diagnosisFixPreparedOffline.runtimeValidated, true);
+  assert.equal(execution.furtherRuntimeAuthorized, false);
   for (const flag of ["runtimeExecuted", "containerStartupAuthorized",
     "networkCreationAuthorized", "sipTrafficAuthorized"]) {
     assert.equal(record[flag], true, flag);
   }
-  for (const flag of ["runtimePassed", "runtimeApplyAuthorized",
-    "gateAAcceptanceComplete", "gateCAuthorized", "redistributionApproved"]) {
+  for (const flag of ["runtimeApplyAuthorized", "gateAAcceptanceComplete",
+    "gateCAuthorized", "redistributionApproved"]) {
     assert.equal(record[flag], false, flag);
   }
   const entrypoint = bytes(`${directory}/${record.entrypoint}`).toString();
