@@ -19,7 +19,11 @@ const patch = regularFile(patchPath);
 const patchText = patch.toString("utf8");
 const supervisor = regularFile(path.join(root, "local", "asterisk-build", "shutdown-supervisor.py"))
   .toString("utf8");
+const compileProfiles = regularFile(path.join(root, "local", "asterisk-build", "compile-profiles.py"))
+  .toString("utf8");
+regularFile(path.join(root, "local", "asterisk-build", "shutdown_compile_binding.py"));
 regularFile(path.join(root, "tests", "asterisk-shutdown-supervisor.test.py"));
+regularFile(path.join(root, "tests", "asterisk-shutdown-build-binding.test.py"));
 const expected = ["include/asterisk/module.h", "main/loader.c", "main/asterisk.c"];
 
 if (
@@ -63,6 +67,8 @@ if (
   !supervisor.includes('hasattr(socket, "AF_UNIX")') ||
   !supervisor.includes("--approve-shutdown-fixture") ||
   !supervisor.includes("shutdown-supervisor-report.json")
+  || !compileProfiles.includes("--shutdown-supplement-manifest")
+  || !compileProfiles.includes("shutdownSupplementPatchSha256")
 ) {
   throw new Error("Shutdown supplement is missing its test-only lifecycle hooks");
 }

@@ -1,7 +1,8 @@
 diff --git a/include/asterisk/module.h b/include/asterisk/module.h
 --- a/include/asterisk/module.h
 +++ b/include/asterisk/module.h
-@@ -475,4 +475,9 @@ enum ast_cli_lease_test_event {
+@@ -471,6 +471,11 @@
+ 	AST_CLI_LEASE_TEST_RELEASED,
  	AST_CLI_LEASE_TEST_UNLOAD,
  	AST_CLI_LEASE_TEST_WORKER_DONE,
 +	AST_CLI_LEASE_TEST_BEFORE_MODULE_SHUTDOWN,
@@ -11,7 +12,9 @@ diff --git a/include/asterisk/module.h b/include/asterisk/module.h
 +	AST_CLI_LEASE_TEST_SHUTDOWN_COMPLETE,
  	AST_CLI_LEASE_TEST_EVENTS,
  };
-@@ -489,5 +495,6 @@ void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_tes
+ 
+@@ -488,6 +493,7 @@
+ void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_test_event event);
  void ast_cli_lease_test_worker_done(void);
  void ast_cli_lease_test_hold_loader(void);
 +int ast_cli_lease_test_supervisor_event(enum ast_cli_lease_test_event event, int value, int wait);
@@ -21,7 +24,8 @@ diff --git a/include/asterisk/module.h b/include/asterisk/module.h
 diff --git a/main/loader.c b/main/loader.c
 --- a/main/loader.c
 +++ b/main/loader.c
-@@ -38,2 +38,9 @@
+@@ -37,6 +37,13 @@
+ #include "asterisk/paths.h"	/* use ast_config_AST_MODULE_DIR */
  #include <dirent.h>
  #include <limits.h>
 +#ifdef TEST_FRAMEWORK
@@ -31,7 +35,12 @@ diff --git a/main/loader.c b/main/loader.c
 +#include <sys/un.h>
 +#include <unistd.h>
 +#endif
-@@ -2134,4 +2222,9 @@ void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_tes
+ 
+ #include "asterisk/dlinkedlists.h"
+ #include "asterisk/module.h"
+@@ -2997,6 +3004,11 @@
+ 
+ void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_test_event event)
  {
 +	if (event == AST_CLI_LEASE_TEST_ADMITTED && cli_lease_test_target(mod)
 +		&& !strcmp(getenv("ASTERISK_CLI_LEASE_TEST_MODE") ?: "", "after-admission")) {
@@ -41,7 +50,8 @@ diff --git a/main/loader.c b/main/loader.c
  	if ((event == AST_CLI_LEASE_TEST_LOOKUP || event == AST_CLI_LEASE_TEST_ADMITTED
  		|| event == AST_CLI_LEASE_TEST_HANDLER
  		|| event == AST_CLI_LEASE_TEST_HANDLER_RETURNED || event == AST_CLI_LEASE_TEST_ENTRY_DONE
-@@ -2153,3 +2159,74 @@ void ast_cli_lease_test_hold_loader(void)
+@@ -3017,11 +3029,85 @@
+ 	cli_lease_test_record(AST_CLI_LEASE_TEST_LOADER_LOCKED, 0);
  	AST_DLLIST_UNLOCK(&module_list);
  }
 +
@@ -78,7 +88,7 @@ diff --git a/main/loader.c b/main/loader.c
 +	}
 +	strcpy(address.sun_path, path);
 +	length = snprintf(message, sizeof(message), "1 %s %d %d\n", name, value, !!wait);
-+	if (length < 0 || length >= sizeof(message)) {
++	if (length < 0 || (size_t) length >= sizeof(message)) {
 +		ast_log(LOG_ERROR, "Protected CLI supervisor event does not fit protocol buffer\n");
 +		return -1;
 +	}
@@ -116,7 +126,8 @@ diff --git a/main/loader.c b/main/loader.c
 +	return result;
 +}
  #endif
-@@ -2158,8 +2251,11 @@ int ast_module_cli_try_acquire(struct ast_module *mod)
+ 
+ int ast_module_cli_try_acquire(struct ast_module *mod)
  {
  	int res = -1;
 +#ifdef TEST_FRAMEWORK
@@ -125,10 +136,8 @@ diff --git a/main/loader.c b/main/loader.c
  
  	if (!mod || AST_DLLIST_TRYLOCK(&module_list)) {
  		return -1;
- 	}
- 	if (mod->flags.running && !mod->flags.declined && !mod->cli_closing
- 		&& !ast_shutting_down()
-@@ -2178,7 +2273,16 @@ int ast_module_cli_try_acquire(struct ast_module *mod)
+@@ -3042,9 +3128,18 @@
+ 		&& cli_lease_test_target(mod)) {
  		cli_lease_test_record(AST_CLI_LEASE_TEST_CLOSING_DENIED,
  			ast_atomic_fetchadd_int(&mod->cli_readers, 0));
 +	} else if (cli_lease_test_target(mod) && mod->flags.running && !mod->flags.declined
@@ -145,7 +154,9 @@ diff --git a/main/loader.c b/main/loader.c
 +#endif
  	return res;
  }
-@@ -2198,3 +2328,7 @@ void ast_module_cli_release(struct ast_module *mod)
+ 
+@@ -3058,6 +3153,10 @@
+ 	/* Only core-owned fixture state is accessed after the final decrement. */
  	if (tracked) {
  		cli_lease_test_record(AST_CLI_LEASE_TEST_RELEASED, previous - 1);
 +		if (!strcmp(getenv("ASTERISK_CLI_LEASE_TEST_MODE") ?: "", "after-admission")) {
@@ -153,10 +164,14 @@ diff --git a/main/loader.c b/main/loader.c
 +				previous - 1, 0);
 +		}
  	}
+ #else
+ 	/* The final decrement must be the last access: unload may now free mod. */
 diff --git a/main/asterisk.c b/main/asterisk.c
 --- a/main/asterisk.c
 +++ b/main/asterisk.c
-@@ -1718,8 +1718,45 @@ static void really_quit(int num, shutdown_nice_t niceness, int restart)
+@@ -2059,13 +2059,49 @@
+ static void really_quit(int num, shutdown_nice_t niceness, int restart)
+ {
  	int active_channels;
 +#ifdef TEST_FRAMEWORK
 +	int module_shutdown_result = 0;
@@ -168,8 +183,7 @@ diff --git a/main/asterisk.c b/main/asterisk.c
 +	if (run_cleanups) {
 +		const char *test_mode = getenv("ASTERISK_CLI_LEASE_TEST_MODE");
 +		if (test_mode && !strcmp(test_mode, "before-admission")
-+			&& ast_cli_lease_test_supervisor_event(
-+				AST_CLI_LEASE_TEST_BEFORE_MODULE_SHUTDOWN, 0, 1)) {
++			&& ast_cli_lease_test_supervisor_event(AST_CLI_LEASE_TEST_BEFORE_MODULE_SHUTDOWN, 0, 1)) {
 +			_exit(1);
 +		}
 +		module_shutdown_result = modules_shutdown();
@@ -202,3 +216,6 @@ diff --git a/main/asterisk.c b/main/asterisk.c
  		run_cleanups = 0;
  	}
 +#endif
+ 
+ 	if (!restart && !ast_opt_remote) {
+ 		ast_sd_notify("STOPPING=1");

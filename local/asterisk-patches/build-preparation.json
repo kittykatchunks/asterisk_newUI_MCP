@@ -438,6 +438,125 @@
       }
     ]
   },
+  "shutdownSuccessorBuild": {
+    "stage": "two-profile-compile-complete-native-execution-pending",
+    "authorization": "User approved applying the successor patch and compiling both profiles only; Asterisk startup and native tests were excluded.",
+    "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+    "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+    "supplementManifest": "../asterisk-patches/queue-policy-shutdown-v1.json",
+    "supplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+    "supplementPatch": "../asterisk-patches/queue-policy-shutdown-v1.patch",
+    "supplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+    "compileReport": "../asterisk-build/compile-report-shutdown-v1.json",
+    "compileReportSha256": "dbede4ae6177173656d3a5f31f05e1c3e01d0d888bbfea6d74a165c24ab09514",
+    "buildAttempt": 6,
+    "buildDirectoryInGuest": "/home/asterisk-build/native-build-attempt-6",
+    "compileLogInGuest": "/home/asterisk-build/native-build-attempt-6-shutdown.log",
+    "compileLogBytes": 101383,
+    "profileOutputCounts": {
+      "instrumented": 46,
+      "release": 44
+    },
+    "allOutputSha256AndElf64X8664Verified": true,
+    "supplementPostimagesMatchAcrossProfiles": true,
+    "testFrameworkSymbolInstrumentedOnly": true,
+    "attemptHistory": [
+      {
+        "attempt": 5,
+        "result": "supplement-patch-application-failed-before-configure",
+        "cause": "The initial diff had insufficient source context and an incorrect really_quit location; zero-fuzz application failed before configure or compilation.",
+        "compileLogInGuest": "/home/asterisk-build/native-build-attempt-5-shutdown.log",
+        "failureEvidenceRetained": true
+      },
+      {
+        "attempt": 6,
+        "result": "both-profiles-compiled-and-output-hashes-verified"
+      }
+    ],
+    "nativeTestsExecuted": false,
+    "asteriskStarted": false,
+    "runtimeApplyAuthorized": false,
+    "runtimeImageProduced": false,
+    "compiledBinariesExported": false,
+    "ownedDistributionStoppedAfterBuild": true
+  },
+  "shutdownSuccessorExecution": {
+    "stage": "both-supervised-shutdown-schedules-passed",
+    "authorization": "User separately approved disposable instrumented Asterisk startup, the two shutdown schedules, Unix-socket integration checks, and owned-process cleanup only.",
+    "compileReportSha256": "dbede4ae6177173656d3a5f31f05e1c3e01d0d888bbfea6d74a165c24ab09514",
+    "profileStarted": "instrumented",
+    "releaseProfileStarted": false,
+    "unixSocketSupervisorTests": {
+      "platform": "dedicated WSL distribution",
+      "passed": 10,
+      "failed": 0
+    },
+    "resourceBoundary": {
+      "distribution": "Asterisk-GateB-f51968c",
+      "unprivilegedUser": "asterisk-build",
+      "uid": 1000,
+      "cpuQuota": "400%",
+      "memoryMaxBytes": 4294967296,
+      "memorySwapMaxBytes": 0,
+      "tasksMax": 256,
+      "runtimeMaxSecondsPerCase": 120,
+      "privateNetworkNamespaceVerified": true,
+      "noNewPrivileges": true,
+      "coreDumpLimitBytes": 0,
+      "killMode": "control-group",
+      "sendSigkill": true
+    },
+    "beforeAdmission": {
+      "report": "../asterisk-build/shutdown-execution-before-admission-v1.json",
+      "reportSha256": "4f0d23c79eca7b76ab46d56d2bf0fb4def2f10528a0b420391d3256810c23604",
+      "events": [
+        "before-module-shutdown",
+        "shutdown-denied",
+        "shutdown-complete"
+      ],
+      "childExitCode": 0,
+      "allOwnedProcessesStopped": true,
+      "supervisorCommandLogBytes": 387,
+      "childConsoleLogBytes": 1934
+    },
+    "afterAdmission": {
+      "report": "../asterisk-build/shutdown-execution-after-admission-v1.json",
+      "reportSha256": "d3990a9304740faf892657a87870d29b95caa368acb5fb32241e38d9d87b1a8e",
+      "events": [
+        "dispatch-admitted",
+        "shutdown-after-modules",
+        "lease-released",
+        "shutdown-retry"
+      ],
+      "childExitCode": 0,
+      "allOwnedProcessesStopped": true,
+      "supervisorCommandLogBytes": 442,
+      "childConsoleLogBytes": 1997
+    },
+    "initialAttempts": [
+      {
+        "result": "preflight-aborted-before-Asterisk",
+        "cause": "The first launcher had argument-quoting and unprivileged proc-namespace inspection issues; no child was started."
+      },
+      {
+        "result": "before-admission-assertion-failed-and-cleaned",
+        "cause": "Asterisk's -rx client returned status zero for a command-level shutdown denial; the earlier assertion aborted before checking captured output and the queued denial event. The supervisor now requires the denial output and event while treating nonzero transport status as failure.",
+        "noAsteriskProcessesRemainAfterCleanup": true
+      }
+    ],
+    "asteriskStarted": true,
+    "shutdownFixturesExecuted": 2,
+    "broaderNativeSuiteExecuted": false,
+    "sipOrRtpTraffic": false,
+    "existingPbxOperated": false,
+    "minimalConfigStartupWarningsRetained": true,
+    "noAsteriskProcessesRemainAfterExecution": true,
+    "ownedDistributionStoppedAfterExecution": true,
+    "compiledBinariesExported": false,
+    "runtimeApplyAuthorized": false,
+    "gateAAcceptanceComplete": false,
+    "gateCAuthorized": false
+  },
   "nativeExecution": {
     "authorization": "User explicitly approved disposable startup and all 30 serialized native definitions; no Gate C or runtime publication.",
     "runner": "../asterisk-build/run-native-tests.py",

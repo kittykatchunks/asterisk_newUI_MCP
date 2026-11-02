@@ -5,7 +5,7 @@
   "parentManifest": "queue-policy-v1.json",
   "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
   "patch": "queue-policy-shutdown-v1.patch",
-  "patchSha256": "1bb9b3a64418af8684c366a9681037d39587c6d8c8703ba94f6b7e4318aee1de",
+  "patchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
   "changedUpstreamPaths": [
     "include/asterisk/module.h",
     "main/loader.c",

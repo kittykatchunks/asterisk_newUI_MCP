@@ -6,10 +6,13 @@ import pathlib
 import shutil
 import subprocess
 
+from shutdown_compile_binding import load_shutdown_supplement
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-native-compile", action="store_true")
 parser.add_argument("--attempt", type=int, required=True)
+parser.add_argument("--shutdown-supplement-manifest")
 args = parser.parse_args()
 if not args.approve_native_compile or args.attempt < 1 or os.geteuid() == 0:
     raise SystemExit("Requires an unprivileged user and explicit --approve-native-compile")
@@ -19,6 +22,17 @@ source_lock = json.loads((staging / "source-lock.json").read_text())
 module_plan = json.loads((staging / "module-plan.json").read_text())
 candidate = json.loads((staging / "queue-policy-v1.json").read_text())
 patch = staging / "queue-policy-v1.patch"
+shutdown_supplement = None
+shutdown_supplement_patch = None
+shutdown_supplement_hash = None
+shutdown_supplement_manifest_hash = None
+if args.shutdown_supplement_manifest:
+    (
+        shutdown_supplement,
+        shutdown_supplement_patch,
+        shutdown_supplement_hash,
+        shutdown_supplement_manifest_hash,
+    ) = load_shutdown_supplement(args.shutdown_supplement_manifest, candidate)
 if hashlib.sha256(patch.read_bytes()).hexdigest() != candidate["patchSha256"]:
     raise ValueError("Patch SHA256 differs from approved candidate")
 if candidate["patchSha256"] != module_plan["patchSha256"]:
@@ -48,6 +62,10 @@ report = {
     "asteriskStarted": False,
     "runtimeApplyAuthorized": False,
 }
+if shutdown_supplement is not None:
+    report["shutdownSupplementPatchSha256"] = shutdown_supplement_hash
+    report["shutdownSupplementManifestSha256"] = shutdown_supplement_manifest_hash
+    report["shutdownSupplementParentPatchSha256"] = candidate["patchSha256"]
 for profile in ["instrumented", "release"]:
     tree = build_root / profile
     shutil.copytree(pristine, tree)
@@ -60,6 +78,22 @@ for profile in ["instrumented", "release"]:
     for entry in candidate["files"]:
         if hashlib.sha256((tree / entry["path"]).read_bytes()).hexdigest() != entry["afterSha256"]:
             raise ValueError(f"Patched source hash mismatch: {entry['path']}")
+    supplement_application = None
+    if shutdown_supplement is not None:
+        run(["patch", "--batch", "--fuzz=0", "--dry-run", "-p1", "-i", shutdown_supplement_patch])
+        run(["patch", "--batch", "--fuzz=0", "-p1", "-i", shutdown_supplement_patch])
+        supplement_postimages = [
+            dict(
+                path=relative,
+                sha256=hashlib.sha256((tree / relative).read_bytes()).hexdigest(),
+            )
+            for relative in shutdown_supplement["changedUpstreamPaths"]
+        ]
+        supplement_application = dict(
+            patchSha256=shutdown_supplement_hash,
+            appliedWithZeroFuzz=True,
+            postimages=supplement_postimages,
+        )
     configure = [
         "./configure",
         f"--prefix={home}/install/{profile}",
@@ -136,6 +170,8 @@ for profile in ["instrumented", "release"]:
         menuselectMakeoptsSha256=hashlib.sha256((tree / "menuselect.makeopts").read_bytes()).hexdigest(),
         autoconfigSha256=hashlib.sha256((tree / "include/asterisk/autoconfig.h").read_bytes()).hexdigest(),
     )
+    if supplement_application is not None:
+        profile_record["shutdownSupplement"] = supplement_application
     report["profiles"].append(profile_record)
     (build_root / "compile-report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"COMPILED_PROFILE={profile} REQUIRED_OUTPUTS={len(binaries)}", flush=True)

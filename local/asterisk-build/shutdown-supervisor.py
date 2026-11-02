@@ -135,9 +135,11 @@ def before_shutdown_admission(server, run_cli, timeout=15):
     boundary = expect_event(server, "before-module-shutdown", timeout, wait_for_continue=True)
     try:
         result = run_cli("test bounded-policy lifecycle-target success", timeout, True)
-        if result.returncode == 0:
-            raise RuntimeError("The protected target command unexpectedly succeeded during shutdown")
         output = result.stdout
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"The protected target CLI request failed with exit status {result.returncode}: {output}"
+            )
         if "Protected command unavailable: module busy or closing" not in output:
             raise RuntimeError("Shutdown did not reject the protected target command")
         expect_event(server, "shutdown-denied", timeout, wait_for_continue=False)
@@ -152,7 +154,7 @@ def shutdown_after_admission(server, start_cli, timeout=15):
     admitted = expect_event(server, "dispatch-admitted", timeout, expected_value=1, wait_for_continue=True)
     shutdown = None
     try:
-        stop_process = start_cli("core stop gracefully")
+        stop_process = start_graceful_shutdown(start_cli)
         shutdown = expect_event(server, "shutdown-after-modules", timeout, expected_value=1,
                                 wait_for_continue=True)
         admitted.continue_child()
@@ -163,6 +165,10 @@ def shutdown_after_admission(server, start_cli, timeout=15):
             shutdown.continue_child()
     expect_event(server, "shutdown-retry", timeout, expected_value=0, wait_for_continue=True).continue_child()
     return stop_process
+
+
+def start_graceful_shutdown(start_cli):
+    return start_cli("core stop gracefully")
 
 
 def _wait_process(process, timeout, label):
@@ -282,8 +288,16 @@ def _validate_build_binding(binary_path, case_directory):
     supplement_path = repository / "local" / "asterisk-patches" / "queue-policy-shutdown-v1.json"
     supplement = json.loads(supplement_path.read_text(encoding="utf-8"))
     supplement_patch = supplement_path.parent / supplement["patch"]
-    if hashlib.sha256(supplement_patch.read_bytes()).hexdigest() != supplement["patchSha256"]:
-        raise ValueError("Shutdown supplement patch hash mismatch")
+    if (
+        supplement.get("changedUpstreamPaths")
+        != ["include/asterisk/module.h", "main/loader.c", "main/asterisk.c"]
+        or supplement.get("parentManifest") != "queue-policy-v1.json"
+        or supplement.get("patch") != "queue-policy-shutdown-v1.patch"
+        or supplement.get("patchApplicationVerified") is not False
+        or supplement.get("runtimeApplyAuthorized") is not False
+        or hashlib.sha256(supplement_patch.read_bytes()).hexdigest() != supplement["patchSha256"]
+    ):
+        raise ValueError("Shutdown supplement manifest or patch binding mismatch")
     build_directory = binary_path.parent.parent.parent
     report_path = build_directory / "compile-report.json"
     report_info = report_path.lstat()
@@ -293,15 +307,47 @@ def _validate_build_binding(binary_path, case_directory):
     if (
         compile_report.get("patchSha256") != supplement["parentPatchSha256"]
         or compile_report.get("shutdownSupplementPatchSha256") != supplement["patchSha256"]
+        or compile_report.get("upstreamCommit") != supplement["upstreamCommit"]
+        or compile_report.get("shutdownSupplementManifestSha256")
+        != hashlib.sha256(supplement_path.read_bytes()).hexdigest()
+        or compile_report.get("shutdownSupplementParentPatchSha256")
+        != supplement["parentPatchSha256"]
     ):
         raise ValueError("Build report does not bind the parent and shutdown supplement patches")
-    profile = next(
-        (item for item in compile_report.get("profiles", []) if item.get("name") == "instrumented"),
-        None,
-    )
-    if not profile or "TEST_FRAMEWORK" not in profile.get("enabledOptions", []):
-        raise ValueError("Build report does not confirm the instrumented TEST_FRAMEWORK profile")
-    outputs = {item["path"]: item["sha256"] for item in profile.get("outputs", [])}
+    profiles = {
+        item.get("name"): item for item in compile_report.get("profiles", [])
+    }
+    instrumented = profiles.get("instrumented")
+    release = profiles.get("release")
+    if (
+        not instrumented
+        or not release
+        or not instrumented.get("compiled")
+        or not release.get("compiled")
+        or "TEST_FRAMEWORK" not in instrumented.get("enabledOptions", [])
+        or "TEST_FRAMEWORK" in release.get("enabledOptions", [])
+    ):
+        raise ValueError("Build report does not confirm both instrumented and release profiles")
+    profile_postimages = []
+    for profile in (instrumented, release):
+        application = profile.get("shutdownSupplement", {})
+        postimages = application.get("postimages", [])
+        if (
+            application.get("patchSha256") != supplement["patchSha256"]
+            or application.get("appliedWithZeroFuzz") is not True
+            or [item.get("path") for item in postimages]
+            != supplement["changedUpstreamPaths"]
+            or any(
+                len(item.get("sha256", "")) != 64
+                or any(character not in "0123456789abcdef" for character in item["sha256"])
+                for item in postimages
+            )
+        ):
+            raise ValueError("Build profile does not bind the applied shutdown supplement")
+        profile_postimages.append([item["sha256"] for item in postimages])
+    if profile_postimages[0] != profile_postimages[1]:
+        raise ValueError("Instrumented and release source postimages differ")
+    outputs = {item["path"]: item["sha256"] for item in instrumented.get("outputs", [])}
     required = {
         "main/asterisk": binary_path,
         "tests/test_protected_cli_target.so":
@@ -347,15 +393,6 @@ def run_case(binary, config, case_directory, mode, approved):
     environment = dict(os.environ)
     environment["ASTERISK_CLI_LEASE_TEST_SOCKET"] = str(server.socket_path)
     environment["ASTERISK_CLI_LEASE_TEST_MODE"] = mode
-    process = subprocess.Popen(
-        [binary, "-C", str(config), "-f", "-g"],
-        cwd=case_directory,
-        env=environment,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-    )
     log_path = case_directory / "shutdown-console.log"
     overflow = threading.Event()
     drain_errors = []
@@ -429,7 +466,7 @@ def run_case(binary, config, case_directory, mode, approved):
         cli("module load test_protected_cli_target.so")
 
         if mode == "before-admission":
-            stop_process = start_cli("core stop now")
+            stop_process = start_graceful_shutdown(start_cli)
             before_shutdown_admission(
                 server,
                 lambda command, timeout, expected: cli_expected_failure(command, timeout)

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "mode": "after-admission",
+  "controlProtocol": 1,
+  "events": [
+    [
+      "dispatch-admitted",
+      1,
+      true
+    ],
+    [
+      "shutdown-after-modules",
+      1,
+      true
+    ],
+    [
+      "lease-released",
+      0,
+      false
+    ],
+    [
+      "shutdown-retry",
+      0,
+      true
+    ]
+  ],
+  "childExitCode": 0,
+  "allOwnedProcessesStopped": true,
+  "nativeExecutionAuthorizedByThisTool": false
+}

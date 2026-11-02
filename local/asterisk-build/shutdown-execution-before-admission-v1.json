@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "mode": "before-admission",
+  "controlProtocol": 1,
+  "events": [
+    [
+      "before-module-shutdown",
+      0,
+      true
+    ],
+    [
+      "shutdown-denied",
+      0,
+      false
+    ],
+    [
+      "shutdown-complete",
+      0,
+      true
+    ]
+  ],
+  "childExitCode": 0,
+  "allOwnedProcessesStopped": true,
+  "nativeExecutionAuthorizedByThisTool": false
+}

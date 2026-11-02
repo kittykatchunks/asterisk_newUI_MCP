@@ -1,3 +1,4 @@
+import ast
 import importlib.util
 import pathlib
 import socket
@@ -32,6 +33,34 @@ class FakeServer:
 
 
 class ShutdownCoordinatorTests(unittest.TestCase):
+    def test_run_case_starts_only_one_owned_asterisk_process(self):
+        source = pathlib.Path(supervisor.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        run_case = next(
+            node for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "run_case"
+        )
+        launches = [
+            node for node in ast.walk(run_case)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "subprocess"
+            and node.func.attr == "Popen"
+        ]
+        self.assertEqual(len(launches), 1)
+
+    def test_shutdown_uses_cleanup_enabled_graceful_command(self):
+        commands = []
+        process = object()
+        self.assertIs(
+            supervisor.start_graceful_shutdown(
+                lambda command: commands.append(command) or process
+            ),
+            process,
+        )
+        self.assertEqual(commands, ["core stop gracefully"])
+
     def test_process_runner_requires_separate_explicit_execution_approval(self):
         with self.assertRaisesRegex(PermissionError, "Explicit shutdown-fixture approval"):
             supervisor.run_case("", "", "", "before-admission", approved=False)
@@ -48,7 +77,7 @@ class ShutdownCoordinatorTests(unittest.TestCase):
         def run_cli(command, timeout, expect_failure):
             self.assertEqual(command, "test bounded-policy lifecycle-target success")
             self.assertTrue(expect_failure)
-            return subprocess.CompletedProcess(command, 1,
+            return subprocess.CompletedProcess(command, 0,
                 "Protected command unavailable: module busy or closing\n", "")
 
         supervisor.before_shutdown_admission(server, run_cli)
@@ -124,11 +153,14 @@ class ShutdownSupervisorTests(unittest.TestCase):
         child = threading.Thread(target=fake_child)
         child.start()
 
-        def run_cli(command, timeout):
+        def run_cli(command, timeout, expect_failure):
             self.assertEqual(command, "test bounded-policy lifecycle-target success")
             self.assertEqual(timeout, 2)
+            self.assertTrue(expect_failure)
             self.assertEqual(send_event(self.server.socket_path, "shutdown-denied"), b"C")
-            return "Protected command unavailable: module busy or closing\n"
+            return subprocess.CompletedProcess(
+                command, 0, "Protected command unavailable: module busy or closing\n", ""
+            )
 
         supervisor.before_shutdown_admission(self.server, run_cli, timeout=2)
         child.join(2)
@@ -153,7 +185,7 @@ class ShutdownSupervisorTests(unittest.TestCase):
         dispatch.start()
 
         def start_cli(command):
-            self.assertEqual(command, "core stop now")
+            self.assertEqual(command, "core stop gracefully")
             process = threading.Thread(target=stop_child)
             process.start()
             return process
