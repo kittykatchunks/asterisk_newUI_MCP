@@ -19,6 +19,9 @@ const retry = element("retry-session");
 const refresh = element("refresh");
 const profileStatus = element("assignment-status");
 const profile = element("assignment");
+const endpointSection = element("endpoint-readiness");
+const endpointStatus = element("endpoint-status");
+const checkEndpoint = element("check-endpoint");
 const deviceSection = element("device-reservation");
 const deviceStatus = element("device-status");
 const reserve = element("reserve-device");
@@ -27,7 +30,11 @@ const release = element("release-device");
 const deviceId = crypto.randomUUID();
 let csrf = "";
 let assigned = false;
+let assignedExtension = "";
 let deviceBusy = false;
+let endpointBusy = false;
+let endpointGeneration = 0;
+let endpointController = new AbortController();
 /** @type {{ id: string, expiresAt: number } | undefined} */
 let lease;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -44,6 +51,15 @@ let ended = false;
 let busy = false;
 const lifetime = new AbortController();
 function clearProfile() { profile.replaceChildren(); profile.hidden = true; }
+function clearEndpoint() {
+  endpointGeneration++;
+  endpointController.abort();
+  endpointController = new AbortController();
+  endpointBusy = false;
+  checkEndpoint.removeAttribute("disabled");
+  endpointStatus.setAttribute("role", "status");
+  endpointStatus.textContent = "No endpoint check performed.";
+}
 /** @param {string} message */
 function end(message) {
   ended = true;
@@ -54,8 +70,11 @@ function end(message) {
   lifetime.abort();
   document.getElementById("simulation-link")?.remove();
   clearProfile();
+  clearEndpoint();
   lease = undefined;
   assigned = false;
+  assignedExtension = "";
+  endpointSection.hidden = true;
   deviceSection.hidden = true;
   deviceStatus.textContent = "No device reservation confirmed. Any server reservation may remain until expiry.";
   profileStatus.textContent = "No assignment loaded.";
@@ -70,6 +89,7 @@ function end(message) {
 let deadline = 0;
 function deviceControls() {
   deviceSection.hidden = ended || (!assigned && !lease);
+  endpointSection.hidden = ended || !assigned;
   reserve.hidden = !!lease || !assigned;
   renew.hidden = !lease;
   release.hidden = !lease;
@@ -83,6 +103,60 @@ function deviceControls() {
       lease ? "Renew explicitly if needed. To move devices, release this reservation and wait for confirmation before signing out." :
       assigned ? "You can explicitly reserve this page's device. Phone connection remains disabled." :
       "Load your own assignment using Refresh assignment. If it is missing or access is denied, contact your administrator.";
+  }
+}
+async function loadEndpointSnapshot() {
+  if (ended || !assigned || endpointBusy) return;
+  checkDeadline();
+  if (ended) return;
+  const generation = endpointGeneration;
+  const extension = assignedExtension;
+  endpointBusy = true;
+  checkEndpoint.setAttribute("disabled", "");
+  endpointStatus.setAttribute("role", "status");
+  endpointStatus.textContent = "Checking the assigned endpoint...";
+  let requestId = "unavailable";
+  try {
+    const response = await fetch(`/api/customers/${customer}/agent/readiness`, {
+      credentials: "same-origin", cache: "no-store", redirect: "error",
+      signal: AbortSignal.any([lifetime.signal, endpointController.signal, AbortSignal.timeout(15000)]),
+    });
+    requestId = reference(response);
+    if (ended || generation !== endpointGeneration) return;
+    if (response.status === 401) { end("Application session is no longer valid. Sign in again."); return; }
+    if (!response.ok) throw new Error(response.status === 403 ?
+      "Agent access is not permitted." : `Assigned endpoint check unavailable (${response.status}).`);
+    /** @type {unknown} */
+    const value = await response.json();
+    if (ended || generation !== endpointGeneration) return;
+    checkDeadline();
+    if (ended || generation !== endpointGeneration) return;
+    if (typeof value !== "object" || value === null ||
+        !("customer" in value) || value.customer !== customer ||
+        !("extension" in value) || value.extension !== extension ||
+        !("checkedAt" in value) || typeof value.checkedAt !== "string" ||
+        !Number.isFinite(Date.parse(value.checkedAt)) ||
+        new Date(value.checkedAt).toISOString() !== value.checkedAt ||
+        !("deviceState" in value) || typeof value.deviceState !== "string" ||
+        !/^(?:Not observed|[A-Za-z][A-Za-z0-9 _-]{0,63})$/.test(value.deviceState) ||
+        !("contactObserved" in value) || typeof value.contactObserved !== "boolean" ||
+        !("activeChannels" in value) || typeof value.activeChannels !== "number" ||
+        !Number.isSafeInteger(value.activeChannels) || value.activeChannels < 0) {
+      throw new Error("Invalid assigned endpoint response.");
+    }
+    endpointStatus.textContent =
+      `Extension ${extension}: ${value.deviceState}; contact observed: ${value.contactObserved ? "yes" : "no"}; ` +
+      `active channels: ${value.activeChannels}; checked ${value.checkedAt}. ` +
+      `This does not prove browser registration, queue availability or audio health (request ${requestId}).`;
+  } catch (error) {
+    if (ended || generation !== endpointGeneration || endpointController.signal.aborted) return;
+    endpointStatus.setAttribute("role", "alert");
+    endpointStatus.textContent = `${error instanceof Error ? error.message : "Endpoint check failed."} (request ${requestId}).`;
+  } finally {
+    if (generation === endpointGeneration) {
+      endpointBusy = false;
+      if (!ended) checkEndpoint.removeAttribute("disabled");
+    }
   }
 }
 function checkLease() {
@@ -155,6 +229,7 @@ async function changeLease(action) {
 reserve.onclick = () => changeLease("acquire");
 renew.onclick = () => changeLease("renew");
 release.onclick = () => changeLease("release");
+checkEndpoint.onclick = loadEndpointSnapshot;
 function checkDeadline() {
   if (ended) return;
   clearTimeout(timer);
@@ -172,7 +247,9 @@ async function loadProfile() {
   busy = true;
   refresh.setAttribute("disabled", "");
   clearProfile();
+  clearEndpoint();
   assigned = false;
+  assignedExtension = "";
   deviceControls();
   profileStatus.setAttribute("role", "status");
   profileStatus.textContent = "Checking your assignment...";
@@ -209,11 +286,15 @@ async function loadProfile() {
     }
     profile.hidden = false;
     assigned = true;
+    assignedExtension = value.agent.extension;
     deviceControls();
     profileStatus.textContent = `Assignment loaded (request ${requestId}).`;
   } catch (error) {
     if (ended) return;
     clearProfile();
+    clearEndpoint();
+    assignedExtension = "";
+    deviceControls();
     profileStatus.setAttribute("role", "alert");
     profileStatus.textContent = `${error instanceof Error ? error.message : "Assignment check failed."} (request ${requestId}).`;
   } finally { busy = false; refresh.removeAttribute("disabled"); }

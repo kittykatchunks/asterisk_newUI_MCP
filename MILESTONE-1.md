@@ -2893,3 +2893,13 @@ temporary-copy application
 evidence remains unchanged; no native compile, test, Asterisk startup, or
 runtime application occurred. Any native compilation still needs separate
 explicit approval.
+
+The agent console now has an explicit, authenticated, read-only snapshot for
+the signed-in agent's assigned PBX extension. It returns only that endpoint's
+device state, contact-observed flag, active-channel count, and snapshot time;
+it does not expose the customer's other endpoints. The check is manual, audited,
+session-bound, membership-authorised, and cleared when assignment/session state
+is refreshed or lost. Browser registration, queue availability, audio health,
+SIP credentials, microphone access, calls, and automatic polling remain
+disabled or unverified. Focused API/browser tests and typecheck passed; this
+source-only increment did not run Asterisk or change PBX/runtime configuration.

@@ -12,6 +12,7 @@ import type { PbxStatusSource, PbxEndpointSource } from "./pbx-status.ts";
 import type { AgentDirectory } from "./agent-directory.ts";
 import { assertAgentProfile } from "./agent-directory.ts";
 import { handleAgentDeviceRequest } from "./agent-device-http.ts";
+import { handleAgentReadinessRequest } from "./agent-readiness-http.ts";
 import type { AgentDeviceLeaseStore } from "./agent-device-lease.ts";
 import type { BookingSimulationStore } from "./booking-simulation.ts";
 import { handleBookingSimulationRequest } from "./booking-simulation-http.ts";
@@ -26,7 +27,7 @@ export interface AccessAudit {
   outcome: string;
   status: number;
   basis?: "membership" | "support-grant";
-  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "session-login" | "session-logout" | "agent-device-acquire" | "agent-device-renew" | "agent-device-release" | "booking-simulation" | "history-read";
+  operation?: "access" | "incident-list" | "report-view" | "review-list" | "review-candidate" | "review-decision" | "review-history" | "pbx-status" | "pbx-endpoints" | "agent-profile" | "agent-readiness" | "session-login" | "session-logout" | "agent-device-acquire" | "agent-device-renew" | "agent-device-release" | "booking-simulation" | "history-read";
   incident?: string;
   bookingOperation?: string;
 }
@@ -151,6 +152,7 @@ export function createDiagnosticApi(
       const pbxMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/status$/);
       const endpointMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/pbx\/endpoints$/);
       const agentMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/profile$/);
+      const agentReadinessMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/readiness$/);
       const deviceMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/agent\/device-lease(?:\/(renew|release))?$/);
       const simulationMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/booking-simulation(?:\/(.*))?$/);
       const historyReadMatch = path.match(/^\/api\/customers\/([a-z0-9][a-z0-9-]{0,63})\/history(?:\/(.*))?$/);
@@ -172,6 +174,12 @@ export function createDiagnosticApi(
         const action = deviceMatch[2] === "renew" ? "renew" : deviceMatch[2] === "release" ? "release" : "acquire";
         await handleAgentDeviceRequest(request, response, requestId, customer, action, identityIssuer,
           () => sessions?.identity(request), verify, audit, agents, deviceLeases);
+        return;
+      }
+      if (agentReadinessMatch) {
+        customer = agentReadinessMatch[1];
+        await handleAgentReadinessRequest(request, response, requestId, customer, identityIssuer,
+          () => sessions?.identity(request), verify, audit, logError, agents, pbxEndpoints);
         return;
       }
       if (agentMatch) {

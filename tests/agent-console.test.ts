@@ -25,6 +25,8 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
   const unexpectedRequests: string[] = [];
   const calls: { path: string; body: { deviceId: string; leaseId?: string } }[] = [];
   let mode = "valid";
+  let endpointMode = "valid";
+  let endpointReads = 0;
   let finishHeld: (() => void) | undefined;
   let profileAllowed = true;
   let releaseHeld: (() => void) | undefined;
@@ -32,7 +34,7 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("websocket", (socket) => unexpectedRequests.push(socket.url()));
     page.on("request", (request) => {
-      if (!/^\/(?:agent\/(?:customer-a|console\.js)|auth\/(?:session|logout)|api\/customers\/customer-a\/agent\/(?:profile|device-lease(?:\/(?:renew|release))?))$/.test(
+      if (!/^\/(?:agent\/(?:customer-a|console\.js)|auth\/(?:session|logout)|api\/customers\/customer-a\/agent\/(?:profile|readiness|device-lease(?:\/(?:renew|release))?))$/.test(
         new URL(request.url()).pathname)) unexpectedRequests.push(request.url());
     });
     await page.addInitScript(() => {
@@ -50,6 +52,15 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
       status: profileAllowed ? 200 : 403, contentType: "application/json",
       body: JSON.stringify({ customer: "customer-a", agent: { extension: "1001", displayName: "Alice" } }),
     }));
+    await page.route("**/agent/readiness", async (route) => {
+      endpointReads++;
+      await route.fulfill({ status: endpointMode === "failed" ? 503 : 200,
+        contentType: "application/json", headers: { "X-Request-Id": requestId },
+        body: JSON.stringify(endpointMode === "malformed" ? { customer: "customer-a", extension: "1002" } : {
+          customer: "customer-a", extension: "1001", checkedAt: new Date(Date.now()).toISOString(),
+          deviceState: "Not in use", contactObserved: true, activeChannels: 0,
+        }) });
+    });
     await page.route("**/agent/device-lease**", async (route) => {
       const request = route.request();
       assert.equal(request.method(), "POST");
@@ -84,6 +95,14 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     assert.equal(await page.locator("#selected-customer").textContent(), "customer-a");
     assert.match(await page.getByRole("region", { name: "Workspace guidance" }).textContent() ?? "",
       /explicitly reserve.*Phone connection remains disabled/);
+    assert.equal(endpointReads, 0, "Endpoint readiness must never be polled or fetched on assignment load");
+    const checkEndpoint = page.getByRole("button", { name: "Check assigned endpoint", exact: true });
+    assert.equal(await checkEndpoint.isVisible(), true);
+    await checkEndpoint.click();
+    await page.locator("#endpoint-status").filter({ hasText: "Extension 1001: Not in use" }).waitFor();
+    assert.match(await page.locator("#endpoint-status").textContent() ?? "",
+      /contact observed: yes.*does not prove browser registration, queue availability or audio health/);
+    assert.equal(endpointReads, 1, "The readiness source runs only after explicit user action");
     assert.equal(calls.length, 0, "Landing must not auto-acquire");
     const reserve = page.getByRole("button", { name: "Reserve this device", exact: true });
     const renew = page.getByRole("button", { name: "Renew reservation", exact: true });
@@ -100,6 +119,9 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     await page.getByRole("button", { name: "Refresh assignment" }).click();
     await page.getByRole("alert").filter({ hasText: "Agent access is not permitted." }).waitFor();
     assert.equal(await page.locator("#assignment dd").count(), 0);
+    assert.equal(await page.locator("#endpoint-status").textContent(), "No endpoint check performed.",
+      "Refreshing or losing an assignment clears its previous endpoint snapshot");
+    assert.equal(await checkEndpoint.isVisible(), false);
     assert.equal(await reserve.isVisible(), false);
     assert.equal(await release.isVisible(), true, "Failed profile refresh preserves known lease for release");
     assert.match(await page.locator("#workflow-guidance").textContent() ?? "", /assignment is not confirmed/);
@@ -112,6 +134,15 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     mode = "valid";
     await page.getByRole("button", { name: "Refresh assignment" }).click();
     await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+    endpointMode = "failed";
+    await checkEndpoint.click();
+    await page.getByRole("alert").filter({ hasText: "Assigned endpoint check unavailable (503)" }).waitFor();
+    endpointMode = "malformed";
+    await checkEndpoint.click();
+    await page.getByRole("alert").filter({ hasText: "Invalid assigned endpoint response" }).waitFor();
+    endpointMode = "valid";
+    await checkEndpoint.click();
+    await page.locator("#endpoint-status").filter({ hasText: "Extension 1001: Not in use" }).waitFor();
     await renew.focus();
     await page.keyboard.press("Enter");
     await page.locator("#device-status").filter({ hasText: "Device reserved until" }).waitFor();
@@ -123,6 +154,7 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     await page.getByRole("alert").filter({ hasText: "Reservation change not confirmed" }).waitFor();
     assert.equal(await release.isVisible(), true, "Uncertain release retains retry handle");
     assert.ok((await page.locator("#device-status").textContent())?.includes(requestId));
+    assert.deepEqual(unexpectedRequests, [], "Readiness must not trigger SIP, call or unrelated network requests");
     mode = "bad-release";
     await release.click();
     await page.getByRole("alert").filter({ hasText: "Invalid release response" }).waitFor();

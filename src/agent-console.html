@@ -23,6 +23,12 @@
     <dl id="assignment" hidden></dl>
     <button id="refresh" hidden>Refresh assignment</button>
   </section>
+  <section id="endpoint-readiness" aria-label="Assigned endpoint readiness" hidden>
+    <h2>Assigned endpoint snapshot</h2>
+    <p>A read-only PBX check for your assigned extension. It does not prove browser registration, queue availability or audio health.</p>
+    <p id="endpoint-status" role="status">No endpoint check performed.</p>
+    <button id="check-endpoint">Check assigned endpoint</button>
+  </section>
   <section id="device-reservation" aria-label="Device reservation" hidden>
     <h2>Device reservation (not a phone connection)</h2>
     <p>Reserve this page's device identity for up to 60 seconds. Renew explicitly; there is no automatic heartbeat. Reloading creates a new device identity.</p>
