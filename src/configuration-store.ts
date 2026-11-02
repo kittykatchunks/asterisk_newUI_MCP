@@ -125,11 +125,17 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
     if (!row) return undefined;
     const value = unpack(row), d = draft(scope, revision);
     configurationObject(value.attribution);
-    if (value.draftSha256 !== d.sha256 || value.kind !== kind || value.revision !== revision ||
+    const receiptKeys = kind === "validated"
+      ? ["kind", "customer", "runtime", "revision", "draftSha256", "createdAt", "attribution", "compiler",
+        "modelSha256", "dialplanSha256", "queuesSha256", "impact", "diff", "runtimeValidated"]
+      : ["kind", "customer", "runtime", "revision", "draftSha256", "createdAt", "attribution",
+        "validationSha256", "sameAuthorPermitted", "sameAuthor", "identityBasis", "runtimeApplyAuthorized",
+        ...(value.inspectionReview === undefined ? [] : ["inspectionReview"])];
+    if (!exactKeys(value, receiptKeys) || !exactKeys(value.attribution, ["operator", "reason"]) ||
+        !positive(row.sequence) || value.draftSha256 !== d.sha256 || value.kind !== kind || value.revision !== revision ||
         value.customer !== scope.customer || value.runtime !== scope.runtime || !timestamp(value.createdAt) ||
         typeof value.attribution.operator !== "string" || typeof value.attribution.reason !== "string") throw new Error("Corrupt configuration receipt binding");
     context({ operator: value.attribution.operator, reason: value.attribution.reason });
-    if (!positive(row.sequence)) throw new Error("Corrupt receipt sequence");
     if (kind === "validated" && (value.compiler !== d.compiled.compiler || value.modelSha256 !== d.compiled.modelSha256 ||
         value.dialplanSha256 !== d.compiled.dialplanSha256 || value.queuesSha256 !== d.compiled.queuesSha256 ||
         value.runtimeValidated !== false || JSON.stringify(value.diff) !== JSON.stringify({

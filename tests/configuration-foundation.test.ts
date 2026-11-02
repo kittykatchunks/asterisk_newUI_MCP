@@ -381,3 +381,30 @@ test("CF-16: operation journal rejects checksummed unknown fields and invalid ev
     db.prepare("UPDATE configuration_operation_events SET sequence=0").run();
   }, /Corrupt configuration operation event/);
 });
+
+test("CF-17: validation and approval receipts reject checksummed unknown and nested attribution fields", async () => {
+  const rejects = async (kind: "validated" | "approved",
+    change: (value: Record<string, unknown>) => void) => {
+    await fixture((store, path) => {
+      approved(store);
+      const db = new DatabaseSync(path);
+      try {
+        const row = db.prepare("SELECT document FROM configuration_receipts WHERE kind=?").get(kind)!;
+        const value = JSON.parse(String(row.document)) as Record<string, unknown>;
+        change(value);
+        const text = JSON.stringify(value);
+        db.prepare("UPDATE configuration_receipts SET document=?,sha256=? WHERE kind=?")
+          .run(text, configurationHash(text), kind);
+      } finally { db.close(); }
+      assert.throws(() => store.read(scope, 1), /Corrupt configuration receipt binding/);
+    });
+  };
+  await rejects("validated", (value) => { value.unexpected = "unbound"; });
+  await rejects("validated", (value) => {
+    (value.attribution as Record<string, unknown>).unexpected = "unbound";
+  });
+  await rejects("approved", (value) => { value.unexpected = "unbound"; });
+  await rejects("approved", (value) => {
+    (value.attribution as Record<string, unknown>).unexpected = "unbound";
+  });
+});
