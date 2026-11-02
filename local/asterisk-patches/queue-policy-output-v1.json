@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "stage": "source-only-cli-output-fixtures-prepared",
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "parentManifest": "queue-policy-v1.json",
+  "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "parentSupplementManifest": "queue-policy-shutdown-v1.json",
+  "parentSupplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+  "parentSupplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+  "basisCompileReport": "../asterisk-build/compile-report-shutdown-v1.json",
+  "basisCompileReportSha256": "dbede4ae6177173656d3a5f31f05e1c3e01d0d888bbfea6d74a165c24ab09514",
+  "basisNativeReport": "../asterisk-build/native-test-report-shutdown-v1.json",
+  "basisNativeReportSha256": "22b54b08151e83975191204e9541c1ca8d6669f669fa89c65dee7ace8fbe2c49",
+  "patch": "queue-policy-output-v1.patch",
+  "patchSha256": "c0fe750cdc8dc3958f01d5b3d74efdcb1cfc6f855259a875be9f0f4bed8e19c0",
+  "changedUpstreamPaths": [
+    "apps/app_queue.c",
+    "tests/test_bounded_queue_policy.c",
+    "tests/test_protected_cli_target.c"
+  ],
+  "basisSourceSha256": {
+    "apps/app_queue.c": "dce907289ac4e640823a911061601ce4e87f09d6fcf1a4ef8d7ce3f16b45d875",
+    "tests/test_bounded_queue_policy.c": "c06d0bb8f5f64be68bd59a6098475e71871464e798130d2dcc194bb6e6284857",
+    "tests/test_protected_cli_target.c": "564c018a66eb4c8674d77ec3d08ede7470a0168013d28ff875883b1ac3a85ab6"
+  },
+  "applicationVerification": {
+    "patchDryRunSucceeded": true,
+    "zeroFuzz": true,
+    "zeroOffset": true,
+    "appliedToTemporarySourceCopy": true,
+    "originalSuccessorSourceModified": false,
+    "postimageSha256": {
+      "apps/app_queue.c": "acd0b9d52b8f230918ef0fc41af3ec85e4bec1aaba75192c538e919c696036dc",
+      "tests/test_bounded_queue_policy.c": "746f83cda39f48a1dcf0c9d9d8541a7d50047900cc8fab9b6c1e9ac1653777cd",
+      "tests/test_protected_cli_target.c": "ff5765ca413260d55a98cea16d6977a56a067d1ee3d62450147e3ecc477c83f6"
+    }
+  },
+  "fixtures": {
+    "testFrameworkOnly": true,
+    "nativeDefinitionsAdded": 0,
+    "protectedLifecycleSchedulesAdded": 1,
+    "observedAndLogicalErrorBackpressureCovered": true,
+    "observedAndLogicalErrorPartialResponseCovered": true,
+    "partialDispatcherOutputCapturedExactly": true,
+    "endToEndQueueSnapshotCommandCovered": false,
+    "protectedUnregisterCovered": false
+  },
+  "compilerApplicationSupport": {
+    "implemented": false,
+    "pending": "compile-profiles.py currently applies only the base candidate and one shutdown supplement; a hash-bound sequential output-supplement application and profile postimage check are required before any compile."
+  },
+  "nativeCompileAuthorized": false,
+  "nativeCompiled": false,
+  "nativeTestsExecuted": false,
+  "asteriskStarted": false,
+  "runtimeApplyAuthorized": false,
+  "gatesBAndCApproved": false
+}

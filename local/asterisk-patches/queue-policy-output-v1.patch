@@ -1,0 +1,342 @@
+diff --git a/apps/app_queue.c b/apps/app_queue.c
+--- a/apps/app_queue.c
++++ b/apps/app_queue.c
+@@ -74,0 +75,2 @@
++#include <errno.h>
++#include <unistd.h>
+@@ -12092,2 +12094,5 @@
+ 	const char *error;
++#ifdef TEST_FRAMEWORK
++	size_t test_write_prefix;
++#endif
+ };
+@@ -12270,2 +12275,14 @@
++#ifdef TEST_FRAMEWORK
++	if (sample->test_write_prefix) {
++		size_t prefix = sample->test_write_prefix;
++
++		sample->test_write_prefix = 0;
++		if (prefix >= (size_t) written
++			|| ast_carefulwrite(fd, output, prefix, 100) < 0) {
++			return CLI_FAILURE;
++		}
++		return CLI_FAILURE;
++	}
++#endif
+ 	return ast_carefulwrite(fd, output, written, 100) < 0 ? CLI_FAILURE : CLI_SUCCESS;
+ }
+@@ -12543,7 +12560,174 @@
+ 	return AST_TEST_PASS;
+ }
+ 
++static int policy_test_output_backpressure(struct ast_test *test)
++{
++	const char *errors[] = { NULL, "busy" };
++	struct policy_snapshot sample = { 0 };
++	int descriptors[2] = { -1, -1 };
++	char buffer[4096] = { 0 };
++	size_t filled = 0, drained = 0;
++	ssize_t bytes;
++	unsigned int i;
++	int failed = 1;
++
++	if (ast_pipe_nonblock(descriptors)) {
++		ast_test_status_update(test, "Could not create backpressure pipe\n");
++		goto done;
++	}
++	for (;;) {
++		bytes = write(descriptors[1], buffer, sizeof(buffer));
++		if (bytes > 0) {
++			filled += bytes;
++			continue;
++		}
++		if (bytes < 0 && errno == EINTR) {
++			continue;
++		}
++		if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
++			break;
++		}
++		ast_test_status_update(test, "Could not fill nonblocking response pipe\n");
++		goto done;
++	}
++	if (!filled) {
++		ast_test_status_update(test, "Backpressure pipe accepted no bytes\n");
++		goto done;
++	}
++	for (i = 0; i < ARRAY_LEN(errors); ++i) {
++		sample.error = errors[i];
++		if (policy_snapshot_respond(descriptors[1], &sample,
++			"\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\"") != CLI_FAILURE) {
++			ast_test_status_update(test, "Full response pipe reported transport success\n");
++			goto done;
++		}
++	}
++	{
++		int writer = descriptors[1];
++
++		descriptors[1] = -1;
++		if (close(writer)) {
++			ast_test_status_update(test, "Could not close backpressure writer\n");
++			goto done;
++		}
++	}
++	for (;;) {
++		bytes = read(descriptors[0], buffer, sizeof(buffer));
++		if (bytes > 0) {
++			drained += bytes;
++			continue;
++		}
++		if (bytes < 0 && errno == EINTR) {
++			continue;
++		}
++		break;
++	}
++	if (bytes < 0 || drained != filled) {
++		ast_test_status_update(test, "Backpressure pipe contents changed during failure (%zu/%zu)\n",
++			drained, filled);
++		goto done;
++	}
++	{
++		int reader = descriptors[0];
++
++		descriptors[0] = -1;
++		if (close(reader)) {
++			ast_test_status_update(test, "Could not close backpressure reader\n");
++			goto done;
++		}
++	}
++	failed = 0;
++done:
++	if (descriptors[1] >= 0) {
++		if (close(descriptors[1])) {
++			ast_test_status_update(test, "Could not close backpressure writer during cleanup\n");
++			failed = 1;
++		}
++	}
++	if (descriptors[0] >= 0) {
++		if (close(descriptors[0])) {
++			ast_test_status_update(test, "Could not close backpressure reader during cleanup\n");
++			failed = 1;
++		}
++	}
++	return failed;
++}
++
++static int policy_test_partial_response(struct ast_test *test, struct policy_snapshot *sample)
++{
++	const char expected[] = "{\"schema";
++	char output[64];
++	int descriptors[2] = { -1, -1 };
++	size_t used = 0;
++	ssize_t bytes = 0;
++	char *response;
++	int overflow = 0, failed = 1;
++
++	if (ast_pipe_nonblock(descriptors)) {
++		ast_test_status_update(test, "Could not create partial response pipe\n");
++		goto done;
++	}
++	sample->test_write_prefix = sizeof(expected) - 1;
++	response = policy_snapshot_respond(descriptors[1], sample,
++		"\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\"");
++	sample->test_write_prefix = 0;
++	{
++		int writer = descriptors[1];
++
++		descriptors[1] = -1;
++		if (close(writer)) {
++			ast_test_status_update(test, "Could not close partial response writer\n");
++			goto done;
++		}
++	}
++	for (;;) {
++		bytes = read(descriptors[0], output + used, sizeof(output) - used);
++		if (bytes > 0) {
++			if ((size_t) bytes > sizeof(output) - used) {
++				overflow = 1;
++				break;
++			}
++			used += bytes;
++			continue;
++		}
++		if (bytes < 0 && errno == EINTR) {
++			continue;
++		}
++		break;
++	}
++	if (response != CLI_FAILURE || bytes < 0 || overflow || used != sizeof(expected) - 1
++		|| memcmp(output, expected, sizeof(expected) - 1)) {
++		ast_test_status_update(test, "Partial response did not preserve exactly the injected prefix\n");
++		goto done;
++	}
++	{
++		int reader = descriptors[0];
++
++		descriptors[0] = -1;
++		if (close(reader)) {
++			ast_test_status_update(test, "Could not close partial response reader\n");
++			goto done;
++		}
++	}
++	failed = 0;
++done:
++	sample->test_write_prefix = 0;
++	if (descriptors[1] >= 0) {
++		if (close(descriptors[1])) {
++			ast_test_status_update(test, "Could not close partial response writer during cleanup\n");
++			failed = 1;
++		}
++	}
++	if (descriptors[0] >= 0) {
++		if (close(descriptors[0])) {
++			ast_test_status_update(test, "Could not close partial response reader during cleanup\n");
++			failed = 1;
++		}
++	}
++	return failed;
++}
++
+ AST_TEST_DEFINE(policy_snapshot_output_failure)
+ {
+ 	const char *errors[] = { NULL, "busy" };
+ 	struct policy_snapshot sample = { 0 };
+@@ -12554,17 +12738,23 @@
+ 		info->name = "policy_snapshot_output_failure";
+ 		info->category = "/apps/app_queue/policy_snapshot/";
+-		info->summary = "Actual output failure cannot return CLI transport success";
+-		info->description = "Invalid descriptor denies success for observed and error envelopes.";
++		info->summary = "Invalid, blocked, and partial output failures cannot report transport success";
++		info->description = "Observed and error envelopes fail on invalid/full pipes; partial output retains only its exact prefix.";
+ 		return AST_TEST_NOT_RUN;
+ 	case TEST_EXECUTE:
+ 		break;
+ 	}
+ 	for (i = 0; i < ARRAY_LEN(errors); ++i) {
+ 		sample.error = errors[i];
+ 		if (policy_snapshot_respond(-1, &sample, "\"cp-aaaaaaaaaaaaaaaaaaaaaaaa\"") != CLI_FAILURE) {
+ 			ast_test_status_update(test, "Invalid output descriptor reported transport success\n");
+ 			return AST_TEST_FAIL;
+ 		}
++		if (policy_test_partial_response(test, &sample)) {
++			return AST_TEST_FAIL;
++		}
+ 	}
++	if (policy_test_output_backpressure(test)) {
++		return AST_TEST_FAIL;
++	}
+ 	return AST_TEST_PASS;
+ }
+diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
+--- a/tests/test_bounded_queue_policy.c
++++ b/tests/test_bounded_queue_policy.c
+@@ -11,6 +11,8 @@
+ #include "asterisk.h"
+ 
++#include <errno.h>
+ #include <fcntl.h>
+ #include <limits.h>
++#include <unistd.h>
+ 
+ #include "asterisk/astobj2.h"
+@@ -1184,8 +1186,15 @@
+ 	struct lifecycle_target_worker fixture = { .fd = -1, .generate = generate, .word = outcome };
+ 	char command[128];
++	const char expected_output[] =
++		"{\"schemaCommand 'test bounded-policy lifecycle-target partial-output' failed.\n";
++	char output[128];
++	int output_pipe[2] = { -1, -1 };
++	size_t output_used = 0;
++	ssize_t output_bytes = 0;
+ 	pthread_t worker;
+ 	enum ast_module_unload_mode mode;
+ 	int armed = 0, started = 0, loaded = 0, failed = 1;
+ 	int restricted = !strcmp(outcome, "denied");
++	int capture_output = !strcmp(outcome, "partial-output");
+ 
+ 	fixture.restricted = restricted;
+@@ -1195,6 +1204,13 @@
+ 		return 1;
+ 	}
+-	fixture.fd = open("/dev/null", O_WRONLY);
++	if (capture_output) {
++		if (ast_pipe_nonblock(output_pipe)) {
++			goto done;
++		}
++		fixture.fd = output_pipe[1];
++	} else {
++		fixture.fd = open("/dev/null", O_WRONLY);
++	}
+ 	if (fixture.fd < 0 || ast_load_resource(target) != AST_MODULE_LOAD_SUCCESS) {
+ 		goto done;
+ 	}
+@@ -1294,3 +1310,40 @@
+ 	if (fixture.fd >= 0) {
+-		close(fixture.fd);
++		int output_fd = fixture.fd;
++
++		fixture.fd = -1;
++		if (output_pipe[1] == output_fd) {
++			output_pipe[1] = -1;
++		}
++		if (close(output_fd)) {
++			failed = 1;
++		}
++	}
++	if (output_pipe[1] >= 0 && close(output_pipe[1])) {
++		failed = 1;
++	}
++	output_pipe[1] = -1;
++	if (output_pipe[0] >= 0) {
++		for (;;) {
++			output_bytes = read(output_pipe[0], output + output_used, sizeof(output) - output_used);
++			if (output_bytes > 0) {
++				if ((size_t) output_bytes > sizeof(output) - output_used) {
++					failed = 1;
++					break;
++				}
++				output_used += output_bytes;
++				continue;
++			}
++			if (output_bytes < 0 && errno == EINTR) {
++				continue;
++			}
++			break;
++		}
++		if (output_bytes < 0 || output_used != sizeof(expected_output) - 1
++			|| memcmp(output, expected_output, sizeof(expected_output) - 1)) {
++			failed = 1;
++		}
++		if (close(output_pipe[0])) {
++			failed = 1;
++		}
++		output_pipe[0] = -1;
+ 	}
+@@ -1311,1 +1364,1 @@
+-	const char *outcomes[] = { "success", "failure", "usage" };
++	const char *outcomes[] = { "success", "failure", "usage", "partial-output" };
+@@ -1319,1 +1372,1 @@
+-		info->description = "Twelve core-controlled schedules; controller remains loaded when target is removed.";
++		info->description = "Twelve core-controlled schedules plus one partial-output schedule; controller remains loaded when target is removed.";
+@@ -1325,4 +1378,8 @@
+ 		for (j = 0; j < ARRAY_LEN(outcomes); ++j) {
++			if (!strcmp(outcomes[j], "partial-output")
++				&& pauses[i] != AST_CLI_LEASE_TEST_HANDLER_RETURNED) {
++				continue;
++			}
+ 			if (lifecycle_target_case(test, pauses[i], outcomes[j], 0)) {
+ 				return AST_TEST_FAIL;
+ 			}
+diff --git a/tests/test_protected_cli_target.c b/tests/test_protected_cli_target.c
+--- a/tests/test_protected_cli_target.c
++++ b/tests/test_protected_cli_target.c
+@@ -37,6 +37,10 @@
+ 	if (!strcmp(args->argv[3], "failure")) {
+ 		return CLI_FAILURE;
+ 	}
++	if (!strcmp(args->argv[3], "partial-output")) {
++		ast_cli(args->fd, "{\"schema");
++		return CLI_FAILURE;
++	}
+ 	if (!strcmp(args->argv[3], "usage")) {
+ 		return CLI_SHOWUSAGE;
+ 	}

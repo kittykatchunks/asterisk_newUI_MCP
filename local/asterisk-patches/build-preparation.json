@@ -718,6 +718,30 @@
     "gateAAcceptanceComplete": false,
     "gateCAuthorized": false
   },
+  "cliOutputFixtureSupplement": {
+    "stage": "source-only-cli-output-fixtures-prepared",
+    "authorization": "User selected the test-only source fixture implementation; compilation and native execution were excluded.",
+    "manifest": "../asterisk-patches/queue-policy-output-v1.json",
+    "patch": "../asterisk-patches/queue-policy-output-v1.patch",
+    "patchSha256": "c0fe750cdc8dc3958f01d5b3d74efdcb1cfc6f855259a875be9f0f4bed8e19c0",
+    "basisCompileReportSha256": "dbede4ae6177173656d3a5f31f05e1c3e01d0d888bbfea6d74a165c24ab09514",
+    "basisNativeReportSha256": "22b54b08151e83975191204e9541c1ca8d6669f669fa89c65dee7ace8fbe2c49",
+    "patchDryRunSucceeded": true,
+    "temporaryCopyApplicationVerified": true,
+    "zeroFuzz": true,
+    "zeroOffset": true,
+    "originalSuccessorSourceModified": false,
+    "nativeDefinitionsAdded": 0,
+    "protectedLifecycleSchedulesAdded": 1,
+    "compilerApplicationSupportImplemented": false,
+    "nativeCompileAuthorized": false,
+    "nativeCompiled": false,
+    "nativeTestsExecuted": false,
+    "asteriskStarted": false,
+    "runtimeApplyAuthorized": false,
+    "gateAAcceptanceComplete": false,
+    "gateCAuthorized": false
+  },
   "nativeExecution": {
     "authorization": "User explicitly approved disposable startup and all 30 serialized native definitions; no Gate C or runtime publication.",
     "runner": "../asterisk-build/run-native-tests.py",
@@ -953,6 +977,7 @@
   },
   "unresolvedPrerequisites": [
     "Complete regression, shutdown/output/recursive lifecycle/AO2 instrumentation obligations and Gate A acceptance evidence; the current 30-definition runtime batch passes but does not close broader acceptance gaps.",
+    "Add and offline-validate the hash-bound third-supplement application path before any compile of the CLI output fixtures.",
     "Retain production configuration acceptance separately from successful private 41-module startup; no endpoints, transports, calls or media were exercised.",
     "Prepare matching release runtime packaging with full shared-library closure, license/copyright/source obligations and separate approval before any export or redistribution.",
     "Keep Gate C closed until independently approved; no stock/custom ABI mixing or runtime publication authority is enabled."

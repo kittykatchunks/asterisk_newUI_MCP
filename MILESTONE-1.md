@@ -2875,7 +2875,13 @@ evidence. No binaries were exported, no runtime image was published, and Gate C
 remains closed. Any additional disposable Asterisk startup or native suite needs
 separate explicit approval; the previous approvals do not extend to it.
 
-The next offline Gate A design is [CLI output failure and lease-through-output
-cleanup](./PROJECT-PLAN.md#gate-a-next-offline-design-cli-output-failure-and-lease-through-output-cleanup-design-only).
-It is a test-fixture design only; source changes and native execution remain
-separately scoped and authorized.
+The next source-only Gate A increment is the [CLI output failure and
+lease-through-output fixture supplement](./local/asterisk-patches/queue-policy-output-v1.json),
+with its [additive patch](./local/asterisk-patches/queue-policy-output-v1.patch).
+[Implementation notes](./PROJECT-PLAN.md#gate-a-source-only-cli-output-fixtures-prepared-uncompiled-and-unexecuted)
+cover the fixture scope and remaining compile boundary.
+Zero-fuzz/zero-offset application to temporary copies of the pinned successor
+source succeeded and the postimage hashes are recorded. The original source
+tree was not changed; nothing was compiled or executed. Before any future
+compile, the output supplement still needs a hash-bound third-supplement path
+in the profile compiler and separate native-run approval.
