@@ -3076,7 +3076,8 @@ headless browser. mDNS candidate hiding is disabled there because the Docker/WSL
 proof otherwise stalled media negotiation. This does not change the user's normal
 browser, but it leaves default-browser ICE, TURN, real microphone permissions,
 autoplay interaction, and remote-network calling as separate required tests.
-No actual microphone is captured. A real agent console is not implemented.
+No actual microphone is captured. The authenticated agent workspace is not
+connected to this WebRTC proof; browser calling remains disabled.
 
 The browser HTTPS server and test browser are closed, and both proof PBXs are
 stopped in cleanup, including on test failure. Docker Desktop and unrelated
@@ -4119,7 +4120,8 @@ directly from the console through Keycloak PKCE. It verifies the fixed console
 return, Alice's assignment, Bob's explicit access denial, manual refresh and CSRF
 sign-out with durable logout audits and rejected session-cookie replay. Console
 landing requests only the scoped profile, without browser bearer tokens or
-engineering data. This is an authenticated assignment screen, not yet a phone console.
+engineering data. This is an authenticated agent workspace, not a phone or
+calling console.
 
 #### Bounded agent workspace workflow
 
@@ -4136,6 +4138,34 @@ Tests cover customer context, denied/missing/unavailable assignment states,
 keyboard reservation actions, retained lease recovery, no unexpected API/WebSocket
 traffic and no microphone request. This is not an accessibility certification or
 live phone readiness. Existing session, profile and lease APIs are unchanged.
+
+#### Manual assigned-endpoint snapshot
+
+The workspace provides a separate **Check assigned endpoint** action. It is
+available only after the current agent's own assignment is loaded and makes one
+manual GET to `/api/customers/{customer}/agent/readiness`; landing, assignment
+refresh and session checks never poll PBX status. The route requires the current
+customer-bound application session and direct `agent:access` membership, verifies
+the provisioned identity/extension, queries the injected endpoint source and
+returns only the matching extension's device state, observed-contact flag,
+active-channel count and check time. Other endpoint identifiers and details are
+not returned. Missing endpoints appear as **Not observed**, not a fabricated
+ready state. The result is no-store and audited before response.
+
+The UI validates response scope/shape, clears snapshots when assignment/session
+state changes, ignores late responses after refresh/logout and displays request
+references for errors. “Contact observed” is not proof of browser registration,
+queue availability or working audio. This surface does not issue SIP credentials,
+register a device, request microphone access, make calls or poll automatically.
+Validate the focused work with:
+
+```powershell
+node --test .\tests\agent-console.test.ts .\tests\agent-readiness-http.test.ts .\tests\agent-profile.test.ts .\tests\agent-device-http.test.ts
+npm run typecheck
+```
+
+These are source/API/browser fixtures only; they do not establish AMI or live PBX
+readiness.
 
 #### Backend device-lease foundation (subsequently connected to the console)
 

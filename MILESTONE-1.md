@@ -12,7 +12,9 @@ customer with CEL/audio verification. None completes the browser-call acceptance
 criteria or production isolation/capacity tests. A subsequent SIP.js/headless
 Chromium test also verifies WSS registration and synthetic bidirectional encrypted
 media with decoded audio energy. Its test-key trust and mDNS/ICE constraints are
-documented in the README; the actual agent console remains unimplemented.
+documented in the README. The authenticated agent workspace now supports own
+assignment, explicit reservation and a manual assigned-endpoint snapshot; it is
+not connected to the WebRTC proof and still has no browser calling capability.
 
 The initial engineering proof also captures local UDP SIP per customer, correlates
 an accepted call to CEL through an explicit dialplan event, and exports a redacted
@@ -579,10 +581,9 @@ fabricated AI content.
 
 Scope selected after freezing the synthetic REFER investigation: define a useful
 agent workspace around the existing application session, own assignment and device
-reservation APIs. This is a workflow specification, not evidence that the new UI
-has been implemented or that Milestone 1 is complete. The acceptance checklist
-below is the finite exit for the next UI increment; the broader M1 criteria remain
-separate.
+reservation APIs. The acceptance checklist below records the bounded UI increment;
+its completion does not complete Milestone 1 or enable calling. The broader M1
+criteria remain separate.
 
 #### Three screen responsibilities
 
@@ -2901,5 +2902,7 @@ it does not expose the customer's other endpoints. The check is manual, audited,
 session-bound, membership-authorised, and cleared when assignment/session state
 is refreshed or lost. Browser registration, queue availability, audio health,
 SIP credentials, microphone access, calls, and automatic polling remain
-disabled or unverified. Focused API/browser tests and typecheck passed; this
-source-only increment did not run Asterisk or change PBX/runtime configuration.
+disabled or unverified. Browser race coverage confirms that a late snapshot cannot
+restore data after assignment refresh. Focused API/browser tests and typecheck
+passed; this source-only increment did not run Asterisk or change PBX/runtime
+configuration.

@@ -27,6 +27,10 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
   let mode = "valid";
   let endpointMode = "valid";
   let endpointReads = 0;
+  let holdEndpoint = false;
+  let endpointRequestEntered: (() => void) | undefined;
+  let releaseEndpoint: (() => void) | undefined;
+  let endpointResponseFinished: (() => void) | undefined;
   let finishHeld: (() => void) | undefined;
   let profileAllowed = true;
   let releaseHeld: (() => void) | undefined;
@@ -54,12 +58,19 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     }));
     await page.route("**/agent/readiness", async (route) => {
       endpointReads++;
-      await route.fulfill({ status: endpointMode === "failed" ? 503 : 200,
-        contentType: "application/json", headers: { "X-Request-Id": requestId },
-        body: JSON.stringify(endpointMode === "malformed" ? { customer: "customer-a", extension: "1002" } : {
-          customer: "customer-a", extension: "1001", checkedAt: new Date(Date.now()).toISOString(),
-          deviceState: "Not in use", contactObserved: true, activeChannels: 0,
-        }) });
+      if (holdEndpoint) {
+        holdEndpoint = false;
+        endpointRequestEntered?.();
+        await new Promise<void>((resolve) => { releaseEndpoint = resolve; });
+      }
+      try {
+        await route.fulfill({ status: endpointMode === "failed" ? 503 : 200,
+          contentType: "application/json", headers: { "X-Request-Id": requestId },
+          body: JSON.stringify(endpointMode === "malformed" ? { customer: "customer-a", extension: "1002" } : {
+            customer: "customer-a", extension: "1001", checkedAt: new Date(Date.now()).toISOString(),
+            deviceState: "Not in use", contactObserved: true, activeChannels: 0,
+          }) });
+      } finally { endpointResponseFinished?.(); }
     });
     await page.route("**/agent/device-lease**", async (route) => {
       const request = route.request();
@@ -103,6 +114,19 @@ test("console reservations are explicit, session-bound, expiry-aware and never r
     assert.match(await page.locator("#endpoint-status").textContent() ?? "",
       /contact observed: yes.*does not prove browser registration, queue availability or audio health/);
     assert.equal(endpointReads, 1, "The readiness source runs only after explicit user action");
+    holdEndpoint = true;
+    const endpointEntered = new Promise<void>((resolve) => { endpointRequestEntered = resolve; });
+    const endpointFinished = new Promise<void>((resolve) => { endpointResponseFinished = resolve; });
+    await checkEndpoint.click();
+    await endpointEntered;
+    await page.getByRole("button", { name: "Refresh assignment" }).click();
+    await page.locator("#assignment-status").filter({ hasText: "Assignment loaded" }).waitFor();
+    assert.equal(await page.locator("#endpoint-status").textContent(), "No endpoint check performed.",
+      "Refreshing the assignment clears an in-flight endpoint snapshot");
+    releaseEndpoint?.();
+    await endpointFinished;
+    assert.equal(await page.locator("#endpoint-status").textContent(), "No endpoint check performed.",
+      "A late endpoint response cannot restore data after assignment refresh");
     assert.equal(calls.length, 0, "Landing must not auto-acquire");
     const reserve = page.getByRole("button", { name: "Reserve this device", exact: true });
     const renew = page.getByRole("button", { name: "Renew reservation", exact: true });
