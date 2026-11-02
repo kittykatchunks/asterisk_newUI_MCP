@@ -3400,30 +3400,37 @@ The existing profile compiler now has an opt-in `--shutdown-supplement-manifest`
 
 Offline binding tests cover a valid supplement, modified patch bytes, and a mismatched parent. Build attempt 5 failed before configure because the initial supplement diff did not match the pinned parent-patched source; its log is retained. After regenerating the diff against the exact source anchors, attempt 6 compiled both profiles successfully. The independent verification is recorded in [compile-report-shutdown-v1.json](./local/asterisk-build/compile-report-shutdown-v1.json): 46 instrumented and 44 release outputs had matching SHA-256 and ELF64 x86-64 checks; supplement source postimages matched across profiles; and `ast_test_register` was defined only in the instrumented core. The report binds the parent patch, supplement patch and manifest hashes. The separately approved two-schedule execution is recorded in the reports above. Compiled binaries were not exported, the dedicated distribution was stopped after evidence collection, and broader Gate A acceptance remains open.
 
+##### Gate A shutdown successor native regression: thirty of thirty pass; acceptance remains open
+
+The user separately approved the existing 30-definition instrumented native inventory against the compiled shutdown successor. Build attempt 6 and the supplement hashes are bound by the [native report](./local/asterisk-build/native-test-report-shutdown-v1.json) and [aggregate XML](./local/asterisk-build/native-test-results-shutdown-v1.xml): **30 passed, zero failed**. The report SHA-256 is `22b54b08151e83975191204e9541c1ca8d6669f669fa89c65dee7ace8fbe2c49`; the aggregate XML SHA-256 is `82d015df96276be85f4c649501955beb9123a612eaf754edfea22edf590726c7`.
+
+Each definition ran in a fresh instrumented Asterisk process under the dedicated unprivileged WSL service with autoload disabled, only `app_queue.so` and `test_bounded_queue_policy.so` required at startup, and the protected target absent before fixture admission. The service used a private network namespace, 400% CPU quota, 4 GiB memory cap, zero swap, 256-task limit, `NoNewPrivileges`, disabled core dumps, a 1,800-second batch watchdog and 120-second per-test command timeout. An initial runner-path error failed before Asterisk or an attempt directory was created; the corrected run passed in 31.402 seconds. Independent checks verified the exact inventory, every XML hash and result, module isolation, bounded logs, cleanup, and absence of owned Asterisk processes. No release-profile startup, SIP/RTP traffic, existing PBX, runtime image, binary export or Gate C activity occurred. This regression does not close Gate A.
+
 **Other acceptance requirements remain open:**
 
 | Requirements | Remaining work not discharged by these lifecycle additions |
 |---|---|
-| AT-01 through AT-07 | Rejection-before-lock/work accounting; zero-bucket inconsistency; explicit 63-live and mixed retained/live collision cases; exact physical-node/ref/allocation/mutation/cleanup instrumentation; retirement/unlink and debug/ref/lock profile proof. Existing real-container fixtures remain unexecuted. |
+| AT-01 through AT-07 | The 30-definition instrumented regression passed, including explicit 63-live and mixed retained/live cases. Internal allocator/ref/mutation/lock work accounting, retirement concurrency, and debug/ref/lock profile proof remain open. |
 | AT-08, QO-01 through QO-05 | Exact 17-acquisition and bounded visitor-work accounting; no backend/device/file/DB effects; full policy alias/unknown-bit/timer cases; total inventory/expected-target comparisons; actual handler/adapter and loaded-versus-disk/isolation evidence. |
 | QO-06 | Strict 8 KiB host parser and new custom capability/binding, malformed/truncated/extra-stdout/unknown-field/error-exit negatives and stock regressions. None is enabled by the native source package. |
-| AT-10, QO-07 | Immutable build/dependency/archive closure, licenses, configure/menuselect/module manifest, full compatible runtime, native tests, affected upstream regressions and profile/image/startup provenance. |
+| AT-10, QO-07 | Immutable build/dependency/archive closure, licenses, configure/menuselect/module manifest, full compatible runtime, affected upstream regressions and complete profile/image/startup provenance. The 30-definition instrumented regression does not discharge these broader requirements. |
 | QO-08 | Separately approved Gate C unique two-customer custom-runtime proof; no substitution with private fixtures or prior stock-runtime proofs. |
 | QO-09, QO-10 | Outage/restart/concurrent-read/object-change/receipt-write uncertainty preservation, stock/custom regressions and owned-resource cleanup evidence. No executor or verified publication pointer is added. |
 
-**Next Gate A action:** close the remaining lifecycle, regression, instrumentation,
-and production-profile obligations. The approved shutdown-fixture scope does
-not authorize a broader native suite or other runtime scenarios.
+**Gate A remains open:** the 30-definition shutdown-successor regression adds
+native evidence but does not close the remaining lifecycle, regression,
+instrumentation, or production-profile obligations. Any other runtime scenario
+still requires its own explicit approval.
 
-**Next bounded source priority:** extend the existing AO2 fixture matrix for
-the explicit 63-live-object and mixed retained/live physical-node boundaries,
-with exact expected visitor/destructor counts. Reuse actual owner containers
-and existing fixtures; do not add caller-side private-layout mutation or treat
-these assertions as runtime work-accounting evidence. This is still within
-the approved source-only boundary. After that, remaining shutdown, output and
-ref/work instrumentation require a concrete safe fixture design; obtain a
-scope decision before changing any source path or production behavior beyond
-the existing approval. More definitions alone cannot clear A's verified exit.
+**Completed bounded source priority:** the AO2 fixture matrix now covers the
+explicit 63-live-object and mixed retained/live physical-node boundaries, exact
+visitor/destructor counts, abort/recovery and bounded callback-work assertions.
+The 30-definition inventory passed against both the parent candidate and the
+shutdown successor. These results do not prove internal ref/allocator/lock
+work, retirement concurrency or debug-profile behavior. Remaining shutdown,
+output and ref/work instrumentation need a concrete safe fixture design and a
+scope decision before changing source or production behavior. More definitions
+alone cannot clear A's verified exit.
 
 **Build handoff remains a separate decision, not the next automatic command:**
 

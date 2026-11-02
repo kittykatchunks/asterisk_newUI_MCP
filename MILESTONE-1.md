@@ -2864,7 +2864,11 @@ passed the two approved shutdown schedules, and all ten Unix-socket supervisor
 tests passed. The [build-preparation record](./local/asterisk-patches/build-preparation.json)
 and [Gate A shutdown evidence](./PROJECT-PLAN.md#gate-a-shutdown-supervisor-scaffold-two-profile-compile-and-bounded-shutdown-fixtures-passed-broader-acceptance-remains-open)
 detail those separate scopes. The shutdown successor's broader native suite was
-not run; its approval covered compilation and the two schedules only.
+also separately approved: the same 30-definition instrumented regression passed
+against the successor. See the [successor report](./local/asterisk-build/native-test-report-shutdown-v1.json)
+and [aggregate XML](./local/asterisk-build/native-test-results-shutdown-v1.xml).
+The first launch failed on an incorrect runner path before Asterisk started;
+the corrected attempt passed 30/30, with hashes and cleanup independently checked.
 
 These are private fixture results, not production readiness or deployment
 evidence. No binaries were exported, no runtime image was published, and Gate C

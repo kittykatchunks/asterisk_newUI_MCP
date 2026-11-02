@@ -543,8 +543,8 @@
     ]
   },
   "shutdownSuccessorBuild": {
-    "stage": "two-profile-compile-complete-native-execution-pending",
-    "authorization": "User approved applying the successor patch and compiling both profiles only; Asterisk startup and native tests were excluded.",
+    "stage": "two-profile-compile-complete-and-30-native-tests-passed",
+    "authorization": "Initial approval covered applying the successor patch and compiling both profiles only. Separate later approvals for disposable shutdown execution and the 30-definition instrumented regression are recorded under shutdownSuccessorExecution.",
     "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
     "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
     "supplementManifest": "../asterisk-patches/queue-policy-shutdown-v1.json",
@@ -577,7 +577,7 @@
         "result": "both-profiles-compiled-and-output-hashes-verified"
       }
     ],
-    "nativeTestsExecuted": false,
+    "nativeTestsExecuted": true,
     "asteriskStarted": false,
     "runtimeApplyAuthorized": false,
     "runtimeImageProduced": false,
@@ -585,7 +585,7 @@
     "ownedDistributionStoppedAfterBuild": true
   },
   "shutdownSuccessorExecution": {
-    "stage": "both-supervised-shutdown-schedules-passed",
+    "stage": "both-supervised-shutdown-schedules-and-30-native-tests-passed",
     "authorization": "User separately approved disposable instrumented Asterisk startup, the two shutdown schedules, Unix-socket integration checks, and owned-process cleanup only.",
     "compileReportSha256": "dbede4ae6177173656d3a5f31f05e1c3e01d0d888bbfea6d74a165c24ab09514",
     "profileStarted": "instrumented",
@@ -650,7 +650,64 @@
     ],
     "asteriskStarted": true,
     "shutdownFixturesExecuted": 2,
-    "broaderNativeSuiteExecuted": false,
+    "broaderNativeSuiteExecuted": true,
+    "nativeRegression": {
+      "authorization": "User separately approved the 30-definition instrumented native regression against the shutdown successor; no release-profile startup, Gate C, or runtime publication.",
+      "runner": "../asterisk-build/run-native-tests.py",
+      "buildAttempt": 6,
+      "runnerAttempt": 4,
+      "runnerAttemptIdHistory": [
+        {
+          "attempt": 3,
+          "result": "runner-path-preflight-failed-before-Asterisk",
+          "cause": "The first systemd invocation referenced a nonexistent runner path; corrected to the verified source-staging runner before any test process started.",
+          "asteriskStarted": false,
+          "attemptDirectoryCreated": false,
+          "allOwnedProcessesStopped": true
+        },
+        {
+          "attempt": 4,
+          "result": "30-of-30-passed"
+        }
+      ],
+      "report": "../asterisk-build/native-test-report-shutdown-v1.json",
+      "reportSha256": "22b54b08151e83975191204e9541c1ca8d6669f669fa89c65dee7ace8fbe2c49",
+      "aggregateXml": "../asterisk-build/native-test-results-shutdown-v1.xml",
+      "aggregateXmlSha256": "82d015df96276be85f4c649501955beb9123a612eaf754edfea22edf590726c7",
+      "compileReportSha256": "dbede4ae6177173656d3a5f31f05e1c3e01d0d888bbfea6d74a165c24ab09514",
+      "supplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+      "supplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+      "passed": 30,
+      "failed": 0,
+      "freshProcessPerDefinition": true,
+      "autoloadEnabled": false,
+      "startupModules": [
+        "app_queue.so",
+        "test_bounded_queue_policy.so"
+      ],
+      "targetExcludedFromStartupVerified": true,
+      "privateNetwork": true,
+      "noNewPrivileges": true,
+      "coreDumpLimitBytes": 0,
+      "cpuQuota": "400%",
+      "memoryMaxBytes": 4294967296,
+      "memorySwapMaxBytes": 0,
+      "tasksMax": 256,
+      "testCommandWatchdogSeconds": 120,
+      "batchWatchdogSeconds": 1800,
+      "serviceUnit": "asterisk-native-regression-attempt-4.service",
+      "serviceResult": "success",
+      "serviceRuntimeSeconds": 31.402,
+      "serviceCpuSeconds": 1.584,
+      "consoleLogBytesTotal": 76427,
+      "maximumConsoleLogBytesPerProcess": 2097152,
+      "allXmlResultsIndependentlyVerified": true,
+      "noOwnedAsteriskProcessesSocketsOrPidFilesRemain": true,
+      "ownedDistributionStopped": true,
+      "runtimeImageProduced": false,
+      "gateAAcceptanceComplete": false,
+      "gateCAuthorized": false
+    },
     "sipOrRtpTraffic": false,
     "existingPbxOperated": false,
     "minimalConfigStartupWarningsRetained": true,
