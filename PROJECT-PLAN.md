@@ -3505,15 +3505,22 @@ fail closed in that test build. Visitor execution is excluded from the walk's
 internal counters. The release-profile struct layout and behavior are not
 changed by this source patch.
 
-The patch is pinned to the passing output-v1 compile and native reports,
-applied with zero fuzz/offset to a temporary copy, and its per-file preimages
-and postimages are hash-bound. The profile compiler and offline evidence
-consumers now validate and preserve this fourth layer. This remains source
-preparation only: the new source has **not** been compiled or executed, and no
-new Gate B execution was authorized. Non-AO2 allocators and I/O are not
-instrumented; retirement concurrency, profile proof and broader AT/QO
-acceptance remain open. No Asterisk startup, runtime apply, Gate C or
-production/deployment action occurred.
+The source preparation is pinned to the passing output-v1 compile and native
+reports, applied with zero fuzz/offset to a temporary copy, and its per-file
+preimages and postimages are hash-bound. The profile compiler and offline
+evidence consumers validate and preserve this fourth layer. After separate
+Gate B authorization, compile attempt 8 built both profiles (46 instrumented
+and 44 release outputs), and native-test attempt 6 passed all 30 definitions
+in fresh processes. The [compile report](./local/asterisk-build/compile-report-accounting-v1.json),
+[native report](./local/asterisk-build/native-test-report-accounting-v1.json),
+[aggregate XML](./local/asterisk-build/native-test-results-accounting-v1.xml),
+bounded logs, and resource/cleanup facts are hash-bound in the
+[build-preparation record](./local/asterisk-patches/build-preparation.json).
+The historical source-preparation flags remain false; actual execution is
+recorded separately. Non-AO2 allocators and I/O are not instrumented;
+retirement concurrency, complete no-I/O proof, and broader AT/QO acceptance
+remain open. No release-profile startup, runtime image, binary export, runtime
+apply, Gate C proof or production/deployment action occurred.
 
 ##### Gate A mixed AO2 nodes: twenty-nine definitions, source checkpoint
 

@@ -2916,16 +2916,19 @@ performed, or PBX was operated. The builder is stopped; Gate A acceptance and
 Gate C remain open.
 
 The [AO2 work-accounting supplement](./local/asterisk-patches/queue-policy-accounting-v1.json)
-is now prepared as a test-framework-only fourth source layer. It adds
-hash-bound counters for AO2 ref/allocation/link/unlink operations, lock
-attempt/acquire/unlock/success values counted in the actual AO2 mutex wrappers,
-bucket reads and physical node reads, and is
-wired into future profile application, downstream report validation and
-runtime-bundle records. Offline patch application and lineage checks pass; this
-supplement has not been compiled or run. It does not instrument non-AO2
-allocators or I/O, and does not close Gate A. No new Gate B execution, Gate C
-proof, runtime apply or production/deployment action is authorized by this
-source-only preparation.
+is a test-framework-only fourth source layer. It adds hash-bound counters for
+AO2 ref/allocation/link/unlink operations, actual lock-wrapper
+attempt/acquire/unlock/success values, bucket reads and physical node reads.
+Following separate Gate B authorization, compile attempt 8 built both profiles
+(46 instrumented and 44 release outputs), then native-test attempt 6 passed all
+30 definitions in fresh processes. See the [compile report](./local/asterisk-build/compile-report-accounting-v1.json),
+[native report](./local/asterisk-build/native-test-report-accounting-v1.json),
+[aggregate XML](./local/asterisk-build/native-test-results-accounting-v1.xml),
+bounded logs and [hash-bound execution record](./local/asterisk-patches/build-preparation.json).
+The source-preparation manifest's historical false execution flags remain
+unchanged. Non-AO2 allocation and I/O are not instrumented, and these results
+do not close Gate A. No release-profile startup, runtime image/export, runtime
+apply, PBX operation, Gate C proof or production/deployment action occurred.
 
 The agent console now has an explicit, authenticated, read-only snapshot for
 the signed-in agent's assigned PBX extension. It returns only that endpoint's

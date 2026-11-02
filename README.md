@@ -515,12 +515,17 @@ bind the output supplement to the base candidate and shutdown successor.
 No release-profile startup, image export, runtime apply or PBX operation
 occurred; Gate A acceptance and Gate C remain open.
 
-**[AO2 work-accounting source supplement prepared offline](./PROJECT-PLAN.md#gate-a-test-framework-only-ao2-work-accounting-supplement-prepared).**
-The test-framework-only fourth supplement adds internal AO2 ref/allocation/
-link/unlink, actual lock-wrapper, and bucket/node work counters. It is hash-bound and wired into
-future profile application and evidence validation, but it has not been
-compiled or run. Non-AO2 allocation and I/O accounting, broader Gate A
-acceptance, Gate C and production work remain open.
+**[AO2 work-accounting supplement compiled and native-tested](./PROJECT-PLAN.md#gate-a-test-framework-only-ao2-work-accounting-supplement-prepared).**
+After separate Gate B authorization, both profiles compiled (46 instrumented,
+44 release outputs), and all 30 native definitions passed in fresh processes.
+The [compile report](./local/asterisk-build/compile-report-accounting-v1.json),
+[native report](./local/asterisk-build/native-test-report-accounting-v1.json),
+[aggregate XML](./local/asterisk-build/native-test-results-accounting-v1.xml)
+and bounded logs are hash-bound in the build-preparation record. The original
+source-preparation flags remain false; execution evidence is separate.
+Non-AO2 allocation and I/O accounting, retirement concurrency and broader
+Gate A acceptance remain open. No release-profile startup, runtime apply,
+Gate C or production/deployment work occurred.
 
 **[Release loaded-state smoke also passes](./PROJECT-PLAN.md#release-profile-loaded-state-smoke-passed).**
 All 44 release outputs resolve their shared libraries in the builder, and

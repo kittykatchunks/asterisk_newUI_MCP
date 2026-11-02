@@ -12,8 +12,11 @@ const hash = (file) => createHash("sha256").update(bytes(file)).digest("hex");
 const directory = "local/asterisk-build";
 const preparation = read("local/asterisk-patches/build-preparation.json");
 const candidate = read("local/asterisk-patches/queue-policy-v1.json");
+const accounting = read("local/asterisk-patches/queue-policy-accounting-v1.json");
 const compile = read(`${directory}/compile-report.json`);
 const native = read(`${directory}/native-test-report.json`);
+const accountingCompile = read(`${directory}/compile-report-accounting-v1.json`);
+const accountingNative = read(`${directory}/native-test-report-accounting-v1.json`);
 const release = read(`${directory}/release-smoke-report.json`);
 const bundleValidation = read(`${directory}/runtime-bundle-validation.json`);
 const bundleManifest = read(`${directory}/runtime-bundle-manifest.json`);
@@ -1261,4 +1264,103 @@ test("full startup requires all forty-one modules running and no PJSIP objects",
     assert.deepEqual(smoke.observations.map((item) => item.response.objects[0].strategy),
       ["ringall", "ringall", "linear", "linear", "ringall"]);
   }
+});
+
+test("AO2 accounting supplement Gate B evidence binds both profiles and all native results", () => {
+  const execution = preparation.ao2AccountingSupplementExecution;
+  const compilePath = `${directory}/compile-report-accounting-v1.json`;
+  const nativePath = `${directory}/native-test-report-accounting-v1.json`;
+  const aggregatePath = `${directory}/native-test-results-accounting-v1.xml`;
+  const compileLog = `${directory}/native-build-attempt-8.log`;
+  const nativeLog = `${directory}/native-tests-attempt-6.log`;
+  const accountingHash = hash("local/asterisk-patches/queue-policy-accounting-v1.json");
+  const buildPath = (relative) => relative.replace("../asterisk-build/", `${directory}/`);
+
+  assert.equal(execution.stage, "two-profiles-compiled-and-30-native-definitions-passed");
+  assert.equal(execution.compileAttempt, 8);
+  assert.equal(execution.nativeTestAttempt, 6);
+  assert.equal(execution.compileServiceResult, "success");
+  assert.equal(execution.nativeServiceResult, "success");
+  assert.equal(hash(buildPath(execution.compileRunner)), execution.compileRunnerSha256);
+  assert.equal(hash(buildPath(execution.nativeRunner)), execution.nativeRunnerSha256);
+  assert.equal(hash(buildPath(execution.logWrapper)), execution.logWrapperSha256);
+  assert.equal(hash(`${directory}/shutdown_compile_binding.py`),
+    execution.bindingHelperSha256);
+  assert.equal(execution.bothProfilesCompiled, true);
+  assert.deepEqual(execution.profileOutputCounts, { instrumented: 46, release: 44 });
+  assert.equal(hash(compilePath), execution.compileReportSha256);
+  assert.equal(hash(nativePath), execution.nativeReportSha256);
+  assert.equal(hash(aggregatePath), execution.aggregateXmlSha256);
+  assert.equal(hash(compileLog), execution.compileLogSha256);
+  assert.equal(hash(nativeLog), execution.nativeTestLogSha256);
+  assert.equal(bytes(compileLog).length, execution.compileLogBytes);
+  assert.equal(bytes(nativeLog).length, execution.nativeTestLogBytes);
+  assert(bytes(compileLog).length <= 16 * 1024 * 1024);
+  assert(bytes(nativeLog).length <= 16 * 1024 * 1024);
+  assert.equal(accountingCompile.ao2AccountingSupplementPatchSha256, accounting.patchSha256);
+  assert.equal(accountingCompile.ao2AccountingSupplementManifestSha256, accountingHash);
+  assert.equal(accountingCompile.ao2AccountingSupplementParentPatchSha256,
+    candidate.patchSha256);
+  assert.equal(accountingCompile.ao2AccountingSupplementParentSupplementPatchSha256,
+    accounting.parentSupplementPatchSha256);
+  assert.equal(accountingCompile.ao2AccountingSupplementParentSupplementManifestSha256,
+    accounting.parentSupplementManifestSha256);
+  assert.equal(accountingCompile.ao2AccountingSupplementParentOutputSupplementPatchSha256,
+    accounting.parentOutputSupplementPatchSha256);
+  assert.equal(accountingCompile.ao2AccountingSupplementParentOutputSupplementManifestSha256,
+    accounting.parentOutputSupplementManifestSha256);
+  assert.equal(accountingCompile.nativeTestsExecuted, false);
+  assert.equal(accountingCompile.asteriskStarted, false);
+  assert.equal(accountingCompile.runtimeApplyAuthorized, false);
+
+  const expectedPostimages = Object.entries(
+    accounting.applicationVerification.postimageSha256,
+  ).map(([path, sha256]) => ({ path, sha256 }));
+  for (const profile of accountingCompile.profiles) {
+    const instrumented = profile.name === "instrumented";
+    assert.equal(profile.ao2AccountingSupplement.patchSha256, accounting.patchSha256);
+    assert.equal(profile.ao2AccountingSupplement.appliedWithZeroFuzz, true);
+    assert.deepEqual(profile.ao2AccountingSupplement.postimages, expectedPostimages);
+    assert.equal(profile.outputs.length, instrumented ? 46 : 44);
+    assert.equal(profile.enabledOptions.includes("TEST_FRAMEWORK"), instrumented);
+  }
+
+  assert.equal(accountingNative.attempt, 6);
+  assert.equal(accountingNative.patchSha256, candidate.patchSha256);
+  assert.equal(accountingNative.nativeTestsExecuted, true);
+  assert.equal(accountingNative.compileReportSha256, execution.compileReportSha256);
+  assert.equal(accountingNative.completed, true);
+  assert.equal(accountingNative.passed, 30);
+  assert.equal(accountingNative.failed, 0);
+  assert.equal(accountingNative.allOwnedProcessesStopped, true);
+  assert.deepEqual(accountingNative.results.map((item) => item.name), candidate.nativeTests);
+  assert(accountingNative.results.every((item) =>
+    item.result === "passed" && item.failure === null));
+
+  const xml = bytes(aggregatePath).toString("utf8");
+  const testNames = [...xml.matchAll(/<testcase\b[^>]*\bname="([^"]+)"/g)]
+    .map((match) => match[1]);
+  assert.match(xml, /<testsuites tests="30" failures="0" errors="0" skipped="0">/);
+  assert.deepEqual(testNames, candidate.nativeTests);
+  assert.equal(execution.privateNetworkNamespaceVerified, true);
+  assert.equal(execution.noNewPrivileges, true);
+  assert.equal(execution.resourceBoundary.cpuQuota, "400%");
+  assert.equal(execution.resourceBoundary.memoryMaxBytes, 4294967296);
+  assert.equal(execution.resourceBoundary.memorySwapMaxBytes, 0);
+  assert.equal(execution.resourceBoundary.tasksMax, 256);
+  assert.equal(execution.resourceBoundary.coreDumpSoftLimitBytes, 0);
+  assert.equal(execution.resourceBoundary.diskAvailableAfterNativeTestsBytes
+    < execution.resourceBoundary.diskAvailableBeforeBuildBytes, true);
+  assert.equal(execution.instrumentedAsteriskStartedForNativeTests, true);
+  assert.equal(execution.releaseProfileStarted, false);
+  assert.equal(execution.noOwnedAsteriskProcessesSocketsOrPidFilesRemain, true);
+  assert.equal(execution.ownedDistributionStopped, true);
+  assert.equal(execution.temporaryGateBToolMirrorRemoved, true);
+  assert.equal(execution.priorAo2SourceScratchRemoved, true);
+  assert.equal(execution.existingPbxOperated, false);
+  assert.equal(execution.runtimeApplyAuthorized, false);
+  assert.equal(execution.gateAAcceptanceComplete, false);
+  assert.equal(execution.gateCAuthorized, false);
+  assert.equal(accounting.nativeCompiled, false);
+  assert.equal(accounting.nativeTestsExecuted, false);
 });

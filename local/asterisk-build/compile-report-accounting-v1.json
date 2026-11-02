@@ -1,0 +1,637 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "profiles": [
+    {
+      "name": "instrumented",
+      "compiled": true,
+      "supportLibraries": [
+        "libasteriskpj.so",
+        "libasteriskssl.so"
+      ],
+      "configureArguments": [
+        "./configure",
+        "--prefix=/home/asterisk-build/install/instrumented",
+        "--with-pjproject-bundled",
+        "--without-jansson-bundled",
+        "--without-libjwt-bundled",
+        "--without-libjwt",
+        "--with-externals-cache=/home/asterisk-build/source-staging",
+        "--disable-xmldoc",
+        "--enable-dev-mode"
+      ],
+      "enabledOptions": [
+        "OPTIONAL_API",
+        "TEST_FRAMEWORK",
+        "app_celgenuserevent",
+        "app_dial",
+        "app_echo",
+        "app_mixmonitor",
+        "app_playtones",
+        "app_queue",
+        "app_stack",
+        "app_waitforsilence",
+        "bridge_native_rtp",
+        "bridge_simple",
+        "bridge_softmix",
+        "cel_custom",
+        "chan_pjsip",
+        "codec_alaw",
+        "codec_resample",
+        "codec_ulaw",
+        "format_wav",
+        "func_callerid",
+        "func_channel",
+        "func_strings",
+        "pbx_config",
+        "res_cdrel_custom",
+        "res_clioriginate",
+        "res_crypto",
+        "res_http_websocket",
+        "res_pjproject",
+        "res_pjsip",
+        "res_pjsip_authenticator_digest",
+        "res_pjsip_endpoint_identifier_user",
+        "res_pjsip_header_funcs",
+        "res_pjsip_pubsub",
+        "res_pjsip_registrar",
+        "res_pjsip_sdp_rtp",
+        "res_pjsip_session",
+        "res_pjsip_transport_websocket",
+        "res_rtp_asterisk",
+        "res_sorcery_astdb",
+        "res_sorcery_config",
+        "res_sorcery_memory",
+        "res_srtp",
+        "res_timing_timerfd",
+        "test_bounded_queue_policy",
+        "test_protected_cli_target"
+      ],
+      "outputs": [
+        {
+          "path": "main/asterisk",
+          "sha256": "079194cc2ce8e94c2499c578227db64070a0d706b6f0dc702c9d99c756b544aa"
+        },
+        {
+          "path": "main/libasteriskpj.so",
+          "sha256": "9dc2de399c2de1cd77573ad53d605be60c557f4ec368cc199c1aa9b53b33b947"
+        },
+        {
+          "path": "main/libasteriskssl.so",
+          "sha256": "e01524c50e91a58bc1b03af7385b87a2027ec52151928129fb86e91afc1cc721"
+        },
+        {
+          "path": "apps/app_celgenuserevent.so",
+          "sha256": "2435086b05425cfb6cf14d6de061d52e992a310bcfaaf127311c82c3a72bd8ef"
+        },
+        {
+          "path": "apps/app_dial.so",
+          "sha256": "11f7648f89b57fc1fc1b6d5d2770c2bd5d58c7bf28aebecf66be05c37bc87c39"
+        },
+        {
+          "path": "apps/app_echo.so",
+          "sha256": "75aac4a327ccc690dafb3b0c7d86454fe8c24921526e76ed7e4a125d47818a8a"
+        },
+        {
+          "path": "apps/app_mixmonitor.so",
+          "sha256": "2ea3eebb1c3412b32509306fb4d6fff93c669fa726759776a5bdc8b082af33d4"
+        },
+        {
+          "path": "apps/app_playtones.so",
+          "sha256": "dcff5ba6539e0f849cf6ee8bad39286d5ccc93d1c4293579e08f6488d47bc2b8"
+        },
+        {
+          "path": "apps/app_queue.so",
+          "sha256": "a51ed95b6c6c5f603ab41fcbe96f44cf0d33b85197bf7900242d0afb2f8d4403"
+        },
+        {
+          "path": "apps/app_stack.so",
+          "sha256": "4aaea3807bdd1c675818ced0747154643fad2a072c8fb6b773d2984d3de9e3e9"
+        },
+        {
+          "path": "apps/app_waitforsilence.so",
+          "sha256": "0a630026656325aee443cefd2c2b712e00e5b98a2a5a195994756f8fd1064818"
+        },
+        {
+          "path": "bridges/bridge_native_rtp.so",
+          "sha256": "715f86eb79d6c63649d6be486027981e964f1feb11f894c35e8f837152a253da"
+        },
+        {
+          "path": "bridges/bridge_simple.so",
+          "sha256": "3d3a5cf3b83c77495cfbc20e00558a038423971cfcbf9d795211a4e11c03e053"
+        },
+        {
+          "path": "bridges/bridge_softmix.so",
+          "sha256": "0990f8f57b1862ddb230f7ba8bee8b9827825da90e65f00d218a4a0de8357d9f"
+        },
+        {
+          "path": "cel/cel_custom.so",
+          "sha256": "d68618a2e1a1a27263c46dbbd9f9ab05db409e052bf584704d6ec8504eb5e0e0"
+        },
+        {
+          "path": "channels/chan_pjsip.so",
+          "sha256": "5fb3720b6f0b7e560e34551569656282a1c837727db03f240422539a658e643c"
+        },
+        {
+          "path": "codecs/codec_alaw.so",
+          "sha256": "4c1ca24773a0e10f2593ac6c1d2133bfb4ee61df38fc395545e92fc8ef7184fa"
+        },
+        {
+          "path": "codecs/codec_resample.so",
+          "sha256": "1291fd6ca060b3ac109ddca46d972892cdb992c926de1edf7e3390d1aa2a1864"
+        },
+        {
+          "path": "codecs/codec_ulaw.so",
+          "sha256": "4e062287456c35eec7a1a77fd4406933dd2c3cc125510107318b45ef3a4cbea9"
+        },
+        {
+          "path": "formats/format_wav.so",
+          "sha256": "3b49b273dca6d20ec6478e7e8eb2c9a87c48291fc009ad71029227dedd351ace"
+        },
+        {
+          "path": "funcs/func_callerid.so",
+          "sha256": "a460f59fd16c96e2b13e918e20352c3ab2619b87d841da9d3828ed0749457a53"
+        },
+        {
+          "path": "funcs/func_channel.so",
+          "sha256": "d33daabbfd890c28c2f1e8dbba699e6695c2871ca968571725643768cf8172d8"
+        },
+        {
+          "path": "funcs/func_strings.so",
+          "sha256": "08674ba48c08fe713f96dae3752b59465355edb6e104c07daf985aa9ac0c0795"
+        },
+        {
+          "path": "pbx/pbx_config.so",
+          "sha256": "5953c23d012ccd5125e01f42f64c7a129c49d58215bbca0b35be177e52351f07"
+        },
+        {
+          "path": "res/res_cdrel_custom.so",
+          "sha256": "ceed2799b7060d3b7ab79c43b3efce32e83bf10a265ac318615ea46c0fedecf6"
+        },
+        {
+          "path": "res/res_clioriginate.so",
+          "sha256": "762083f980d034a98a0ee52d51ad7c08ddb0a1d2d5c6a16685b0de3160b76fa5"
+        },
+        {
+          "path": "res/res_crypto.so",
+          "sha256": "84639a365065867e492b8117a2225056bc2c8a09edfd88e9987fa84e97b0b04a"
+        },
+        {
+          "path": "res/res_http_websocket.so",
+          "sha256": "778c9166f0e60334ac75a0f24f99c21ae167ae9427a20bc06217f1e0a76c36dc"
+        },
+        {
+          "path": "res/res_pjproject.so",
+          "sha256": "54762e5d2cae99900f36547766a789cfd6fe8b780d42dc7ea57554acded3afe2"
+        },
+        {
+          "path": "res/res_pjsip.so",
+          "sha256": "5f6b5f423c3e34f5368f9660381adc82c26134856f7eee8c2255158f89bdf6eb"
+        },
+        {
+          "path": "res/res_pjsip_authenticator_digest.so",
+          "sha256": "97e4852e34ce48d23e4e5942c578d8635af3ec179586c723d4613f7ce9aef6a4"
+        },
+        {
+          "path": "res/res_pjsip_endpoint_identifier_user.so",
+          "sha256": "c822aa4da08e9219d9de7c28073461279e1ba162a049f0b1bfed0ab4009630df"
+        },
+        {
+          "path": "res/res_pjsip_header_funcs.so",
+          "sha256": "58e6e3b10d117515e0eeff11817b9773d7f977ba4c7af2f1ded5fa2cbd4a438b"
+        },
+        {
+          "path": "res/res_pjsip_pubsub.so",
+          "sha256": "d5a9d65c9ba559c62c6f811f8450bfbe0e3e23e7e2dfd0b6bd8b6b2439cdefd8"
+        },
+        {
+          "path": "res/res_pjsip_registrar.so",
+          "sha256": "ae2de1be35f34c1b529ebcf00f28a6a714be013e6f88226c3213c31665c6345a"
+        },
+        {
+          "path": "res/res_pjsip_sdp_rtp.so",
+          "sha256": "2a19195596c2c8a8943e9f741134969c0a595b7c26606013c657ce3ad40ee44d"
+        },
+        {
+          "path": "res/res_pjsip_session.so",
+          "sha256": "aa41879669c1e2bec9f07263969b153f35e18e4096947eacd017e182feaddd6c"
+        },
+        {
+          "path": "res/res_pjsip_transport_websocket.so",
+          "sha256": "47b0baf042a58db5d5372b9fe0862ab03a67a625652c37b2cb1754f81f6b999c"
+        },
+        {
+          "path": "res/res_rtp_asterisk.so",
+          "sha256": "c0b671938ed6486c74d6272f2e7d4359df9c3a7e393972c0d5a8394155bfe5b1"
+        },
+        {
+          "path": "res/res_sorcery_astdb.so",
+          "sha256": "4b061aba8faea0aa396219f028b306c7f803f733f5972fb8f7e0848afe876614"
+        },
+        {
+          "path": "res/res_sorcery_config.so",
+          "sha256": "6db36f3346bcf7c2ef256fb3de8cbe0103ee6407ff2309ab5c67de18b3d8a790"
+        },
+        {
+          "path": "res/res_sorcery_memory.so",
+          "sha256": "1515e96290517011e3e178e3b391c545e6b572ca407c126f9b0dd9e6396d10cb"
+        },
+        {
+          "path": "res/res_srtp.so",
+          "sha256": "2c15778b86491610f1a0e1ec3133ae5ddcc324113be705fc8aa1e3306747b323"
+        },
+        {
+          "path": "res/res_timing_timerfd.so",
+          "sha256": "264c32233ecfc4c64e2c749f856b0180bb6717d8ea8508b8403e83b26e19c23f"
+        },
+        {
+          "path": "tests/test_bounded_queue_policy.so",
+          "sha256": "740539e4a0573c45a8f86b665641eb904313a57f4513ba4dd95df7ec9337a356"
+        },
+        {
+          "path": "tests/test_protected_cli_target.so",
+          "sha256": "425fb4175c518e75dda64d1c8b1a64b1a9a4c7ee568811da56d5d45f5c301a56"
+        }
+      ],
+      "menuselectMakeoptsSha256": "358f378a188f8f4449b07fb264317ac67bcfe790fdcfc828ead94818bf3474f1",
+      "autoconfigSha256": "a5d19861db6360149618434333d9c833798154c4a2179542c7a74df6d4220704",
+      "shutdownSupplement": {
+        "patchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+        "appliedWithZeroFuzz": true,
+        "postimages": [
+          {
+            "path": "include/asterisk/module.h",
+            "sha256": "e4324bc2662c70771376a5eaeb50bda8f558bd7390c8c31fcbca40aed32010b4"
+          },
+          {
+            "path": "main/loader.c",
+            "sha256": "103e09d9ebfc3a156768a9846a0e728041831ca37b5f37ca16e8feb3de07c79d"
+          },
+          {
+            "path": "main/asterisk.c",
+            "sha256": "9741a71b2e6d46726398542345c95ba15ad4e8620b6d63b2ac308ca8a9e1120b"
+          }
+        ]
+      },
+      "cliOutputSupplement": {
+        "patchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
+        "appliedWithZeroFuzz": true,
+        "postimages": [
+          {
+            "path": "apps/app_queue.c",
+            "sha256": "acd0b9d52b8f230918ef0fc41af3ec85e4bec1aaba75192c538e919c696036dc"
+          },
+          {
+            "path": "tests/test_bounded_queue_policy.c",
+            "sha256": "746f83cda39f48a1dcf0c9d9d8541a7d50047900cc8fab9b6c1e9ac1653777cd"
+          },
+          {
+            "path": "tests/test_protected_cli_target.c",
+            "sha256": "ff5765ca413260d55a98cea16d6977a56a067d1ee3d62450147e3ecc477c83f6"
+          }
+        ]
+      },
+      "ao2AccountingSupplement": {
+        "patchSha256": "10d3e526258fe0d0a4e6485b6e5770f8ba9ebadc402461d3185f72131421236d",
+        "appliedWithZeroFuzz": true,
+        "postimages": [
+          {
+            "path": "include/asterisk/astobj2.h",
+            "sha256": "f0de52d8274c8a6e2979298b9a653d80a93f85288adf374b4654504156b90c95"
+          },
+          {
+            "path": "main/astobj2.c",
+            "sha256": "7aba7beba21a9efc1067e99e6cc234c4964c0fe8102697899988c89d2c8f97b6"
+          },
+          {
+            "path": "main/astobj2_container.c",
+            "sha256": "389fa9b7f07b2befb713564e05c31d9b446e8667befe61c44afbc97dca41f534"
+          },
+          {
+            "path": "main/astobj2_hash.c",
+            "sha256": "45e32a5bcb2cc477f62f60d5ab7b41afda72c3d0b13f8a98a0533f000974f218"
+          }
+        ]
+      }
+    },
+    {
+      "name": "release",
+      "compiled": true,
+      "supportLibraries": [
+        "libasteriskpj.so",
+        "libasteriskssl.so"
+      ],
+      "configureArguments": [
+        "./configure",
+        "--prefix=/home/asterisk-build/install/release",
+        "--with-pjproject-bundled",
+        "--without-jansson-bundled",
+        "--without-libjwt-bundled",
+        "--without-libjwt",
+        "--with-externals-cache=/home/asterisk-build/source-staging",
+        "--disable-xmldoc"
+      ],
+      "enabledOptions": [
+        "OPTIONAL_API",
+        "app_celgenuserevent",
+        "app_dial",
+        "app_echo",
+        "app_mixmonitor",
+        "app_playtones",
+        "app_queue",
+        "app_stack",
+        "app_waitforsilence",
+        "bridge_native_rtp",
+        "bridge_simple",
+        "bridge_softmix",
+        "cel_custom",
+        "chan_pjsip",
+        "codec_alaw",
+        "codec_resample",
+        "codec_ulaw",
+        "format_wav",
+        "func_callerid",
+        "func_channel",
+        "func_strings",
+        "pbx_config",
+        "res_cdrel_custom",
+        "res_clioriginate",
+        "res_crypto",
+        "res_http_websocket",
+        "res_pjproject",
+        "res_pjsip",
+        "res_pjsip_authenticator_digest",
+        "res_pjsip_endpoint_identifier_user",
+        "res_pjsip_header_funcs",
+        "res_pjsip_pubsub",
+        "res_pjsip_registrar",
+        "res_pjsip_sdp_rtp",
+        "res_pjsip_session",
+        "res_pjsip_transport_websocket",
+        "res_rtp_asterisk",
+        "res_sorcery_astdb",
+        "res_sorcery_config",
+        "res_sorcery_memory",
+        "res_srtp",
+        "res_timing_timerfd"
+      ],
+      "outputs": [
+        {
+          "path": "main/asterisk",
+          "sha256": "1dee73a18a1ca9c156ce3654297d861984a77a8b1af995c2b374fe37042d794a"
+        },
+        {
+          "path": "main/libasteriskpj.so",
+          "sha256": "7708e394bcc6194b6aa577b9ec7a946a282251d21884fedab98d4070519f9e54"
+        },
+        {
+          "path": "main/libasteriskssl.so",
+          "sha256": "e3b700f9b44cb9d810e88c670f46166b65c31bbb5356209de8e45c96c317cb2a"
+        },
+        {
+          "path": "apps/app_celgenuserevent.so",
+          "sha256": "d8e90a240bb83609ae0ef9332927b0e3b37f2f6be758efa8378d94ac8689897e"
+        },
+        {
+          "path": "apps/app_dial.so",
+          "sha256": "dfc490aa9304b07b6b9098cf8b08da182964377bfc4f2f27aa84efa49e72701d"
+        },
+        {
+          "path": "apps/app_echo.so",
+          "sha256": "a90d573419062b8eb4ff48612412675f980114e87d6db7f6ad02aa41a9a63309"
+        },
+        {
+          "path": "apps/app_mixmonitor.so",
+          "sha256": "9647dd4d3e5211208f4bb27345127f6eab72f1bb8aa4c779f52e5806fb44e7a5"
+        },
+        {
+          "path": "apps/app_playtones.so",
+          "sha256": "94fe593b4fb2b87f3e9941b101e182eacd3c93d3f15b9f50f4966a386838f1b7"
+        },
+        {
+          "path": "apps/app_queue.so",
+          "sha256": "32a82eb18892a308ea352c7c58955a095336cd6b156152a3fe77a35b8e8e1db9"
+        },
+        {
+          "path": "apps/app_stack.so",
+          "sha256": "3e05933e7d9d5585bde4e46c206dd1de772a23e487c25c9b3115f18fc7ab3227"
+        },
+        {
+          "path": "apps/app_waitforsilence.so",
+          "sha256": "40a7ad3d066dcd181818e53386a782cd51886cd03b9c991ba209400468e8a0c8"
+        },
+        {
+          "path": "bridges/bridge_native_rtp.so",
+          "sha256": "0cea26fe05c9f6b6d398ad9d00c686cef89053d2268180010e3a907fc2453be6"
+        },
+        {
+          "path": "bridges/bridge_simple.so",
+          "sha256": "f75c1c843988994aeb00b59751d13c617fc8bbcfe725c3f448892f02bd9f30fc"
+        },
+        {
+          "path": "bridges/bridge_softmix.so",
+          "sha256": "be23f983ac124d9c6e66139cd61ad1691f1bae87a2132d92e4aa6ceaff2d28b7"
+        },
+        {
+          "path": "cel/cel_custom.so",
+          "sha256": "e040138baff76f5b6207eb31927a26b998f1c076b0c5781b12c8877d05eacc2f"
+        },
+        {
+          "path": "channels/chan_pjsip.so",
+          "sha256": "e1e561072aae8490d19b4113c50b278d7d4f2a0f805b3199ab0c7855d1020137"
+        },
+        {
+          "path": "codecs/codec_alaw.so",
+          "sha256": "81a90e3bebb5c998e5ef69e4e9fb2c428189db3d5f653becfd4fd97a021e0e9c"
+        },
+        {
+          "path": "codecs/codec_resample.so",
+          "sha256": "0c0f9e3ced527d88534a6d44daa85f833b59ec81677c533363033f6b981cee41"
+        },
+        {
+          "path": "codecs/codec_ulaw.so",
+          "sha256": "0e541300bf1d69ad1a83b1ae74cc3871904895945352c8bf3f60b3b24769fb20"
+        },
+        {
+          "path": "formats/format_wav.so",
+          "sha256": "93f19859dda3e2e97d2c505a4287bd76893700afee725ab6ca2cd4dfc3ec6408"
+        },
+        {
+          "path": "funcs/func_callerid.so",
+          "sha256": "043859efd71d59027db42837c6a3ad7d4322f8ebac8d549d24f6c05dfc69f636"
+        },
+        {
+          "path": "funcs/func_channel.so",
+          "sha256": "3fb68fc12ea82b1ad76ca023f205abaddef2935a85c7c6a143c6747de91925cd"
+        },
+        {
+          "path": "funcs/func_strings.so",
+          "sha256": "b8d3a8256c3082fc28fd390a3830de93c65029fe5769affc2fe69a876c5a68d2"
+        },
+        {
+          "path": "pbx/pbx_config.so",
+          "sha256": "49aa1f3803dd249c1a7b228739b88b6ef9148fb6ff71d2d801acb252db09c578"
+        },
+        {
+          "path": "res/res_cdrel_custom.so",
+          "sha256": "c8770e3649d42bc89a97054b30a1776c5e0d9adb76671463856bcbea46dbf7f3"
+        },
+        {
+          "path": "res/res_clioriginate.so",
+          "sha256": "614f8ce573e1a18874a8cfb9db3464890f0fdfcead3a5a230d234b3b0915e946"
+        },
+        {
+          "path": "res/res_crypto.so",
+          "sha256": "64122bdc241c937addb0062addaada028c0d385fc7f79db557904fdeb3529f5e"
+        },
+        {
+          "path": "res/res_http_websocket.so",
+          "sha256": "66267382d7c7eb12e7788be2150cbf3f5cf9d368d46892165fd431d1b693df76"
+        },
+        {
+          "path": "res/res_pjproject.so",
+          "sha256": "a608f592839bd877c9cb2d8f86944040906894dd15bef94e467a3392a14a82b8"
+        },
+        {
+          "path": "res/res_pjsip.so",
+          "sha256": "52435e432202c3ef3a60e905bb1272e8a1cc47fc2123e745d8615f3e0a138fd9"
+        },
+        {
+          "path": "res/res_pjsip_authenticator_digest.so",
+          "sha256": "17af9ecb217f051b4d1bedd9c10da16ea8bef158fed1a5bad44bc98500589ccd"
+        },
+        {
+          "path": "res/res_pjsip_endpoint_identifier_user.so",
+          "sha256": "e03a3c2e4383f53a84f146bbf4d663ec3f0b8883bff9785abd457fe389ac08d2"
+        },
+        {
+          "path": "res/res_pjsip_header_funcs.so",
+          "sha256": "523629a7f502ffea516725e8632cef9cfa1c4ef03d97639ad90624158a9015e0"
+        },
+        {
+          "path": "res/res_pjsip_pubsub.so",
+          "sha256": "fa18c683043334255599d3ff79f59940d69d850b521d63c4a8c638acf3a39eea"
+        },
+        {
+          "path": "res/res_pjsip_registrar.so",
+          "sha256": "50b350b20fb656a62d6bb1688f237f7108d81c862a595347d4300bfa5f371e22"
+        },
+        {
+          "path": "res/res_pjsip_sdp_rtp.so",
+          "sha256": "adfec279307ae5b57c7133ec3974be35f29d0de2b2b9093baf4feb90293b53f4"
+        },
+        {
+          "path": "res/res_pjsip_session.so",
+          "sha256": "1f3819740103782691e177c0d30c2fc6a8e99d6cf192688486f51c9ea208a1fc"
+        },
+        {
+          "path": "res/res_pjsip_transport_websocket.so",
+          "sha256": "667b8d13862a7536787b34e26ba74bfaef157fc9e11d87b4e675590fa0dd751d"
+        },
+        {
+          "path": "res/res_rtp_asterisk.so",
+          "sha256": "725f33ef42c5446970d9a036bea652ce8f562b464a95b62811a2939da35a8d40"
+        },
+        {
+          "path": "res/res_sorcery_astdb.so",
+          "sha256": "99192c6953a03dd47ae1320166d4807ac4113af08121e39e1825abeefca49374"
+        },
+        {
+          "path": "res/res_sorcery_config.so",
+          "sha256": "5056bfe7c3edb15c3f70aa25ac294a0e25457adeac466253e93c3e4cd5d74b16"
+        },
+        {
+          "path": "res/res_sorcery_memory.so",
+          "sha256": "77385f2d8585c98a3b3fd27591ee8fd7ae2d963c64a09660ec9ee7c7b86caeca"
+        },
+        {
+          "path": "res/res_srtp.so",
+          "sha256": "e5c4817f6798d148e97f8f941b71f504160990c6d64df4fffff287237303d472"
+        },
+        {
+          "path": "res/res_timing_timerfd.so",
+          "sha256": "808e8292ee9e96fc90693172595bd58086270b3bd1eeae2d9f9460c0cc4d95b3"
+        }
+      ],
+      "menuselectMakeoptsSha256": "b5b5ee88f8e60c81e287af0f2a7d6b48daca2338cdc973c3acc284d5bd95e205",
+      "autoconfigSha256": "a5d19861db6360149618434333d9c833798154c4a2179542c7a74df6d4220704",
+      "shutdownSupplement": {
+        "patchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+        "appliedWithZeroFuzz": true,
+        "postimages": [
+          {
+            "path": "include/asterisk/module.h",
+            "sha256": "e4324bc2662c70771376a5eaeb50bda8f558bd7390c8c31fcbca40aed32010b4"
+          },
+          {
+            "path": "main/loader.c",
+            "sha256": "103e09d9ebfc3a156768a9846a0e728041831ca37b5f37ca16e8feb3de07c79d"
+          },
+          {
+            "path": "main/asterisk.c",
+            "sha256": "9741a71b2e6d46726398542345c95ba15ad4e8620b6d63b2ac308ca8a9e1120b"
+          }
+        ]
+      },
+      "cliOutputSupplement": {
+        "patchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
+        "appliedWithZeroFuzz": true,
+        "postimages": [
+          {
+            "path": "apps/app_queue.c",
+            "sha256": "acd0b9d52b8f230918ef0fc41af3ec85e4bec1aaba75192c538e919c696036dc"
+          },
+          {
+            "path": "tests/test_bounded_queue_policy.c",
+            "sha256": "746f83cda39f48a1dcf0c9d9d8541a7d50047900cc8fab9b6c1e9ac1653777cd"
+          },
+          {
+            "path": "tests/test_protected_cli_target.c",
+            "sha256": "ff5765ca413260d55a98cea16d6977a56a067d1ee3d62450147e3ecc477c83f6"
+          }
+        ]
+      },
+      "ao2AccountingSupplement": {
+        "patchSha256": "10d3e526258fe0d0a4e6485b6e5770f8ba9ebadc402461d3185f72131421236d",
+        "appliedWithZeroFuzz": true,
+        "postimages": [
+          {
+            "path": "include/asterisk/astobj2.h",
+            "sha256": "f0de52d8274c8a6e2979298b9a653d80a93f85288adf374b4654504156b90c95"
+          },
+          {
+            "path": "main/astobj2.c",
+            "sha256": "7aba7beba21a9efc1067e99e6cc234c4964c0fe8102697899988c89d2c8f97b6"
+          },
+          {
+            "path": "main/astobj2_container.c",
+            "sha256": "389fa9b7f07b2befb713564e05c31d9b446e8667befe61c44afbc97dca41f534"
+          },
+          {
+            "path": "main/astobj2_hash.c",
+            "sha256": "45e32a5bcb2cc477f62f60d5ab7b41afda72c3d0b13f8a98a0533f000974f218"
+          }
+        ]
+      }
+    }
+  ],
+  "nativeTestsExecuted": false,
+  "asteriskStarted": false,
+  "runtimeApplyAuthorized": false,
+  "shutdownSupplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+  "shutdownSupplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+  "shutdownSupplementParentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "cliOutputSupplementPatchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
+  "cliOutputSupplementManifestSha256": "ca410d4bed58db93cb3eb141a2e9a9359d4b7db841b4d4fb35d683c93e3c8e5c",
+  "cliOutputSupplementParentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "cliOutputSupplementParentSupplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+  "cliOutputSupplementParentSupplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+  "ao2AccountingSupplementPatchSha256": "10d3e526258fe0d0a4e6485b6e5770f8ba9ebadc402461d3185f72131421236d",
+  "ao2AccountingSupplementManifestSha256": "8210ece9915f86cb420924ecb446136e7a0630cc4d35de0be6710b702afba6c1",
+  "ao2AccountingSupplementParentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "ao2AccountingSupplementParentSupplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+  "ao2AccountingSupplementParentSupplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+  "ao2AccountingSupplementParentOutputSupplementPatchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
+  "ao2AccountingSupplementParentOutputSupplementManifestSha256": "ca410d4bed58db93cb3eb141a2e9a9359d4b7db841b4d4fb35d683c93e3c8e5c"
+}
