@@ -901,6 +901,43 @@
       }
     ]
   },
+  "protectedUnregisterSupplement": {
+    "stage": "source-only-separate-target-busy-unregister-fixture-prepared",
+    "authorization": "This increment was kept source-only. No separate native compile/test, Asterisk startup, runtime/PBX, image, or deployment authorization was inferred.",
+    "manifest": "../asterisk-patches/queue-policy-unregister-v1.json",
+    "manifestSha256": "b6c296b8029e91b4805b60a5f1c9c9e25bd330aa509d8c894bf83378e805811b",
+    "patch": "../asterisk-patches/queue-policy-unregister-v1.patch",
+    "patchSha256": "b5a673045efe9d265ef440ee58191a9cdbb8a51f50ff3f38d666cb689f9853af",
+    "parentLoaderLifecycleSupplementManifestSha256": "b5a52fdf20310d3300b24873fe3a09a30d102719e67d6b156dfcdd6ea9be65c0",
+    "parentLoaderLifecycleSupplementPatchSha256": "219b3c44eec111e6d1c66e090fbed7ebc290af3728b64aa735f9d09d08d7bae5",
+    "basisCompileReportSha256": "7d4bfe77e25b1178ae62df66234d02445f6acee65875f7c98f06e16d924c3a0f",
+    "basisNativeReportSha256": "28118d028410051ba7e6a38029a498d3b4e449f5d1e60f8cce6dbf34f4991489",
+    "changedUpstreamPaths": [
+      "tests/test_bounded_queue_policy.c",
+      "tests/test_protected_cli_target.c"
+    ],
+    "patchDryRunSucceeded": true,
+    "temporaryCopyApplicationVerified": true,
+    "zeroFuzz": true,
+    "zeroOffset": true,
+    "originalSuccessorSourceModified": false,
+    "postimagesMatchManifest": true,
+    "testFrameworkOnly": true,
+    "nativeDefinitionsAdded": 0,
+    "compilerApplicationSupportImplemented": true,
+    "compiler": "../asterisk-build/compile-profiles.py",
+    "compilerSha256": "efa43fe83dc69a841c3bf9236fb8c46b5d1afaeab4294a0c815b30ac34fa6452",
+    "bindingHelper": "../asterisk-build/shutdown_compile_binding.py",
+    "bindingHelperSha256": "a2bab9d82c8c992c0d21930cb65689f9adab3e04dcf25406023f4a4e51c052a2",
+    "offlineBindingTestsPassed": 24,
+    "nativeCompileAuthorized": false,
+    "nativeCompiled": false,
+    "nativeTestsExecuted": false,
+    "asteriskStarted": false,
+    "runtimeApplyAuthorized": false,
+    "gateAAcceptanceComplete": false,
+    "gateCAuthorized": false
+  },
   "ao2AccountingSupplementExecution": {
     "stage": "two-profiles-compiled-and-30-native-definitions-passed",
     "authorization": "User explicitly authorized Gate B compilation and native tests in the dedicated disposable environment only; Gate C and production/deployment were excluded.",

@@ -593,5 +593,223 @@ class LoaderLifecycleSupplementBindingTests(unittest.TestCase):
             binding.validate_cli_output_compile_report(report)
 
 
+class ProtectedUnregisterSupplementBindingTests(unittest.TestCase):
+    def setUp(self):
+        patches = ROOT / "local" / "asterisk-patches"
+        self.parent = json.loads((patches / "queue-policy-v1.json").read_text())
+        self.shutdown_path = patches / "queue-policy-shutdown-v1.json"
+        (
+            self.shutdown,
+            _,
+            _,
+            self.shutdown_hash,
+        ) = binding.load_shutdown_supplement(self.shutdown_path, self.parent)
+        self.output_path = patches / "queue-policy-output-v1.json"
+        (
+            self.output,
+            _,
+            _,
+            self.output_hash,
+        ) = binding.load_cli_output_supplement(
+            self.output_path, self.parent, self.shutdown, self.shutdown_hash
+        )
+        self.accounting_path = patches / "queue-policy-accounting-v1.json"
+        (
+            self.accounting,
+            _,
+            _,
+            self.accounting_hash,
+        ) = binding.load_ao2_accounting_supplement(
+            self.accounting_path,
+            self.parent,
+            self.shutdown,
+            self.shutdown_hash,
+            self.output,
+            self.output_hash,
+        )
+        self.loader_path = patches / "queue-policy-loader-v1.json"
+        (
+            self.loader,
+            _,
+            _,
+            self.loader_hash,
+        ) = binding.load_loader_lifecycle_supplement(
+            self.loader_path,
+            self.parent,
+            self.shutdown,
+            self.shutdown_hash,
+            self.output,
+            self.output_hash,
+            self.accounting,
+            self.accounting_hash,
+        )
+        self.manifest_path = patches / "queue-policy-unregister-v1.json"
+
+    def load_unregister(self, manifest_path=None):
+        return binding.load_protected_unregister_supplement(
+            manifest_path or self.manifest_path,
+            self.parent,
+            self.shutdown,
+            self.shutdown_hash,
+            self.output,
+            self.output_hash,
+            self.accounting,
+            self.accounting_hash,
+            self.loader,
+            self.loader_hash,
+        )
+
+    def test_loads_exact_sixth_supplement_and_passed_basis_reports(self):
+        manifest, patch_path, patch_hash, manifest_hash = self.load_unregister()
+
+        self.assertEqual(patch_path.name, manifest["patch"])
+        self.assertEqual(patch_hash, manifest["patchSha256"])
+        self.assertEqual(len(manifest_hash), 64)
+        self.assertEqual(
+            manifest["changedUpstreamPaths"], binding.EXPECTED_PROTECTED_UNREGISTER_PATHS
+        )
+        self.assertTrue(manifest["fixtures"]["busyUnregisterRejected"])
+        self.assertFalse(manifest["nativeCompiled"])
+        self.assertFalse(manifest["nativeTestsExecuted"])
+
+    def test_rejects_source_preimages_that_do_not_match_parent_postimages(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            patches = root / "local" / "asterisk-patches"
+            builds = root / "local" / "asterisk-build"
+            patches.mkdir(parents=True)
+            builds.mkdir(parents=True)
+            manifest = json.loads(self.manifest_path.read_text())
+            manifest["basisSourceSha256"]["tests/test_protected_cli_target.c"] = (
+                "0" * 64
+            )
+            copied_manifest = patches / self.manifest_path.name
+            copied_manifest.write_text(json.dumps(manifest))
+            shutil.copyfile(
+                self.manifest_path.parent / manifest["patch"],
+                patches / manifest["patch"],
+            )
+            for name in [
+                "compile-report-loader-v1.json",
+                "native-test-report-loader-v1.json",
+            ]:
+                shutil.copyfile(ROOT / "local" / "asterisk-build" / name, builds / name)
+
+            with self.assertRaisesRegex(ValueError, "do not match the parent supplement"):
+                self.load_unregister(copied_manifest)
+
+    def test_rejects_modified_supplement_patch_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            patches = root / "local" / "asterisk-patches"
+            builds = root / "local" / "asterisk-build"
+            patches.mkdir(parents=True)
+            builds.mkdir(parents=True)
+            copied_manifest = patches / self.manifest_path.name
+            shutil.copyfile(self.manifest_path, copied_manifest)
+            patch_path = patches / "queue-policy-unregister-v1.patch"
+            shutil.copyfile(self.manifest_path.parent / patch_path.name, patch_path)
+            for name in [
+                "compile-report-loader-v1.json",
+                "native-test-report-loader-v1.json",
+            ]:
+                shutil.copyfile(ROOT / "local" / "asterisk-build" / name, builds / name)
+            patch_path.write_bytes(patch_path.read_bytes() + b"\n")
+
+            with self.assertRaisesRegex(ValueError, "patch SHA256 mismatch"):
+                self.load_unregister(copied_manifest)
+
+    def test_checks_unregister_preimages_and_postimages(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            contents = {
+                relative: f"unregister-source:{relative}".encode()
+                for relative in binding.EXPECTED_PROTECTED_UNREGISTER_PATHS
+            }
+            manifest = {
+                "basisSourceSha256": {
+                    relative: hashlib.sha256(data).hexdigest()
+                    for relative, data in contents.items()
+                },
+                "applicationVerification": {
+                    "postimageSha256": {
+                        relative: hashlib.sha256(data).hexdigest()
+                        for relative, data in contents.items()
+                    }
+                },
+            }
+            tree = pathlib.Path(temporary)
+            for relative, data in contents.items():
+                path = tree / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+
+            binding.verify_protected_unregister_basis(tree, manifest)
+            self.assertEqual(
+                binding.verify_protected_unregister_postimages(tree, manifest),
+                [
+                    dict(path=relative, sha256=hashlib.sha256(contents[relative]).hexdigest())
+                    for relative in binding.EXPECTED_PROTECTED_UNREGISTER_PATHS
+                ],
+            )
+            (tree / binding.EXPECTED_PROTECTED_UNREGISTER_PATHS[0]).write_bytes(
+                b"unexpected source"
+            )
+            with self.assertRaisesRegex(ValueError, "source preimage mismatch"):
+                binding.verify_protected_unregister_basis(tree, manifest)
+            with self.assertRaisesRegex(ValueError, "source postimage mismatch"):
+                binding.verify_protected_unregister_postimages(tree, manifest)
+
+    def test_validates_protected_unregister_compile_report_lineage(self):
+        manifest, _, patch_hash, manifest_hash = self.load_unregister()
+        report = json.loads(
+            (ROOT / "local" / "asterisk-build" / "compile-report-loader-v1.json")
+            .read_text()
+        )
+        for field, value in {
+            "protectedUnregisterSupplementPatchSha256": patch_hash,
+            "protectedUnregisterSupplementManifestSha256": manifest_hash,
+            "protectedUnregisterSupplementParentPatchSha256": self.parent["patchSha256"],
+            "protectedUnregisterSupplementParentSupplementPatchSha256":
+                self.shutdown["patchSha256"],
+            "protectedUnregisterSupplementParentSupplementManifestSha256":
+                self.shutdown_hash,
+            "protectedUnregisterSupplementParentOutputSupplementPatchSha256":
+                self.output["patchSha256"],
+            "protectedUnregisterSupplementParentOutputSupplementManifestSha256":
+                self.output_hash,
+            "protectedUnregisterSupplementParentAccountingSupplementPatchSha256":
+                self.accounting["patchSha256"],
+            "protectedUnregisterSupplementParentAccountingSupplementManifestSha256":
+                self.accounting_hash,
+            "protectedUnregisterSupplementParentLoaderLifecycleSupplementPatchSha256":
+                self.loader["patchSha256"],
+            "protectedUnregisterSupplementParentLoaderLifecycleSupplementManifestSha256":
+                self.loader_hash,
+        }.items():
+            report[field] = value
+        application = {
+            "patchSha256": patch_hash,
+            "appliedWithZeroFuzz": True,
+            "postimages": [
+                dict(
+                    path=path,
+                    sha256=manifest["applicationVerification"]["postimageSha256"][path],
+                )
+                for path in binding.EXPECTED_PROTECTED_UNREGISTER_PATHS
+            ],
+        }
+        for profile in report["profiles"]:
+            profile["protectedUnregisterSupplement"] = application
+
+        self.assertTrue(binding.validate_cli_output_compile_report(report))
+        report["profiles"][1]["protectedUnregisterSupplement"]["postimages"][0][
+            "sha256"
+        ] = "0" * 64
+        with self.assertRaisesRegex(
+            ValueError, "does not bind the protected unregister supplement"
+        ):
+            binding.validate_cli_output_compile_report(report)
+
+
 if __name__ == "__main__":
     unittest.main()

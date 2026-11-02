@@ -1,0 +1,77 @@
+diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
+--- a/tests/test_bounded_queue_policy.c
++++ b/tests/test_bounded_queue_policy.c
+@@ -1355,6 +1355,42 @@
+ 	return failed;
+ }
+ 
++static int lifecycle_target_busy_unregister_case(struct ast_test *test)
++{
++	const char target[] = "test_protected_cli_target.so";
++	const char busy_command[] = "test bounded-policy lifecycle-target busy-unregister";
++	const char verify_command[] = "test bounded-policy lifecycle-target success";
++	int fd = -1, loaded = 0, failed = 1;
++
++	if (ast_module_check(target)) {
++		ast_test_status_update(test, "Disposable target already loaded; refusing to adopt it\n");
++		return 1;
++	}
++	fd = open("/dev/null", O_WRONLY);
++	if (fd < 0 || ast_load_resource(target) != AST_MODULE_LOAD_SUCCESS) {
++		goto done;
++	}
++	loaded = 1;
++	if (ast_cli_command(fd, busy_command)) {
++		ast_test_status_update(test, "Active separate-target unregister was not rejected as busy\n");
++		goto done;
++	}
++	if (ast_cli_command(fd, verify_command)) {
++		ast_test_status_update(test, "Busy unregister removed or damaged the active target entry\n");
++		goto done;
++	}
++	failed = 0;
++done:
++	if (loaded && ast_unload_resource(target, AST_FORCE_SOFT)) {
++		ast_test_status_update(test, "Disposable target did not unload after busy unregister\n");
++		failed = 1;
++	}
++	if (fd >= 0) {
++		close(fd);
++	}
++	return failed;
++}
++
+ AST_TEST_DEFINE(protected_target_lifecycle)
+ {
+ 	const enum ast_cli_lease_test_event pauses[] = {
+@@ -1369,10 +1405,13 @@
+ 		info->name = "protected_target_lifecycle";
+ 		info->category = "/main/loader/protected_cli/";
+ 		info->summary = "Separate target survives output/entry cleanup and drains exactly once before unload";
+-		info->description = "Twelve core-controlled schedules plus one partial-output schedule; controller remains loaded when target is removed.";
++		info->description = "Separate-target busy unregister, retained entry, and thirteen core-controlled lifecycle schedules.";
+ 		return AST_TEST_NOT_RUN;
+ 	case TEST_EXECUTE:
+ 		break;
++	}
++	if (lifecycle_target_busy_unregister_case(test)) {
++		return AST_TEST_FAIL;
+ 	}
+ 	for (i = 0; i < ARRAY_LEN(pauses); ++i) {
+ 		for (j = 0; j < ARRAY_LEN(outcomes); ++j) {
+diff --git a/tests/test_protected_cli_target.c b/tests/test_protected_cli_target.c
+--- a/tests/test_protected_cli_target.c
++++ b/tests/test_protected_cli_target.c
+@@ -34,6 +34,12 @@
+ 		refuse_unload_once = 1;
+ 		return CLI_SUCCESS;
+ 	}
++	if (!strcmp(args->argv[3], "busy-unregister")) {
++		if (target_entry[0].inuse <= 0) {
++			return CLI_FAILURE;
++		}
++		return ast_cli_unregister(&target_entry[0]) ? CLI_SUCCESS : CLI_FAILURE;
++	}
+ 	if (!strcmp(args->argv[3], "failure")) {
+ 		return CLI_FAILURE;
+ 	}

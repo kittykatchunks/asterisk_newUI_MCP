@@ -10,6 +10,7 @@ from shutdown_compile_binding import (
     load_ao2_accounting_supplement,
     load_cli_output_supplement,
     load_loader_lifecycle_supplement,
+    load_protected_unregister_supplement,
     load_shutdown_supplement,
     verify_ao2_accounting_basis,
     verify_ao2_accounting_postimages,
@@ -17,6 +18,8 @@ from shutdown_compile_binding import (
     verify_cli_output_postimages,
     verify_loader_lifecycle_basis,
     verify_loader_lifecycle_postimages,
+    verify_protected_unregister_basis,
+    verify_protected_unregister_postimages,
 )
 
 
@@ -27,6 +30,7 @@ parser.add_argument("--shutdown-supplement-manifest")
 parser.add_argument("--cli-output-supplement-manifest")
 parser.add_argument("--ao2-accounting-supplement-manifest")
 parser.add_argument("--loader-lifecycle-supplement-manifest")
+parser.add_argument("--protected-unregister-supplement-manifest")
 args = parser.parse_args()
 if not args.approve_native_compile or args.attempt < 1 or os.geteuid() == 0:
     raise SystemExit("Requires an unprivileged user and explicit --approve-native-compile")
@@ -36,6 +40,10 @@ if args.ao2_accounting_supplement_manifest and not args.cli_output_supplement_ma
     raise SystemExit("AO2 accounting supplement requires --cli-output-supplement-manifest")
 if args.loader_lifecycle_supplement_manifest and not args.ao2_accounting_supplement_manifest:
     raise SystemExit("Loader lifecycle supplement requires --ao2-accounting-supplement-manifest")
+if args.protected_unregister_supplement_manifest and not args.loader_lifecycle_supplement_manifest:
+    raise SystemExit(
+        "Protected unregister supplement requires --loader-lifecycle-supplement-manifest"
+    )
 home = pathlib.Path("/home/asterisk-build")
 staging = home / "source-staging"
 source_lock = json.loads((staging / "source-lock.json").read_text())
@@ -58,6 +66,10 @@ loader_lifecycle_supplement = None
 loader_lifecycle_supplement_patch = None
 loader_lifecycle_supplement_hash = None
 loader_lifecycle_supplement_manifest_hash = None
+protected_unregister_supplement = None
+protected_unregister_supplement_patch = None
+protected_unregister_supplement_hash = None
+protected_unregister_supplement_manifest_hash = None
 if args.shutdown_supplement_manifest:
     (
         shutdown_supplement,
@@ -106,6 +118,24 @@ if args.loader_lifecycle_supplement_manifest:
         cli_output_supplement_manifest_hash,
         ao2_accounting_supplement,
         ao2_accounting_supplement_manifest_hash,
+    )
+if args.protected_unregister_supplement_manifest:
+    (
+        protected_unregister_supplement,
+        protected_unregister_supplement_patch,
+        protected_unregister_supplement_hash,
+        protected_unregister_supplement_manifest_hash,
+    ) = load_protected_unregister_supplement(
+        args.protected_unregister_supplement_manifest,
+        candidate,
+        shutdown_supplement,
+        shutdown_supplement_manifest_hash,
+        cli_output_supplement,
+        cli_output_supplement_manifest_hash,
+        ao2_accounting_supplement,
+        ao2_accounting_supplement_manifest_hash,
+        loader_lifecycle_supplement,
+        loader_lifecycle_supplement_manifest_hash,
     )
 if hashlib.sha256(patch.read_bytes()).hexdigest() != candidate["patchSha256"]:
     raise ValueError("Patch SHA256 differs from approved candidate")
@@ -186,6 +216,38 @@ if loader_lifecycle_supplement is not None:
     report["loaderLifecycleSupplementParentAccountingSupplementManifestSha256"] = (
         ao2_accounting_supplement_manifest_hash
     )
+if protected_unregister_supplement is not None:
+    report["protectedUnregisterSupplementPatchSha256"] = (
+        protected_unregister_supplement_hash
+    )
+    report["protectedUnregisterSupplementManifestSha256"] = (
+        protected_unregister_supplement_manifest_hash
+    )
+    report["protectedUnregisterSupplementParentPatchSha256"] = candidate["patchSha256"]
+    report["protectedUnregisterSupplementParentSupplementPatchSha256"] = (
+        shutdown_supplement_hash
+    )
+    report["protectedUnregisterSupplementParentSupplementManifestSha256"] = (
+        shutdown_supplement_manifest_hash
+    )
+    report["protectedUnregisterSupplementParentOutputSupplementPatchSha256"] = (
+        cli_output_supplement_hash
+    )
+    report["protectedUnregisterSupplementParentOutputSupplementManifestSha256"] = (
+        cli_output_supplement_manifest_hash
+    )
+    report["protectedUnregisterSupplementParentAccountingSupplementPatchSha256"] = (
+        ao2_accounting_supplement_hash
+    )
+    report["protectedUnregisterSupplementParentAccountingSupplementManifestSha256"] = (
+        ao2_accounting_supplement_manifest_hash
+    )
+    report["protectedUnregisterSupplementParentLoaderLifecycleSupplementPatchSha256"] = (
+        loader_lifecycle_supplement_hash
+    )
+    report["protectedUnregisterSupplementParentLoaderLifecycleSupplementManifestSha256"] = (
+        loader_lifecycle_supplement_manifest_hash
+    )
 for profile in ["instrumented", "release"]:
     tree = build_root / profile
     shutil.copytree(pristine, tree)
@@ -246,6 +308,20 @@ for profile in ["instrumented", "release"]:
             patchSha256=loader_lifecycle_supplement_hash,
             appliedWithZeroFuzz=True,
             postimages=verify_loader_lifecycle_postimages(tree, loader_lifecycle_supplement),
+        )
+    protected_unregister_application = None
+    if protected_unregister_supplement is not None:
+        verify_protected_unregister_basis(tree, protected_unregister_supplement)
+        run(["patch", "--batch", "--fuzz=0", "--dry-run", "-p1",
+             "-i", protected_unregister_supplement_patch])
+        run(["patch", "--batch", "--fuzz=0", "-p1", "-i",
+             protected_unregister_supplement_patch])
+        protected_unregister_application = dict(
+            patchSha256=protected_unregister_supplement_hash,
+            appliedWithZeroFuzz=True,
+            postimages=verify_protected_unregister_postimages(
+                tree, protected_unregister_supplement
+            ),
         )
     configure = [
         "./configure",
@@ -331,6 +407,10 @@ for profile in ["instrumented", "release"]:
         profile_record["ao2AccountingSupplement"] = ao2_accounting_application
     if loader_lifecycle_application is not None:
         profile_record["loaderLifecycleSupplement"] = loader_lifecycle_application
+    if protected_unregister_application is not None:
+        profile_record["protectedUnregisterSupplement"] = (
+            protected_unregister_application
+        )
     report["profiles"].append(profile_record)
     (build_root / "compile-report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"COMPILED_PROFILE={profile} REQUIRED_OUTPUTS={len(binaries)}", flush=True)
