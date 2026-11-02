@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+	<testsuite errors="0" time="0.1" tests="1" failures="0" name="AsteriskUnitTests">
+		<properties>
+			<property name="version" value="22.11.0"/>
+		</properties>
+		<testcase time="0.1" classname="main.loader.protected_cli." name="protected_target_permission"/>
+	</testsuite>
+</testsuites>

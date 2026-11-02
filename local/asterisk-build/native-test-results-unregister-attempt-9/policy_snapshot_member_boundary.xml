@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+	<testsuite errors="0" time="0.16" tests="1" failures="0" name="AsteriskUnitTests">
+		<properties>
+			<property name="version" value="22.11.0"/>
+		</properties>
+		<testcase time="0.16" classname="apps.app_queue.policy_snapshot." name="policy_snapshot_member_boundary"/>
+	</testsuite>
+</testsuites>

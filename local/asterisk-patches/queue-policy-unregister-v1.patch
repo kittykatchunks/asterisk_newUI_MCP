@@ -67,10 +67,10 @@ diff --git a/tests/test_protected_cli_target.c b/tests/test_protected_cli_target
  		return CLI_SUCCESS;
  	}
 +	if (!strcmp(args->argv[3], "busy-unregister")) {
-+		if (target_entry[0].inuse <= 0) {
++		if (entry->inuse <= 0) {
 +			return CLI_FAILURE;
 +		}
-+		return ast_cli_unregister(&target_entry[0]) ? CLI_SUCCESS : CLI_FAILURE;
++		return ast_cli_unregister(entry) ? CLI_SUCCESS : CLI_FAILURE;
 +	}
  	if (!strcmp(args->argv[3], "failure")) {
  		return CLI_FAILURE;

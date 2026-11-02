@@ -21,7 +21,7 @@
   "basisNativeReport": "../asterisk-build/native-test-report-loader-v1.json",
   "basisNativeReportSha256": "28118d028410051ba7e6a38029a498d3b4e449f5d1e60f8cce6dbf34f4991489",
   "patch": "queue-policy-unregister-v1.patch",
-  "patchSha256": "b5a673045efe9d265ef440ee58191a9cdbb8a51f50ff3f38d666cb689f9853af",
+  "patchSha256": "53c85d717675c6bf990d3caf4326bff7bc07d4b3a1689a4e76e1bed3f9b670c7",
   "changedUpstreamPaths": [
     "tests/test_bounded_queue_policy.c",
     "tests/test_protected_cli_target.c"
@@ -38,7 +38,7 @@
     "originalSuccessorSourceModified": false,
     "postimageSha256": {
       "tests/test_bounded_queue_policy.c": "c40173850c3c18b6a9baaadc2bc4a7fe03761797aca32bf5d1f333cde212bdaf",
-      "tests/test_protected_cli_target.c": "35690a3689f44850f7f9ce7578d525424479996e1ba45257c135570fa43ce0c1"
+      "tests/test_protected_cli_target.c": "7349787f88602408857318fbf46a96ac0315412c789d970dafc2bc36eb94de71"
     }
   },
   "fixtures": {
