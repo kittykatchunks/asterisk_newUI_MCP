@@ -2874,3 +2874,8 @@ These are private fixture results, not production readiness or deployment
 evidence. No binaries were exported, no runtime image was published, and Gate C
 remains closed. Any additional disposable Asterisk startup or native suite needs
 separate explicit approval; the previous approvals do not extend to it.
+
+The next offline Gate A design is [CLI output failure and lease-through-output
+cleanup](./PROJECT-PLAN.md#gate-a-next-offline-design-cli-output-failure-and-lease-through-output-cleanup-design-only).
+It is a test-fixture design only; source changes and native execution remain
+separately scoped and authorized.

@@ -3432,6 +3432,21 @@ output and ref/work instrumentation need a concrete safe fixture design and a
 scope decision before changing source or production behavior. More definitions
 alone cannot clear A's verified exit.
 
+##### Gate A next offline design: CLI output failure and lease-through-output cleanup (design only)
+
+The current `policy_snapshot_output_failure` definition passes `fd == -1` for an observed sample and a logical-error sample. It verifies failure propagation for an invalid descriptor, but it does not exercise a valid descriptor that becomes unwritable, a partial response, or a protected CLI lease held while output is pending. The existing lifecycle controller directs output to `/dev/null`, so its lease assertions do not cover a blocked or failed writer.
+
+The proposed increment is limited to native-test fixtures and `TEST_FRAMEWORK`-only coordination:
+
+1. Keep the invalid-descriptor cases. Pre-fill a valid nonblocking pipe until writes return `EAGAIN`, keep its read end open, and deliberately do not drain it while the existing `ast_carefulwrite` timeout path runs. For both an observed response and a logical-error envelope, require CLI failure, bounded output, and descriptor cleanup. Do not assert an exact elapsed time.
+2. Add a test-only one-shot writer seam for deterministic partial output: write an exact prefix to the fixture descriptor, then return an I/O failure. Require CLI failure and exactly that prefix, with no appended success text or replacement error envelope. This proves response-layer propagation only; it is not evidence about kernel-write atomicity or `ast_carefulwrite` internals. Keep the seam absent from the release profile.
+3. Extend the protected-target lifecycle fixture with a controlled writer that emits a prefix and pauses at a barrier before finishing output. While the worker is paused, require one active lease; normal/firm/hard unload and protected unregister must refuse, with no destructor or handler re-entry. Resume into a failing-write result, then require exactly one entry-completion/release sequence and successful unload only after the lease reaches zero. Use barriers and event counts, not timing sleeps.
+4. Keep responder tests and generic dispatcher-lifetime tests distinct unless the registered queue-snapshot command can be exercised without mutating unrelated global queue state. Do not claim end-to-end queue-snapshot lifetime coverage if the fixture does not invoke that actual command path.
+
+The fixture must restore any injected writer state, close every descriptor, join every worker, retain bounded logs, and leave no Asterisk process, socket, PID file, or reader lease. Do not close a pipe reader in-process until the pinned Asterisk SIGPIPE behavior is verified; the deterministic writer seam covers the disconnected/partial-response error contract without risking the native test process. Partial transport failure may leave truncated bytes, and neither atomic delivery nor host-timeout cancellation is promised.
+
+This is a design only: no source change, compile, native run, or production behavior change is authorized by it. A later source increment should first add offline fixture/package checks; any native execution of the new inventory needs separate explicit approval.
+
 **Build handoff remains a separate decision, not the next automatic command:**
 
 1. Select and verify immutable builder/runtime digests and architecture,
