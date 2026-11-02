@@ -3384,6 +3384,21 @@ acceptance reconciliation, not its requirements or historical evidence.
 No source/package bytes or approval flags change in this documentation-only
 increment. Test-definition counts are inventory, not an acceptance score.
 
+##### Approved substitute native evidence: the distinct `queue-policy-v1` candidate
+
+The documented `72c5ef0` / `2ae70680…` package was not present in the workspace
+or isolated builder. The user approved using the available
+[`queue-policy-v1.json`](./local/asterisk-patches/queue-policy-v1.json)
+candidate instead (`ede18f89…`). Its existing
+[`compile-report.json`](./local/asterisk-build/compile-report.json) is bound to
+that exact patch and records 46 instrumented and 44 release outputs. The
+[`native-test-report.json`](./local/asterisk-build/native-test-report.json)
+binds that compile report, runs the exact current 30-test inventory, passes all
+30 tests, and records that all owned processes stopped. These committed
+reports were reused; no new compile or native-test attempt was made for this
+authorization. This result is for the approved substitute, not the distinct
+`72c5ef0` candidate, and does not close broader Gate A acceptance.
+
 **Lifecycle delta since the earlier matrix (AT-09/QO-03):**
 
 | Obligation | Source assertion now defined | Still missing before acceptance |

@@ -1213,6 +1213,34 @@ test("passing fixture evidence does not grant deployment authority", () => {
   assert.equal(candidate.nativeTestsExecuted, false);
 });
 
+test("approved Gate A substitute reuses exact native evidence without closing acceptance", () => {
+  const evidence = preparation.gateANativeEvidenceReuse;
+  assert.equal(evidence.requestedCandidateCommit, "72c5ef0");
+  assert.equal(evidence.requestedCandidatePatchSha256,
+    "2ae70680493482bd7053f70f172bfa32b348cd5be35b9fefacd2bad8c0adc725");
+  assert.equal(evidence.requestedCandidateAvailable, false);
+  assert.equal(evidence.candidateManifestSha256, hash("local/asterisk-patches/queue-policy-v1.json"));
+  assert.equal(evidence.candidatePatchSha256, candidate.patchSha256);
+  assert.equal(evidence.compileReportSha256, hash(`${directory}/compile-report.json`));
+  assert.equal(evidence.nativeTestReportSha256, hash(`${directory}/native-test-report.json`));
+  assert.equal(evidence.existingEvidenceReused, true);
+  assert.equal(evidence.newCompileOrTestAttemptPerformed, false);
+  assert.equal(evidence.nativeTestAttempt, native.attempt);
+  assert.equal(evidence.nativeTestCount, native.results.length);
+  assert.equal(evidence.nativeTestsPassed,
+    native.results.filter((result) => result.result === "passed").length);
+  assert.equal(evidence.exactCurrentInventory, true);
+  assert.equal(evidence.allOwnedProcessesStopped, native.allOwnedProcessesStopped);
+  assert.equal(evidence.gateAAcceptanceComplete, false);
+  assert.equal(preparation.nativeExecution.gateAAcceptanceComplete, false);
+  assert.equal(compile.profiles.find((profile) => profile.name === "instrumented").outputs.length, 46);
+  assert.equal(compile.profiles.find((profile) => profile.name === "release").outputs.length, 44);
+  assert.deepEqual(native.results.map((result) => result.name), candidate.nativeTests);
+  assert.equal(native.results.filter((result) => result.result === "passed").length, 30);
+  assert.equal(native.completed, true);
+  assert.equal(native.allOwnedProcessesStopped, true);
+});
+
 test("current corrected build restores upstream optional API and binds all new evidence", () => {
   const validation = read(`${directory}/full-startup-validation.json`);
   assert.equal(validation.patchSha256, candidate.patchSha256);
