@@ -57,16 +57,36 @@ test("CLI output supplement binds exact parents, source images and offline appli
   assert.equal(supplement.asteriskStarted, false);
   assert.equal(supplement.runtimeApplyAuthorized, false);
   assert.equal(supplement.gatesBAndCApproved, false);
-  assert.equal(supplement.compilerApplicationSupport.implemented, false);
+  assert.equal(supplement.compilerApplicationSupport.implemented, true);
   assert.equal(supplement.fixtures.nativeDefinitionsAdded, 0);
   assert.equal(supplement.fixtures.endToEndQueueSnapshotCommandCovered, false);
   assert.equal(supplement.fixtures.protectedUnregisterCovered, false);
   assert.equal(preparation.cliOutputFixtureSupplement.patchSha256, supplement.patchSha256);
   assert.equal(preparation.cliOutputFixtureSupplement.nativeCompiled, false);
   assert.equal(preparation.cliOutputFixtureSupplement.nativeTestsExecuted, false);
-  assert.equal(preparation.cliOutputFixtureSupplement.compilerApplicationSupportImplemented, false);
+  assert.equal(preparation.cliOutputFixtureSupplement.compilerApplicationSupportImplemented, true);
   assert.equal(preparation.cliOutputFixtureSupplement.gateAAcceptanceComplete, false);
   assert.equal(preparation.cliOutputFixtureSupplement.gateCAuthorized, false);
+  const compiler = bytes("local/asterisk-build/compile-profiles.py").toString();
+  const binding = bytes("local/asterisk-build/shutdown_compile_binding.py").toString();
+  assert.match(compiler, /--cli-output-supplement-manifest/);
+  assert.match(compiler, /requires --shutdown-supplement-manifest/);
+  assert.match(compiler, /verify_cli_output_basis/);
+  assert.match(compiler, /verify_cli_output_postimages/);
+  assert.match(compiler, /cliOutputSupplementManifestSha256/);
+  assert.match(compiler, /cliOutputSupplementParentPatchSha256/);
+  assert.match(compiler, /cliOutputSupplementParentSupplementManifestSha256/);
+  assert.match(binding, /def load_cli_output_supplement\(/);
+  assert.match(binding, /CLI output supplement source preimage mismatch/);
+  assert.match(binding, /CLI output supplement source postimage mismatch/);
+  assert.ok(
+    compiler.indexOf('"-i", shutdown_supplement_patch])') <
+      compiler.indexOf("verify_cli_output_basis(tree"),
+  );
+  assert.ok(
+    compiler.indexOf("verify_cli_output_basis(tree") <
+      compiler.indexOf('"-i", cli_output_supplement_patch'),
+  );
 });
 
 test("CLI output fixture patch has only test-scoped, declared Asterisk paths", () => {

@@ -3432,7 +3432,7 @@ output and ref/work instrumentation need a concrete safe fixture design and a
 scope decision before changing source or production behavior. More definitions
 alone cannot clear A's verified exit.
 
-##### Gate A source-only CLI output fixtures: prepared, uncompiled and unexecuted
+##### Gate A source-only CLI output fixtures: compiler path implemented; uncompiled and unexecuted
 
 The test-only source increment is packaged in the [output fixture manifest](./local/asterisk-patches/queue-policy-output-v1.json) and [additive patch](./local/asterisk-patches/queue-policy-output-v1.patch). It is based on the exact shutdown-successor instrumented source files, bound to their preimage hashes and the prior compile/native reports. A zero-fuzz, zero-offset dry run and application to disposable copies succeeded; the hash-bound build tree and earlier patches/reports were not modified. The postimage hashes are recorded in the manifest.
 
@@ -3442,7 +3442,7 @@ The supplement extends the existing native test definitions without changing rel
 2. A `TEST_FRAMEWORK`-only one-shot seam writes an exact eight-byte prefix through `ast_carefulwrite`, resets its state, and then deterministically returns `CLI_FAILURE`. The responder test requires precisely that prefix for both response classes, with no appended response envelope. This tests response-layer failure propagation, not a real `EPIPE`, kernel-write atomicity, or `ast_carefulwrite` internals.
 3. The protected-target lifecycle fixture now captures a partial-output command in a nonblocking pipe. The target emits a prefix and returns failure; the core pauses at `HANDLER_RETURNED`, before its ordinary CLI failure diagnostic. While paused, unload/refresh attempts must refuse and the reader lease remains active. After resume, the test requires the exact prefix-plus-diagnostic bytes, one completion/release sequence, and successful target unload after the worker finishes. This is a separate dispatcher-lifetime test, not an end-to-end queue-snapshot command test; protected unregister is not asserted.
 
-The fixtures close owned descriptors, restore the one-shot field, and join the worker on all paths. The lifecycle test never closes the pipe reader while the writer is active. No native compile, native test, Asterisk startup, runtime application, or production behavior change occurred. Compilation remains separately blocked: `compile-profiles.py` currently accepts only the base patch and shutdown supplement, so a hash-bound third-supplement application path and its offline validation must be prepared before any future compile. Any native execution of the expanded inventory needs separate explicit approval.
+The fixtures close owned descriptors, restore the one-shot field, and join the worker on all paths. The lifecycle test never closes the pipe reader while the writer is active. The profile compiler now accepts this supplement only when its pinned shutdown parent is also supplied, applies the supplements in order to both instrumented and release trees with zero fuzz, verifies source preimages and postimages, and binds all supplement and parent hashes into the compile report. Focused offline binding/postimage tests and the packaging assertions pass. No native compile, native test, Asterisk startup, runtime application, or production behavior change occurred. Any native compilation or execution of the expanded inventory still needs separate explicit approval.
 
 **Build handoff remains a separate decision, not the next automatic command:**
 

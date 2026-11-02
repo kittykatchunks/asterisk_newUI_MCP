@@ -6,16 +6,24 @@ import pathlib
 import shutil
 import subprocess
 
-from shutdown_compile_binding import load_shutdown_supplement
+from shutdown_compile_binding import (
+    load_cli_output_supplement,
+    load_shutdown_supplement,
+    verify_cli_output_basis,
+    verify_cli_output_postimages,
+)
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-native-compile", action="store_true")
 parser.add_argument("--attempt", type=int, required=True)
 parser.add_argument("--shutdown-supplement-manifest")
+parser.add_argument("--cli-output-supplement-manifest")
 args = parser.parse_args()
 if not args.approve_native_compile or args.attempt < 1 or os.geteuid() == 0:
     raise SystemExit("Requires an unprivileged user and explicit --approve-native-compile")
+if args.cli_output_supplement_manifest and not args.shutdown_supplement_manifest:
+    raise SystemExit("CLI output supplement requires --shutdown-supplement-manifest")
 home = pathlib.Path("/home/asterisk-build")
 staging = home / "source-staging"
 source_lock = json.loads((staging / "source-lock.json").read_text())
@@ -26,6 +34,10 @@ shutdown_supplement = None
 shutdown_supplement_patch = None
 shutdown_supplement_hash = None
 shutdown_supplement_manifest_hash = None
+cli_output_supplement = None
+cli_output_supplement_patch = None
+cli_output_supplement_hash = None
+cli_output_supplement_manifest_hash = None
 if args.shutdown_supplement_manifest:
     (
         shutdown_supplement,
@@ -33,6 +45,18 @@ if args.shutdown_supplement_manifest:
         shutdown_supplement_hash,
         shutdown_supplement_manifest_hash,
     ) = load_shutdown_supplement(args.shutdown_supplement_manifest, candidate)
+if args.cli_output_supplement_manifest:
+    (
+        cli_output_supplement,
+        cli_output_supplement_patch,
+        cli_output_supplement_hash,
+        cli_output_supplement_manifest_hash,
+    ) = load_cli_output_supplement(
+        args.cli_output_supplement_manifest,
+        candidate,
+        shutdown_supplement,
+        shutdown_supplement_manifest_hash,
+    )
 if hashlib.sha256(patch.read_bytes()).hexdigest() != candidate["patchSha256"]:
     raise ValueError("Patch SHA256 differs from approved candidate")
 if candidate["patchSha256"] != module_plan["patchSha256"]:
@@ -66,6 +90,14 @@ if shutdown_supplement is not None:
     report["shutdownSupplementPatchSha256"] = shutdown_supplement_hash
     report["shutdownSupplementManifestSha256"] = shutdown_supplement_manifest_hash
     report["shutdownSupplementParentPatchSha256"] = candidate["patchSha256"]
+if cli_output_supplement is not None:
+    report["cliOutputSupplementPatchSha256"] = cli_output_supplement_hash
+    report["cliOutputSupplementManifestSha256"] = cli_output_supplement_manifest_hash
+    report["cliOutputSupplementParentPatchSha256"] = candidate["patchSha256"]
+    report["cliOutputSupplementParentSupplementPatchSha256"] = shutdown_supplement_hash
+    report["cliOutputSupplementParentSupplementManifestSha256"] = (
+        shutdown_supplement_manifest_hash
+    )
 for profile in ["instrumented", "release"]:
     tree = build_root / profile
     shutil.copytree(pristine, tree)
@@ -93,6 +125,17 @@ for profile in ["instrumented", "release"]:
             patchSha256=shutdown_supplement_hash,
             appliedWithZeroFuzz=True,
             postimages=supplement_postimages,
+        )
+    cli_output_application = None
+    if cli_output_supplement is not None:
+        verify_cli_output_basis(tree, cli_output_supplement)
+        run(["patch", "--batch", "--fuzz=0", "--dry-run", "-p1",
+             "-i", cli_output_supplement_patch])
+        run(["patch", "--batch", "--fuzz=0", "-p1", "-i", cli_output_supplement_patch])
+        cli_output_application = dict(
+            patchSha256=cli_output_supplement_hash,
+            appliedWithZeroFuzz=True,
+            postimages=verify_cli_output_postimages(tree, cli_output_supplement),
         )
     configure = [
         "./configure",
@@ -172,6 +215,8 @@ for profile in ["instrumented", "release"]:
     )
     if supplement_application is not None:
         profile_record["shutdownSupplement"] = supplement_application
+    if cli_output_application is not None:
+        profile_record["cliOutputSupplement"] = cli_output_application
     report["profiles"].append(profile_record)
     (build_root / "compile-report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"COMPILED_PROFILE={profile} REQUIRED_OUTPUTS={len(binaries)}", flush=True)

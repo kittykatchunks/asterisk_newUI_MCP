@@ -733,7 +733,7 @@
     "originalSuccessorSourceModified": false,
     "nativeDefinitionsAdded": 0,
     "protectedLifecycleSchedulesAdded": 1,
-    "compilerApplicationSupportImplemented": false,
+    "compilerApplicationSupportImplemented": true,
     "nativeCompileAuthorized": false,
     "nativeCompiled": false,
     "nativeTestsExecuted": false,

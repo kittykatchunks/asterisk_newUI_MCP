@@ -46,8 +46,9 @@
     "protectedUnregisterCovered": false
   },
   "compilerApplicationSupport": {
-    "implemented": false,
-    "pending": "compile-profiles.py currently applies only the base candidate and one shutdown supplement; a hash-bound sequential output-supplement application and profile postimage check are required before any compile."
+    "implemented": true,
+    "offlineValidated": true,
+    "support": "compile-profiles.py accepts this hash-bound third supplement only with the shutdown supplement, applies both in sequence with zero fuzz to instrumented and release source trees, and verifies the output supplement preimages and postimages for each profile."
   },
   "nativeCompileAuthorized": false,
   "nativeCompiled": false,
