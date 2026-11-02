@@ -2886,7 +2886,10 @@ and binding the parent/patch/manifest hashes in the report. Downstream offline r
 before native-test execution, shutdown fixtures, release smoke, runtime
 staging, and full-startup/runtime evidence reconciliation, while continuing to
 accept earlier reports that do not declare the supplement. Partial or
-mismatched bindings are rejected. The temporary-copy application
+mismatched bindings are rejected. The runtime-bundle staging recipe retains
+the complete source patch/manifest chain and shared binding helper as build
+records; existing historical bundle evidence is not rewritten. The
+temporary-copy application
 evidence remains unchanged; no native compile, test, Asterisk startup, or
 runtime application occurred. Any native compilation still needs separate
 explicit approval.

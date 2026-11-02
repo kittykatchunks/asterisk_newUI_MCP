@@ -119,8 +119,19 @@ if not {"libsoftokn3.so", "libsoftokn3.chk", "libfreeblpriv3.so",
 for source in source_lock["sources"]:
     copy_verified(home / "source-staging" / source["filename"],
                   root / "sources" / source["filename"], source["sha256"])
-for name in ["queue-policy-v1.patch", "queue-policy-v1.json", "source-lock.json",
-             "module-plan.json", "compile-profiles.py", "install-locked-packages.py"]:
+for name in [
+    "queue-policy-v1.patch",
+    "queue-policy-v1.json",
+    "queue-policy-shutdown-v1.patch",
+    "queue-policy-shutdown-v1.json",
+    "queue-policy-output-v1.patch",
+    "queue-policy-output-v1.json",
+    "source-lock.json",
+    "module-plan.json",
+    "compile-profiles.py",
+    "shutdown_compile_binding.py",
+    "install-locked-packages.py",
+]:
     copy_verified(home / "source-staging" / name, root / "build-records" / name)
 copy_verified(compile_path, root / "build-records/compile-report.json")
 copy_verified(home / "full-startup-validation.json", root / "build-records/full-startup-validation.json")

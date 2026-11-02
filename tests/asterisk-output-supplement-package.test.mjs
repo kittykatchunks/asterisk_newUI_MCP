@@ -90,6 +90,19 @@ test("CLI output supplement binds exact parents, source images and offline appli
   ]) {
     assert.match(bytes(consumer).toString(), /validate_cli_output_compile_report\(compile_report\)/);
   }
+  const stageRuntime = bytes("local/asterisk-build/stage-runtime.py").toString();
+  for (const buildRecord of [
+    "queue-policy-v1.patch",
+    "queue-policy-v1.json",
+    "queue-policy-shutdown-v1.patch",
+    "queue-policy-shutdown-v1.json",
+    "queue-policy-output-v1.patch",
+    "queue-policy-output-v1.json",
+    "compile-profiles.py",
+    "shutdown_compile_binding.py",
+  ]) {
+    assert.ok(stageRuntime.includes(`"${buildRecord}"`), `Missing staged build record: ${buildRecord}`);
+  }
   assert.ok(
     compiler.indexOf('"-i", shutdown_supplement_patch])') <
       compiler.indexOf("verify_cli_output_basis(tree"),
