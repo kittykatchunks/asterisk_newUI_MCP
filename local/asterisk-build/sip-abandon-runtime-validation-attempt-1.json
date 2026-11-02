@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "attemptNumber": 1,
+  "stage": "synthetic-sip-caller-abandon-attempt-failed-before-bye",
+  "authorization": {
+    "approvedAttemptsThisRun": 1,
+    "executedAttemptsThisRun": 1,
+    "scope": "Exactly one isolated synthetic caller-abandon attempt with pinned local images, private internal network, zero published ports, resource caps, and owned-resource cleanup; no existing PBX, external trunk, media test, or further retry."
+  },
+  "passed": false,
+  "report": "sip-abandon-runtime-report-attempt-1.json",
+  "reportSha256": "0037b31ce97dac60265b13a468afba078154c026a4a067f9bfeab250fccdabb3",
+  "clientLog": "sip-abandon-runtime-client-log-attempt-1.txt",
+  "clientLogSha256": "3f05096674db363cebab654dd0364d2cafb9a7237160fca692148dfc6760feeb",
+  "sourceHashesAtExecution": {
+    "local\\asterisk-build\\sip-proof.py": "40542d14ae2f62319e675b4d37ee9c8f9be7b7eefe726048d3b90cd58eb8a5d8",
+    "local\\asterisk-build\\smoke-desktop.py": "928bcaa91d7aa0de85b2a6bb0062ec6adbf688535da310ddefc5158d5cf4edc6",
+    "tests\\sip_candidate_client.py": "b6eef8ee5a6b3bc6751b8b9d129e94e93484f82ade51c01ec1030716b3a5f437",
+    "tests\\sip_rtp_proof.py": "25c519e6d4bb4656dc8a63afdfdaa88638b2023a614083e7a0b1e3e0852fc186",
+    "local\\asterisk-build\\runtime_sip_answer.py": "4f3678a58e844e58d6c6a73d7d847547617ef83add0a690e029a08f461a34d72",
+    "local\\asterisk-build\\runtime_answer_call.py": "bc16bf4eb540766f7f0f8740a12317024f33dcbc05cea2088641fd3b3a927f7f",
+    "tests\\sip_queue_answer_client.py": "db76bca5e5f1398c1842fb0b00665afdb1f2c10ad4ec3be1a60347c6fb95888e",
+    "local\\asterisk-build\\runtime_sip_abandon.py": "314798536a34f6bbf0764f15628c863f71f292fac9f7e32a9a7bceb30f9389ee",
+    "local\\asterisk-build\\runtime_unanswered_call.py": "b96677c0679cad8d377d85dba13f2d3ce88e7bf97c75848cdaabbd5164f3959e"
+  },
+  "images": {
+    "pbx": "sha256:48cb4a5e45da53fcff3389dfbc2c77ef9c1ad26c40bcb4251b35b76d6f364967",
+    "pythonCarrier": "sha256:d6333b8b331563c5887b98b12da9371ef48317e657d17d81770fe085f335041d",
+    "bundleManifestSha256": "52ac226cfcdb1fdae4c538a265308c284aea04c7398574b13915c5a033c4ef88",
+    "payloadValidationSha256": "d49f3ebe99e454c015aba33a46a19fc1619671aab9ec758b7e6c8eb9cfdc9aa3"
+  },
+  "acceptance": {
+    "pythonPreflightPassed": true,
+    "loadedModules": 41,
+    "twoDistinctContactsRegistered": true,
+    "callerObservedQueuedWhileAgentRinging": true,
+    "sipAttempted": true,
+    "callerByeCode": null,
+    "callerByeAttempted": false,
+    "agentCancelCode": null,
+    "agentInviteFinalCode": null,
+    "agentAckSeen": false,
+    "agentAnswered": false,
+    "hostValidatedCallerAbandonment": false,
+    "clientExitCode": 1,
+    "failure": "RuntimeError: Unexpected caller dialog remote target",
+    "contactValuePersisted": false
+  },
+  "diagnosis": {
+    "clientValidatorExpected": "sip:proof-client@172.23.0.2:5060",
+    "rawResponseContactPersisted": false,
+    "causeConfirmed": false,
+    "offlineFixPreparedAfterAttempt": "Validate exactly one bracketed or bare SIP Contact directed to the pinned PBX host and UDP port 5060; allow either no user component or a bounded user component, with optional transport=udp."
+  },
+  "isolation": {
+    "privateInternalNetwork": true,
+    "publishedPorts": 0,
+    "existingPbxOperated": false,
+    "mediaTested": false
+  },
+  "cleanup": {
+    "ownedContainersRemoved": true,
+    "ownedNetworkRemoved": true,
+    "ephemeralCredentialFilesRemoved": true,
+    "beforeAndAfterInventoryEqual": true,
+    "beforeAndAfterBridgeEqual": true,
+    "watchdogExpired": false,
+    "elapsedSeconds": 13.782
+  },
+  "retryAuthorized": false,
+  "runtimeApplyAuthorized": false,
+  "gateAAcceptanceComplete": false,
+  "gateCAuthorized": false,
+  "redistributionApproved": false
+}

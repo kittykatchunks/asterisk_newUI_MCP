@@ -1,14 +1,21 @@
 {
   "schemaVersion": 1,
-  "stage": "synthetic-sip-caller-abandon-queue-implemented-offline-only",
-  "runtimeExecuted": false,
+  "stage": "synthetic-sip-caller-abandon-runtime-failed-before-bye",
+  "runtimeExecuted": true,
   "runtimePassed": false,
-  "runtimeAttemptsAuthorized": 0,
-  "runtimeAttemptsExecuted": 0,
-  "containerStartupAuthorized": false,
-  "networkCreationAuthorized": false,
-  "sipTrafficAuthorized": false,
-  "latestExecutedQueueEvidence": "sip-unanswered-queue-validation.json",
+  "runtimeAttemptsAuthorized": 1,
+  "runtimeAttemptsExecuted": 1,
+  "containerStartupAuthorized": true,
+  "networkCreationAuthorized": true,
+  "sipTrafficAuthorized": true,
+  "latestExecutedQueueEvidence": "sip-abandon-runtime-validation-attempt-1.json",
+  "runtimeEvidence": {
+    "validation": "sip-abandon-runtime-validation-attempt-1.json",
+    "report": "sip-abandon-runtime-report-attempt-1.json",
+    "clientLog": "sip-abandon-runtime-client-log-attempt-1.txt",
+    "passed": false,
+    "failure": "Client rejected the PBX caller-dialog Contact before ACK/BYE."
+  },
   "entrypoint": "sip-proof.py",
   "additionalApprovalFlagRequired": "--approve-sip-queue-abandon",
   "baseApprovalFlagAlsoRequired": "--approve-isolated-sip-rtp-proof",
@@ -44,7 +51,7 @@
     "No retry, RTP/media-quality claim, real phone interoperability, multi-PBX isolation, production operation, Gate A/Gate C acceptance, deployment or redistribution authority."
   ],
   "offlineValidation": {
-    "pythonTestsPassed": 96,
+    "pythonTestsPassed": 97,
     "sourceEvidenceTestsPassed": 41,
     "description": "Unit and mocked client/host/orchestration checks only. No runtime credentials, real sockets, Docker resources or protocol traffic used."
   },
@@ -53,7 +60,7 @@
     "The client agent's CANCEL/200, INVITE/487 and non-2xx ACK handling is a bounded synthetic path, not a general SIP stack or complete conformance test.",
     "The ten-second application queue timeout provides a bounded window; missing the ringing checkpoint or racing the application timeout must fail rather than relax acceptance.",
     "No agent RTP is sent. PCMU SDP validation does not prove media quality or human service.",
-    "No caller-abandon runtime attempt has been authorized or executed. Future execution requires separate explicit approval."
+    "The one authorized runtime attempt failed before caller ACK/BYE because the synthetic client rejected the PBX Contact. The raw Contact value was not retained, so the exact format mismatch is unconfirmed. Offline validation now allows only the pinned PBX host/UDP port, with bracketed or bare URI syntax, an optional user, and optional transport=udp; this fix is not runtime-validated. No further attempt is authorized."
   ],
   "runtimeApplyAuthorized": false,
   "gateAAcceptanceComplete": false,

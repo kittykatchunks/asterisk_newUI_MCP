@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/client/sip_candidate_client.py", line 167, in <module>
+    execute_answer(args.host, args.control, noanswer=args.queue_unanswered,
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   caller_abandon=args.queue_abandon, member_busy=args.queue_busy)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/client/sip_queue_answer_client.py", line 301, in execute_answer
+    hold(None, None, caller.call_id, None)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/client/sip_queue_answer_client.py", line 264, in hold
+    require(contact is not None
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^
+            and contact[1] == f"sip:proof-client@{caller.server[0]}:5060",
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "Unexpected caller dialog remote target")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/client/sip_rtp_proof.py", line 18, in require
+    raise RuntimeError(message)
+RuntimeError: Unexpected caller dialog remote target

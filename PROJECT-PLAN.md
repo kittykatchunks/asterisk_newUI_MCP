@@ -5619,14 +5619,12 @@ interoperability, RTP quality, external trunks, load, encrypted transport,
 WebRTC, multi-PBX isolation, Gate A/Gate C, license closure or deployment.
 No retry or further runtime execution is authorized.
 
-##### Synthetic SIP caller abandon while agent rings: offline only
+##### Synthetic SIP caller abandon while agent rings: runtime attempt failed
 
-The next isolated lifecycle fixture implements caller abandonment during
-agent ringing, **offline only**. The caller's original INVITE is already
-answered before `Queue`, so the correct caller-side in-dialog hangup is BYE,
-not a caller CANCEL. The PBX should cancel the still-ringing agent INVITE.
-This step has no runtime approval: it has not created containers/networks or
-sent SIP traffic, and successful mocks are not runtime evidence.
+The isolated lifecycle fixture implements caller abandonment during agent
+ringing. The caller's original INVITE is already answered before `Queue`, so
+the correct caller-side in-dialog hangup is BYE, not a caller CANCEL. The PBX
+should cancel the still-ringing agent INVITE.
 
 The explicit `--approve-sip-queue-abandon` flag is mutually exclusive with
 the existing queue modes and still requires the base isolated-proof flag.
@@ -5649,13 +5647,37 @@ Future acceptance is:
   zero process exits, unchanged warmed bridge/inventory, and removal of all
   owned resources and generated credentials.
 
-The [machine-readable preparation](./local/asterisk-build/sip-abandon-preparation.json)
-records **96 offline Python and 41 source/evidence tests**. Tests cover the
-caller BYE path after host acknowledgement, never-answer agent cancellation,
-queue accounting, private timeout priority, cleanup and mutually exclusive
-flags, plus answered, unanswered, empty-queue and default echo regressions.
-No RTP/media quality, real phone, human service or tenant-isolation claim is
-made. Separate approval is required before any runtime attempt.
+###### Caller-abandon runtime attempt 1: failed before caller BYE
+
+The user authorized exactly one isolated attempt. The pinned images and
+network-free Python preflight passed, all 41 expected PBX modules loaded, and
+both synthetic contacts registered. The host observed the caller queued while
+the agent rang. Before sending the caller's in-dialog ACK or BYE, the client
+exited with `RuntimeError: Unexpected caller dialog remote target`. Therefore
+the attempt did not validate caller BYE/200, agent CANCEL/200, INVITE/487,
+non-2xx ACK, queue accounting or final acceptance. It is recorded as a failure,
+not a partial pass.
+
+The [attempt validation](./local/asterisk-build/sip-abandon-runtime-validation-attempt-1.json)
+is hash-bound to its [runner report](./local/asterisk-build/sip-abandon-runtime-report-attempt-1.json)
+and [sanitized client log](./local/asterisk-build/sip-abandon-runtime-client-log-attempt-1.txt).
+The client required exactly `sip:proof-client@<PBX-IP>:5060`, but the raw
+response Contact was not retained, so the precise URI format mismatch is
+unconfirmed. Offline-only, the Contact validator was corrected to accept a
+single bracketed or bare URI directed to the pinned PBX host and UDP port
+5060, with either no user or a bounded user component and an optional
+`transport=udp` parameter.
+Regression coverage rejects other hosts, ports, schemes, transports and
+ambiguous Contact headers. This fix has not been runtime-tested.
+
+The failed run's owned containers, private network and ephemeral credentials
+were removed, the watchdog did not expire, and the post-preflight initial and
+final inventory and bridge snapshots matched. No media was tested and no
+existing PBX was operated. The [machine-readable preparation](./local/asterisk-build/sip-abandon-preparation.json)
+records **97 offline Python and 41 source/evidence tests**. **The one approved
+attempt is consumed; no further runtime retry is authorized.** No RTP/media
+quality, real phone, human service, tenant-isolation, Gate A/Gate C, deployment
+or redistribution claim is made.
 
 ##### Synthetic SIP busy-member queue: runtime validated
 

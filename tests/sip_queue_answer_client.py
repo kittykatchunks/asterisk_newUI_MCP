@@ -19,6 +19,20 @@ BUSY_PHASES = ("registered-both", "agent-ringing", "agent-busy",
                "queue-timeout", "call-complete", "unregistered-both")
 
 
+def caller_dialog_target(headers, server_address):
+    contacts = headers.get("contact", [])
+    if len(contacts) != 1:
+        return None
+    pattern = (r"sip:(?:[A-Za-z0-9._!~*'()+%-]+@)?"
+               + re.escape(server_address)
+               + r":5060(?:;transport=udp)?")
+    header = contacts[0]
+    match = re.fullmatch(r"(?:[^<>]*?)?<(" + pattern + r")>", header, re.IGNORECASE)
+    if match:
+        return match[1]
+    return header if re.fullmatch(pattern, header, re.IGNORECASE) else None
+
+
 class Agent:
     def __init__(self, probe, noanswer=False, busy=False):
         self.probe = probe
@@ -260,15 +274,14 @@ def execute_answer(host, control, noanswer=False, caller_abandon=False, member_b
             checkpoint("agent-ringing", inviteSeen=True)
             if caller_abandon:
                 caller.to_value = headers["to"][0]
-                contact = re.fullmatch(r"<(sip:[^@;>\s]+@[^:;>\s]+:\d+)>", headers["contact"][0])
-                require(contact is not None
-                        and contact[1] == f"sip:proof-client@{caller.server[0]}:5060",
+                target = caller_dialog_target(headers, caller.server[0])
+                require(target is not None,
                         "Unexpected caller dialog remote target")
                 caller.branch = "z9hG4bK" + uuid.uuid4().hex
-                caller.sip.send(caller.request("ACK", uri=contact[1]))
+                caller.sip.send(caller.request("ACK", uri=target))
                 caller.cseq += 1
                 caller.branch = "z9hG4bK" + uuid.uuid4().hex
-                code, _, _ = caller.final_response(caller.request("BYE", uri=contact[1]), "BYE")
+                code, _, _ = caller.final_response(caller.request("BYE", uri=target), "BYE")
                 require(code == 200, f"Caller abandonment BYE failed: {code}")
                 until(lambda: agent.cancel is not None, 5)
                 until(lambda: agent.acked, 5, agent.final)

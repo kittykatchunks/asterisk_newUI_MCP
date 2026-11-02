@@ -181,11 +181,14 @@ test("second approved SIP busy attempt preserves timeout failure, source binding
   assert.equal(execution.diagnosisFixPreparedOffline.runtimeValidated, true);
 });
 
-test("caller-abandon SIP queue preparation is explicit offline-only with mutually exclusive runtime mode", () => {
+test("caller-abandon SIP runtime failure is preserved and its offline Contact fix stays isolated", () => {
   const record = read(`${directory}/sip-abandon-preparation.json`);
-  assert.equal(record.stage, "synthetic-sip-caller-abandon-queue-implemented-offline-only");
-  assert.equal(record.runtimeAttemptsAuthorized, 0);
-  assert.equal(record.runtimeAttemptsExecuted, 0);
+  const validation = read(`${directory}/sip-abandon-runtime-validation-attempt-1.json`);
+  const report = read(`${directory}/${validation.report}`);
+  const execution = preparation.sipCallerAbandonExecution;
+  assert.equal(record.stage, "synthetic-sip-caller-abandon-runtime-failed-before-bye");
+  assert.equal(record.runtimeAttemptsAuthorized, 1);
+  assert.equal(record.runtimeAttemptsExecuted, 1);
   assert.equal(record.additionalApprovalFlagRequired, "--approve-sip-queue-abandon");
   assert.equal(record.baseApprovalFlagAlsoRequired, "--approve-isolated-sip-rtp-proof");
   assert.equal(record.defaultEchoBehaviorRetained, true);
@@ -196,15 +199,36 @@ test("caller-abandon SIP queue preparation is explicit offline-only with mutuall
   assert.equal(record.implementation.resultHoldSeconds, 20);
   assert.equal(record.implementation.rtpVerified, false);
   assert.equal(record.implementation.humanAnsweringTested, false);
-  assert.equal(record.offlineValidation.pythonTestsPassed, 96);
+  assert.equal(record.offlineValidation.pythonTestsPassed, 97);
   assert.equal(record.offlineValidation.sourceEvidenceTestsPassed, 41);
   assert.equal(preparation.sipCallerAbandonPreparation.runtimePassed, false);
-  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsAuthorized, 0);
-  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsExecuted, 0);
-  assert.equal(preparation.sipCallerAbandonPreparation.newNetworkOrContainerStarted, false);
-  assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, true);
-  for (const flag of ["runtimeExecuted", "runtimePassed", "containerStartupAuthorized",
-    "networkCreationAuthorized", "sipTrafficAuthorized", "runtimeApplyAuthorized",
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsAuthorized, 1);
+  assert.equal(preparation.sipCallerAbandonPreparation.runtimeAttemptsExecuted, 1);
+  assert.equal(preparation.sipCallerAbandonPreparation.newNetworkOrContainerStarted, true);
+  assert.equal(read(`${directory}/${record.latestExecutedQueueEvidence}`).passed, false);
+  assert.equal(validation.attemptNumber, 1);
+  assert.equal(validation.passed, false);
+  assert.equal(hash(`${directory}/${validation.report}`), validation.reportSha256);
+  assert.equal(hash(`${directory}/${validation.clientLog}`), validation.clientLogSha256);
+  assert.equal(report.sipQueueAbandonRequested, true);
+  assert.equal(report.passed, false);
+  assert.equal(report.lastClientProgress.phases.at(-1).phase, "agent-ringing");
+  assert.equal(validation.acceptance.callerByeAttempted, false);
+  assert.equal(validation.cleanup.ownedContainersRemoved, true);
+  assert.equal(validation.cleanup.ownedNetworkRemoved, true);
+  assert.equal(validation.cleanup.ephemeralCredentialFilesRemoved, true);
+  assert.equal(validation.cleanup.beforeAndAfterInventoryEqual, true);
+  assert.equal(validation.cleanup.beforeAndAfterBridgeEqual, true);
+  assert.equal(validation.retryAuthorized, false);
+  assert.equal(execution.approvedCallerAbandonAttempts, 1);
+  assert.equal(execution.executedCallerAbandonAttempts, 1);
+  assert.equal(execution.passed, false);
+  assert.equal(execution.diagnosisFixPreparedOffline.runtimeValidated, false);
+  for (const flag of ["runtimeExecuted", "containerStartupAuthorized",
+    "networkCreationAuthorized", "sipTrafficAuthorized"]) {
+    assert.equal(record[flag], true, flag);
+  }
+  for (const flag of ["runtimePassed", "runtimeApplyAuthorized",
     "gateAAcceptanceComplete", "gateCAuthorized", "redistributionApproved"]) {
     assert.equal(record[flag], false, flag);
   }
@@ -216,8 +240,9 @@ test("caller-abandon SIP queue preparation is explicit offline-only with mutuall
   assert.match(host, /Queue\(proof-queue,r,,,10\)/);
   assert.match(host, /callerByeCode/);
   const client = bytes("tests/sip_queue_answer_client.py").toString();
-  assert.match(client, /caller\.request\("ACK", uri=contact\[1\]\)/);
-  assert.match(client, /caller\.request\("BYE", uri=contact\[1\]\)/);
+  assert.match(client, /def caller_dialog_target\(headers, server_address\)/);
+  assert.match(client, /caller\.request\("ACK", uri=target\)/);
+  assert.match(client, /caller\.request\("BYE", uri=target\)/);
 });
 
 test("unanswered SIP runtime binds ringing, correlated cancellation, zero-answer timeout and cleanup", () => {

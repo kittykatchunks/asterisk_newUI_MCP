@@ -128,7 +128,7 @@ class SipAbandonTests(unittest.TestCase):
             caller.final_response.return_value = (200, {}, "")
             caller.invite.return_value = (200, {
                 "to": ["<sip:queue-abandon@pbx>;tag=remote"],
-                "contact": ["<sip:proof-client@172.23.0.2:5060>"],
+                "contact": ["<sip:proof-client@172.23.0.2:5060;transport=udp>"],
             }, "c=IN IP4 172.23.0.2\r\nm=audio 10000 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n")
             agent = Mock(dialog={"id": "agent"}, cancel=b"CANCEL", acked=True, final=b"487")
             with patch.object(client, "RegistrationProbe", side_effect=[caller, agent_probe]), \
@@ -140,8 +140,12 @@ class SipAbandonTests(unittest.TestCase):
             self.assertFalse(report["unansweredQueueRequested"])
             self.assertEqual(caller.uri, "sip:queue-abandon@pbx")
             caller.sip.send.assert_called_once()
+            ack_request = caller.sip.send.call_args.args[0]
+            self.assertTrue(ack_request.startswith(
+                b"ACK sip:proof-client@172.23.0.2:5060;transport=udp SIP/2.0"))
             bye_request = caller.final_response.call_args.args[0]
-            self.assertTrue(bye_request.startswith(b"BYE sip:proof-client@172.23.0.2:5060 SIP/2.0"))
+            self.assertTrue(bye_request.startswith(
+                b"BYE sip:proof-client@172.23.0.2:5060;transport=udp SIP/2.0"))
             caller.final_response.assert_called_once_with(bye_request, "BYE")
             self.assertEqual([phase["phase"] for phase in report["phases"]], list(client.ABANDON_PHASES))
             self.assertEqual(report["phases"][2]["callerByeCode"], 200)
@@ -152,6 +156,34 @@ class SipAbandonTests(unittest.TestCase):
             for probe in (caller, agent_probe):
                 self.assertEqual(probe.register.call_args_list[-1].args[-1], 0)
                 probe.close.assert_called_once()
+
+    def test_caller_dialog_target_accepts_only_the_private_pbxs_sip_contact(self):
+        private_pb = "172.23.0.2"
+        self.assertEqual(
+            client.caller_dialog_target(
+                {"contact": ["<sip:proof-client@172.23.0.2:5060;transport=udp>"]},
+                private_pb),
+            "sip:proof-client@172.23.0.2:5060;transport=udp")
+        self.assertEqual(
+            client.caller_dialog_target({"contact": ["<sip:172.23.0.2:5060>"]}, private_pb),
+            "sip:172.23.0.2:5060")
+        self.assertEqual(
+            client.caller_dialog_target({"contact": ["sip:172.23.0.2:5060"]}, private_pb),
+            "sip:172.23.0.2:5060")
+        self.assertEqual(
+            client.caller_dialog_target(
+                {"contact": ['"Asterisk" <sip:172.23.0.2:5060>']}, private_pb),
+            "sip:172.23.0.2:5060")
+        for contact in (
+            "<sip:proof-client@172.23.0.3:5060>",
+            "<sip:proof-client@172.23.0.2:5061>",
+            "<sips:proof-client@172.23.0.2:5060>",
+            "<sip:proof-client@172.23.0.2:5060;transport=tcp>",
+        ):
+            with self.subTest(contact=contact):
+                self.assertIsNone(client.caller_dialog_target({"contact": [contact]}, private_pb))
+        self.assertIsNone(client.caller_dialog_target(
+            {"contact": ["<sip:172.23.0.2:5060>", "<sip:172.23.0.2:5060>"]}, private_pb))
 
     def test_modes_reject_abandon_plus_any_other_queue_mode_without_runtime(self):
         for flags in (

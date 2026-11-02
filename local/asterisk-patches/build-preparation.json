@@ -69,12 +69,35 @@
     "gateCAuthorized": false
   },
   "sipCallerAbandonPreparation": {
-    "stage": "offline-only-synthetic-sip-caller-abandon-implemented",
+    "stage": "synthetic-sip-caller-abandon-attempt-failed-contact-validation",
     "preparation": "../asterisk-build/sip-abandon-preparation.json",
-    "runtimeAttemptsAuthorized": 0,
-    "runtimeAttemptsExecuted": 0,
+    "runtimeAttemptsAuthorized": 1,
+    "runtimeAttemptsExecuted": 1,
     "runtimePassed": false,
-    "newNetworkOrContainerStarted": false,
+    "newNetworkOrContainerStarted": true,
+    "runtimeApplyAuthorized": false,
+    "gateCAuthorized": false
+  },
+  "sipCallerAbandonExecution": {
+    "validation": "../asterisk-build/sip-abandon-runtime-validation-attempt-1.json",
+    "report": "../asterisk-build/sip-abandon-runtime-report-attempt-1.json",
+    "clientLog": "../asterisk-build/sip-abandon-runtime-client-log-attempt-1.txt",
+    "approvedCallerAbandonAttempts": 1,
+    "executedCallerAbandonAttempts": 1,
+    "passed": false,
+    "callerObservedQueuedWhileAgentRinging": true,
+    "callerByeAttempted": false,
+    "failure": "Client rejected the PBX caller-dialog Contact before ACK/BYE; raw Contact was not retained.",
+    "diagnosisFixPreparedOffline": {
+      "privatePbxHostAndPortRequired": true,
+      "bracketedOrBareContactUriAllowed": true,
+      "optionalContactUserAllowed": true,
+      "optionalUdpTransportParameterAllowed": true,
+      "runtimeValidated": false
+    },
+    "ownedResourcesRemoved": true,
+    "credentialFilesRemoved": true,
+    "furtherRuntimeAuthorized": false,
     "runtimeApplyAuthorized": false,
     "gateCAuthorized": false
   },
