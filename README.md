@@ -527,6 +527,16 @@ Non-AO2 allocation and I/O accounting, retirement concurrency and broader
 Gate A acceptance remain open. No release-profile startup, runtime apply,
 Gate C or production/deployment work occurred.
 
+**[Loader lifecycle successful-removal fixture prepared, not executed](./PROJECT-PLAN.md#successful-removal-during-a-paused-protected-lookup-is-prepared-as-a-test-only-source-supplement).**
+The fifth source layer adds a schedule to the existing protected-lookup native
+definition: pause after lookup, begin a successful unload, resume the lookup,
+and require denial before handler execution plus target removal. The denial is
+due to loader-lock contention while unregister waits for the registry reader;
+it does not assert the `cli_closing`-specific branch. Patch application and
+hash-bound compiler support were validated offline. No native compile/test,
+Asterisk startup, PBX operation, Gate C proof, or deployment was performed for
+this layer; the earlier 30/30 result does not include it.
+
 **[Release loaded-state smoke also passes](./PROJECT-PLAN.md#release-profile-loaded-state-smoke-passed).**
 All 44 release outputs resolve their shared libraries in the builder, and
 the disposable release core exposes no test command. Five exact getter

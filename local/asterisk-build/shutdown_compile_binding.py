@@ -21,6 +21,11 @@ EXPECTED_ACCOUNTING_PATHS = [
     "main/astobj2_container.c",
     "main/astobj2_hash.c",
 ]
+EXPECTED_LOADER_LIFECYCLE_PATHS = [
+    "include/asterisk/module.h",
+    "main/loader.c",
+    "tests/test_bounded_queue_policy.c",
+]
 EXPECTED_ACCOUNTING_WORK_COUNTERS = [
     "AO2 reference calls",
     "AO2 allocations",
@@ -46,6 +51,17 @@ AO2_ACCOUNTING_REPORT_FIELDS = (
     "ao2AccountingSupplementParentSupplementManifestSha256",
     "ao2AccountingSupplementParentOutputSupplementPatchSha256",
     "ao2AccountingSupplementParentOutputSupplementManifestSha256",
+)
+LOADER_LIFECYCLE_REPORT_FIELDS = (
+    "loaderLifecycleSupplementPatchSha256",
+    "loaderLifecycleSupplementManifestSha256",
+    "loaderLifecycleSupplementParentPatchSha256",
+    "loaderLifecycleSupplementParentSupplementPatchSha256",
+    "loaderLifecycleSupplementParentSupplementManifestSha256",
+    "loaderLifecycleSupplementParentOutputSupplementPatchSha256",
+    "loaderLifecycleSupplementParentOutputSupplementManifestSha256",
+    "loaderLifecycleSupplementParentAccountingSupplementPatchSha256",
+    "loaderLifecycleSupplementParentAccountingSupplementManifestSha256",
 )
 
 
@@ -314,6 +330,166 @@ def verify_ao2_accounting_postimages(tree, manifest):
     return records
 
 
+def load_loader_lifecycle_supplement(
+    manifest_path,
+    parent_manifest,
+    shutdown_manifest,
+    shutdown_manifest_hash,
+    output_manifest,
+    output_manifest_hash,
+    accounting_manifest,
+    accounting_manifest_hash,
+):
+    manifest_path = pathlib.Path(manifest_path).absolute()
+    manifest_bytes = _read_regular_file(manifest_path)
+    manifest = json.loads(manifest_bytes)
+    if not isinstance(manifest, dict):
+        raise ValueError("Loader lifecycle supplement manifest must be an object")
+    if (
+        manifest.get("schemaVersion") != 1
+        or manifest.get("stage") != "source-only-loader-lifecycle-fixture-prepared"
+        or manifest.get("upstreamCommit") != parent_manifest["upstreamCommit"]
+        or manifest.get("parentManifest") != "queue-policy-v1.json"
+        or manifest.get("parentPatchSha256") != parent_manifest["patchSha256"]
+        or manifest.get("parentSupplementManifest") != "queue-policy-shutdown-v1.json"
+        or manifest.get("parentSupplementManifestSha256") != shutdown_manifest_hash
+        or manifest.get("parentSupplementPatchSha256") != shutdown_manifest["patchSha256"]
+        or manifest.get("parentOutputSupplementManifest") != "queue-policy-output-v1.json"
+        or manifest.get("parentOutputSupplementManifestSha256") != output_manifest_hash
+        or manifest.get("parentOutputSupplementPatchSha256") != output_manifest["patchSha256"]
+        or manifest.get("parentAccountingSupplementManifest")
+        != "queue-policy-accounting-v1.json"
+        or manifest.get("parentAccountingSupplementManifestSha256")
+        != accounting_manifest_hash
+        or manifest.get("parentAccountingSupplementPatchSha256")
+        != accounting_manifest["patchSha256"]
+        or manifest.get("basisCompileReport")
+        != "../asterisk-build/compile-report-accounting-v1.json"
+        or manifest.get("basisNativeReport")
+        != "../asterisk-build/native-test-report-accounting-v1.json"
+        or manifest.get("patch") != "queue-policy-loader-v1.patch"
+        or manifest.get("changedUpstreamPaths") != EXPECTED_LOADER_LIFECYCLE_PATHS
+        or manifest.get("nativeCompileAuthorized") is not False
+        or manifest.get("nativeCompiled") is not False
+        or manifest.get("nativeTestsExecuted") is not False
+        or manifest.get("asteriskStarted") is not False
+        or manifest.get("runtimeApplyAuthorized") is not False
+        or manifest.get("gatesBAndCApproved") is not False
+    ):
+        raise ValueError("Loader lifecycle supplement does not match the pinned parent supplements")
+
+    for field in ("basisCompileReport", "basisNativeReport"):
+        relative = manifest.get(field)
+        if not isinstance(relative, str):
+            raise ValueError(f"Loader lifecycle supplement has invalid {field}")
+        report_bytes = _read_regular_file(manifest_path.parent / relative)
+        expected_hash = manifest.get(f"{field}Sha256")
+        if (
+            not isinstance(expected_hash, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected_hash)
+            or hashlib.sha256(report_bytes).hexdigest() != expected_hash
+        ):
+            raise ValueError(f"Loader lifecycle supplement has invalid or changed {field}")
+    basis_compile_report = json.loads(
+        _read_regular_file(manifest_path.parent / manifest["basisCompileReport"])
+    )
+    if not validate_cli_output_compile_report(basis_compile_report):
+        raise ValueError("Loader lifecycle basis compile report omits its parent supplements")
+    basis_native_report = json.loads(
+        _read_regular_file(manifest_path.parent / manifest["basisNativeReport"])
+    )
+    if not isinstance(basis_native_report, dict):
+        raise ValueError("Loader lifecycle basis native report must be an object")
+    basis_results = basis_native_report.get("results")
+    if (
+        basis_native_report.get("compileReportSha256")
+        != manifest["basisCompileReportSha256"]
+        or basis_native_report.get("nativeTestsExecuted") is not True
+        or not isinstance(basis_results, list)
+        or [result.get("name") for result in basis_results if isinstance(result, dict)]
+        != parent_manifest["nativeTests"]
+        or any(
+            not isinstance(result, dict)
+            or result.get("result") != "passed"
+            or result.get("failure") is not None
+            for result in basis_results
+        )
+    ):
+        raise ValueError("Loader lifecycle basis native report is incomplete or failed")
+
+    hashes = manifest.get("basisSourceSha256")
+    if (
+        not isinstance(hashes, dict)
+        or list(hashes) != EXPECTED_LOADER_LIFECYCLE_PATHS
+        or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+               for value in hashes.values())
+    ):
+        raise ValueError("Loader lifecycle supplement has invalid basisSourceSha256")
+    application = manifest.get("applicationVerification")
+    postimages = application.get("postimageSha256") if isinstance(application, dict) else None
+    if (
+        not isinstance(postimages, dict)
+        or list(postimages) != EXPECTED_LOADER_LIFECYCLE_PATHS
+        or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+               for value in postimages.values())
+        or application.get("patchDryRunSucceeded") is not True
+        or application.get("zeroFuzz") is not True
+        or application.get("zeroOffset") is not True
+        or application.get("appliedToTemporarySourceCopy") is not True
+        or application.get("originalSuccessorSourceModified") is not False
+    ):
+        raise ValueError("Loader lifecycle supplement has invalid application evidence")
+
+    fixtures = manifest.get("fixtures")
+    if (
+        not isinstance(fixtures, dict)
+        or fixtures.get("testFrameworkOnly") is not True
+        or fixtures.get("successfulRemovalWhileLookupPausedCovered") is not True
+        or fixtures.get("denialBeforeHandlerAssertion") is not True
+        or fixtures.get("targetAbsentAfterRemovalAssertion") is not True
+        or fixtures.get("newSuccessfulRemovalSchedules") != 1
+        or fixtures.get("nativeDefinitionsAdded") != 0
+    ):
+        raise ValueError("Loader lifecycle supplement has invalid fixture scope")
+    compiler_support = manifest.get("compilerApplicationSupport")
+    if (
+        not isinstance(compiler_support, dict)
+        or compiler_support.get("implemented") is not True
+        or compiler_support.get("offlineValidated") is not True
+    ):
+        raise ValueError("Loader lifecycle supplement compiler application support is incomplete")
+
+    patch_path = manifest_path.parent / manifest["patch"]
+    patch_bytes = _read_regular_file(patch_path)
+    patch_hash = hashlib.sha256(patch_bytes).hexdigest()
+    if manifest.get("patchSha256") != patch_hash:
+        raise ValueError("Loader lifecycle supplement patch SHA256 mismatch")
+    patch_text = patch_bytes.decode("utf-8")
+    patch_paths = re.findall(r"^diff --git a/(\S+) b/(\S+)$", patch_text, re.MULTILINE)
+    if patch_paths != [(path, path) for path in EXPECTED_LOADER_LIFECYCLE_PATHS]:
+        raise ValueError("Loader lifecycle supplement diff paths differ from its manifest")
+
+    return manifest, patch_path, patch_hash, hashlib.sha256(manifest_bytes).hexdigest()
+
+
+def verify_loader_lifecycle_basis(tree, manifest):
+    for relative, expected in manifest["basisSourceSha256"].items():
+        path = pathlib.Path(tree) / relative
+        if hashlib.sha256(_read_regular_file(path)).hexdigest() != expected:
+            raise ValueError(f"Loader lifecycle supplement source preimage mismatch: {relative}")
+
+
+def verify_loader_lifecycle_postimages(tree, manifest):
+    postimages = manifest["applicationVerification"]["postimageSha256"]
+    records = []
+    for relative in EXPECTED_LOADER_LIFECYCLE_PATHS:
+        digest = hashlib.sha256(_read_regular_file(pathlib.Path(tree) / relative)).hexdigest()
+        if digest != postimages[relative]:
+            raise ValueError(f"Loader lifecycle supplement source postimage mismatch: {relative}")
+        records.append(dict(path=relative, sha256=digest))
+    return records
+
+
 def validate_cli_output_compile_report(report):
     if not isinstance(report, dict):
         raise ValueError("Compile report must be an object")
@@ -321,7 +497,11 @@ def validate_cli_output_compile_report(report):
     profiles = report.get("profiles")
     profile_claims_supplement = isinstance(profiles, list) and any(
         isinstance(profile, dict)
-        and ("cliOutputSupplement" in profile or "ao2AccountingSupplement" in profile)
+        and (
+            "cliOutputSupplement" in profile
+            or "ao2AccountingSupplement" in profile
+            or "loaderLifecycleSupplement" in profile
+        )
         for profile in profiles
     )
     if not any(present_fields) and not profile_claims_supplement:
@@ -383,7 +563,13 @@ def validate_cli_output_compile_report(report):
     profile_claims_accounting = any(
         "ao2AccountingSupplement" in profile for profile in profiles_by_name.values()
     )
+    loader_fields_present = [field in report for field in LOADER_LIFECYCLE_REPORT_FIELDS]
+    profile_claims_loader = any(
+        "loaderLifecycleSupplement" in profile for profile in profiles_by_name.values()
+    )
     if not any(accounting_fields_present) and not profile_claims_accounting:
+        if any(loader_fields_present) or profile_claims_loader:
+            raise ValueError("Loader lifecycle supplement requires AO2 accounting lineage")
         return True
     if not all(accounting_fields_present):
         raise ValueError("Compile report has incomplete AO2 accounting supplement bindings")
@@ -428,5 +614,56 @@ def validate_cli_output_compile_report(report):
         ):
             raise ValueError(
                 f"Compile profile does not bind the AO2 accounting supplement: {profile_name}"
+            )
+
+    if not any(loader_fields_present) and not profile_claims_loader:
+        return True
+    if not all(loader_fields_present):
+        raise ValueError("Compile report has incomplete loader lifecycle supplement bindings")
+
+    loader_path = patches / "queue-policy-loader-v1.json"
+    loader_manifest, _, loader_patch_hash, loader_manifest_hash = (
+        load_loader_lifecycle_supplement(
+            loader_path,
+            parent_manifest,
+            shutdown_manifest,
+            shutdown_manifest_hash,
+            output_manifest,
+            output_manifest_hash,
+            accounting_manifest,
+            accounting_manifest_hash,
+        )
+    )
+    expected_loader_bindings = {
+        "loaderLifecycleSupplementPatchSha256": loader_patch_hash,
+        "loaderLifecycleSupplementManifestSha256": loader_manifest_hash,
+        "loaderLifecycleSupplementParentPatchSha256": parent_manifest["patchSha256"],
+        "loaderLifecycleSupplementParentSupplementPatchSha256": shutdown_patch_hash,
+        "loaderLifecycleSupplementParentSupplementManifestSha256": shutdown_manifest_hash,
+        "loaderLifecycleSupplementParentOutputSupplementPatchSha256": output_patch_hash,
+        "loaderLifecycleSupplementParentOutputSupplementManifestSha256": output_manifest_hash,
+        "loaderLifecycleSupplementParentAccountingSupplementPatchSha256": accounting_patch_hash,
+        "loaderLifecycleSupplementParentAccountingSupplementManifestSha256": accounting_manifest_hash,
+    }
+    if any(report.get(field) != digest for field, digest in expected_loader_bindings.items()):
+        raise ValueError("Compile report does not bind the pinned loader lifecycle supplement")
+
+    expected_loader_postimages = [
+        dict(
+            path=path,
+            sha256=loader_manifest["applicationVerification"]["postimageSha256"][path],
+        )
+        for path in EXPECTED_LOADER_LIFECYCLE_PATHS
+    ]
+    for profile_name in ("instrumented", "release"):
+        application = profiles_by_name[profile_name].get("loaderLifecycleSupplement")
+        if (
+            not isinstance(application, dict)
+            or application.get("patchSha256") != loader_patch_hash
+            or application.get("appliedWithZeroFuzz") is not True
+            or application.get("postimages") != expected_loader_postimages
+        ):
+            raise ValueError(
+                f"Compile profile does not bind the loader lifecycle supplement: {profile_name}"
             )
     return True

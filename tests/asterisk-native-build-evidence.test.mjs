@@ -1284,8 +1284,7 @@ test("AO2 accounting supplement Gate B evidence binds both profiles and all nati
   assert.equal(hash(buildPath(execution.compileRunner)), execution.compileRunnerSha256);
   assert.equal(hash(buildPath(execution.nativeRunner)), execution.nativeRunnerSha256);
   assert.equal(hash(buildPath(execution.logWrapper)), execution.logWrapperSha256);
-  assert.equal(hash(`${directory}/shutdown_compile_binding.py`),
-    execution.bindingHelperSha256);
+  assert.equal(hash(buildPath(execution.bindingHelper)), execution.bindingHelperSha256);
   assert.equal(execution.bothProfilesCompiled, true);
   assert.deepEqual(execution.profileOutputCounts, { instrumented: 46, release: 44 });
   assert.equal(hash(compilePath), execution.compileReportSha256);

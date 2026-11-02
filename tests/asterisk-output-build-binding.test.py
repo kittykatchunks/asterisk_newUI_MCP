@@ -380,5 +380,188 @@ class Ao2AccountingSupplementBindingTests(unittest.TestCase):
             binding.validate_cli_output_compile_report(report)
 
 
+class LoaderLifecycleSupplementBindingTests(unittest.TestCase):
+    def setUp(self):
+        patches = ROOT / "local" / "asterisk-patches"
+        self.parent = json.loads((patches / "queue-policy-v1.json").read_text())
+        self.shutdown_path = patches / "queue-policy-shutdown-v1.json"
+        (
+            self.shutdown,
+            _,
+            _,
+            self.shutdown_hash,
+        ) = binding.load_shutdown_supplement(self.shutdown_path, self.parent)
+        self.output_path = patches / "queue-policy-output-v1.json"
+        (
+            self.output,
+            _,
+            _,
+            self.output_hash,
+        ) = binding.load_cli_output_supplement(
+            self.output_path, self.parent, self.shutdown, self.shutdown_hash
+        )
+        self.accounting_path = patches / "queue-policy-accounting-v1.json"
+        (
+            self.accounting,
+            _,
+            _,
+            self.accounting_hash,
+        ) = binding.load_ao2_accounting_supplement(
+            self.accounting_path,
+            self.parent,
+            self.shutdown,
+            self.shutdown_hash,
+            self.output,
+            self.output_hash,
+        )
+        self.manifest_path = patches / "queue-policy-loader-v1.json"
+
+    def load_loader(self, manifest_path=None, accounting_manifest=None):
+        return binding.load_loader_lifecycle_supplement(
+            manifest_path or self.manifest_path,
+            self.parent,
+            self.shutdown,
+            self.shutdown_hash,
+            self.output,
+            self.output_hash,
+            accounting_manifest or self.accounting,
+            self.accounting_hash,
+        )
+
+    def test_loads_exact_fifth_supplement_and_passed_basis_reports(self):
+        manifest, patch_path, patch_hash, manifest_hash = self.load_loader()
+
+        self.assertEqual(patch_path.name, manifest["patch"])
+        self.assertEqual(patch_hash, manifest["patchSha256"])
+        self.assertEqual(len(manifest_hash), 64)
+        self.assertEqual(
+            manifest["changedUpstreamPaths"], binding.EXPECTED_LOADER_LIFECYCLE_PATHS
+        )
+        self.assertTrue(manifest["fixtures"]["successfulRemovalWhileLookupPausedCovered"])
+        self.assertFalse(manifest["nativeCompiled"])
+        self.assertFalse(manifest["nativeTestsExecuted"])
+
+    def test_rejects_modified_loader_patch_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            patches = root / "local" / "asterisk-patches"
+            builds = root / "local" / "asterisk-build"
+            patches.mkdir(parents=True)
+            builds.mkdir(parents=True)
+            copied_manifest = patches / self.manifest_path.name
+            shutil.copyfile(self.manifest_path, copied_manifest)
+            patch_path = patches / "queue-policy-loader-v1.patch"
+            shutil.copyfile(self.manifest_path.parent / patch_path.name, patch_path)
+            for name in [
+                "compile-report-accounting-v1.json",
+                "native-test-report-accounting-v1.json",
+            ]:
+                shutil.copyfile(ROOT / "local" / "asterisk-build" / name, builds / name)
+            patch_path.write_bytes(patch_path.read_bytes() + b"\n")
+
+            with self.assertRaisesRegex(ValueError, "patch SHA256 mismatch"):
+                self.load_loader(copied_manifest)
+
+    def test_rejects_a_different_accounting_parent(self):
+        accounting = dict(self.accounting)
+        accounting["patchSha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "pinned parent supplements"):
+            self.load_loader(accounting_manifest=accounting)
+
+    def test_checks_loader_preimages_and_postimages(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            contents = {
+                relative: f"loader-source:{relative}".encode()
+                for relative in binding.EXPECTED_LOADER_LIFECYCLE_PATHS
+            }
+            manifest = {
+                "basisSourceSha256": {
+                    relative: hashlib.sha256(data).hexdigest()
+                    for relative, data in contents.items()
+                },
+                "applicationVerification": {
+                    "postimageSha256": {
+                        relative: hashlib.sha256(data).hexdigest()
+                        for relative, data in contents.items()
+                    }
+                },
+            }
+            tree = pathlib.Path(temporary)
+            for relative, data in contents.items():
+                path = tree / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+
+            binding.verify_loader_lifecycle_basis(tree, manifest)
+            self.assertEqual(
+                binding.verify_loader_lifecycle_postimages(tree, manifest),
+                [
+                    dict(path=relative, sha256=hashlib.sha256(contents[relative]).hexdigest())
+                    for relative in binding.EXPECTED_LOADER_LIFECYCLE_PATHS
+                ],
+            )
+            (tree / binding.EXPECTED_LOADER_LIFECYCLE_PATHS[0]).write_bytes(
+                b"unexpected source"
+            )
+            with self.assertRaisesRegex(ValueError, "source preimage mismatch"):
+                binding.verify_loader_lifecycle_basis(tree, manifest)
+            with self.assertRaisesRegex(ValueError, "source postimage mismatch"):
+                binding.verify_loader_lifecycle_postimages(tree, manifest)
+
+    def test_validates_loader_lineage_for_both_compile_profiles(self):
+        manifest, _, patch_hash, manifest_hash = self.load_loader()
+        report = json.loads(
+            (ROOT / "local" / "asterisk-build" / "compile-report-accounting-v1.json")
+            .read_text()
+        )
+        report.update(
+            {
+                "loaderLifecycleSupplementPatchSha256": patch_hash,
+                "loaderLifecycleSupplementManifestSha256": manifest_hash,
+                "loaderLifecycleSupplementParentPatchSha256": self.parent["patchSha256"],
+                "loaderLifecycleSupplementParentSupplementPatchSha256": (
+                    self.shutdown["patchSha256"]
+                ),
+                "loaderLifecycleSupplementParentSupplementManifestSha256": (
+                    self.shutdown_hash
+                ),
+                "loaderLifecycleSupplementParentOutputSupplementPatchSha256": (
+                    self.output["patchSha256"]
+                ),
+                "loaderLifecycleSupplementParentOutputSupplementManifestSha256": (
+                    self.output_hash
+                ),
+                "loaderLifecycleSupplementParentAccountingSupplementPatchSha256": (
+                    self.accounting["patchSha256"]
+                ),
+                "loaderLifecycleSupplementParentAccountingSupplementManifestSha256": (
+                    self.accounting_hash
+                ),
+            }
+        )
+        application = {
+            "patchSha256": patch_hash,
+            "appliedWithZeroFuzz": True,
+            "postimages": [
+                dict(
+                    path=path,
+                    sha256=manifest["applicationVerification"]["postimageSha256"][path],
+                )
+                for path in binding.EXPECTED_LOADER_LIFECYCLE_PATHS
+            ],
+        }
+        for profile in report["profiles"]:
+            profile["loaderLifecycleSupplement"] = application
+
+        self.assertTrue(binding.validate_cli_output_compile_report(report))
+        report["profiles"][1]["loaderLifecycleSupplement"]["postimages"][0]["sha256"] = (
+            "0" * 64
+        )
+        with self.assertRaisesRegex(
+            ValueError, "does not bind the loader lifecycle supplement"
+        ):
+            binding.validate_cli_output_compile_report(report)
+
+
 if __name__ == "__main__":
     unittest.main()

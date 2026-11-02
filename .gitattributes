@@ -7,6 +7,8 @@ local/asterisk-patches/*.json text eol=lf
 local/asterisk-build/*.json text eol=lf
 local/asterisk-build/native-*-attempt-*.log text eol=lf
 local/asterisk-build/*.py text eol=lf
+local/asterisk-build/compile-profiles-accounting-v1.py -text
+local/asterisk-build/shutdown_compile_binding-accounting-v1.py -text
 local/asterisk-build/*.xml text eol=lf
 local/asterisk-build/*.Dockerfile text eol=lf
 local/asterisk-build/sip-proof-attempt-1-report.json -text whitespace=cr-at-eol

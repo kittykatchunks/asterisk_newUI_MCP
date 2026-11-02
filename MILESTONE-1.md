@@ -2930,6 +2930,17 @@ unchanged. Non-AO2 allocation and I/O are not instrumented, and these results
 do not close Gate A. No release-profile startup, runtime image/export, runtime
 apply, PBX operation, Gate C proof or production/deployment action occurred.
 
+The fifth additive [loader lifecycle supplement](./local/asterisk-patches/queue-policy-loader-v1.json)
+adds a successful-removal schedule to the existing protected lookup test. It
+pauses a dispatch after registry lookup, observes the target unload callback,
+then verifies the resumed dispatch fails without handler execution and that
+the target is removed. This schedule observes loader-lock contention, not
+`cli_closing`-specific denial. The patch applies to an isolated source copy
+with zero fuzz and exact postimage hashes; compiler preparation is wired but
+has not been compiled or run. The prior 30/30 native result predates this
+layer. No Gate B authorization for this supplement, Asterisk startup, PBX
+operation, Gate C proof, or deployment is claimed.
+
 The agent console now has an explicit, authenticated, read-only snapshot for
 the signed-in agent's assigned PBX extension. It returns only that endpoint's
 device state, contact-observed flag, active-channel count, and snapshot time;

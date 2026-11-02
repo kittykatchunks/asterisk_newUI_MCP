@@ -1,0 +1,203 @@
+diff --git a/include/asterisk/module.h b/include/asterisk/module.h
+index ed36776..ffe0831 100644
+--- a/include/asterisk/module.h
++++ b/include/asterisk/module.h
+@@ -488,6 +488,7 @@ struct ast_cli_lease_test_result {
+ /* Serialized disposable native fixture only; never arm on a runtime PBX. */
+ int ast_cli_lease_test_begin(enum ast_cli_lease_test_event pause_at);
+ int ast_cli_lease_test_wait(struct ast_cli_lease_test_result *result);
++int ast_cli_lease_test_wait_for_event(enum ast_cli_lease_test_event event, unsigned int count);
+ void ast_cli_lease_test_resume(void);
+ int ast_cli_lease_test_end(struct ast_cli_lease_test_result *result);
+ void ast_cli_lease_test_checkpoint(struct ast_module *mod, enum ast_cli_lease_test_event event);
+diff --git a/main/loader.c b/main/loader.c
+index dbdef3e..ecf5476 100644
+--- a/main/loader.c
++++ b/main/loader.c
+@@ -2977,6 +2977,29 @@ int ast_cli_lease_test_wait(struct ast_cli_lease_test_result *result)
+ 	return error || !result->paused ? -1 : 0;
+ }
+ 
++int ast_cli_lease_test_wait_for_event(enum ast_cli_lease_test_event event, unsigned int count)
++{
++	struct timeval now = ast_tvnow();
++	struct timespec deadline = { .tv_sec = now.tv_sec + 5, .tv_nsec = now.tv_usec * 1000 };
++	int error = 0, result;
++
++	if (event < 0 || event >= AST_CLI_LEASE_TEST_EVENTS || !count) {
++		return -1;
++	}
++	ast_mutex_lock(&cli_lease_test_lock);
++	if (!cli_lease_test_active) {
++		ast_mutex_unlock(&cli_lease_test_lock);
++		return -1;
++	}
++	while (cli_lease_test_result.events[event] < count
++		&& !cli_lease_test_result.events[AST_CLI_LEASE_TEST_WORKER_DONE] && !error) {
++		error = ast_cond_timedwait(&cli_lease_test_condition, &cli_lease_test_lock, &deadline);
++	}
++	result = error || cli_lease_test_result.events[event] < count ? -1 : 0;
++	ast_mutex_unlock(&cli_lease_test_lock);
++	return result;
++}
++
+ void ast_cli_lease_test_resume(void)
+ {
+ 	ast_mutex_lock(&cli_lease_test_lock);
+diff --git a/tests/test_bounded_queue_policy.c b/tests/test_bounded_queue_policy.c
+index 29d4334..b18f249 100644
+--- a/tests/test_bounded_queue_policy.c
++++ b/tests/test_bounded_queue_policy.c
+@@ -1607,21 +1607,149 @@ done:
+ 	return failed;
+ }
+ 
++struct lifecycle_target_unload_worker {
++	int result;
++};
++
++static void *lifecycle_target_unload_resource(void *data)
++{
++	struct lifecycle_target_unload_worker *worker = data;
++
++	worker->result = ast_unload_resource("test_protected_cli_target.so", AST_FORCE_SOFT);
++	return NULL;
++}
++
++static int lifecycle_target_successful_removal_case(struct ast_test *test)
++{
++	const char target[] = "test_protected_cli_target.so";
++	const char command[] = "test bounded-policy lifecycle-target success";
++	struct ast_cli_lease_test_result snapshot;
++	struct lifecycle_target_worker dispatch = { .fd = -1, .command = command };
++	struct lifecycle_target_unload_worker removal = { .result = -1 };
++	pthread_t dispatch_thread, removal_thread;
++	unsigned int event;
++	int fd = -1, loaded = 0, armed = 0, dispatch_created = 0, dispatch_pending = 0;
++	int removal_started = 0;
++	int failed = 1, successful_removal = 0;
++
++	if (ast_module_check(target)) {
++		ast_test_status_update(test, "Disposable target already loaded; refusing to adopt it\n");
++		return 1;
++	}
++	fd = open("/dev/null", O_WRONLY);
++	if (fd < 0 || ast_load_resource(target) != AST_MODULE_LOAD_SUCCESS) {
++		goto done;
++	}
++	loaded = 1;
++	dispatch.fd = fd;
++	if (ast_cli_lease_test_begin(AST_CLI_LEASE_TEST_LOOKUP)) {
++		goto done;
++	}
++	armed = 1;
++	if (ast_pthread_create(&dispatch_thread, NULL, lifecycle_target_dispatch, &dispatch)) {
++		goto done;
++	}
++	dispatch_created = 1;
++	dispatch_pending = 1;
++	if (ast_cli_lease_test_wait(&snapshot)) {
++		goto done;
++	}
++	for (event = 0; event < AST_CLI_LEASE_TEST_EVENTS; ++event) {
++		if (snapshot.events[event] != (event == AST_CLI_LEASE_TEST_LOOKUP ? 1 : 0)) {
++			goto done;
++		}
++	}
++	if (snapshot.readers || !snapshot.paused
++		|| ast_pthread_create(&removal_thread, NULL, lifecycle_target_unload_resource, &removal)) {
++		goto done;
++	}
++	removal_started = 1;
++	if (ast_cli_lease_test_wait_for_event(AST_CLI_LEASE_TEST_UNLOAD, 1)) {
++		goto done;
++	}
++	ast_cli_lease_test_resume();
++	pthread_join(dispatch_thread, NULL);
++	dispatch_pending = 0;
++	pthread_join(removal_thread, NULL);
++	removal_started = 0;
++	loaded = ast_module_check(target);
++	if (!dispatch.result || removal.result || loaded) {
++		goto done;
++	}
++	successful_removal = 1;
++	if (ast_cli_lease_test_end(&snapshot)) {
++		ast_test_status_update(test, "Core test session did not drain; discard native test process\n");
++		goto done;
++	}
++	armed = 0;
++	for (event = 0; event < AST_CLI_LEASE_TEST_EVENTS; ++event) {
++		unsigned int expected = event == AST_CLI_LEASE_TEST_LOOKUP
++			|| event == AST_CLI_LEASE_TEST_UNLOAD
++			|| event == AST_CLI_LEASE_TEST_WORKER_DONE ? 1 : 0;
++
++		if (snapshot.events[event] != expected) {
++			ast_test_status_update(test, "Successful-removal event %u: expected %u, observed %u\n",
++				event, expected, snapshot.events[event]);
++			goto done;
++		}
++	}
++	if (snapshot.readers || !snapshot.paused) {
++		ast_test_status_update(test, "Successful-removal readers=%d paused=%d\n",
++			snapshot.readers, snapshot.paused);
++		goto done;
++	}
++	failed = 0;
++done:
++	if (armed) {
++		ast_cli_lease_test_resume();
++	}
++	if (dispatch_pending) {
++		pthread_join(dispatch_thread, NULL);
++		dispatch_pending = 0;
++	}
++	if (removal_started) {
++		pthread_join(removal_thread, NULL);
++		loaded = ast_module_check(target);
++	}
++	if (loaded && ast_unload_resource(target, AST_FORCE_SOFT)) {
++		ast_test_status_update(test, "Disposable target did not unload; discard native test process\n");
++		failed = 1;
++	}
++	if (armed) {
++		if (!dispatch_created) {
++			ast_cli_lease_test_worker_done();
++		}
++		if (ast_cli_lease_test_end(&snapshot)) {
++			ast_test_status_update(test, "Core test session did not drain; discard native test process\n");
++			failed = 1;
++		}
++	}
++	if (fd >= 0) {
++		close(fd);
++	}
++	if (failed) {
++		ast_test_status_update(test, "Successful removal during paused lookup failed%s\n",
++			successful_removal ? " event verification" : "");
++	}
++	return failed;
++}
++
+ AST_TEST_DEFINE(protected_target_lookup)
+ {
+ 	switch (cmd) {
+ 	case TEST_INIT:
+ 		info->name = "protected_target_lookup";
+ 		info->category = "/main/loader/protected_cli/";
+-		info->summary = "Failed teardown after protected lookup wins before admission";
+-		info->description = "Three dispatch/text/null completion schedules retain entry under registry lock and deny closing.";
++		info->summary = "Protected lookup is safe across failed and successful teardown";
++		info->description = "Three failed-teardown schedules and successful removal while a lookup is paused.";
+ 		return AST_TEST_NOT_RUN;
+ 	case TEST_EXECUTE:
+ 		break;
+ 	}
+ 	return lifecycle_target_lookup_case(test, 0, "success")
+ 		|| lifecycle_target_lookup_case(test, 1, "x")
+-		|| lifecycle_target_lookup_case(test, 1, "empty") ? AST_TEST_FAIL : AST_TEST_PASS;
++		|| lifecycle_target_lookup_case(test, 1, "empty")
++		|| lifecycle_target_successful_removal_case(test) ? AST_TEST_FAIL : AST_TEST_PASS;
+ }
+ 
+ static void *lifecycle_loader_holder(void *unused)

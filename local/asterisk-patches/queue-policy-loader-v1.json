@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "stage": "source-only-loader-lifecycle-fixture-prepared",
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "parentManifest": "queue-policy-v1.json",
+  "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "parentSupplementManifest": "queue-policy-shutdown-v1.json",
+  "parentSupplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+  "parentSupplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+  "parentOutputSupplementManifest": "queue-policy-output-v1.json",
+  "parentOutputSupplementManifestSha256": "ca410d4bed58db93cb3eb141a2e9a9359d4b7db841b4d4fb35d683c93e3c8e5c",
+  "parentOutputSupplementPatchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
+  "parentAccountingSupplementManifest": "queue-policy-accounting-v1.json",
+  "parentAccountingSupplementManifestSha256": "8210ece9915f86cb420924ecb446136e7a0630cc4d35de0be6710b702afba6c1",
+  "parentAccountingSupplementPatchSha256": "10d3e526258fe0d0a4e6485b6e5770f8ba9ebadc402461d3185f72131421236d",
+  "basisCompileReport": "../asterisk-build/compile-report-accounting-v1.json",
+  "basisCompileReportSha256": "77ac69a8142f3e47e6eeab5ce4e2c2902a4724e24465794c539e66f58e2bad04",
+  "basisNativeReport": "../asterisk-build/native-test-report-accounting-v1.json",
+  "basisNativeReportSha256": "ffa49abdca8f12c3d1740bf3d02408d1ee5f46945a2a2618f516a8cf6858dd98",
+  "patch": "queue-policy-loader-v1.patch",
+  "patchSha256": "219b3c44eec111e6d1c66e090fbed7ebc290af3728b64aa735f9d09d08d7bae5",
+  "changedUpstreamPaths": [
+    "include/asterisk/module.h",
+    "main/loader.c",
+    "tests/test_bounded_queue_policy.c"
+  ],
+  "basisSourceSha256": {
+    "include/asterisk/module.h": "e4324bc2662c70771376a5eaeb50bda8f558bd7390c8c31fcbca40aed32010b4",
+    "main/loader.c": "103e09d9ebfc3a156768a9846a0e728041831ca37b5f37ca16e8feb3de07c79d",
+    "tests/test_bounded_queue_policy.c": "746f83cda39f48caac8f360dfd4eaa7df7708e57c2ba5c1fbcf6d55e4f2dc3b8"
+  },
+  "applicationVerification": {
+    "patchDryRunSucceeded": true,
+    "zeroFuzz": true,
+    "zeroOffset": true,
+    "appliedToTemporarySourceCopy": true,
+    "originalSuccessorSourceModified": false,
+    "postimageSha256": {
+      "include/asterisk/module.h": "f0197ef52c0b67e0d168faa2e9f806c9859d9ed612e181aeed5f48fc8f08a225",
+      "main/loader.c": "883d18559c720f93b46c2a2d1eeed0f7f176f07bd561900ae087bb1bc1a1e1d6",
+      "tests/test_bounded_queue_policy.c": "f0d909c43a015a2126fac2324cec73053b37c7c11325dd3f562d3a52ecb60545"
+    }
+  },
+  "fixtures": {
+    "testFrameworkOnly": true,
+    "successfulRemovalWhileLookupPausedCovered": true,
+    "denialBeforeHandlerAssertion": true,
+    "targetAbsentAfterRemovalAssertion": true,
+    "newSuccessfulRemovalSchedules": 1,
+    "nativeDefinitionsAdded": 0
+  },
+  "compilerApplicationSupport": {
+    "implemented": true,
+    "offlineValidated": true,
+    "support": "compile-profiles.py accepts this hash-bound fifth supplement only after the base, shutdown, CLI-output and AO2-accounting supplements, applies it with zero fuzz to both profile trees, and verifies its preimages and postimages."
+  },
+  "nativeCompileAuthorized": false,
+  "nativeCompiled": false,
+  "nativeTestsExecuted": false,
+  "asteriskStarted": false,
+  "runtimeApplyAuthorized": false,
+  "gatesBAndCApproved": false
+}

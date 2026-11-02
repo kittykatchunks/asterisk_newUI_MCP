@@ -128,10 +128,14 @@ for name in [
     "queue-policy-output-v1.json",
     "queue-policy-accounting-v1.patch",
     "queue-policy-accounting-v1.json",
+    "queue-policy-loader-v1.patch",
+    "queue-policy-loader-v1.json",
     "source-lock.json",
     "module-plan.json",
     "compile-profiles.py",
     "shutdown_compile_binding.py",
+    "compile-profiles-accounting-v1.py",
+    "shutdown_compile_binding-accounting-v1.py",
     "install-locked-packages.py",
 ]:
     copy_verified(home / "source-staging" / name, root / "build-records" / name)
