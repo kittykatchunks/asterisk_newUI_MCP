@@ -138,6 +138,7 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
     context({ operator: value.attribution.operator, reason: value.attribution.reason });
     if (kind === "validated" && (value.compiler !== d.compiled.compiler || value.modelSha256 !== d.compiled.modelSha256 ||
         value.dialplanSha256 !== d.compiled.dialplanSha256 || value.queuesSha256 !== d.compiled.queuesSha256 ||
+        value.impact !== "Synthetic route and empty queue only; no disk/runtime inspection, namespace collision check or apply" ||
         value.runtimeValidated !== false || JSON.stringify(value.diff) !== JSON.stringify({
           baseline: "empty-uninspected", addedDialplan: d.compiled.dialplan, addedQueues: d.compiled.queues,
         }))) throw new Error("Corrupt configuration validation");

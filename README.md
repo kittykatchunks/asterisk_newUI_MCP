@@ -106,13 +106,13 @@ claims into runtime authority. There is no staging, apply/reload, canary,
 verified pointer or rollback API. Runtime apply authorization remains explicitly
 false, including in approval receipts.
 
-Run the 17 [CF offline acceptance tests](./tests/configuration-foundation.test.ts)
+Run the 18 [CF offline acceptance tests](./tests/configuration-foundation.test.ts)
 with `node --test tests\configuration-foundation.test.ts`; they include competing
 real processes, death inside/after the real claim transaction, receipt-write
 failure, restart/read-only/corruption, strict operation/event record shapes and
 real CLI workflows. Journal and receipt inspection rejects checksummed unknown
 fields, including nested attribution fields, and nonpositive event sequence
-values.
+values. Validation receipts also bind the exact non-runtime impact statement.
 [CP-01 through CP-10](./MILESTONE-1.md#selected-cp-design-limited-routequeue-publication)
 remain **unverified as full checks**. The foundation and inspector supply only
 bounded portions; no runtime publication was executed. M1-09 and all other full

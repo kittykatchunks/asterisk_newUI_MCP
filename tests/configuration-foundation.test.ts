@@ -408,3 +408,20 @@ test("CF-17: validation and approval receipts reject checksummed unknown and nes
     (value.attribution as Record<string, unknown>).unexpected = "unbound";
   });
 });
+
+test("CF-18: validation receipt binds the exact non-runtime impact statement", async () => {
+  await fixture((store, path) => {
+    const draft = store.createDraft(scope, JSON.stringify(model), 0, actor);
+    store.validate(scope, draft.revision, draft.sha256, actor);
+    const db = new DatabaseSync(path);
+    try {
+      const row = db.prepare("SELECT document FROM configuration_receipts WHERE kind='validated'").get()!;
+      const value = JSON.parse(String(row.document)) as Record<string, unknown>;
+      value.impact = "Runtime inspected and ready";
+      const text = JSON.stringify(value);
+      db.prepare("UPDATE configuration_receipts SET document=?,sha256=? WHERE kind='validated'")
+        .run(text, configurationHash(text));
+    } finally { db.close(); }
+    assert.throws(() => store.read(scope, 1), /Corrupt configuration validation/);
+  });
+});
