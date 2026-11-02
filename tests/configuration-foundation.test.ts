@@ -425,3 +425,20 @@ test("CF-18: validation receipt binds the exact non-runtime impact statement", a
     assert.throws(() => store.read(scope, 1), /Corrupt configuration validation/);
   });
 });
+
+test("CF-19: initial claim event attribution is bound to the operation intent", async () => {
+  await fixture((store, path) => {
+    const { a } = approved(store);
+    store.claim(scope, 1, a.sha256, 0, id, actor);
+    const db = new DatabaseSync(path);
+    try {
+      const row = db.prepare("SELECT sequence,document FROM configuration_operation_events").get()!;
+      const value = JSON.parse(String(row.document)) as Record<string, unknown>;
+      value.attribution = { operator: "different-operator", reason: actor.reason };
+      const text = JSON.stringify(value);
+      db.prepare("UPDATE configuration_operation_events SET document=?,sha256=? WHERE sequence=?")
+        .run(text, configurationHash(text), row.sequence);
+    } finally { db.close(); }
+    assert.throws(() => store.operation(scope, id), /Corrupt configuration operation claim attribution/);
+  });
+});

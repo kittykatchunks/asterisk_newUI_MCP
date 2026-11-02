@@ -1571,7 +1571,7 @@ permissions but no history-specific grant. Do not repurpose those grants silentl
 |---|---|---|---|
 | 1 | Read-only authenticated history-evidence workspace | Subsequently authorized: explicit customer `history:read` members only, no support grants, references-only exposure. Reuses session/audit/customer boundaries, not CLI authority. | HR-01 through HR-10 below pass in the bounded local scope. No collection/rebuild/manifest/config/phone mutations; not M1-06/07/12/16 completion. |
 | 2 | Integrated restart/interruption/replay proof | Subsequently selected: LR local process slice, then separately authorized BE isolated PBX boot-epoch slice. Exact ten-check contracts below. | LR-01 through LR-10 and BE-01 through BE-10 pass in their bounded scopes. Full M1-06/07 outcomes, continuous remote delivery and production boot attestation remain open. |
-| 3 | Limited route/queue publication foundation | Offline compiler/drafts/approval/fencing (CF-01 through CF-18), plus owned empty-baseline binding/read-only inspector (CI-01 through CI-10). No web apply authority. | Full CP-01 through CP-10 remain unverified. No executor or nonempty published-state verification; base zero alone is not empty-runtime evidence. Exact loaded queue policy, canary and recovery proof still required. No broad editor or web Docker socket. |
+| 3 | Limited route/queue publication foundation | Offline compiler/drafts/approval/fencing (CF-01 through CF-19), plus owned empty-baseline binding/read-only inspector (CI-01 through CI-10). No web apply authority. | Full CP-01 through CP-10 remain unverified. No executor or nonempty published-state verification; base zero alone is not empty-runtime evidence. Exact loaded queue policy, canary and recovery proof still required. No broad editor or web Docker socket. |
 | 4 | Gated browser-agent vertical slice | Requires explicit activation approval, queue/session authority, publication and device lifecycle readiness. | Intended queue-agent media/control/roaming/error acceptance; no live calling enabled by this checkpoint. |
 | 5 | Recording, engineering/export and combined restore | Requires explicit storage/retention/access/capture-limit contracts and links to durable identities. Can be separately planned where independent. | Close exact M1-08/11-17 requirements through executed scoped workflows, not report/hash proxies. |
 
@@ -1802,7 +1802,7 @@ All full CP checks remain **unverified**. The original design increment was
 documentation only. The following offline implementation adds
 [compiler](./src/configuration-model.ts), [dedicated store](./src/configuration-store.ts),
 [operator CLI](./scripts/Manage-ConfigurationDraft.ts) and
-[CF-01 through CF-18](./tests/configuration-foundation.test.ts):
+[CF-01 through CF-19](./tests/configuration-foundation.test.ts):
 
 - Exact bounded flat model, duplicate/unsafe/noncanonical input rejection,
   deterministic exact artifacts with fresh UUID expressions and ordered markers.
@@ -1831,11 +1831,12 @@ child processes and temporary stores are cleaned; no runtime proof is claimed.
 
 Subsequent offline journal hardening requires exact field sets for operation,
 event and validation/approval receipt records (including nested attribution),
-binds the validation impact to the exact non-runtime statement, and rejects
-invalid/nonpositive sequence numbers, including checksummed records with unknown
-fields. `node --test tests\configuration-foundation.test.ts` passes all **18 CF
-tests**; typecheck and `git diff --check` pass. This is source/store validation
-only and adds no executor, recovery action or runtime authority.
+binds the initial claim event attribution to its operation intent and the
+validation impact to the exact non-runtime statement, and rejects invalid/
+nonpositive sequence numbers, including checksummed records with unknown fields.
+`node --test tests\configuration-foundation.test.ts` passes all **19 CF tests**;
+typecheck and `git diff --check` pass. This is source/store validation only and
+adds no executor, recovery action or runtime authority.
 
 #### Selected CI batch: owned read-only empty-baseline inspection
 

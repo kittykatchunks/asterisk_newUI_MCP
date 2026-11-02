@@ -178,7 +178,10 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
     const d = draft(scope, intent.revision), approval = receipt(scope, d.revision, "approved");
     if (!approval || intent.approvalSha256 !== approval.sha256 || intent.draftSha256 !== d.sha256) throw new Error("Corrupt operation approval");
     configurationObject(intent.attribution);
-    if (typeof intent.attribution.operator !== "string" || typeof intent.attribution.reason !== "string") throw new Error("Corrupt operation attribution");
+    if (!exactKeys(intent.attribution, ["operator", "reason"]) ||
+        typeof intent.attribution.operator !== "string" || typeof intent.attribution.reason !== "string") {
+      throw new Error("Corrupt operation attribution");
+    }
     context({ operator: intent.attribution.operator, reason: intent.attribution.reason });
     const rows = db.prepare("SELECT * FROM configuration_operation_events WHERE customer=? AND runtime=? AND operation_id=? ORDER BY sequence LIMIT 3")
       .all(scope.customer, scope.runtime, id);
@@ -187,12 +190,16 @@ export function openConfigurationStore(path: string, options: { readOnly?: boole
       const e = unpack(r);
       configurationObject(e.attribution);
       if (!positive(r.sequence) || !exactKeys(e, ["operationSha256", "state", "createdAt", "attribution"]) ||
+          !exactKeys(e.attribution, ["operator", "reason"]) ||
           e.operationSha256 !== row.sha256 || e.state !== r.state || !timestamp(e.createdAt) ||
           typeof e.attribution.operator !== "string" || typeof e.attribution.reason !== "string" ||
           (i === 0 ? e.state !== "claimed" : e.state !== "uncertain" && e.state !== "cancelled-before-effects")) throw new Error("Corrupt configuration operation event");
       context({ operator: e.attribution.operator, reason: e.attribution.reason });
       return { sequence: Number(r.sequence), document: e, sha256: String(r.sha256) };
     });
+    if (JSON.stringify(events[0].document.attribution) !== JSON.stringify(intent.attribution)) {
+      throw new Error("Corrupt configuration operation claim attribution");
+    }
     const state = events.at(-1)!.document.state;
     const claim = db.prepare("SELECT operation_id FROM configuration_claims WHERE customer=? AND runtime=?")
       .get(scope.customer, scope.runtime);
