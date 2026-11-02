@@ -34,6 +34,23 @@ class RuntimeImageTests(unittest.TestCase):
                      "redistributionApproved", "licenseClosureComplete", "runtimeApplyAuthorized"]:
             self.assertIs(preparation[flag], False, flag)
 
+    def test_attempt_specific_manifest_and_dockerfile_binding(self):
+        manifest = {"schemaVersion": 1, "entries": []}
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest))
+            sha256 = runtime.digest(path)
+            self.assertEqual(runtime.manifest(path, sha256), manifest)
+            recipe = runtime.dockerfile_bytes(sha256)
+            self.assertIn(
+                f'org.asterisk.local.bundle-manifest-sha256="{sha256}"'.encode(),
+                recipe,
+            )
+            with self.assertRaisesRegex(ValueError, "reviewed recipe"):
+                runtime.manifest(path, "0" * 64)
+        with self.assertRaisesRegex(ValueError, "lowercase hexadecimal"):
+            runtime.dockerfile_bytes("A" * 64)
+
     def test_recipe_is_scratch_no_network_install_or_shell(self):
         recipe = (runtime.HERE / "runtime.Dockerfile").read_text()
         lines = recipe.splitlines()
@@ -210,8 +227,7 @@ class RuntimeImageTests(unittest.TestCase):
                 (output / "Dockerfile").write_text("FROM unexpected")
                 with self.assertRaisesRegex(ValueError, "Dockerfile"):
                     runtime.verify_context(output)
-                shutil_source = runtime.HERE / "runtime.Dockerfile"
-                (output / "Dockerfile").write_bytes(shutil_source.read_bytes())
+                (output / "Dockerfile").write_bytes(runtime.dockerfile_bytes(expected))
                 (output / "modules/module_0.so").write_text("/outside")
                 with self.assertRaisesRegex(ValueError, "alias"):
                     runtime.verify_context(output)

@@ -18,6 +18,7 @@ MIN_DAEMON_MEMORY_BYTES = 6 * 1024 * 1024 * 1024
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 import runtime_image as runtime
+from shutdown_compile_binding import validate_cli_output_compile_report
 
 _desktop_spec = importlib.util.spec_from_file_location(
     "asterisk_smoke_desktop", HERE / "smoke-desktop.py"
@@ -140,13 +141,16 @@ def container_arguments(image, name, owner, root):
     return arguments
 
 
-def verify_image_lineage(image):
-    build_path = HERE / "image-build-validation-nss.json"
-    payload_path = HERE / "image-payload-validation-nss.json"
-    startup_path = HERE / "image-startup-validation.json"
-    bundle_path = HERE / "runtime-bundle-manifest-nss.json"
-    original_compile_path = HERE / "compile-report-optional-api.json"
-    latest_compile_path = HERE / "compile-report-loader-v1.json"
+def verify_image_lineage(
+    image, build_path=None, payload_path=None, startup_path=None, bundle_path=None,
+    compile_path=None, latest_compile_path=None,
+):
+    build_path = build_path or HERE / "image-build-validation-nss.json"
+    payload_path = payload_path or HERE / "image-payload-validation-nss.json"
+    startup_path = startup_path or HERE / "image-startup-validation.json"
+    bundle_path = bundle_path or HERE / "runtime-bundle-manifest-nss.json"
+    original_compile_path = compile_path or HERE / "compile-report-optional-api.json"
+    latest_compile_path = latest_compile_path or HERE / "compile-report-loader-v1.json"
     build = runtime.read_json(build_path)
     payload = runtime.read_json(payload_path)
     startup = runtime.read_json(startup_path)
@@ -154,16 +158,28 @@ def verify_image_lineage(image):
     original_compile = runtime.read_json(original_compile_path)
     latest_compile = runtime.read_json(latest_compile_path)
     base_patch = runtime.read_json(HERE.parent / "asterisk-patches/queue-policy-v1.json")
+    validate_cli_output_compile_report(original_compile)
+    original_compile_sha256 = runtime.digest(original_compile_path)
+    latest_compile_sha256 = runtime.digest(latest_compile_path)
+    startup_compile_sha256 = startup.get("compileReportSha256")
 
     if build["imageId"] != image or payload["imageId"] != image or startup["imageId"] != image:
         raise ValueError("Image build, payload and startup evidence do not bind the selected image")
     if runtime.digest(payload_path) != build["evidence"][payload_path.name]["sha256"]:
         raise ValueError("Image payload evidence hash differs from the image build record")
     if (payload["bundleManifestSha256"] != runtime.digest(bundle_path)
-            or runtime.digest(bundle_path) != runtime.MANIFEST_SHA256
+            or build["bundleManifestSha256"] != runtime.digest(bundle_path)
             or bundle["patchSha256"] != base_patch["patchSha256"]
-            or runtime.digest(original_compile_path) != bundle["compileReportSha256"]
-            or original_compile["patchSha256"] != bundle["patchSha256"]):
+            or original_compile_sha256 != bundle["compileReportSha256"]
+            or original_compile["patchSha256"] != bundle["patchSha256"]
+            or (startup_compile_sha256 is not None
+                and startup_compile_sha256 != original_compile_sha256)
+            or (compile_path is not None
+                and startup_compile_sha256 != original_compile_sha256)
+            or bundle.get("releaseOutputs") != 44
+            or bundle.get("runtimeModules") != 41
+            or build.get("imageBuilt") is not True
+            or build.get("registryPushed") is not False):
         raise ValueError("Image source, compile report or runtime bundle lineage mismatch")
     if (startup["runtimeModulesRunning"] != 41
             or startup["processExitCode"] != 0
@@ -191,8 +207,10 @@ def verify_image_lineage(image):
     )
     if len(latest_outputs) != 44:
         raise ValueError("Latest Gate B report does not contain 44 release outputs")
+    if compile_path is not None and latest_matches != 44:
+        raise ValueError("Runtime bundle is not exactly bound to all latest release outputs")
 
-    return {
+    result = {
         "imageId": image,
         "localTag": build["localTag"],
         "sourcePatchSha256": bundle["patchSha256"],
@@ -201,17 +219,19 @@ def verify_image_lineage(image):
         "originalCompileReportSha256": runtime.digest(original_compile_path),
         "originalReleaseOutputs": len(original_outputs),
         "originalReleaseOutputsMatched": exact_matches,
-        "latestGateBCompileReportSha256": runtime.digest(latest_compile_path),
+        "latestGateBCompileReportSha256": latest_compile_sha256,
         "latestGateBReleaseOutputs": len(latest_outputs),
         "latestGateBReleaseOutputsMatchedToExistingBundle": latest_matches,
-        "latestGateBOutputMatchNote": (
-            "The existing image is bound to the earlier source-candidate compile; "
-            "its outputs are not byte-identical to the newer Gate B compile."
-        ),
         "imagePayloadValidationSha256": runtime.digest(payload_path),
         "imageBuildValidationSha256": runtime.digest(build_path),
         "imageStartupValidationSha256": runtime.digest(startup_path),
     }
+    if latest_matches != 44:
+        result["latestGateBOutputMatchNote"] = (
+            "The existing image is bound to the earlier source-candidate compile; "
+            "its outputs are not byte-identical to the newer Gate B compile."
+        )
+    return result
 
 
 def verify_container(container, owner, name, root):
@@ -266,10 +286,22 @@ def docker_inspect(container_id):
     return json.loads(desktop.command(["inspect", container_id])[0])[0]
 
 
-def run_proof(work_dir, report_path, attempt):
+def run_proof(
+    work_dir, report_path, attempt, image_build_validation=None,
+    image_payload_validation=None, image_startup_validation=None,
+    bundle_manifest=None, compile_report=None,
+):
     validate_attempt(attempt)
     work_dir = work_dir.resolve()
     report_path = report_path.resolve()
+    build_path = image_build_validation or HERE / "image-build-validation-nss.json"
+    payload_path = image_payload_validation or HERE / "image-payload-validation-nss.json"
+    startup_path = image_startup_validation or HERE / "image-startup-validation.json"
+    bundle_path = bundle_manifest or HERE / "runtime-bundle-manifest-nss.json"
+    compile_path = compile_report
+    latest_compile_path = (
+        compile_path if compile_path is not None else HERE / "compile-report-loader-v1.json"
+    )
     if "," in str(work_dir):
         raise ValueError("Docker bind-mount work path cannot contain commas")
     if report_path.exists():
@@ -311,8 +343,8 @@ def run_proof(work_dir, report_path, attempt):
         ),
         "passed": False,
         "authorization": (
-            "User approved two uniquely owned disposable custom-image PBXs; "
-            "no build, export, push, reload, call, apply or shared-PBX access."
+            "User approved a local-only image build and two uniquely owned disposable PBXs; "
+            "no image archive export, registry push, reload, call, apply or shared-PBX access."
         ),
         "imageLineage": {},
         "containers": [],
@@ -338,14 +370,22 @@ def run_proof(work_dir, report_path, attempt):
     original_error = None
     cleanup_errors = []
     try:
-        image, payload_path = desktop.verify_image()
+        manifest_sha256 = runtime.digest(bundle_path)
+        image, verified_payload_path, _ = desktop.verify_image(
+            build_path, payload_path, bundle_path, manifest_sha256
+        )
         info = json.loads(desktop.command(["info", "--format", "{{json .}}"])[0])
         if (info["OSType"] != "linux" or info["Architecture"] not in ("x86_64", "amd64")):
             raise ValueError("Gate C image requires the verified local Linux amd64 daemon")
         if info["MemTotal"] < MIN_DAEMON_MEMORY_BYTES or info["NCPU"] < 4:
             raise ValueError("Docker Desktop lacks the minimum memory/CPU headroom for two PBXs")
-        report["imageLineage"] = verify_image_lineage(image)
-        report["imageLineage"]["imagePayloadSha256"] = runtime.digest(payload_path)
+        report["imageLineage"] = verify_image_lineage(
+            image, build_path, payload_path, startup_path, bundle_path,
+            compile_path, latest_compile_path,
+        )
+        report["imageLineage"]["imagePayloadValidationSha256"] = runtime.digest(
+            verified_payload_path
+        )
         report["dockerDaemon"] = {
             "osType": info["OSType"],
             "architecture": info["Architecture"],
@@ -560,9 +600,21 @@ def main():
     parser.add_argument("--attempt", type=int, required=True)
     parser.add_argument("--work-dir", type=pathlib.Path, required=True)
     parser.add_argument("--report", type=pathlib.Path, required=True)
+    parser.add_argument("--image-build-validation", type=pathlib.Path)
+    parser.add_argument("--image-payload-validation", type=pathlib.Path)
+    parser.add_argument("--image-startup-validation", type=pathlib.Path)
+    parser.add_argument("--bundle-manifest", type=pathlib.Path)
+    parser.add_argument("--compile-report", type=pathlib.Path)
     args = parser.parse_args()
     print(json.dumps(
-        run_proof(args.work_dir, args.report, args.attempt),
+        run_proof(
+            args.work_dir, args.report, args.attempt,
+            args.image_build_validation.resolve() if args.image_build_validation else None,
+            args.image_payload_validation.resolve() if args.image_payload_validation else None,
+            args.image_startup_validation.resolve() if args.image_startup_validation else None,
+            args.bundle_manifest.resolve() if args.bundle_manifest else None,
+            args.compile_report.resolve() if args.compile_report else None,
+        ),
         indent=2,
     ))
 

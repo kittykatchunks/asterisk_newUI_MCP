@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "stage": "optional-api-build-full-startup-verified",
+  "patchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "buildAttempt": 15,
+  "compileReportSha256": "eadb2efcb8c2ac762f9d8836769f91cfe9761a6f0183a972a978d3a6c13ab2f7",
+  "nativeAttempt": 9,
+  "optionalApiEnabledBothProfiles": true,
+  "nativePassed": 30,
+  "nativeFailed": 0,
+  "fullStartupModules": 41,
+  "pjsipEndpoints": 0,
+  "pjsipTransports": 0,
+  "independentOutputHashesAndElfHeadersVerified": true,
+  "independentNativeXmlVerified": true,
+  "independentLibraryHashesVerified": true,
+  "exactLoadedStateTransitionsVerified": true,
+  "noOwnedAsteriskProcessesRemain": true,
+  "noSmokeControlSocketsOrPidFilesRemain": true,
+  "runtimeApplyAuthorized": false,
+  "existingPbxOperated": false,
+  "runtimeImageProduced": false,
+  "evidence": {
+    "compile-report-optional-api.json": {
+      "guestPath": "/home/asterisk-build/native-build-attempt-15/compile-report.json",
+      "sha256": "eadb2efcb8c2ac762f9d8836769f91cfe9761a6f0183a972a978d3a6c13ab2f7"
+    },
+    "native-test-report-optional-api.json": {
+      "guestPath": "/home/asterisk-build/native-test-attempt-9/native-test-report.json",
+      "sha256": "33c8e335b96cd91af057e34e56068f46992bb4abb7c9c8927324b775c5d71471"
+    },
+    "native-test-results-optional-api.xml": {
+      "guestPath": "/home/asterisk-build/native-test-attempt-9/native-test-results-build-15.xml",
+      "sha256": "de4275b96e97ec50a142f2779bf5443cef927cef6455da01026f72e6af8c0435"
+    },
+    "release-smoke-report-optional-api.json": {
+      "guestPath": "/home/asterisk-build/release-smoke-attempt-6/release-smoke-report.json",
+      "sha256": "ef9a48317aeb0209e33ebc3d1377268ea42d73e2c55a8c8be2611c632f84a346"
+    },
+    "full-module-smoke-report.json": {
+      "guestPath": "/home/asterisk-build/full-module-smoke-attempt-5/release-smoke-report.json",
+      "sha256": "99ab861e08524ef9f1f4ffa396390e727c798f085e126b9f690f1ae1bbc23e2d"
+    }
+  }
+}

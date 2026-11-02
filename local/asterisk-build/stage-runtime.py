@@ -11,22 +11,38 @@ from shutdown_compile_binding import validate_cli_output_compile_report
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-local-staging", action="store_true")
 parser.add_argument("--attempt", type=int, required=True)
+parser.add_argument("--build-attempt", type=int, default=4)
+parser.add_argument("--smoke-attempt", type=int, default=4)
+parser.add_argument("--startup-validation", type=pathlib.Path)
 args = parser.parse_args()
-if not args.approve_local_staging or args.attempt < 1 or os.geteuid() == 0:
+if (not args.approve_local_staging
+        or min(args.attempt, args.build_attempt, args.smoke_attempt) < 1
+        or os.geteuid() == 0):
     raise SystemExit("Explicit local staging approval and unprivileged user required")
 home = pathlib.Path("/home/asterisk-build")
-build = home / "native-build-attempt-4"
+build = home / f"native-build-attempt-{args.build_attempt}"
 tree = build / "release"
 compile_path = build / "compile-report.json"
 compile_report = json.loads(compile_path.read_text())
 validate_cli_output_compile_report(compile_report)
-smoke = json.loads((home / "full-module-smoke-attempt-4/release-smoke-report.json").read_text())
+smoke = json.loads(
+    (home / f"full-module-smoke-attempt-{args.smoke_attempt}/release-smoke-report.json")
+    .read_text()
+)
 source_lock = json.loads((home / "source-staging/source-lock.json").read_text())
 profile = next(item for item in compile_report["profiles"] if item["name"] == "release")
 if smoke["compileReportSha256"] != hashlib.sha256(compile_path.read_bytes()).hexdigest():
     raise ValueError("Full startup evidence is not bound to the selected release")
 if not smoke["passed"] or len(smoke["loadedModules"]) != 41:
     raise ValueError("Full module startup evidence is incomplete")
+startup_validation = args.startup_validation or home / "full-startup-validation.json"
+startup = json.loads(startup_validation.read_text())
+if (startup.get("buildAttempt", args.build_attempt) != args.build_attempt
+        or startup.get("compileReportSha256") not in (
+            None, hashlib.sha256(compile_path.read_bytes()).hexdigest()
+        )
+        or startup.get("fullStartupModules") != 41):
+    raise ValueError("Full-startup validation does not bind the selected release")
 root = home / f"runtime-bundle-attempt-{args.attempt}"
 root.mkdir(mode=0o700)
 
@@ -119,6 +135,7 @@ if not {"libsoftokn3.so", "libsoftokn3.chk", "libfreeblpriv3.so",
 for source in source_lock["sources"]:
     copy_verified(home / "source-staging" / source["filename"],
                   root / "sources" / source["filename"], source["sha256"])
+patch_records = home / "local/asterisk-patches"
 for name in [
     "queue-policy-v1.patch",
     "queue-policy-v1.json",
@@ -130,17 +147,47 @@ for name in [
     "queue-policy-accounting-v1.json",
     "queue-policy-loader-v1.patch",
     "queue-policy-loader-v1.json",
+    "queue-policy-unregister-v1.patch",
+    "queue-policy-unregister-v1.json",
+]:
+    copy_verified(patch_records / name, root / "build-records" / name)
+unregister_manifest_path = patch_records / "queue-policy-unregister-v1.json"
+unregister_manifest = json.loads(unregister_manifest_path.read_text())
+if (
+    unregister_manifest["patchSha256"]
+    != compile_report["protectedUnregisterSupplementPatchSha256"]
+    or hashlib.sha256(unregister_manifest_path.read_bytes()).hexdigest()
+    != compile_report["protectedUnregisterSupplementManifestSha256"]
+):
+    raise ValueError("Protected unregister source record differs from the compile report")
+copy_verified(
+    patch_records / unregister_manifest["patch"],
+    root / "build-records" / unregister_manifest["patch"],
+    unregister_manifest["patchSha256"],
+)
+copy_verified(
+    unregister_manifest_path,
+    root / "build-records/queue-policy-unregister-v1.json",
+    compile_report["protectedUnregisterSupplementManifestSha256"],
+)
+for name in [
     "source-lock.json",
     "module-plan.json",
-    "compile-profiles.py",
-    "shutdown_compile_binding.py",
-    "compile-profiles-accounting-v1.py",
-    "shutdown_compile_binding-accounting-v1.py",
-    "install-locked-packages.py",
 ]:
     copy_verified(home / "source-staging" / name, root / "build-records" / name)
+for name in [
+    "compile-profiles.py",
+    "compile-profiles-accounting-v1.py",
+    "shutdown_compile_binding.py",
+    "shutdown_compile_binding-accounting-v1.py",
+    "install-locked-packages.py",
+    "stage-runtime.py",
+    "smoke-release.py",
+    "verify-full-startup.py",
+]:
+    copy_verified(home / "local/asterisk-build" / name, root / "build-records" / name)
 copy_verified(compile_path, root / "build-records/compile-report.json")
-copy_verified(home / "full-startup-validation.json", root / "build-records/full-startup-validation.json")
+copy_verified(startup_validation, root / "build-records/full-startup-validation.json")
 for name in ["dependency-lock.json", "installed-packages.tsv"]:
     copy_verified(pathlib.Path("/var/lib/asterisk-build-preparation") / name,
                   root / "build-records" / name)

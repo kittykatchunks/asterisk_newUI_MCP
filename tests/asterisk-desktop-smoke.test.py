@@ -94,7 +94,11 @@ class DesktopSmokeTests(unittest.TestCase):
                     calls.append(args)
                     if args[:2] == ["image", "inspect"]:
                         return json.dumps([dict(Id=image, Config=dict(
-                            Entrypoint=desktop.runtime.ENTRYPOINT, Cmd=desktop.runtime.COMMAND))]), ""
+                            Entrypoint=desktop.runtime.ENTRYPOINT, Cmd=desktop.runtime.COMMAND,
+                            Labels={
+                                "org.asterisk.local.bundle-manifest-sha256":
+                                    desktop.runtime.MANIFEST_SHA256,
+                            }))]), ""
                     if args[0] == "run":
                         identity["Name"] = "/" + args[args.index("--name") + 1]
                         identity["Config"]["Labels"] = {

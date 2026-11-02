@@ -57,22 +57,34 @@ def arguments(image, name, owner, root):
     ]
 
 
-def verify_image():
-    build = runtime.read_json(runtime.HERE / "image-build-validation-nss.json")
-    payload_path = runtime.HERE / "image-payload-validation-nss.json"
+def verify_image(
+    build_path=None, payload_path=None, manifest_path=None, expected_manifest_sha256=None
+):
+    build_path = build_path or runtime.HERE / "image-build-validation-nss.json"
+    payload_path = payload_path or runtime.HERE / "image-payload-validation-nss.json"
+    manifest_path = manifest_path or runtime.HERE / runtime.MANIFEST_NAME
+    expected_manifest_sha256 = expected_manifest_sha256 or (
+        runtime.MANIFEST_SHA256 if manifest_path.name == runtime.MANIFEST_NAME
+        else runtime.digest(manifest_path)
+    )
+    build = runtime.read_json(build_path)
     if runtime.digest(payload_path) != build["evidence"][payload_path.name]["sha256"]:
         raise ValueError("Image payload evidence hash mismatch")
     payload = runtime.read_json(payload_path)
     image = build["imageId"]
     if (payload["imageId"] != image or not payload["imageConfigurationMatchesRecipe"]
-            or payload["bundleManifestSha256"] != runtime.MANIFEST_SHA256
-            or runtime.digest(runtime.HERE / runtime.MANIFEST_NAME) != runtime.MANIFEST_SHA256):
+            or payload["bundleManifestSha256"] != expected_manifest_sha256
+            or runtime.digest(manifest_path) != expected_manifest_sha256
+            or build["bundleManifestSha256"] != expected_manifest_sha256):
         raise ValueError("Image evidence mismatch")
     inspected = json.loads(command(["image", "inspect", image])[0])[0]
     if (inspected["Id"] != image or inspected["Config"]["Entrypoint"] != runtime.ENTRYPOINT
-            or inspected["Config"]["Cmd"] != runtime.COMMAND):
+            or inspected["Config"]["Cmd"] != runtime.COMMAND
+            or inspected["Config"].get("Labels", {}).get(
+                "org.asterisk.local.bundle-manifest-sha256"
+            ) != expected_manifest_sha256):
         raise ValueError("Local image identity/config mismatch")
-    return image, payload_path
+    return image, payload_path, build
 
 
 def prepare_fixture(root):
@@ -87,10 +99,20 @@ def prepare_fixture(root):
     (root / "etc/keys/keys").mkdir(parents=True)
 
 
-def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswered_call=False):
+def smoke(
+    root, trace_loader=False, local_call=False, answer_call=False, unanswered_call=False,
+    image_build_validation=None, image_payload_validation=None, bundle_manifest=None,
+    manifest_sha256=None, smoke_report=None,
+):
     if sum([local_call, answer_call, unanswered_call]) > 1:
         raise ValueError("Select exactly one functional call fixture")
-    image, payload_path = verify_image()
+    image, payload_path, build = verify_image(
+        image_build_validation, image_payload_validation, bundle_manifest, manifest_sha256
+    )
+    manifest_sha256 = manifest_sha256 or (
+        runtime.MANIFEST_SHA256 if bundle_manifest is None
+        else runtime.digest(bundle_manifest)
+    )
     prepare_fixture(root)
     if local_call:
         runtime_local_call.prepare(root)
@@ -101,7 +123,8 @@ def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswe
     owner = uuid.uuid4().hex
     name = "asterisk-desktop-smoke-" + owner[:12]
     report = dict(
-        schemaVersion=1, imageId=image, bundleManifestSha256=runtime.MANIFEST_SHA256,
+        schemaVersion=1, imageId=image, bundleManifestSha256=manifest_sha256,
+        compileReportSha256=build.get("compileReportSha256"),
         stage="docker-desktop-image-smoke", passed=False, containerName=name,
         payloadValidationSha256=runtime.digest(payload_path),
         observations=[], diagnostics=[], runtimeApplyAuthorized=False,
@@ -192,8 +215,10 @@ def smoke(root, trace_loader=False, local_call=False, answer_call=False, unanswe
         if "No such command" not in cli(container, "core show help test execute", report["diagnostics"]):
             raise ValueError("Release image exposes test command")
         report["testCommandAbsent"] = True
-        for index, expected in enumerate(runtime.read_json(
-                runtime.HERE / "runtime-bundle-smoke-report.json")["observations"]):
+        expected_report = smoke_report or (
+            runtime.HERE / "runtime-bundle-smoke-report.json"
+        )
+        for index, expected in enumerate(runtime.read_json(expected_report)["observations"]):
             if index in (1, 3):
                 runtime.write_queues(root / "etc", 23 if index == 1 else 11,
                                      "linear" if index == 1 else "ringall")
@@ -246,8 +271,18 @@ if __name__ == "__main__":
     parser.add_argument("--approve-synthetic-local-call", action="store_true")
     parser.add_argument("--approve-synthetic-answered-call", action="store_true")
     parser.add_argument("--approve-synthetic-unanswered-call", action="store_true")
+    parser.add_argument("--image-build-validation", type=pathlib.Path)
+    parser.add_argument("--image-payload-validation", type=pathlib.Path)
+    parser.add_argument("--bundle-manifest", type=pathlib.Path)
+    parser.add_argument("--manifest-sha256")
+    parser.add_argument("--smoke-report", type=pathlib.Path)
     args = parser.parse_args()
     print(json.dumps(smoke(args.work_dir.resolve(), args.trace_loader,
                            args.approve_synthetic_local_call,
                            args.approve_synthetic_answered_call,
-                           args.approve_synthetic_unanswered_call), indent=2))
+                           args.approve_synthetic_unanswered_call,
+                           args.image_build_validation.resolve() if args.image_build_validation else None,
+                           args.image_payload_validation.resolve() if args.image_payload_validation else None,
+                           args.bundle_manifest.resolve() if args.bundle_manifest else None,
+                           args.manifest_sha256,
+                           args.smoke_report.resolve() if args.smoke_report else None), indent=2))

@@ -1,0 +1,564 @@
+{
+  "schemaVersion": 1,
+  "stage": "two-pbx-static-queue-policy-gate-c-proof",
+  "attempt": 3,
+  "runnerSha256": "b4a792cf153e67a7177aa85ba478a7b3ca9be85ddb7312df84a580e116401f5d",
+  "runnerSha256Normalization": "raw-execution-file-bytes",
+  "evidenceFileHashNormalization": "Raw file bytes from this Windows worktree; CRLF files differ from LF-normalized Git blobs.",
+  "passed": true,
+  "authorization": "User approved a local-only image build and two uniquely owned disposable PBXs; no image archive export, registry push, reload, call, apply or shared-PBX access.",
+  "imageLineage": {
+    "imageId": "sha256:5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+    "localTag": "asterisk-local-verified:unregister-attempt-15",
+    "sourcePatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+    "bundleManifestSha256": "6dfb8fe7f3989637ae0fc1c6ae4d735f0655a6b95b89680fb246223e536b892a",
+    "bundleCompileReportSha256": "eadb2efcb8c2ac762f9d8836769f91cfe9761a6f0183a972a978d3a6c13ab2f7",
+    "originalCompileReportSha256": "eadb2efcb8c2ac762f9d8836769f91cfe9761a6f0183a972a978d3a6c13ab2f7",
+    "originalReleaseOutputs": 44,
+    "originalReleaseOutputsMatched": 44,
+    "latestGateBCompileReportSha256": "eadb2efcb8c2ac762f9d8836769f91cfe9761a6f0183a972a978d3a6c13ab2f7",
+    "latestGateBReleaseOutputs": 44,
+    "latestGateBReleaseOutputsMatchedToExistingBundle": 44,
+    "imagePayloadValidationSha256": "046309209d6b5a04857ee89e361f879e1ffff5a889ceb846b7d3f9725de7439e",
+    "imageBuildValidationSha256": "b00a6c0981f363ac6d63b6d99c0ffd97187bed41cc8da7fb1aff9f0036c46634",
+    "imageStartupValidationSha256": "2b9936b8c819dc38ba7d45f322a99ff39a4131412d2559f854da2de5cb5f9da1"
+  },
+  "containers": [
+    {
+      "customer": "customer-a",
+      "namespace": "cp-66982cc3568c6355215a3631",
+      "containerName": "asterisk-gate-c-c8996426a504-a",
+      "containerId": "cfa76cb49faa1c7b47872039a2f25aa5faf97127655da6c27c5ca616bb42a704",
+      "ownerLabel": "c8996426a5044289b45040459e6a02f5",
+      "imageId": "sha256:5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+      "isolation": {
+        "NetworkMode": "none",
+        "ReadonlyRootfs": true,
+        "Privileged": false,
+        "Memory": 2147483648,
+        "MemorySwap": 2147483648,
+        "NanoCpus": 2000000000,
+        "PidsLimit": 256,
+        "portBindings": {},
+        "capDrop": [
+          "ALL"
+        ],
+        "securityOpt": [
+          "no-new-privileges:true"
+        ],
+        "fixtureMountReadOnly": true,
+        "privateTmpfsState": true
+      },
+      "loadedModules": [
+        "app_celgenuserevent.so",
+        "app_dial.so",
+        "app_echo.so",
+        "app_mixmonitor.so",
+        "app_playtones.so",
+        "app_queue.so",
+        "app_stack.so",
+        "app_waitforsilence.so",
+        "bridge_native_rtp.so",
+        "bridge_simple.so",
+        "bridge_softmix.so",
+        "cel_custom.so",
+        "chan_pjsip.so",
+        "codec_alaw.so",
+        "codec_resample.so",
+        "codec_ulaw.so",
+        "format_wav.so",
+        "func_callerid.so",
+        "func_channel.so",
+        "func_strings.so",
+        "pbx_config.so",
+        "res_cdrel_custom.so",
+        "res_clioriginate.so",
+        "res_crypto.so",
+        "res_http_websocket.so",
+        "res_pjproject.so",
+        "res_pjsip.so",
+        "res_pjsip_authenticator_digest.so",
+        "res_pjsip_endpoint_identifier_user.so",
+        "res_pjsip_header_funcs.so",
+        "res_pjsip_pubsub.so",
+        "res_pjsip_registrar.so",
+        "res_pjsip_sdp_rtp.so",
+        "res_pjsip_session.so",
+        "res_pjsip_transport_websocket.so",
+        "res_rtp_asterisk.so",
+        "res_sorcery_astdb.so",
+        "res_sorcery_config.so",
+        "res_sorcery_memory.so",
+        "res_srtp.so",
+        "res_timing_timerfd.so"
+      ],
+      "pjsipObjectsAbsent": true
+    },
+    {
+      "customer": "customer-b",
+      "namespace": "cp-a3d67a4137b476225e649b85",
+      "containerName": "asterisk-gate-c-c8996426a504-b",
+      "containerId": "02047573415c372624e707ff30a73a45f0d70734a00cfe900896c7db6bfa4912",
+      "ownerLabel": "c8996426a5044289b45040459e6a02f5",
+      "imageId": "sha256:5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+      "isolation": {
+        "NetworkMode": "none",
+        "ReadonlyRootfs": true,
+        "Privileged": false,
+        "Memory": 2147483648,
+        "MemorySwap": 2147483648,
+        "NanoCpus": 2000000000,
+        "PidsLimit": 256,
+        "portBindings": {},
+        "capDrop": [
+          "ALL"
+        ],
+        "securityOpt": [
+          "no-new-privileges:true"
+        ],
+        "fixtureMountReadOnly": true,
+        "privateTmpfsState": true
+      },
+      "loadedModules": [
+        "app_celgenuserevent.so",
+        "app_dial.so",
+        "app_echo.so",
+        "app_mixmonitor.so",
+        "app_playtones.so",
+        "app_queue.so",
+        "app_stack.so",
+        "app_waitforsilence.so",
+        "bridge_native_rtp.so",
+        "bridge_simple.so",
+        "bridge_softmix.so",
+        "cel_custom.so",
+        "chan_pjsip.so",
+        "codec_alaw.so",
+        "codec_resample.so",
+        "codec_ulaw.so",
+        "format_wav.so",
+        "func_callerid.so",
+        "func_channel.so",
+        "func_strings.so",
+        "pbx_config.so",
+        "res_cdrel_custom.so",
+        "res_clioriginate.so",
+        "res_crypto.so",
+        "res_http_websocket.so",
+        "res_pjproject.so",
+        "res_pjsip.so",
+        "res_pjsip_authenticator_digest.so",
+        "res_pjsip_endpoint_identifier_user.so",
+        "res_pjsip_header_funcs.so",
+        "res_pjsip_pubsub.so",
+        "res_pjsip_registrar.so",
+        "res_pjsip_sdp_rtp.so",
+        "res_pjsip_session.so",
+        "res_pjsip_transport_websocket.so",
+        "res_rtp_asterisk.so",
+        "res_sorcery_astdb.so",
+        "res_sorcery_config.so",
+        "res_sorcery_memory.so",
+        "res_srtp.so",
+        "res_timing_timerfd.so"
+      ],
+      "pjsipObjectsAbsent": true
+    }
+  ],
+  "observations": [
+    {
+      "customer": "customer-a",
+      "stage": "initial-own-static-facts",
+      "queryNamespace": "cp-66982cc3568c6355215a3631",
+      "description": "Own namespace returns exact static target and shared baseline facts.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-66982cc3568c6355215a3631",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-66982cc3568c6355215a3631-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "customer": "customer-b",
+      "stage": "initial-own-static-facts",
+      "queryNamespace": "cp-a3d67a4137b476225e649b85",
+      "description": "Own namespace returns exact static target and shared baseline facts.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-a3d67a4137b476225e649b85",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-a3d67a4137b476225e649b85-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "customer": "customer-a",
+      "stage": "other-customer-namespace-isolation",
+      "queryNamespace": "cp-a3d67a4137b476225e649b85",
+      "description": "Other customer's target is absent; only this PBX's baseline is observable.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-a3d67a4137b476225e649b85",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "customer": "customer-b",
+      "stage": "other-customer-namespace-isolation",
+      "queryNamespace": "cp-66982cc3568c6355215a3631",
+      "description": "Other customer's target is absent; only this PBX's baseline is observable.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-66982cc3568c6355215a3631",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "customer": "customer-a",
+      "stage": "disk-only-queue-not-loaded",
+      "queryNamespace": "cp-66982cc3568c6355215a3631",
+      "description": "Disk-only queue is absent from the live snapshot without a reload.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-66982cc3568c6355215a3631",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-66982cc3568c6355215a3631-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "customer": "customer-a",
+      "stage": "loaded-only-queue-remains-visible",
+      "queryNamespace": "cp-66982cc3568c6355215a3631",
+      "description": "Queue removed from disk remains visible in loaded state without a reload.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-66982cc3568c6355215a3631",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-66982cc3568c6355215a3631-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "customer": "customer-b",
+      "stage": "disk-only-queue-not-loaded",
+      "queryNamespace": "cp-a3d67a4137b476225e649b85",
+      "description": "Disk-only queue is absent from the live snapshot without a reload.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-a3d67a4137b476225e649b85",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-a3d67a4137b476225e649b85-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    },
+    {
+      "customer": "customer-b",
+      "stage": "loaded-only-queue-remains-visible",
+      "queryNamespace": "cp-a3d67a4137b476225e649b85",
+      "description": "Queue removed from disk remains visible in loaded state without a reload.",
+      "response": {
+        "schemaVersion": 1,
+        "reader": "app-queue-policy-v1",
+        "maskMapping": "asterisk-22-empty-v1",
+        "status": "observed",
+        "namespace": "cp-a3d67a4137b476225e649b85",
+        "consistency": "bounded-per-object-sample",
+        "objects": [
+          {
+            "name": "cp-a3d67a4137b476225e649b85-smoke",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 11,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          },
+          {
+            "name": "proof-queue",
+            "origin": "static",
+            "strategy": "ringall",
+            "memberTimeoutSeconds": 7,
+            "joinEmptyMask": 0,
+            "leaveWhenEmptyMask": 0,
+            "memberCount": 0,
+            "callerCount": 0,
+            "callerListEmpty": true
+          }
+        ]
+      }
+    }
+  ],
+  "actions": {
+    "queueReloadIssued": false,
+    "callIssued": false,
+    "runtimeApplyIssued": false,
+    "productionOrSharedRuntimeAccessed": false,
+    "imageBuiltOrExported": false,
+    "registryPushed": false
+  },
+  "exitCodes": {
+    "customer-a": 0,
+    "customer-b": 0
+  },
+  "allOwnedContainersRemoved": true,
+  "fixtureConfigurationRemoved": true,
+  "runtimeApplyAuthorized": false,
+  "existingPbxOperated": false,
+  "callsOrMediaTested": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "gateAAcceptanceComplete": false,
+  "dockerDaemon": {
+    "osType": "linux",
+    "architecture": "x86_64",
+    "context": "desktop-linux"
+  },
+  "distinctReadOnlyFixtureSources": true,
+  "cliDiagnostics": [
+    {
+      "command": "core waitfullybooted",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "module show",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "pjsip show endpoints",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "pjsip show transports",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "core waitfullybooted",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "module show",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "pjsip show endpoints",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "pjsip show transports",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-66982cc3568c6355215a3631",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-a3d67a4137b476225e649b85",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-a3d67a4137b476225e649b85",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-66982cc3568c6355215a3631",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-66982cc3568c6355215a3631",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-66982cc3568c6355215a3631",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-a3d67a4137b476225e649b85",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    },
+    {
+      "command": "queue policy snapshot cp-a3d67a4137b476225e649b85",
+      "stream": "stdout",
+      "text": "No ethernet interface found for seeding global EID. You will have to set it manually.\n"
+    }
+  ],
+  "removedContainerNames": [
+    "asterisk-gate-c-c8996426a504-a",
+    "asterisk-gate-c-c8996426a504-b"
+  ]
+}

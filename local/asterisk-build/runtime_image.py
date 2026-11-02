@@ -32,9 +32,12 @@ def read_json(path):
     return json.loads(path.read_text())
 
 
-def manifest():
-    path = HERE / MANIFEST_NAME
-    if digest(path) != MANIFEST_SHA256:
+def manifest(manifest_path=None, expected_sha256=None):
+    path = pathlib.Path(manifest_path) if manifest_path is not None else HERE / MANIFEST_NAME
+    expected = expected_sha256 or (
+        MANIFEST_SHA256 if manifest_path is None else digest(path)
+    )
+    if digest(path) != expected:
         raise ValueError("Runtime candidate manifest differs from the reviewed recipe")
     return read_json(path)
 
@@ -52,8 +55,11 @@ def inventory(root):
     return files
 
 
-def verify_bundle(root):
-    record = manifest()
+def verify_bundle(root, manifest_path=None, expected_sha256=None):
+    record = manifest(manifest_path, expected_sha256)
+    expected_manifest_sha256 = expected_sha256 or (
+        MANIFEST_SHA256 if manifest_path is None else digest(manifest_path)
+    )
     paths = set()
     for entry in record["entries"]:
         relative = pathlib.PurePosixPath(entry["path"])
@@ -62,7 +68,7 @@ def verify_bundle(root):
         paths.add(str(relative))
     if inventory(root) != paths | {"bundle-manifest.json"}:
         raise ValueError("Bundle file inventory differs from approved manifest")
-    if digest(root / "bundle-manifest.json") != MANIFEST_SHA256:
+    if digest(root / "bundle-manifest.json") != expected_manifest_sha256:
         raise ValueError("Bundle manifest mismatch")
     for entry in record["entries"]:
         path = root / entry["path"]
@@ -84,9 +90,28 @@ def module_links(record):
     }
 
 
-def verify_context(root):
-    record = verify_bundle(root / "bundle")
-    if digest(root / "Dockerfile") != digest(HERE / "runtime.Dockerfile"):
+def dockerfile_bytes(manifest_sha256):
+    if not re.fullmatch(r"[0-9a-f]{64}", manifest_sha256):
+        raise ValueError("Bundle manifest SHA256 must be lowercase hexadecimal")
+    recipe = (HERE / "runtime.Dockerfile").read_bytes()
+    pattern = re.compile(
+        rb'(org\.asterisk\.local\.bundle-manifest-sha256=")[0-9a-f]{64}(")'
+    )
+    updated, count = pattern.subn(
+        lambda match: match.group(1) + manifest_sha256.encode() + match.group(2),
+        recipe,
+    )
+    if count != 1:
+        raise ValueError("Reviewed Dockerfile does not have exactly one pinned bundle label")
+    return updated
+
+
+def verify_context(root, manifest_path=None, expected_sha256=None):
+    expected_manifest_sha256 = expected_sha256 or (
+        MANIFEST_SHA256 if manifest_path is None else digest(manifest_path)
+    )
+    record = verify_bundle(root / "bundle", manifest_path, expected_manifest_sha256)
+    if (root / "Dockerfile").read_bytes() != dockerfile_bytes(expected_manifest_sha256):
         raise ValueError("Prepared Dockerfile differs from reviewed recipe")
     if (root / ".dockerignore").read_bytes() != b"*\n!Dockerfile\n!bundle/\n!bundle/**\n!modules/\n!modules/**\n":
         raise ValueError("Unexpected build-context allowlist")
@@ -101,7 +126,7 @@ def verify_context(root):
             "Dockerfile", ".dockerignore", "bundle", "modules", "preparation.json"}:
         raise ValueError("Unexpected context root entry")
     prepared = read_json(root / "preparation.json")
-    if (prepared["bundleManifestSha256"] != MANIFEST_SHA256
+    if (prepared["bundleManifestSha256"] != expected_manifest_sha256
             or prepared["dockerfileSha256"] != digest(root / "Dockerfile")
             or any(prepared[flag] is not False for flag in [
                 "imageBuilt", "runtimeExecuted", "redistributionApproved",
@@ -110,27 +135,31 @@ def verify_context(root):
     return record
 
 
-def prepare(bundle, output):
+def prepare(bundle, output, manifest_path=None, expected_sha256=None):
     if sys.platform != "linux":
         raise RuntimeError("Context preparation requires Linux filesystem permissions and symlinks")
-    verify_bundle(bundle)
+    expected_manifest_sha256 = expected_sha256 or (
+        MANIFEST_SHA256 if manifest_path is None else digest(manifest_path)
+    )
+    record = verify_bundle(bundle, manifest_path, expected_manifest_sha256)
     if output.is_relative_to(bundle) or bundle.is_relative_to(output):
         raise ValueError("Source and destination must not overlap")
     output.mkdir(mode=0o700)
     shutil.copytree(bundle, output / "bundle")
-    shutil.copyfile(HERE / "runtime.Dockerfile", output / "Dockerfile")
+    (output / "Dockerfile").write_bytes(dockerfile_bytes(expected_manifest_sha256))
     (output / ".dockerignore").write_bytes(b"*\n!Dockerfile\n!bundle/\n!bundle/**\n!modules/\n!modules/**\n")
     (output / "modules").mkdir()
-    for name, target in module_links(manifest()).items():
+    for name, target in module_links(record).items():
         (output / "modules" / name).symlink_to(target)
     record = dict(
         schemaVersion=1, stage="container-context-prepared-not-built",
-        bundleManifestSha256=MANIFEST_SHA256, dockerfileSha256=digest(output / "Dockerfile"),
+        bundleManifestSha256=expected_manifest_sha256,
+        dockerfileSha256=digest(output / "Dockerfile"),
         imageBuilt=False, runtimeExecuted=False,
         redistributionApproved=False, licenseClosureComplete=False, runtimeApplyAuthorized=False,
     )
     (output / "preparation.json").write_text(json.dumps(record, indent=2) + "\n")
-    verify_context(output)
+    verify_context(output, manifest_path, expected_manifest_sha256)
     return record
 
 
@@ -248,14 +277,17 @@ def run_arguments(image, name, root, owner):
     ]
 
 
-def smoke(image, root):
+def smoke(image, root, manifest_path=None, expected_sha256=None, smoke_report=None):
     if sys.platform != "linux" or os.geteuid() == 0:
         raise RuntimeError("Image smoke requires an unprivileged Linux user and local Docker daemon")
     if not re.fullmatch(r"sha256:[a-f0-9]{64}", image):
         raise ValueError("An existing immutable local image ID is required, not a tag")
     if "," in str(root) or len(os.fsencode(root / "state/run/asterisk.ctl")) > 100:
         raise ValueError("Use a short absolute work path without commas for the bind-mounted socket")
-    manifest()
+    manifest(manifest_path, expected_sha256)
+    expected_manifest_sha256 = expected_sha256 or (
+        MANIFEST_SHA256 if manifest_path is None else digest(manifest_path)
+    )
     endpoint = os.environ.get("DOCKER_HOST")
     if endpoint is None:
         context = json.loads(docker(["context", "inspect"]))[0]
@@ -271,7 +303,8 @@ def smoke(image, root):
             or inspected["Architecture"] != "amd64"
             or config["Entrypoint"] != ENTRYPOINT or config["Cmd"] != COMMAND
             or config["User"] != "10001:10001"
-            or config.get("Labels", {}).get("org.asterisk.local.bundle-manifest-sha256") != MANIFEST_SHA256):
+            or config.get("Labels", {}).get("org.asterisk.local.bundle-manifest-sha256")
+            != expected_manifest_sha256):
         raise ValueError("Image metadata does not match the prepared candidate recipe")
     for value in [
         "LD_LIBRARY_PATH=/opt/asterisk/main:/opt/asterisk/runtime-libs",
@@ -285,7 +318,7 @@ def smoke(image, root):
     name = "asterisk-image-smoke-" + owner[:12]
     report = dict(
         schemaVersion=1, stage="isolated-image-smoke", imageId=image,
-        bundleManifestSha256=MANIFEST_SHA256, passed=False,
+        bundleManifestSha256=expected_manifest_sha256, passed=False,
         containerName=name, observations=[], runtimeApplyAuthorized=False,
         redistributionApproved=False, licenseClosureComplete=False,
         existingPbxOperated=False, imagePayloadIndependentlyVerified=False,
@@ -326,7 +359,9 @@ def smoke(image, root):
                 raise ValueError(f"Unexpected PJSIP objects: {command}")
         if "No such command" not in cli(control, "core show help test execute"):
             raise ValueError("Release image exposes test command")
-        expected = read_json(HERE / "runtime-bundle-smoke-report.json")["observations"]
+        expected = read_json(
+            smoke_report or HERE / "runtime-bundle-smoke-report.json"
+        )["observations"]
         for index, observation in enumerate(expected):
             if index in (1, 3):
                 write_queues(root / "etc", 23 if index == 1 else 11,
@@ -390,20 +425,40 @@ def main():
     prepare_parser.add_argument("--approve-context-preparation", action="store_true", required=True)
     prepare_parser.add_argument("--bundle", type=pathlib.Path, required=True)
     prepare_parser.add_argument("--output", type=pathlib.Path, required=True)
+    prepare_parser.add_argument("--manifest", type=pathlib.Path)
+    prepare_parser.add_argument("--manifest-sha256")
     verify_parser = commands.add_parser("verify")
     verify_parser.add_argument("--context", type=pathlib.Path, required=True)
+    verify_parser.add_argument("--manifest", type=pathlib.Path)
+    verify_parser.add_argument("--manifest-sha256")
     smoke_parser = commands.add_parser("smoke")
     smoke_parser.add_argument("--approve-image-smoke", action="store_true", required=True)
     smoke_parser.add_argument("--image", required=True)
     smoke_parser.add_argument("--work-dir", type=pathlib.Path, required=True)
+    smoke_parser.add_argument("--manifest", type=pathlib.Path)
+    smoke_parser.add_argument("--manifest-sha256")
+    smoke_parser.add_argument("--smoke-report", type=pathlib.Path)
     args = parser.parse_args()
     if args.command == "prepare":
-        result = prepare(args.bundle.resolve(), args.output.resolve())
+        result = prepare(
+            args.bundle.resolve(), args.output.resolve(),
+            args.manifest.resolve() if args.manifest else None,
+            args.manifest_sha256,
+        )
     elif args.command == "verify":
-        result = verify_context(args.context.resolve())
+        result = verify_context(
+            args.context.resolve(),
+            args.manifest.resolve() if args.manifest else None,
+            args.manifest_sha256,
+        )
         result = dict(contextVerified=True, entries=len(result["entries"]), imageBuilt=False)
     else:
-        result = smoke(args.image, args.work_dir.resolve())
+        result = smoke(
+            args.image, args.work_dir.resolve(),
+            args.manifest.resolve() if args.manifest else None,
+            args.manifest_sha256,
+            args.smoke_report.resolve() if args.smoke_report else None,
+        )
     print(json.dumps(result, indent=2))
 
 

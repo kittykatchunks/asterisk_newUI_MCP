@@ -1,6 +1,8 @@
+import argparse
 import copy
 import hashlib
 import json
+import os
 import pathlib
 import xml.etree.ElementTree as ET
 
@@ -8,7 +10,23 @@ from shutdown_compile_binding import validate_cli_output_compile_report
 
 
 home = pathlib.Path("/home/asterisk-build")
-build = home / "native-build-attempt-4"
+parser = argparse.ArgumentParser()
+parser.add_argument("--build-attempt", type=int, default=4)
+parser.add_argument("--native-attempt", type=int, default=2)
+parser.add_argument("--release-smoke-attempt", type=int, default=5)
+parser.add_argument("--full-module-smoke-attempt", type=int, default=4)
+parser.add_argument("--report", type=pathlib.Path, default=home / "full-startup-validation.json")
+args = parser.parse_args()
+if min(
+    args.build_attempt,
+    args.native_attempt,
+    args.release_smoke_attempt,
+    args.full_module_smoke_attempt,
+) < 1:
+    raise SystemExit("All validation attempt numbers must be positive")
+if os.geteuid() == 0:
+    raise SystemExit("Full-startup validation requires an unprivileged user")
+build = home / f"native-build-attempt-{args.build_attempt}"
 compile_path = build / "compile-report.json"
 compile_report = json.loads(compile_path.read_text())
 validate_cli_output_compile_report(compile_report)
@@ -24,7 +42,7 @@ for profile in compile_report["profiles"]:
         assert data[:5] == b"\x7fELF\x02"
         assert int.from_bytes(data[18:20], "little") == 62
 
-native_root = home / "native-test-attempt-2"
+native_root = home / f"native-test-attempt-{args.native_attempt}"
 native_path = native_root / "native-test-report.json"
 native = json.loads(native_path.read_text())
 assert native["completed"] and native["allOwnedProcessesStopped"]
@@ -45,15 +63,17 @@ for result in native["results"]:
     assert not (case / "run/asterisk.pid").exists()
     suite.append(copy.deepcopy(tests[0]))
 ET.indent(aggregate)
-xml_path = native_root / "native-test-results.xml"
-ET.ElementTree(aggregate).write(xml_path, encoding="utf-8", xml_declaration=True)
+xml_path = native_root / f"native-test-results-build-{args.build_attempt}.xml"
+with xml_path.open("xb") as output:
+    ET.ElementTree(aggregate).write(output, encoding="utf-8", xml_declaration=True)
 
 reports = {"compile-report-optional-api.json": compile_path,
            "native-test-report-optional-api.json": native_path,
            "native-test-results-optional-api.xml": xml_path}
 for name, directory, expected in [
-    ("release-smoke-report-optional-api.json", "release-smoke-attempt-5", ["app_queue.so"]),
-    ("full-module-smoke-report.json", "full-module-smoke-attempt-4",
+    ("release-smoke-report-optional-api.json",
+     f"release-smoke-attempt-{args.release_smoke_attempt}", ["app_queue.so"]),
+    ("full-module-smoke-report.json", f"full-module-smoke-attempt-{args.full_module_smoke_attempt}",
      sorted(module + ".so" for module in plan["requestedModules"])),
 ]:
     case = home / directory
@@ -95,7 +115,9 @@ for name, path in reports.items():
         assert json.loads(path.read_text())["patchSha256"] == candidate["patchSha256"]
 record = dict(
     schemaVersion=1, stage="optional-api-build-full-startup-verified",
-    patchSha256=candidate["patchSha256"], buildAttempt=4,
+    patchSha256=candidate["patchSha256"], buildAttempt=args.build_attempt,
+    compileReportSha256=hashlib.sha256(compile_path.read_bytes()).hexdigest(),
+    nativeAttempt=args.native_attempt,
     optionalApiEnabledBothProfiles=True, nativePassed=30, nativeFailed=0,
     fullStartupModules=41, pjsipEndpoints=0, pjsipTransports=0,
     independentOutputHashesAndElfHeadersVerified=True,
@@ -108,6 +130,8 @@ record = dict(
         for name, path in reports.items()
     },
 )
-(home / "full-startup-validation.json").write_text(json.dumps(record, indent=2) + "\n")
+args.report.parent.mkdir(parents=True, exist_ok=True)
+with args.report.open("x") as output:
+    output.write(json.dumps(record, indent=2) + "\n")
 print("INDEPENDENT_FULL_STARTUP_AND_CORRECTED_BUILD_VALIDATION_PASSED")
 print(json.dumps(record, indent=2))

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "stage": "attempt-15-local-image-built-not-exported",
+  "imageId": "sha256:5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+  "localTag": "asterisk-local-verified:unregister-attempt-15",
+  "contextTarSha256": "495245568e867cf9f31cfed9e0f87035f86a5a1d35212862121b35083884546e",
+  "contextTarBytes": 135997440,
+  "contextStream": "isolated WSL builder directly to local Docker stdin; no image archive saved",
+  "contextPreparationSha256": "14959d53cfac0d43c59c762afce1f81eec631001a673828a46e7aed54eb9b776",
+  "buildLogSha256": "95e366155a6d8158d9636a2e6411c22d86d091cbc94a9e55efa07e29d1d9a3a6",
+  "buildLogBytes": 1168,
+  "buildNetwork": "none",
+  "buildPullEnabled": false,
+  "buildCacheEnabled": false,
+  "hostBuildContextStreamed": true,
+  "imageBuilt": true,
+  "imageArchiveExported": false,
+  "imageRuntimeExecuted": false,
+  "runtimeApplyAuthorized": false,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "bundleManifestSha256": "6dfb8fe7f3989637ae0fc1c6ae4d735f0655a6b95b89680fb246223e536b892a",
+  "compileReportSha256": "eadb2efcb8c2ac762f9d8836769f91cfe9761a6f0183a972a978d3a6c13ab2f7",
+  "imageArchitecture": "amd64",
+  "imageConfigSha256": "5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+  "imageConfigMatchesRecipe": true,
+  "rootFsLayers": 3,
+  "evidence": {
+    "image-payload-validation-unregister-attempt-15.json": {
+      "sha256": "046309209d6b5a04857ee89e361f879e1ffff5a889ceb846b7d3f9725de7439e"
+    },
+    "image-startup-validation-unregister-attempt-15.json": {
+      "sha256": "2b9936b8c819dc38ba7d45f322a99ff39a4131412d2559f854da2de5cb5f9da1"
+    },
+    "desktop-smoke-report.json": {
+      "sha256": "ffdb0cb376727f4475347e21081a125dd3f3229a4af90bf48a67d3d40dea9524"
+    }
+  }
+}

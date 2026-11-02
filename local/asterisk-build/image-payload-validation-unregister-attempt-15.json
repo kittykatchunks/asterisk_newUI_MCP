@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "stage": "local-image-context-and-config-verified-no-archive-export",
+  "imageId": "sha256:5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+  "bundleManifestSha256": "6dfb8fe7f3989637ae0fc1c6ae4d735f0655a6b95b89680fb246223e536b892a",
+  "contextTarSha256": "495245568e867cf9f31cfed9e0f87035f86a5a1d35212862121b35083884546e",
+  "contextPreparationSha256": "14959d53cfac0d43c59c762afce1f81eec631001a673828a46e7aed54eb9b776",
+  "bundleFilesVerifiedInContext": 405,
+  "moduleAliasesVerifiedInContext": 41,
+  "imageConfigSha256": "5ee7384a6b3bce05e96cf806afa68504d465df4fb57a283c7ac800a9287c384e",
+  "imageArchitecture": "amd64",
+  "imageConfigurationMatchesRecipe": true,
+  "imagePayloadIndependentlyVerified": false,
+  "imageArchiveExported": false,
+  "registryPushed": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "stage": "container-context-prepared-not-built",
+  "bundleManifestSha256": "6dfb8fe7f3989637ae0fc1c6ae4d735f0655a6b95b89680fb246223e536b892a",
+  "dockerfileSha256": "c6985bd317d5d28aa740aafffc8ae19538286bf3ea17145af505d97a368ebfc3",
+  "imageBuilt": false,
+  "runtimeExecuted": false,
+  "redistributionApproved": false,
+  "licenseClosureComplete": false,
+  "runtimeApplyAuthorized": false
+}

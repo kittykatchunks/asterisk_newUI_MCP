@@ -1797,7 +1797,7 @@ proof is now recorded; the remaining rows are still open:
 | QO-05 | Inventory tests cover empty reserved namespace, expected queue, extra matching queue, missing baseline/target, duplicate/unsafe names, total/selected traversal bounds, nonzero members/callers and count/list inconsistency. No foreign identifiers or credentials in output/error. |
 | QO-06 | Host parser enforces 8 KiB single-document shape, known protocol/mapping, complete success/error distinction and exact values. Truncation, unknown masks, malformed fields, extra stdout and successful CLI exit with error/absent JSON never verify. Stock unsupported reports remain unchanged. |
 | QO-07 | Separate source/build/image gate produces an auditable pinned manifest, ABI-compatible full runtime and immutable module startup chain. A mismatched build/module/image/start binding fails; no stock binding auto-upgrade, default Compose change or reproducibility claim without evidence. |
-| QO-08 | Two uniquely owned custom-image PBXs show selected static baseline/queue facts and other-customer isolation with no reload, call, apply or production/shared runtime access. Disk-only and loaded-only negative fixtures stay distinguishable; metadata/version alone cannot pass policy comparison. **Passed in isolated attempt 2**; see the [hash-bound Gate C report](./local/asterisk-build/gate-c-two-pbx-attempt-2.json). |
+| QO-08 | Two uniquely owned custom-image PBXs show selected static baseline/queue facts and other-customer isolation with no reload, call, apply or production/shared runtime access. Disk-only and loaded-only negative fixtures stay distinguishable; metadata/version alone cannot pass policy comparison. **Passed in isolated attempts 2 and 3**; attempt 3 used the attempt-15 image and is recorded in the [latest hash-bound Gate C report](./local/asterisk-build/gate-c-two-pbx-unregister-attempt-3.json). |
 | QO-09 | Outage, restart, concurrent getter requests, busy locks, observed object changes and receipt/write failures preserve immutable prior evidence and explicit uncertainty. No automatic retry-to-green/rebind/resume. Getter command does not allocate a publication claim or move a verified pointer. |
 | QO-10 | Focused stock regressions plus custom-image build/functional/locking/data-exposure checks pass with exact output facts. Owned resources, generated credentials/config and build helpers are cleaned; named source/patch/image/manifests retained intentionally. No excluded endpoint/member/ordinary-route edits, REFER rerun or new web/AMI/ARI authority. |
 
@@ -1809,11 +1809,21 @@ fixture configuration were removed. The [runner](./local/asterisk-build/runtime-
 and [execution record](./local/asterisk-patches/build-preparation.json) retain
 the bounded scope and attempt history.
 
-The image is exactly bound to its earlier pinned compile (44/44 release outputs)
-but is not byte-identical to the newer Gate B compile (0/44 direct output-hash
-matches). The report records this limitation; QO-08 does not close QO-07's
-latest-build identity question or imply reproducibility, deployment, or
-publication authority. **M1-09, Gate A and QO-01–07/QO-09–10 remain open.**
+Attempt 3 rebuilt the local image from the attempt-15 release bundle and bound
+the image ID, bundle manifest, compile report and 41-module startup report.
+The bundle matched all 44 release outputs; one isolated image smoke and both
+Gate C PBXs loaded all 41 planned modules. The attempt-3 report records 44/44
+matches to the selected Gate B compile, eight exact policy observations, and
+container/config cleanup. The earlier attempt-2 image remains historical and
+was not byte-identical to that newer compile (0/44 matches).
+
+The local image archive was not saved or exported, so the attempt-15 payload
+was not independently re-read from the built image; its validation record
+explicitly keeps `imagePayloadIndependentlyVerified` false. Consequently this
+closes the latest-build identity gap for the build inputs and runtime proof,
+but does **not** close all of QO-07 or claim an exhaustive image-payload audit.
+No registry push, redistribution, deployment or reproducibility claim is made.
+**M1-09, Gate A and QO-01–07/QO-09–10 remain open.**
 Continue only with their separately bounded evidence; do not weaken exact
 verification or expand the getter into a general-purpose queue editor.
 
