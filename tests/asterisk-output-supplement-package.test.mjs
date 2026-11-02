@@ -79,6 +79,15 @@ test("CLI output supplement binds exact parents, source images and offline appli
   assert.match(binding, /def load_cli_output_supplement\(/);
   assert.match(binding, /CLI output supplement source preimage mismatch/);
   assert.match(binding, /CLI output supplement source postimage mismatch/);
+  assert.match(binding, /def validate_cli_output_compile_report\(/);
+  for (const consumer of [
+    "local/asterisk-build/run-native-tests.py",
+    "local/asterisk-build/shutdown-supervisor.py",
+    "local/asterisk-build/smoke-release.py",
+    "local/asterisk-build/stage-runtime.py",
+  ]) {
+    assert.match(bytes(consumer).toString(), /validate_cli_output_compile_report\(compile_report\)/);
+  }
   assert.ok(
     compiler.indexOf('"-i", shutdown_supplement_patch])') <
       compiler.indexOf("verify_cli_output_basis(tree"),

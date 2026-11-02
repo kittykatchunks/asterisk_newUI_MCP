@@ -4,12 +4,14 @@ import importlib.util
 import json
 import pathlib
 import shutil
+import sys
 import tempfile
 import unittest
 
 
 root = pathlib.Path(__file__).resolve().parents[1]
 binding_path = root / "local" / "asterisk-build" / "shutdown_compile_binding.py"
+sys.path.insert(0, str(binding_path.parent))
 spec = importlib.util.spec_from_file_location("shutdown_compile_binding", binding_path)
 binding = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(binding)

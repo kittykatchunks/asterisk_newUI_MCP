@@ -133,6 +133,46 @@ class OutputSupplementBindingTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "source postimage mismatch"):
                         binding.verify_cli_output_postimages(tree, manifest)
 
+    def test_validates_complete_compile_report_lineage_for_both_profiles(self):
+        manifest, _, patch_hash, manifest_hash = binding.load_cli_output_supplement(
+            self.manifest_path, self.parent, self.shutdown, self.shutdown_hash
+        )
+        postimages = [
+            dict(path=path, sha256=manifest["applicationVerification"]["postimageSha256"][path])
+            for path in binding.EXPECTED_OUTPUT_PATHS
+        ]
+        application = dict(
+            patchSha256=patch_hash,
+            appliedWithZeroFuzz=True,
+            postimages=postimages,
+        )
+        report = {
+            "cliOutputSupplementPatchSha256": patch_hash,
+            "cliOutputSupplementManifestSha256": manifest_hash,
+            "cliOutputSupplementParentPatchSha256": self.parent["patchSha256"],
+            "cliOutputSupplementParentSupplementPatchSha256": self.shutdown["patchSha256"],
+            "cliOutputSupplementParentSupplementManifestSha256": self.shutdown_hash,
+            "profiles": [
+                {"name": name, "cliOutputSupplement": application}
+                for name in ("instrumented", "release")
+            ],
+        }
+
+        self.assertTrue(binding.validate_cli_output_compile_report(report))
+
+        report["profiles"][1]["cliOutputSupplement"]["postimages"][0]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "does not bind the CLI output supplement"):
+            binding.validate_cli_output_compile_report(report)
+
+    def test_rejects_partial_output_bindings_and_preserves_legacy_reports(self):
+        self.assertFalse(binding.validate_cli_output_compile_report({"profiles": []}))
+        with self.assertRaisesRegex(ValueError, "incomplete CLI output supplement bindings"):
+            binding.validate_cli_output_compile_report(
+                {"cliOutputSupplementPatchSha256": "a" * 64}
+            )
+        with self.assertRaisesRegex(ValueError, "Compile report must be an object"):
+            binding.validate_cli_output_compile_report([])
+
 
 if __name__ == "__main__":
     unittest.main()

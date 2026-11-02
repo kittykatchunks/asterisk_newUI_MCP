@@ -16,6 +16,8 @@ import subprocess
 import threading
 import time
 
+from shutdown_compile_binding import validate_cli_output_compile_report
+
 
 MAX_MESSAGE_BYTES = 256
 PROTOCOL_VERSION = 1
@@ -304,6 +306,7 @@ def _validate_build_binding(binary_path, case_directory):
     if not stat.S_ISREG(report_info.st_mode):
         raise ValueError("Compile report must be a regular build artifact")
     compile_report = json.loads(report_path.read_text(encoding="utf-8"))
+    validate_cli_output_compile_report(compile_report)
     if (
         compile_report.get("patchSha256") != supplement["parentPatchSha256"]
         or compile_report.get("shutdownSupplementPatchSha256") != supplement["patchSha256"]

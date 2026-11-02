@@ -15,6 +15,13 @@ EXPECTED_OUTPUT_PATHS = [
     "tests/test_bounded_queue_policy.c",
     "tests/test_protected_cli_target.c",
 ]
+CLI_OUTPUT_REPORT_FIELDS = (
+    "cliOutputSupplementPatchSha256",
+    "cliOutputSupplementManifestSha256",
+    "cliOutputSupplementParentPatchSha256",
+    "cliOutputSupplementParentSupplementPatchSha256",
+    "cliOutputSupplementParentSupplementManifestSha256",
+)
 
 
 def _read_regular_file(path):
@@ -145,3 +152,65 @@ def verify_cli_output_postimages(tree, manifest):
             raise ValueError(f"CLI output supplement source postimage mismatch: {relative}")
         records.append(dict(path=relative, sha256=digest))
     return records
+
+
+def validate_cli_output_compile_report(report):
+    if not isinstance(report, dict):
+        raise ValueError("Compile report must be an object")
+    present_fields = [field in report for field in CLI_OUTPUT_REPORT_FIELDS]
+    if not any(present_fields):
+        return False
+    if not all(present_fields):
+        raise ValueError("Compile report has incomplete CLI output supplement bindings")
+
+    repository = pathlib.Path(__file__).resolve().parents[2]
+    patches = repository / "local" / "asterisk-patches"
+    parent_manifest = json.loads((patches / "queue-policy-v1.json").read_text())
+    shutdown_path = patches / "queue-policy-shutdown-v1.json"
+    shutdown_manifest, _, shutdown_patch_hash, shutdown_manifest_hash = (
+        load_shutdown_supplement(shutdown_path, parent_manifest)
+    )
+    output_path = patches / "queue-policy-output-v1.json"
+    output_manifest, _, output_patch_hash, output_manifest_hash = (
+        load_cli_output_supplement(
+            output_path, parent_manifest, shutdown_manifest, shutdown_manifest_hash
+        )
+    )
+
+    expected_bindings = {
+        "cliOutputSupplementPatchSha256": output_patch_hash,
+        "cliOutputSupplementManifestSha256": output_manifest_hash,
+        "cliOutputSupplementParentPatchSha256": parent_manifest["patchSha256"],
+        "cliOutputSupplementParentSupplementPatchSha256": shutdown_patch_hash,
+        "cliOutputSupplementParentSupplementManifestSha256": shutdown_manifest_hash,
+    }
+    if any(report.get(field) != digest for field, digest in expected_bindings.items()):
+        raise ValueError("Compile report does not bind the pinned CLI output supplement")
+
+    profiles = report.get("profiles")
+    if not isinstance(profiles, list) or len(profiles) != 2:
+        raise ValueError("Compile report has invalid profiles for the CLI output supplement")
+    profiles_by_name = {profile.get("name"): profile for profile in profiles
+                        if isinstance(profile, dict)}
+    if (
+        len(profiles_by_name) != 2
+        or set(profiles_by_name) != {"instrumented", "release"}
+    ):
+        raise ValueError("Compile report must contain both CLI output supplement profiles")
+
+    expected_postimages = [
+        dict(path=path, sha256=output_manifest["applicationVerification"]["postimageSha256"][path])
+        for path in EXPECTED_OUTPUT_PATHS
+    ]
+    for profile_name in ("instrumented", "release"):
+        application = profiles_by_name[profile_name].get("cliOutputSupplement")
+        if (
+            not isinstance(application, dict)
+            or application.get("patchSha256") != output_patch_hash
+            or application.get("appliedWithZeroFuzz") is not True
+            or application.get("postimages") != expected_postimages
+        ):
+            raise ValueError(
+                f"Compile profile does not bind the CLI output supplement: {profile_name}"
+            )
+    return True

@@ -5,6 +5,8 @@ import os
 import pathlib
 import subprocess
 
+from shutdown_compile_binding import validate_cli_output_compile_report
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-local-staging", action="store_true")
@@ -17,6 +19,7 @@ build = home / "native-build-attempt-4"
 tree = build / "release"
 compile_path = build / "compile-report.json"
 compile_report = json.loads(compile_path.read_text())
+validate_cli_output_compile_report(compile_report)
 smoke = json.loads((home / "full-module-smoke-attempt-4/release-smoke-report.json").read_text())
 source_lock = json.loads((home / "source-staging/source-lock.json").read_text())
 profile = next(item for item in compile_report["profiles"] if item["name"] == "release")

@@ -10,6 +10,8 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 
+from shutdown_compile_binding import validate_cli_output_compile_report
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-native-tests", action="store_true")
@@ -23,6 +25,7 @@ staging = home / "source-staging"
 build = home / f"native-build-attempt-{args.build_attempt}"
 tree = build / "instrumented"
 compile_report = json.loads((build / "compile-report.json").read_text())
+validate_cli_output_compile_report(compile_report)
 candidate = json.loads((staging / "queue-policy-v1.json").read_text())
 if compile_report["patchSha256"] != candidate["patchSha256"]:
     raise ValueError("Compiled candidate binding mismatch")

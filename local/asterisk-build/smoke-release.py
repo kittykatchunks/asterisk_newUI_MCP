@@ -11,6 +11,8 @@ import subprocess
 import threading
 import time
 
+from shutdown_compile_binding import validate_cli_output_compile_report
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--approve-release-smoke", action="store_true")
@@ -37,6 +39,7 @@ if args.approve_staged_bundle:
             raise ValueError(f"Staged bundle hash mismatch: {path}")
 compile_bytes = (build / "compile-report.json").read_bytes()
 compile_report = json.loads(compile_bytes)
+validate_cli_output_compile_report(compile_report)
 profile = next(item for item in compile_report["profiles"] if item["name"] == "release")
 mode = "bundle-smoke" if bundle else ("full-module-smoke" if args.approve_full_module_startup else "release-smoke")
 root = home / f"{mode}-attempt-{args.attempt}"

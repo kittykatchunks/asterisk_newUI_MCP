@@ -2882,7 +2882,11 @@ compiler. [Implementation notes](./PROJECT-PLAN.md#gate-a-source-only-cli-output
 cover the fixture scope and remaining compile boundary. It applies the base
 candidate, shutdown supplement, and output supplement in order to both profile
 trees, verifying the output supplement's per-tree source preimages/postimages
-and binding the parent/patch/manifest hashes in the report. The temporary-copy
-application evidence remains unchanged; no native compile, test, Asterisk
-startup, or runtime application occurred. Any native compilation still needs
-separate explicit approval.
+and binding the parent/patch/manifest hashes in the report. Downstream offline
+report consumers now validate the third-supplement lineage before native-test
+execution, shutdown fixtures, release smoke, and runtime staging, while
+continuing to accept earlier reports that do not declare the supplement.
+Partial or mismatched bindings are rejected. The temporary-copy application
+evidence remains unchanged; no native compile, test, Asterisk startup, or
+runtime application occurred. Any native compilation still needs separate
+explicit approval.
