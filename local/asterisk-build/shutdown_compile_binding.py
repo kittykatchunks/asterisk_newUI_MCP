@@ -30,6 +30,9 @@ EXPECTED_PROTECTED_UNREGISTER_PATHS = [
     "tests/test_bounded_queue_policy.c",
     "tests/test_protected_cli_target.c",
 ]
+EXPECTED_REGISTRATION_FAILURE_PATHS = [
+    "tests/test_bounded_queue_policy.c",
+]
 EXPECTED_ACCOUNTING_WORK_COUNTERS = [
     "AO2 reference calls",
     "AO2 allocations",
@@ -79,6 +82,21 @@ PROTECTED_UNREGISTER_REPORT_FIELDS = (
     "protectedUnregisterSupplementParentAccountingSupplementManifestSha256",
     "protectedUnregisterSupplementParentLoaderLifecycleSupplementPatchSha256",
     "protectedUnregisterSupplementParentLoaderLifecycleSupplementManifestSha256",
+)
+REGISTRATION_FAILURE_REPORT_FIELDS = (
+    "registrationFailureSupplementPatchSha256",
+    "registrationFailureSupplementManifestSha256",
+    "registrationFailureSupplementParentPatchSha256",
+    "registrationFailureSupplementParentSupplementPatchSha256",
+    "registrationFailureSupplementParentSupplementManifestSha256",
+    "registrationFailureSupplementParentOutputSupplementPatchSha256",
+    "registrationFailureSupplementParentOutputSupplementManifestSha256",
+    "registrationFailureSupplementParentAccountingSupplementPatchSha256",
+    "registrationFailureSupplementParentAccountingSupplementManifestSha256",
+    "registrationFailureSupplementParentLoaderLifecycleSupplementPatchSha256",
+    "registrationFailureSupplementParentLoaderLifecycleSupplementManifestSha256",
+    "registrationFailureSupplementParentProtectedUnregisterSupplementPatchSha256",
+    "registrationFailureSupplementParentProtectedUnregisterSupplementManifestSha256",
 )
 
 
@@ -699,6 +717,208 @@ def verify_protected_unregister_postimages(tree, manifest):
     return records
 
 
+def load_registration_failure_supplement(
+    manifest_path,
+    parent_manifest,
+    shutdown_manifest,
+    shutdown_manifest_hash,
+    output_manifest,
+    output_manifest_hash,
+    accounting_manifest,
+    accounting_manifest_hash,
+    loader_manifest,
+    loader_manifest_hash,
+    unregister_manifest,
+    unregister_manifest_hash,
+):
+    manifest_path = pathlib.Path(manifest_path).absolute()
+    manifest_bytes = _read_regular_file(manifest_path)
+    manifest = json.loads(manifest_bytes)
+    if not isinstance(manifest, dict):
+        raise ValueError("Registration failure supplement manifest must be an object")
+    if (
+        manifest.get("schemaVersion") != 1
+        or manifest.get("stage") != "source-only-registration-failure-fixture-prepared"
+        or manifest.get("upstreamCommit") != parent_manifest["upstreamCommit"]
+        or manifest.get("parentManifest") != "queue-policy-v1.json"
+        or manifest.get("parentPatchSha256") != parent_manifest["patchSha256"]
+        or manifest.get("parentSupplementManifest") != "queue-policy-shutdown-v1.json"
+        or manifest.get("parentSupplementManifestSha256") != shutdown_manifest_hash
+        or manifest.get("parentSupplementPatchSha256") != shutdown_manifest["patchSha256"]
+        or manifest.get("parentOutputSupplementManifest") != "queue-policy-output-v1.json"
+        or manifest.get("parentOutputSupplementManifestSha256") != output_manifest_hash
+        or manifest.get("parentOutputSupplementPatchSha256") != output_manifest["patchSha256"]
+        or manifest.get("parentAccountingSupplementManifest")
+        != "queue-policy-accounting-v1.json"
+        or manifest.get("parentAccountingSupplementManifestSha256")
+        != accounting_manifest_hash
+        or manifest.get("parentAccountingSupplementPatchSha256")
+        != accounting_manifest["patchSha256"]
+        or manifest.get("parentLoaderLifecycleSupplementManifest")
+        != "queue-policy-loader-v1.json"
+        or manifest.get("parentLoaderLifecycleSupplementManifestSha256")
+        != loader_manifest_hash
+        or manifest.get("parentLoaderLifecycleSupplementPatchSha256")
+        != loader_manifest["patchSha256"]
+        or manifest.get("parentProtectedUnregisterSupplementManifest")
+        != "queue-policy-unregister-v1.json"
+        or manifest.get("parentProtectedUnregisterSupplementManifestSha256")
+        != unregister_manifest_hash
+        or manifest.get("parentProtectedUnregisterSupplementPatchSha256")
+        != unregister_manifest["patchSha256"]
+        or manifest.get("basisCompileReport")
+        != "../asterisk-build/compile-report-unregister-attempt-15.json"
+        or manifest.get("basisNativeReport")
+        != "../asterisk-build/native-test-report-unregister-attempt-9.json"
+        or manifest.get("patch") != "queue-policy-registration-v1.patch"
+        or manifest.get("changedUpstreamPaths") != EXPECTED_REGISTRATION_FAILURE_PATHS
+        or manifest.get("nativeCompileAuthorized") is not False
+        or manifest.get("nativeCompiled") is not False
+        or manifest.get("nativeTestsExecuted") is not False
+        or manifest.get("asteriskStarted") is not False
+        or manifest.get("runtimeApplyAuthorized") is not False
+        or manifest.get("gatesBAndCApproved") is not False
+    ):
+        raise ValueError(
+            "Registration failure supplement does not match the pinned parent supplements"
+        )
+
+    for field in ("basisCompileReport", "basisNativeReport"):
+        relative = manifest.get(field)
+        if not isinstance(relative, str):
+            raise ValueError(f"Registration failure supplement has invalid {field}")
+        report_bytes = _read_regular_file(manifest_path.parent / relative)
+        expected_hash = manifest.get(f"{field}Sha256")
+        if (
+            not isinstance(expected_hash, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected_hash)
+            or hashlib.sha256(report_bytes).hexdigest() != expected_hash
+        ):
+            raise ValueError(
+                f"Registration failure supplement has invalid or changed {field}"
+            )
+    basis_compile_report = json.loads(
+        _read_regular_file(manifest_path.parent / manifest["basisCompileReport"])
+    )
+    if not validate_cli_output_compile_report(basis_compile_report):
+        raise ValueError(
+            "Registration failure basis compile report omits its parent supplements"
+        )
+    basis_native_report = json.loads(
+        _read_regular_file(manifest_path.parent / manifest["basisNativeReport"])
+    )
+    basis_results = (
+        basis_native_report.get("results")
+        if isinstance(basis_native_report, dict)
+        else None
+    )
+    if (
+        not isinstance(basis_native_report, dict)
+        or basis_native_report.get("compileReportSha256")
+        != manifest["basisCompileReportSha256"]
+        or basis_native_report.get("nativeTestsExecuted") is not True
+        or not isinstance(basis_results, list)
+        or [result.get("name") for result in basis_results if isinstance(result, dict)]
+        != parent_manifest["nativeTests"]
+        or any(
+            not isinstance(result, dict)
+            or result.get("result") != "passed"
+            or result.get("failure") is not None
+            for result in basis_results
+        )
+    ):
+        raise ValueError(
+            "Registration failure basis native report is incomplete or failed"
+        )
+
+    hashes = manifest.get("basisSourceSha256")
+    if (
+        not isinstance(hashes, dict)
+        or list(hashes) != EXPECTED_REGISTRATION_FAILURE_PATHS
+        or any(
+            not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+            for value in hashes.values()
+        )
+        or hashes["tests/test_bounded_queue_policy.c"]
+        != unregister_manifest["applicationVerification"]["postimageSha256"][
+            "tests/test_bounded_queue_policy.c"
+        ]
+    ):
+        raise ValueError(
+            "Registration failure source preimage does not match the parent postimage"
+        )
+
+    application = manifest.get("applicationVerification")
+    postimages = application.get("postimageSha256") if isinstance(application, dict) else None
+    if (
+        not isinstance(postimages, dict)
+        or list(postimages) != EXPECTED_REGISTRATION_FAILURE_PATHS
+        or any(
+            not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+            for value in postimages.values()
+        )
+        or application.get("patchDryRunSucceeded") is not True
+        or application.get("zeroFuzz") is not True
+        or application.get("zeroOffset") is not True
+        or application.get("appliedToTemporarySourceCopy") is not True
+        or application.get("originalSuccessorSourceModified") is not False
+    ):
+        raise ValueError("Registration failure supplement has invalid application evidence")
+
+    fixtures = manifest.get("fixtures")
+    if (
+        not isinstance(fixtures, dict)
+        or fixtures.get("testFrameworkOnly") is not True
+        or fixtures.get("partialArrayRegistrationFailure") is not True
+        or fixtures.get("earlierEntryRetainedAfterFailure") is not True
+        or fixtures.get("explicitArrayCleanupRemovesEarlierEntry") is not True
+        or fixtures.get("productionLoadModuleChanged") is not False
+        or fixtures.get("nativeDefinitionsAdded") != 0
+    ):
+        raise ValueError("Registration failure supplement has invalid fixture scope")
+    compiler_support = manifest.get("compilerApplicationSupport")
+    if (
+        not isinstance(compiler_support, dict)
+        or compiler_support.get("implemented") is not True
+        or compiler_support.get("offlineValidated") is not True
+    ):
+        raise ValueError(
+            "Registration failure supplement compiler application support is incomplete"
+        )
+
+    patch_path = manifest_path.parent / manifest["patch"]
+    patch_bytes = _read_regular_file(patch_path)
+    patch_hash = hashlib.sha256(patch_bytes).hexdigest()
+    if manifest.get("patchSha256") != patch_hash:
+        raise ValueError("Registration failure supplement patch SHA256 mismatch")
+    patch_text = patch_bytes.decode("utf-8")
+    patch_paths = re.findall(r"^diff --git a/(\S+) b/(\S+)$", patch_text, re.MULTILINE)
+    if patch_paths != [(path, path) for path in EXPECTED_REGISTRATION_FAILURE_PATHS]:
+        raise ValueError("Registration failure supplement diff paths differ from its manifest")
+
+    return manifest, patch_path, patch_hash, hashlib.sha256(manifest_bytes).hexdigest()
+
+
+def verify_registration_failure_basis(tree, manifest):
+    for relative, expected in manifest["basisSourceSha256"].items():
+        path = pathlib.Path(tree) / relative
+        if hashlib.sha256(_read_regular_file(path)).hexdigest() != expected:
+            raise ValueError(f"Registration failure source preimage mismatch: {relative}")
+
+
+def verify_registration_failure_postimages(tree, manifest):
+    postimages = manifest["applicationVerification"]["postimageSha256"]
+    records = []
+    for relative in EXPECTED_REGISTRATION_FAILURE_PATHS:
+        digest = hashlib.sha256(_read_regular_file(pathlib.Path(tree) / relative)).hexdigest()
+        if digest != postimages[relative]:
+            raise ValueError(
+                f"Registration failure source postimage mismatch: {relative}"
+            )
+        records.append(dict(path=relative, sha256=digest))
+    return records
+
+
 def validate_cli_output_compile_report(report):
     if not isinstance(report, dict):
         raise ValueError("Compile report must be an object")
@@ -711,6 +931,7 @@ def validate_cli_output_compile_report(report):
             or "ao2AccountingSupplement" in profile
             or "loaderLifecycleSupplement" in profile
             or "protectedUnregisterSupplement" in profile
+            or "registrationFailureSupplement" in profile
         )
         for profile in profiles
     )
@@ -777,6 +998,7 @@ def validate_cli_output_compile_report(report):
     profile_claims_loader = any(
         "loaderLifecycleSupplement" in profile
         or "protectedUnregisterSupplement" in profile
+        or "registrationFailureSupplement" in profile
         for profile in profiles_by_name.values()
     )
     if not any(accounting_fields_present) and not profile_claims_accounting:
@@ -884,6 +1106,7 @@ def validate_cli_output_compile_report(report):
     ]
     profile_claims_unregister = any(
         "protectedUnregisterSupplement" in profile
+        or "registrationFailureSupplement" in profile
         for profile in profiles_by_name.values()
     )
     if not any(unregister_fields_present) and not profile_claims_unregister:
@@ -950,6 +1173,86 @@ def validate_cli_output_compile_report(report):
         ):
             raise ValueError(
                 "Compile profile does not bind the protected unregister supplement: "
+                f"{profile_name}"
+            )
+
+    registration_fields_present = [
+        field in report for field in REGISTRATION_FAILURE_REPORT_FIELDS
+    ]
+    profile_claims_registration = any(
+        "registrationFailureSupplement" in profile
+        for profile in profiles_by_name.values()
+    )
+    if not any(registration_fields_present) and not profile_claims_registration:
+        return True
+    if not all(registration_fields_present):
+        raise ValueError(
+            "Compile report has incomplete registration failure supplement bindings"
+        )
+
+    registration_path = patches / "queue-policy-registration-v1.json"
+    registration_manifest, _, registration_patch_hash, registration_manifest_hash = (
+        load_registration_failure_supplement(
+            registration_path,
+            parent_manifest,
+            shutdown_manifest,
+            shutdown_manifest_hash,
+            output_manifest,
+            output_manifest_hash,
+            accounting_manifest,
+            accounting_manifest_hash,
+            loader_manifest,
+            loader_manifest_hash,
+            unregister_manifest,
+            unregister_manifest_hash,
+        )
+    )
+    expected_registration_bindings = {
+        "registrationFailureSupplementPatchSha256": registration_patch_hash,
+        "registrationFailureSupplementManifestSha256": registration_manifest_hash,
+        "registrationFailureSupplementParentPatchSha256": parent_manifest["patchSha256"],
+        "registrationFailureSupplementParentSupplementPatchSha256": shutdown_patch_hash,
+        "registrationFailureSupplementParentSupplementManifestSha256": shutdown_manifest_hash,
+        "registrationFailureSupplementParentOutputSupplementPatchSha256": output_patch_hash,
+        "registrationFailureSupplementParentOutputSupplementManifestSha256": output_manifest_hash,
+        "registrationFailureSupplementParentAccountingSupplementPatchSha256":
+            accounting_patch_hash,
+        "registrationFailureSupplementParentAccountingSupplementManifestSha256":
+            accounting_manifest_hash,
+        "registrationFailureSupplementParentLoaderLifecycleSupplementPatchSha256":
+            loader_patch_hash,
+        "registrationFailureSupplementParentLoaderLifecycleSupplementManifestSha256":
+            loader_manifest_hash,
+        "registrationFailureSupplementParentProtectedUnregisterSupplementPatchSha256":
+            unregister_patch_hash,
+        "registrationFailureSupplementParentProtectedUnregisterSupplementManifestSha256":
+            unregister_manifest_hash,
+    }
+    if any(
+        report.get(field) != digest
+        for field, digest in expected_registration_bindings.items()
+    ):
+        raise ValueError(
+            "Compile report does not bind the pinned registration failure supplement"
+        )
+
+    expected_registration_postimages = [
+        dict(
+            path=path,
+            sha256=registration_manifest["applicationVerification"]["postimageSha256"][path],
+        )
+        for path in EXPECTED_REGISTRATION_FAILURE_PATHS
+    ]
+    for profile_name in ("instrumented", "release"):
+        application = profiles_by_name[profile_name].get("registrationFailureSupplement")
+        if (
+            not isinstance(application, dict)
+            or application.get("patchSha256") != registration_patch_hash
+            or application.get("appliedWithZeroFuzz") is not True
+            or application.get("postimages") != expected_registration_postimages
+        ):
+            raise ValueError(
+                "Compile profile does not bind the registration failure supplement: "
                 f"{profile_name}"
             )
     return True

@@ -117,6 +117,46 @@ test("CLI output supplement binds exact parents, source images and offline appli
   );
 });
 
+test("registration failure supplement preserves and cleans partial array registration", () => {
+  const registration = read("local/asterisk-patches/queue-policy-registration-v1.json");
+  const unregister = read("local/asterisk-patches/queue-policy-unregister-v1.json");
+
+  assert.equal(registration.stage, "source-only-registration-failure-fixture-prepared");
+  assert.equal(registration.parentProtectedUnregisterSupplementManifestSha256,
+    hash("local/asterisk-patches/queue-policy-unregister-v1.json"));
+  assert.equal(registration.parentProtectedUnregisterSupplementPatchSha256,
+    unregister.patchSha256);
+  assert.equal(registration.basisCompileReportSha256,
+    hash("local/asterisk-build/compile-report-unregister-attempt-15.json"));
+  assert.equal(registration.basisNativeReportSha256,
+    hash("local/asterisk-build/native-test-report-unregister-attempt-9.json"));
+  assert.equal(hash(`local/asterisk-patches/${registration.patch}`), registration.patchSha256);
+  assert.deepEqual(registration.changedUpstreamPaths, [
+    "tests/test_bounded_queue_policy.c",
+  ]);
+  assert.equal(registration.fixtures.partialArrayRegistrationFailure, true);
+  assert.equal(registration.fixtures.earlierEntryRetainedAfterFailure, true);
+  assert.equal(registration.fixtures.explicitArrayCleanupRemovesEarlierEntry, true);
+  assert.equal(registration.fixtures.productionLoadModuleChanged, false);
+  assert.equal(registration.fixtures.nativeDefinitionsAdded, 0);
+  assert.equal(registration.nativeCompileAuthorized, false);
+  assert.equal(registration.nativeTestsExecuted, false);
+  assert.equal(preparation.registrationFailureSupplement.patchSha256,
+    registration.patchSha256);
+  assert.equal(preparation.registrationFailureSupplement.nativeCompiled, false);
+  assert.equal(preparation.registrationFailureSupplement.gateAAcceptanceComplete, false);
+  const compiler = bytes("local/asterisk-build/compile-profiles.py").toString();
+  const binding = bytes("local/asterisk-build/shutdown_compile_binding.py").toString();
+  const stageRuntime = bytes("local/asterisk-build/stage-runtime.py").toString();
+  assert.match(compiler, /--registration-failure-supplement-manifest/);
+  assert.match(compiler, /verify_registration_failure_basis/);
+  assert.match(compiler, /verify_registration_failure_postimages/);
+  assert.match(binding, /def load_registration_failure_supplement\(/);
+  assert.match(binding, /Compile profile does not bind the registration failure supplement/);
+  assert.match(stageRuntime, /registrationFailureSupplementPatchSha256/);
+  assert.match(stageRuntime, /queue-policy-registration-v1\.json/);
+});
+
 test("loader lifecycle supplement binds the fifth source layer without executing it", () => {
   const expectedLoaderPaths = [
     "include/asterisk/module.h",

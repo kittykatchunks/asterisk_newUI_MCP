@@ -11,6 +11,7 @@ from shutdown_compile_binding import (
     load_cli_output_supplement,
     load_loader_lifecycle_supplement,
     load_protected_unregister_supplement,
+    load_registration_failure_supplement,
     load_shutdown_supplement,
     verify_ao2_accounting_basis,
     verify_ao2_accounting_postimages,
@@ -20,6 +21,8 @@ from shutdown_compile_binding import (
     verify_loader_lifecycle_postimages,
     verify_protected_unregister_basis,
     verify_protected_unregister_postimages,
+    verify_registration_failure_basis,
+    verify_registration_failure_postimages,
 )
 
 
@@ -31,6 +34,7 @@ parser.add_argument("--cli-output-supplement-manifest")
 parser.add_argument("--ao2-accounting-supplement-manifest")
 parser.add_argument("--loader-lifecycle-supplement-manifest")
 parser.add_argument("--protected-unregister-supplement-manifest")
+parser.add_argument("--registration-failure-supplement-manifest")
 args = parser.parse_args()
 if not args.approve_native_compile or args.attempt < 1 or os.geteuid() == 0:
     raise SystemExit("Requires an unprivileged user and explicit --approve-native-compile")
@@ -43,6 +47,10 @@ if args.loader_lifecycle_supplement_manifest and not args.ao2_accounting_supplem
 if args.protected_unregister_supplement_manifest and not args.loader_lifecycle_supplement_manifest:
     raise SystemExit(
         "Protected unregister supplement requires --loader-lifecycle-supplement-manifest"
+    )
+if args.registration_failure_supplement_manifest and not args.protected_unregister_supplement_manifest:
+    raise SystemExit(
+        "Registration failure supplement requires --protected-unregister-supplement-manifest"
     )
 home = pathlib.Path("/home/asterisk-build")
 staging = home / "source-staging"
@@ -70,6 +78,10 @@ protected_unregister_supplement = None
 protected_unregister_supplement_patch = None
 protected_unregister_supplement_hash = None
 protected_unregister_supplement_manifest_hash = None
+registration_failure_supplement = None
+registration_failure_supplement_patch = None
+registration_failure_supplement_hash = None
+registration_failure_supplement_manifest_hash = None
 if args.shutdown_supplement_manifest:
     (
         shutdown_supplement,
@@ -136,6 +148,26 @@ if args.protected_unregister_supplement_manifest:
         ao2_accounting_supplement_manifest_hash,
         loader_lifecycle_supplement,
         loader_lifecycle_supplement_manifest_hash,
+    )
+if args.registration_failure_supplement_manifest:
+    (
+        registration_failure_supplement,
+        registration_failure_supplement_patch,
+        registration_failure_supplement_hash,
+        registration_failure_supplement_manifest_hash,
+    ) = load_registration_failure_supplement(
+        args.registration_failure_supplement_manifest,
+        candidate,
+        shutdown_supplement,
+        shutdown_supplement_manifest_hash,
+        cli_output_supplement,
+        cli_output_supplement_manifest_hash,
+        ao2_accounting_supplement,
+        ao2_accounting_supplement_manifest_hash,
+        loader_lifecycle_supplement,
+        loader_lifecycle_supplement_manifest_hash,
+        protected_unregister_supplement,
+        protected_unregister_supplement_manifest_hash,
     )
 if hashlib.sha256(patch.read_bytes()).hexdigest() != candidate["patchSha256"]:
     raise ValueError("Patch SHA256 differs from approved candidate")
@@ -248,6 +280,44 @@ if protected_unregister_supplement is not None:
     report["protectedUnregisterSupplementParentLoaderLifecycleSupplementManifestSha256"] = (
         loader_lifecycle_supplement_manifest_hash
     )
+if registration_failure_supplement is not None:
+    report["registrationFailureSupplementPatchSha256"] = (
+        registration_failure_supplement_hash
+    )
+    report["registrationFailureSupplementManifestSha256"] = (
+        registration_failure_supplement_manifest_hash
+    )
+    report["registrationFailureSupplementParentPatchSha256"] = candidate["patchSha256"]
+    report["registrationFailureSupplementParentSupplementPatchSha256"] = (
+        shutdown_supplement_hash
+    )
+    report["registrationFailureSupplementParentSupplementManifestSha256"] = (
+        shutdown_supplement_manifest_hash
+    )
+    report["registrationFailureSupplementParentOutputSupplementPatchSha256"] = (
+        cli_output_supplement_hash
+    )
+    report["registrationFailureSupplementParentOutputSupplementManifestSha256"] = (
+        cli_output_supplement_manifest_hash
+    )
+    report["registrationFailureSupplementParentAccountingSupplementPatchSha256"] = (
+        ao2_accounting_supplement_hash
+    )
+    report["registrationFailureSupplementParentAccountingSupplementManifestSha256"] = (
+        ao2_accounting_supplement_manifest_hash
+    )
+    report["registrationFailureSupplementParentLoaderLifecycleSupplementPatchSha256"] = (
+        loader_lifecycle_supplement_hash
+    )
+    report["registrationFailureSupplementParentLoaderLifecycleSupplementManifestSha256"] = (
+        loader_lifecycle_supplement_manifest_hash
+    )
+    report["registrationFailureSupplementParentProtectedUnregisterSupplementPatchSha256"] = (
+        protected_unregister_supplement_hash
+    )
+    report["registrationFailureSupplementParentProtectedUnregisterSupplementManifestSha256"] = (
+        protected_unregister_supplement_manifest_hash
+    )
 for profile in ["instrumented", "release"]:
     tree = build_root / profile
     shutil.copytree(pristine, tree)
@@ -321,6 +391,20 @@ for profile in ["instrumented", "release"]:
             appliedWithZeroFuzz=True,
             postimages=verify_protected_unregister_postimages(
                 tree, protected_unregister_supplement
+            ),
+        )
+    registration_failure_application = None
+    if registration_failure_supplement is not None:
+        verify_registration_failure_basis(tree, registration_failure_supplement)
+        run(["patch", "--batch", "--fuzz=0", "--dry-run", "-p1",
+             "-i", registration_failure_supplement_patch])
+        run(["patch", "--batch", "--fuzz=0", "-p1", "-i",
+             registration_failure_supplement_patch])
+        registration_failure_application = dict(
+            patchSha256=registration_failure_supplement_hash,
+            appliedWithZeroFuzz=True,
+            postimages=verify_registration_failure_postimages(
+                tree, registration_failure_supplement
             ),
         )
     configure = [
@@ -410,6 +494,10 @@ for profile in ["instrumented", "release"]:
     if protected_unregister_application is not None:
         profile_record["protectedUnregisterSupplement"] = (
             protected_unregister_application
+        )
+    if registration_failure_application is not None:
+        profile_record["registrationFailureSupplement"] = (
+            registration_failure_application
         )
     report["profiles"].append(profile_record)
     (build_root / "compile-report.json").write_text(json.dumps(report, indent=2) + "\n")

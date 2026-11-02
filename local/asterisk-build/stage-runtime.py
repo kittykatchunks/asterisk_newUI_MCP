@@ -170,6 +170,26 @@ copy_verified(
     root / "build-records/queue-policy-unregister-v1.json",
     compile_report["protectedUnregisterSupplementManifestSha256"],
 )
+registration_manifest_path = patch_records / "queue-policy-registration-v1.json"
+if "registrationFailureSupplementPatchSha256" in compile_report:
+    registration_manifest = json.loads(registration_manifest_path.read_text())
+    if (
+        registration_manifest["patchSha256"]
+        != compile_report["registrationFailureSupplementPatchSha256"]
+        or hashlib.sha256(registration_manifest_path.read_bytes()).hexdigest()
+        != compile_report["registrationFailureSupplementManifestSha256"]
+    ):
+        raise ValueError("Registration failure source record differs from the compile report")
+    copy_verified(
+        patch_records / registration_manifest["patch"],
+        root / "build-records" / registration_manifest["patch"],
+        registration_manifest["patchSha256"],
+    )
+    copy_verified(
+        registration_manifest_path,
+        root / "build-records/queue-policy-registration-v1.json",
+        compile_report["registrationFailureSupplementManifestSha256"],
+    )
 for name in [
     "source-lock.json",
     "module-plan.json",

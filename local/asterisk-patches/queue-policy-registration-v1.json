@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "stage": "source-only-registration-failure-fixture-prepared",
+  "upstreamCommit": "874768141f94bc03865cc746eee1c7669e3c46d5",
+  "parentManifest": "queue-policy-v1.json",
+  "parentPatchSha256": "ede18f89a22f717411a6f5dfbb1e6e81db0834245d32fd5b378e19ec308a17f0",
+  "parentSupplementManifest": "queue-policy-shutdown-v1.json",
+  "parentSupplementManifestSha256": "65e38f6d0a79d81de320cc64e5b91d4c3f67448110fec78e4ae3874404e9980c",
+  "parentSupplementPatchSha256": "989519e3bc64c94e433e7e3cc23110c469e71fd764cbf9ba2f3fdab205625f25",
+  "parentOutputSupplementManifest": "queue-policy-output-v1.json",
+  "parentOutputSupplementManifestSha256": "ca410d4bed58db93cb3eb141a2e9a9359d4b7db841b4d4fb35d683c93e3c8e5c",
+  "parentOutputSupplementPatchSha256": "b2db71cc7f81dc0074395e8315288d0caf6ced3079e24e99c90d5fff2f195278",
+  "parentAccountingSupplementManifest": "queue-policy-accounting-v1.json",
+  "parentAccountingSupplementManifestSha256": "8210ece9915f86cb420924ecb446136e7a0630cc4d35de0be6710b702afba6c1",
+  "parentAccountingSupplementPatchSha256": "10d3e526258fe0d0a4e6485b6e5770f8ba9ebadc402461d3185f72131421236d",
+  "parentLoaderLifecycleSupplementManifest": "queue-policy-loader-v1.json",
+  "parentLoaderLifecycleSupplementManifestSha256": "b5a52fdf20310d3300b24873fe3a09a30d102719e67d6b156dfcdd6ea9be65c0",
+  "parentLoaderLifecycleSupplementPatchSha256": "219b3c44eec111e6d1c66e090fbed7ebc290af3728b64aa735f9d09d08d7bae5",
+  "parentProtectedUnregisterSupplementManifest": "queue-policy-unregister-v1.json",
+  "parentProtectedUnregisterSupplementManifestSha256": "f2e65c7bc429e96df706cec2d7204e771cdabd386b00cce247536fadc0cb80fd",
+  "parentProtectedUnregisterSupplementPatchSha256": "53c85d717675c6bf990d3caf4326bff7bc07d4b3a1689a4e76e1bed3f9b670c7",
+  "basisCompileReport": "../asterisk-build/compile-report-unregister-attempt-15.json",
+  "basisCompileReportSha256": "eadb2efcb8c2ac762f9d8836769f91cfe9761a6f0183a972a978d3a6c13ab2f7",
+  "basisNativeReport": "../asterisk-build/native-test-report-unregister-attempt-9.json",
+  "basisNativeReportSha256": "33c8e335b96cd91af057e34e56068f46992bb4abb7c9c8927324b775c5d71471",
+  "patch": "queue-policy-registration-v1.patch",
+  "patchSha256": "edc33f54e3d56163d85ff0a34f7f9a7052ffc2b6ec42a30c16011d0c6e957ce9",
+  "changedUpstreamPaths": [
+    "tests/test_bounded_queue_policy.c"
+  ],
+  "basisSourceSha256": {
+    "tests/test_bounded_queue_policy.c": "c40173850c3c18b6a9baaadc2bc4a7fe03761797aca32bf5d1f333cde212bdaf"
+  },
+  "applicationVerification": {
+    "patchDryRunSucceeded": true,
+    "zeroFuzz": true,
+    "zeroOffset": true,
+    "appliedToTemporarySourceCopy": true,
+    "originalSuccessorSourceModified": false,
+    "postimageSha256": {
+      "tests/test_bounded_queue_policy.c": "dfccd4cc55a58cbfbafd76fa9b8082516f358accb63ca3efe2fcc1d3609ed284"
+    }
+  },
+  "fixtures": {
+    "testFrameworkOnly": true,
+    "partialArrayRegistrationFailure": true,
+    "earlierEntryRetainedAfterFailure": true,
+    "explicitArrayCleanupRemovesEarlierEntry": true,
+    "productionLoadModuleChanged": false,
+    "nativeDefinitionsAdded": 0
+  },
+  "compilerApplicationSupport": {
+    "implemented": true,
+    "offlineValidated": true,
+    "support": "compile-profiles.py accepts this hash-bound seventh supplement after the protected unregister layer, applies it with zero fuzz to both profile trees, and verifies its preimages and postimages."
+  },
+  "nativeCompileAuthorized": false,
+  "nativeCompiled": false,
+  "nativeTestsExecuted": false,
+  "asteriskStarted": false,
+  "runtimeApplyAuthorized": false,
+  "gatesBAndCApproved": false
+}
